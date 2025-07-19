@@ -464,6 +464,7 @@
                     combined = combined * 256 + numbers[i + 1];
                 }
                 
+                // Konvertiere zu Base62
                 let encoded = '';
                 let temp = combined;
                 do {
@@ -471,10 +472,12 @@
                     temp = Math.floor(temp / 62);
                 } while (temp > 0);
                 
-                result += encoded + '-';
+                // Feste Länge von 3 Zeichen (mit Leading Zeros)
+                encoded = encoded.padStart(3, '0');
+                result += encoded;
             }
             
-            return result.slice(0, -1);
+            return result;
         }
         
         function decompactBase62(base62String) {
@@ -484,17 +487,21 @@
                 charMap[chars[i]] = i;
             }
             
-            const parts = base62String.split('-');
             const numbers = [];
             
-            for (const part of parts) {
+            // Verarbeite String in 3-Zeichen-Blöcken
+            for (let i = 0; i < base62String.length; i += 3) {
+                const block = base62String.substr(i, 3);
+                
+                // Konvertiere 3-Zeichen-Block von Base62
                 let combined = 0;
-                for (const char of part) {
+                for (const char of block) {
                     if (charMap[char] !== undefined) {
                         combined = combined * 62 + charMap[char];
                     }
                 }
                 
+                // Extrahiere die ursprünglichen Zahlen
                 if (combined >= 256) {
                     numbers.push(Math.floor(combined / 256));
                     numbers.push(combined % 256);
