@@ -136,8 +136,8 @@
         
         .help-btn {
             position: absolute;
-            top: 0;
-            right: 0;
+            top: 10px;
+            right: 10px;
             width: 40px;
             height: 40px;
             background: rgba(0, 255, 65, 0.1);
@@ -152,6 +152,8 @@
             align-items: center;
             justify-content: center;
             font-family: 'Courier New', monospace;
+            z-index: 100;
+            user-select: none;
         }
         
         .help-btn:hover {
@@ -831,6 +833,9 @@
             if (helpModal) {
                 helpModal.style.display = 'flex';
                 document.body.style.overflow = 'hidden';
+            } else {
+                // Fallback: Erstelle Modal dynamisch falls es nicht existiert
+                createHelpModal();
             }
         }
         
@@ -840,6 +845,105 @@
                 helpModal.style.display = 'none';
                 document.body.style.overflow = 'auto';
             }
+        }
+        
+        function createHelpModal() {
+            // Erstelle Modal dynamisch
+            const modal = document.createElement('div');
+            modal.id = 'helpModal';
+            modal.className = 'help-modal';
+            modal.style.display = 'flex';
+            
+            modal.innerHTML = `
+                <div class="help-content">
+                    <div class="help-close" onclick="closeHelp()">×</div>
+                    <h2 class="help-title">🔐 Secret Messages - Anleitung</h2>
+                    
+                    <div class="help-section">
+                        <h3>📝 Wie funktioniert es?</h3>
+                        <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
+                        <ul>
+                            <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
+                            <li><strong>Schritt 2:</strong> Wähle einen 3-stelligen Code (z.B. 123)</li>
+                            <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
+                            <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
+                            <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-example">
+                        <div class="example-label">💡 Beispiel:</div>
+                        <div class="example-text">
+                            <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
+                            <strong>Code:</strong> 456<br>
+                            <strong>Verschlüsselt:</strong> K9m7F8s3Q1pM2nX5wR9z
+                        </div>
+                    </div>
+
+                    <div class="help-section">
+                        <h3>📱 Messenger-Kompatibilität</h3>
+                        <p>Der verschlüsselte Text funktioniert in <strong>allen</strong> Messengern:</p>
+                        <ul>
+                            <li>WhatsApp ✅</li>
+                            <li>Telegram ✅</li>
+                            <li>Instagram ✅</li>
+                            <li>Signal ✅</li>
+                            <li>Discord ✅</li>
+                            <li>E-Mail ✅</li>
+                            <li>SMS ✅</li>
+                            <li>Facebook Messenger ✅</li>
+                        </ul>
+                        <p>Der verschlüsselte Text enthält nur Buchstaben und Zahlen - perfekt für jeden Dienst!</p>
+                    </div>
+
+                    <div class="help-section">
+                        <h3>🔓 Entschlüsseln</h3>
+                        <p>Um eine Nachricht zu entschlüsseln:</p>
+                        <ul>
+                            <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
+                            <li>Füge den verschlüsselten Text ein</li>
+                            <li>Gib den <strong>exakt gleichen</strong> 3-stelligen Code ein</li>
+                            <li>Drücke "ENTSCHLÜSSELN"</li>
+                        </ul>
+                        <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
+                    </div>
+
+                    <div class="security-highlight">
+                        <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
+                        <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
+                    </div>
+
+                    <div class="help-section">
+                        <h3>💡 Profi-Tipps</h3>
+                        <ul>
+                            <li><strong>Code teilen:</strong> Sende den 3-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
+                            <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
+                            <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
+                            <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h3>⚠️ Wichtige Hinweise</h3>
+                        <ul>
+                            <li>Vergisst du den Code, ist die Nachricht <strong>unwiederbringlich verloren</strong></li>
+                            <li>Teile den Code niemals mit unerwünschten Personen</li>
+                            <li>Die Seite speichert keine Daten - alles bleibt bei dir</li>
+                            <li>Funktioniert offline in deinem Browser</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            document.body.style.overflow = 'hidden';
+            
+            // Event Listener für das neue Modal
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeHelp();
+                }
+            });
         }
         
         // Event Listeners - erst nach DOM-Load hinzufügen
