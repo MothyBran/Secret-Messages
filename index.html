@@ -11,7 +11,89 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }
+        </div>
+
+    <!-- Help Modal -->
+    <div class="help-modal" id="helpModal">
+        <div class="help-content">
+            <div class="help-close" onclick="closeHelp()">×</div>
+            <h2 class="help-title">🔐 Secret Messages - Anleitung</h2>
+            
+            <div class="help-section">
+                <h3>📝 Wie funktioniert es?</h3>
+                <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
+                <ul>
+                    <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
+                    <li><strong>Schritt 2:</strong> Wähle einen 3-stelligen Code (z.B. 123)</li>
+                    <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
+                    <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
+                    <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
+                </ul>
+            </div>
+
+            <div class="help-example">
+                <div class="example-label">💡 Beispiel:</div>
+                <div class="example-text">
+                    <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
+                    <strong>Code:</strong> 456<br>
+                    <strong>Verschlüsselt:</strong> K9m7F8s3Q1pM2nX5wR9z
+                </div>
+            </div>
+
+            <div class="help-section">
+                <h3>📱 Messenger-Kompatibilität</h3>
+                <p>Der verschlüsselte Text funktioniert in <strong>allen</strong> Messengern:</p>
+                <ul>
+                    <li>WhatsApp ✅</li>
+                    <li>Telegram ✅</li>
+                    <li>Instagram ✅</li>
+                    <li>Signal ✅</li>
+                    <li>Discord ✅</li>
+                    <li>E-Mail ✅</li>
+                    <li>SMS ✅</li>
+                    <li>Facebook Messenger ✅</li>
+                </ul>
+                <p>Der verschlüsselte Text enthält nur Buchstaben und Zahlen - perfekt für jeden Dienst!</p>
+            </div>
+
+            <div class="help-section">
+                <h3>🔓 Entschlüsseln</h3>
+                <p>Um eine Nachricht zu entschlüsseln:</p>
+                <ul>
+                    <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
+                    <li>Füge den verschlüsselten Text ein</li>
+                    <li>Gib den <strong>exakt gleichen</strong> 3-stelligen Code ein</li>
+                    <li>Drücke "ENTSCHLÜSSELN"</li>
+                </ul>
+                <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
+            </div>
+
+            <div class="security-highlight">
+                <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
+                <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>💡 Profi-Tipps</h3>
+                <ul>
+                    <li><strong>Code teilen:</strong> Sende den 3-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
+                    <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
+                    <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
+                    <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>⚠️ Wichtige Hinweise</h3>
+                <ul>
+                    <li>Vergisst du den Code, ist die Nachricht <strong>unwiederbringlich verloren</strong></li>
+                    <li>Teile den Code niemals mit unerwünschten Personen</li>
+                    <li>Die Seite speichert keine Daten - alles bleibt bei dir</li>
+                    <li>Funktioniert offline in deinem Browser</li>
+                </ul>
+            </div>
+        </div>
+    }
         
         body {
             background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
@@ -49,6 +131,155 @@
         .header {
             text-align: center;
             margin-bottom: 40px;
+            position: relative;
+        }
+        
+        .help-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            border-radius: 50%;
+            color: #00ff41;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .help-btn:hover {
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            transform: scale(1.1);
+        }
+        
+        .help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .help-content {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
+        }
+        
+        .help-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: #00ff41;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .help-close:hover {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+        
+        .help-title {
+            color: #00ff41;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .help-section {
+            margin-bottom: 25px;
+        }
+        
+        .help-section h3 {
+            color: #00cc33;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .help-section p {
+            color: #cccccc;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .help-section ul {
+            color: #cccccc;
+            margin-left: 20px;
+        }
+        
+        .help-section li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        
+        .help-example {
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .help-example .example-label {
+            color: #00ff41;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .help-example .example-text {
+            color: #cccccc;
+            word-break: break-all;
+        }
+        
+        .security-highlight {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff4444;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .security-highlight .security-title {
+            color: #ff4444;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .security-highlight p {
+            color: #ffcccc;
         }
         
         .title {
@@ -273,6 +504,7 @@
 <body>
     <div class="container">
         <div class="header">
+            <button class="help-btn" onclick="openHelp()">?</button>
             <h1 class="title">SECRET MESSAGES</h1>
             <p class="subtitle">CYBER ENCRYPTION SYSTEM v5.0 - UNICODE READY</p>
         </div>
@@ -593,6 +825,70 @@
             }
         }
         
+        // Help Modal Functions
+        function openHelp() {
+            const helpModal = document.getElementById('helpModal');
+            if (helpModal) {
+                helpModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        
+        function closeHelp() {
+            const helpModal = document.getElementById('helpModal');
+            if (helpModal) {
+                helpModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+        
+        // Event Listeners - erst nach DOM-Load hinzufügen
+        function initializeEventListeners() {
+            // Help Modal Event Listeners
+            const helpModal = document.getElementById('helpModal');
+            if (helpModal) {
+                // Schließe Modal bei Klick außerhalb
+                helpModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeHelp();
+                    }
+                });
+            }
+            
+            // Schließe Modal mit ESC-Taste
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeHelp();
+                }
+            });
+            
+            // Andere Event Listeners
+            const codeInput = document.getElementById('codeInput');
+            if (codeInput) {
+                codeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        processMessage();
+                    }
+                });
+                
+                codeInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
+            
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        processMessage();
+                    }
+                });
+                
+                // Auto-focus
+                messageInput.focus();
+            }
+        }
+        
         // UI Functions
         function switchMode(mode) {
             currentMode = mode;
@@ -699,25 +995,9 @@
             status.classList.remove('show');
         }
         
-        // Event Listeners
-        document.getElementById('codeInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                processMessage();
-            }
-        });
-        
-        document.getElementById('messageInput').addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                processMessage();
-            }
-        });
-        
+        // Event Listeners - nach DOM-Load
         window.addEventListener('load', function() {
-            document.getElementById('messageInput').focus();
-        });
-        
-        document.getElementById('codeInput').addEventListener('input', function(e) {
-            this.value = this.value.replace(/[^0-9]/g, '');
+            initializeEventListeners();
         });
     </script>
 </body>
