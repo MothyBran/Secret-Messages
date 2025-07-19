@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secret Messages</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+New:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
+            font-family: 'Courier New', monospace;
+            color: #00ff41;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Matrix-like background effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(90deg, transparent 98%, #00ff41 100%),
+                linear-gradient(180deg, transparent 98%, #00ff41 100%);
+            background-size: 50px 50px;
+            opacity: 0.03;
+            z-index: -1;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+            margin-bottom: 10px;
+            animation: flicker 2s infinite alternate;
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            color: #00cc33;
+            opacity: 0.8;
+            letter-spacing: 2px;
+        }
+        
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .section {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #00ff41;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+            position: relative;
+        }
+        
+        .section::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: -1px;
+            right: -1px;
+            bottom: -1px;
+            background: linear-gradient(45deg, #00ff41, transparent, #00ff41);
+            border-radius: 8px;
+            z-index: -1;
+            opacity: 0.3;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: #00ff41;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00cc33;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .input-field, .textarea-field {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff41;
+            border-radius: 4px;
+            padding: 12px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus, .textarea-field:focus {
+            outline: none;
+            border-color: #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+            background: rgba(0, 50, 0, 0.3);
+        }
+        
+        .textarea-field {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .code-input {
+            max-width: 150px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #003300, #006600);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 12px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(45deg, #004400, #008800);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .result-field {
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #00cc33;
+            min-height: 80px;
+        }
+        
+        .mode-switch {
+            display: flex;
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 25px;
+            padding: 5px;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: #00cc33;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .mode-btn.active {
+            background: #00ff41;
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.6);
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .status.show {
+            opacity: 1;
+        }
+        
+        .status.success {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+        }
+        
+        .status.error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+            color: #ff0000;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .mode-switch {
+                flex-direction: column;
+            }
+            
+            .mode-btn {
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">SECRET MESSAGES</h1>
+            <p class="subtitle">CYBER ENCRYPTION SYSTEM v5.0 - UNICODE READY</p>
+        </div>
+        
+        <div class="section">
+            <div class="mode-switch">
+                <button class="mode-btn active" onclick="switchMode('encrypt')">VERSCHLÜSSELN</button>
+                <button class="mode-btn" onclick="switchMode('decrypt')">ENTSCHLÜSSELN</button>
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label" id="messageLabel">NACHRICHT EINGEBEN:</label>
+                <textarea class="textarea-field" id="messageInput" placeholder="Gib deine geheime Nachricht hier ein..."></textarea>
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label">3-STELLIGER CODE:</label>
+                <input type="text" class="input-field code-input" id="codeInput" placeholder="123" maxlength="3">
+            </div>
+            
+            <div class="button-group">
+                <button class="btn" id="processBtn" onclick="processMessage()">GENERIEREN</button>
+                <button class="btn" onclick="copyToClipboard()">TEXT KOPIEREN</button>
+                <button class="btn" onclick="clearAll()">LÖSCHEN</button>
+            </div>
+            
+            <div class="status" id="status"></div>
+        </div>
+        
+        <div class="section">
+            <h3 class="section-title" id="resultTitle">VERSCHLÜSSELTE NACHRICHT:</h3>
+            <textarea class="textarea-field result-field" id="resultOutput" readonly placeholder="Das Ergebnis wird hier angezeigt..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'encrypt';
+        
+        // UTF-8 Encoding/Decoding Functions
+        function stringToUTF8Bytes(str) {
+            const utf8 = [];
+            for (let i = 0; i < str.length; i++) {
+                const charCode = str.charCodeAt(i);
+                
+                if (charCode < 0x80) {
+                    utf8.push(charCode);
+                } else if (charCode < 0x800) {
+                    utf8.push(0xC0 | (charCode >> 6));
+                    utf8.push(0x80 | (charCode & 0x3F));
+                } else if (charCode < 0xD800 || charCode >= 0xE000) {
+                    utf8.push(0xE0 | (charCode >> 12));
+                    utf8.push(0x80 | ((charCode >> 6) & 0x3F));
+                    utf8.push(0x80 | (charCode & 0x3F));
+                } else {
+                    i++;
+                    const codePoint = 0x10000 + (((charCode & 0x3FF) << 10) | (str.charCodeAt(i) & 0x3FF));
+                    utf8.push(0xF0 | (codePoint >> 18));
+                    utf8.push(0x80 | ((codePoint >> 12) & 0x3F));
+                    utf8.push(0x80 | ((codePoint >> 6) & 0x3F));
+                    utf8.push(0x80 | (codePoint & 0x3F));
+                }
+            }
+            return utf8;
+        }
+        
+        function utf8BytesToString(bytes) {
+            let result = '';
+            let i = 0;
+            
+            while (i < bytes.length) {
+                const byte1 = bytes[i];
+                
+                if (byte1 < 0x80) {
+                    result += String.fromCharCode(byte1);
+                    i++;
+                } else if ((byte1 & 0xE0) === 0xC0) {
+                    const byte2 = bytes[i + 1];
+                    const charCode = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
+                    result += String.fromCharCode(charCode);
+                    i += 2;
+                } else if ((byte1 & 0xF0) === 0xE0) {
+                    const byte2 = bytes[i + 1];
+                    const byte3 = bytes[i + 2];
+                    const charCode = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F);
+                    result += String.fromCharCode(charCode);
+                    i += 3;
+                } else if ((byte1 & 0xF8) === 0xF0) {
+                    const byte2 = bytes[i + 1];
+                    const byte3 = bytes[i + 2];
+                    const byte4 = bytes[i + 3];
+                    const codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+                    
+                    if (codePoint > 0xFFFF) {
+                        const high = 0xD800 + ((codePoint - 0x10000) >> 10);
+                        const low = 0xDC00 + ((codePoint - 0x10000) & 0x3FF);
+                        result += String.fromCharCode(high, low);
+                    } else {
+                        result += String.fromCharCode(codePoint);
+                    }
+                    i += 4;
+                } else {
+                    i++;
+                }
+            }
+            
+            return result;
+        }
+        
+        // Encryption Functions
+        function generateCodeMatrix(code) {
+            const digits = code.split('').map(Number);
+            const matrix = [];
+            
+            for (let i = 0; i < 16; i++) {
+                const base = digits[i % 3];
+                const multiplier = (digits[(i + 1) % 3] * digits[(i + 2) % 3]) || 1;
+                const offset = (i * base + multiplier) % 256;
+                matrix.push(offset);
+            }
+            
+            return matrix;
+        }
+        
+        function advancedXOR(byteValue, index, codeMatrix) {
+            let result = byteValue;
+            
+            result ^= codeMatrix[index % codeMatrix.length];
+            result ^= (index * 13 + 7) % 256;
+            
+            if (index > 0) {
+                result ^= (index * codeMatrix[(index - 1) % codeMatrix.length]) % 256;
+            }
+            
+            result = ((result * 17) + (codeMatrix[index % 8] * 23)) % 256;
+            
+            return result;
+        }
+        
+        function reverseAdvancedXOR(value, index, codeMatrix) {
+            let originalValue = 0;
+            for (let test = 0; test < 256; test++) {
+                if (((test * 17) + (codeMatrix[index % 8] * 23)) % 256 === value) {
+                    originalValue = test;
+                    break;
+                }
+            }
+            
+            if (index > 0) {
+                originalValue ^= (index * codeMatrix[(index - 1) % codeMatrix.length]) % 256;
+            }
+            
+            originalValue ^= (index * 13 + 7) % 256;
+            originalValue ^= codeMatrix[index % codeMatrix.length];
+            
+            return originalValue;
+        }
+        
+        function deterministicShuffle(array, code) {
+            const result = [...array];
+            const codeNum = parseInt(code);
+            
+            for (let i = result.length - 1; i > 0; i--) {
+                const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            
+            return result;
+        }
+        
+        function reverseDetShuffle(array, code) {
+            const result = [...array];
+            const codeNum = parseInt(code);
+            
+            for (let i = 1; i < result.length; i++) {
+                const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            
+            return result;
+        }
+        
+        function compactBase62(numbers) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            let result = '';
+            
+            for (let i = 0; i < numbers.length; i += 2) {
+                let combined = numbers[i];
+                if (i + 1 < numbers.length) {
+                    combined = combined * 256 + numbers[i + 1];
+                }
+                
+                let encoded = '';
+                let temp = combined;
+                do {
+                    encoded = chars[temp % 62] + encoded;
+                    temp = Math.floor(temp / 62);
+                } while (temp > 0);
+                
+                result += encoded + '-';
+            }
+            
+            return result.slice(0, -1);
+        }
+        
+        function decompactBase62(base62String) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            const charMap = {};
+            for (let i = 0; i < chars.length; i++) {
+                charMap[chars[i]] = i;
+            }
+            
+            const parts = base62String.split('-');
+            const numbers = [];
+            
+            for (const part of parts) {
+                let combined = 0;
+                for (const char of part) {
+                    if (charMap[char] !== undefined) {
+                        combined = combined * 62 + charMap[char];
+                    }
+                }
+                
+                if (combined >= 256) {
+                    numbers.push(Math.floor(combined / 256));
+                    numbers.push(combined % 256);
+                } else {
+                    numbers.push(combined);
+                }
+            }
+            
+            return numbers;
+        }
+        
+        function encryptMessage(message, code) {
+            if (!message || !code) {
+                throw new Error('Nachricht und Code sind erforderlich');
+            }
+            
+            if (code.length !== 3 || !/^\d{3}$/.test(code)) {
+                throw new Error('Code muss genau 3 Ziffern enthalten');
+            }
+            
+            const codeMatrix = generateCodeMatrix(code);
+            const messageBytes = stringToUTF8Bytes(message);
+            
+            // Phase 1: Advanced XOR
+            const xorResult = [];
+            for (let i = 0; i < messageBytes.length; i++) {
+                const encryptedByte = advancedXOR(messageBytes[i], i, codeMatrix);
+                xorResult.push(encryptedByte);
+            }
+            
+            // Phase 2: Shuffling
+            const shuffled = deterministicShuffle(xorResult, code);
+            
+            // Phase 3: Permutation
+            const finalResult = [...shuffled];
+            const codeSum = parseInt(code);
+            for (let pass = 0; pass < 3; pass++) {
+                for (let i = 0; i < finalResult.length - 1; i++) {
+                    if ((i + codeSum + pass * 47) % 3 === 0) {
+                        [finalResult[i], finalResult[i + 1]] = [finalResult[i + 1], finalResult[i]];
+                    }
+                }
+            }
+            
+            // Phase 4: Base62 Encoding
+            return compactBase62(finalResult);
+        }
+        
+        function decryptMessage(encryptedMessage, code) {
+            if (!encryptedMessage || !code) {
+                throw new Error('Verschlüsselte Nachricht und Code sind erforderlich');
+            }
+            
+            if (code.length !== 3 || !/^\d{3}$/.test(code)) {
+                throw new Error('Code muss genau 3 Ziffern enthalten');
+            }
+            
+            try {
+                const codeMatrix = generateCodeMatrix(code);
+                
+                // Reverse Phase 4: Base62 Decoding
+                const finalResult = decompactBase62(encryptedMessage);
+                
+                // Reverse Phase 3: Permutation
+                const codeSum = parseInt(code);
+                for (let pass = 2; pass >= 0; pass--) {
+                    for (let i = finalResult.length - 2; i >= 0; i--) {
+                        if ((i + codeSum + pass * 47) % 3 === 0) {
+                            [finalResult[i], finalResult[i + 1]] = [finalResult[i + 1], finalResult[i]];
+                        }
+                    }
+                }
+                
+                // Reverse Phase 2: Shuffling
+                const xorResult = reverseDetShuffle(finalResult, code);
+                
+                // Reverse Phase 1: Advanced XOR
+                const decryptedBytes = [];
+                for (let i = 0; i < xorResult.length; i++) {
+                    const originalByte = reverseAdvancedXOR(xorResult[i], i, codeMatrix);
+                    decryptedBytes.push(originalByte);
+                }
+                
+                // Convert back to string
+                return utf8BytesToString(decryptedBytes);
+                
+            } catch (error) {
+                throw new Error('Entschlüsselung fehlgeschlagen - falscher Code oder beschädigte Daten');
+            }
+        }
+        
+        // UI Functions
+        function switchMode(mode) {
+            currentMode = mode;
+            const encryptBtn = document.querySelector('.mode-btn:first-child');
+            const decryptBtn = document.querySelector('.mode-btn:last-child');
+            const messageLabel = document.getElementById('messageLabel');
+            const processBtn = document.getElementById('processBtn');
+            const resultTitle = document.getElementById('resultTitle');
+            const messageInput = document.getElementById('messageInput');
+            const resultOutput = document.getElementById('resultOutput');
+            
+            if (mode === 'encrypt') {
+                encryptBtn.classList.add('active');
+                decryptBtn.classList.remove('active');
+                messageLabel.textContent = 'NACHRICHT EINGEBEN:';
+                processBtn.textContent = 'VERSCHLÜSSELN';
+                resultTitle.textContent = 'VERSCHLÜSSELTE NACHRICHT:';
+                messageInput.placeholder = 'Gib deine geheime Nachricht hier ein...';
+                resultOutput.placeholder = 'Die verschlüsselte Nachricht wird hier angezeigt...';
+            } else {
+                decryptBtn.classList.add('active');
+                encryptBtn.classList.remove('active');
+                messageLabel.textContent = 'VERSCHLÜSSELTE NACHRICHT EINGEBEN:';
+                processBtn.textContent = 'ENTSCHLÜSSELN';
+                resultTitle.textContent = 'ENTSCHLÜSSELTE NACHRICHT:';
+                messageInput.placeholder = 'Gib die verschlüsselte Nachricht hier ein...';
+                resultOutput.placeholder = 'Die entschlüsselte Nachricht wird hier angezeigt...';
+            }
+            
+            document.getElementById('resultOutput').value = '';
+            hideStatus();
+        }
+        
+        function processMessage() {
+            const messageInput = document.getElementById('messageInput').value;
+            const codeInput = document.getElementById('codeInput').value;
+            const resultOutput = document.getElementById('resultOutput');
+            
+            try {
+                let result;
+                
+                if (currentMode === 'encrypt') {
+                    result = encryptMessage(messageInput, codeInput);
+                    showStatus('Nachricht erfolgreich verschlüsselt!', 'success');
+                } else {
+                    result = decryptMessage(messageInput, codeInput);
+                    showStatus('Nachricht erfolgreich entschlüsselt!', 'success');
+                }
+                
+                resultOutput.value = result;
+                
+                resultOutput.style.opacity = '0';
+                setTimeout(() => {
+                    resultOutput.style.transition = 'opacity 0.5s ease';
+                    resultOutput.style.opacity = '1';
+                }, 100);
+                
+            } catch (error) {
+                showStatus(error.message, 'error');
+                resultOutput.value = '';
+            }
+        }
+        
+        function copyToClipboard() {
+            const resultOutput = document.getElementById('resultOutput');
+            
+            if (!resultOutput.value) {
+                showStatus('Kein Text zum Kopieren vorhanden', 'error');
+                return;
+            }
+            
+            resultOutput.select();
+            resultOutput.setSelectionRange(0, 99999);
+            
+            try {
+                navigator.clipboard.writeText(resultOutput.value).then(() => {
+                    showStatus('Text in Zwischenablage kopiert!', 'success');
+                }).catch(() => {
+                    document.execCommand('copy');
+                    showStatus('Text in Zwischenablage kopiert!', 'success');
+                });
+            } catch (err) {
+                showStatus('Kopieren fehlgeschlagen', 'error');
+            }
+        }
+        
+        function clearAll() {
+            document.getElementById('messageInput').value = '';
+            document.getElementById('codeInput').value = '';
+            document.getElementById('resultOutput').value = '';
+            hideStatus();
+            document.getElementById('messageInput').focus();
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type} show`;
+            setTimeout(hideStatus, 3000);
+        }
+        
+        function hideStatus() {
+            const status = document.getElementById('status');
+            status.classList.remove('show');
+        }
+        
+        // Event Listeners
+        document.getElementById('codeInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processMessage();
+            }
+        });
+        
+        document.getElementById('messageInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                processMessage();
+            }
+        });
+        
+        window.addEventListener('load', function() {
+            document.getElementById('messageInput').focus();
+        });
+        
+        document.getElementById('codeInput').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    </script>
+</body>
+</html>
