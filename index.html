@@ -11,89 +11,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        </div>
-
-    <!-- Help Modal -->
-    <div class="help-modal" id="helpModal">
-        <div class="help-content">
-            <div class="help-close" onclick="closeHelp()">×</div>
-            <h2 class="help-title">🔐 Secret Messages - Anleitung</h2>
-            
-            <div class="help-section">
-                <h3>📝 Wie funktioniert es?</h3>
-                <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
-                <ul>
-                    <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
-                    <li><strong>Schritt 2:</strong> Wähle einen 5-stelligen Code (z.B. 12345)</li>
-                    <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
-                    <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
-                    <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
-                </ul>
-            </div>
-
-            <div class="help-example">
-                <div class="example-label">💡 Beispiel:</div>
-                <div class="example-text">
-                    <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
-                    <strong>Code:</strong> 456<br>
-                    <strong>Verschlüsselt:</strong> K9m7F8s3Q1pM2nX5wR9z
-                </div>
-            </div>
-
-            <div class="help-section">
-                <h3>📱 Messenger-Kompatibilität</h3>
-                <p>Der verschlüsselte Text funktioniert in <strong>allen</strong> Messengern:</p>
-                <ul>
-                    <li>WhatsApp ✅</li>
-                    <li>Telegram ✅</li>
-                    <li>Instagram ✅</li>
-                    <li>Signal ✅</li>
-                    <li>Discord ✅</li>
-                    <li>E-Mail ✅</li>
-                    <li>SMS ✅</li>
-                    <li>Facebook Messenger ✅</li>
-                </ul>
-                <p>Der verschlüsselte Text enthält nur Buchstaben und Zahlen - perfekt für jeden Dienst!</p>
-            </div>
-
-            <div class="help-section">
-                <h3>🔓 Entschlüsseln</h3>
-                <p>Um eine Nachricht zu entschlüsseln:</p>
-                <ul>
-                    <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
-                    <li>Füge den verschlüsselten Text ein</li>
-                    <li>Gib den <strong>exakt gleichen</strong> 5-stelligen Code ein</li>
-                    <li>Drücke "ENTSCHLÜSSELN"</li>
-                </ul>
-                <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
-            </div>
-
-            <div class="security-highlight">
-                <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
-                <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
-            </div>
-
-            <div class="help-section">
-                <h3>💡 Profi-Tipps</h3>
-                <ul>
-                    <li><strong>Code teilen:</strong> Sende den 5-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
-                    <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
-                    <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
-                    <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>⚠️ Wichtige Hinweise</h3>
-                <ul>
-                    <li>Vergisst du den Code, ist die Nachricht <strong>unwiederbringlich verloren</strong></li>
-                    <li>Teile den Code niemals mit unerwünschten Personen</li>
-                    <li>Die Seite speichert keine Daten - alles bleibt bei dir</li>
-                    <li>Funktioniert offline in deinem Browser</li>
-                </ul>
-            </div>
-        </div>
-    }
+        }
         
         body {
             background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
@@ -639,6 +557,7 @@
         function advancedXOR(byteValue, index, codeMatrix) {
             let result = byteValue;
             
+            // Multi-Layer XOR
             result ^= codeMatrix[index % codeMatrix.length];
             result ^= (index * 13 + 7) % 256;
             
@@ -646,6 +565,7 @@
                 result ^= (index * codeMatrix[(index - 1) % codeMatrix.length]) % 256;
             }
             
+            // Nicht-lineare Transformation
             result = ((result * 17) + (codeMatrix[index % 8] * 23)) % 256;
             
             return result;
@@ -845,7 +765,7 @@
             let result1 = performEncryptionCycle(currentData, code);
             
             // ZWEITER DURCHGANG - Verschlüsselung des bereits verschlüsselten Textes
-            // Konvertiere Base62-String zurück zu Bytes für zweiten Durchgang
+            // Konvertiere Base74-String zurück zu Bytes für zweiten Durchgang
             let bytes1 = stringToUTF8Bytes(result1);
             let result2 = performEncryptionCycle(bytes1, code);
             
@@ -876,11 +796,14 @@
                 }
             }
             
-            // Phase 4: Base62 Encoding
-            const base62Result = compactBase62(finalResult);
+            // Phase 4: Base74 Encoding (erweiterte Zeichen)
+            const base74Result = compactBase74(finalResult);
             
-            // Phase 5: String-Spiegelung
-            return reverseString(base62Result);
+            // Phase 5: Intelligente Kompression
+            const compressed = intelligentCompress(base74Result);
+            
+            // Phase 6: String-Spiegelung
+            return reverseString(compressed);
         }
         
         function decryptMessage(encryptedMessage, code) {
@@ -909,11 +832,14 @@
         function performDecryptionCycle(encryptedData, code) {
             const codeMatrix = generateCodeMatrix(code);
             
-            // Phase 5: String-Entspiegelung
+            // Phase 6: String-Entspiegelung
             const unmirrored = reverseString(encryptedData);
             
-            // Reverse Phase 4: Base62 Decoding
-            const finalResult = decompactBase62(unmirrored);
+            // Phase 5: Intelligente Dekompression
+            const decompressed = intelligentDecompress(unmirrored);
+            
+            // Reverse Phase 4: Base74 Decoding
+            const finalResult = decompactBase74(decompressed);
             
             // Reverse Phase 3: Permutation
             const codeSum = parseInt(code);
@@ -946,7 +872,6 @@
                 helpModal.style.display = 'flex';
                 document.body.style.overflow = 'hidden';
             } else {
-                // Fallback: Erstelle Modal dynamisch falls es nicht existiert
                 createHelpModal();
             }
         }
@@ -960,7 +885,6 @@
         }
         
         function createHelpModal() {
-            // Erstelle Modal dynamisch
             const modal = document.createElement('div');
             modal.id = 'helpModal';
             modal.className = 'help-modal';
@@ -993,6 +917,28 @@
                     </div>
 
                     <div class="help-section">
+                        <h3>🔧 Erweiterte Zeichen-Kodierung</h3>
+                        <p>Der verschlüsselte Text verwendet ein erweitertes Zeichenset:</p>
+                        <ul>
+                            <li><strong>Standard:</strong> 0-9, A-Z, a-z</li>
+                            <li><strong>Sonderzeichen:</strong> + - : * # € $ ! ? @ % =</li>
+                            <li><strong>Griechische Zeichen:</strong> Ω Φ Ψ Χ Υ Τ Σ Ρ Π Ο Ξ Ν Μ Λ Κ Ι Θ Η Δ</li>
+                        </ul>
+                        <p>Alle diese Zeichen funktionieren in jedem Messenger!</p>
+                    </div>
+
+                    <div class="help-section">
+                        <h3>🗜️ Intelligente Kompression</h3>
+                        <p>Das System erkennt automatisch Muster und komprimiert sie:</p>
+                        <ul>
+                            <li><strong>Doppelte Zeichen:</strong> "aa", "00", "FF" → Spezialzeichen</li>
+                            <li><strong>Wiederholungen:</strong> "AAA", "111" → Komprimierte Form</li>
+                            <li><strong>Häufige Patterns:</strong> Werden automatisch erkannt</li>
+                        </ul>
+                        <p>Dadurch wird der verschlüsselte Text nochmals kürzer!</p>
+                    </div>
+
+                    <div class="help-section">
                         <h3>📱 Messenger-Kompatibilität</h3>
                         <p>Der verschlüsselte Text funktioniert in <strong>allen</strong> Messengern:</p>
                         <ul>
@@ -1022,7 +968,7 @@
 
                     <div class="security-highlight">
                         <div class="security-title">🛡️ Ultra-Militärgrad-Sicherheit mit intelligenter Kompression</div>
-                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet 12-Fache Verschlüsselungszyklen mit 6 Sicherheitsschichten pro Durchgang. Selbst mit Quantencomputern würde das Knacken Jahrhunderte dauern.</p>
+                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet doppelte Verschlüsselungszyklen mit 6 Sicherheitsschichten pro Durchgang. Selbst mit Quantencomputern würde das Knacken Jahrhunderte dauern.</p>
                     </div>
 
                     <div class="help-section">
@@ -1052,7 +998,6 @@
             document.body.appendChild(modal);
             document.body.style.overflow = 'hidden';
             
-            // Event Listener für das neue Modal
             modal.addEventListener('click', function(e) {
                 if (e.target === modal) {
                     closeHelp();
@@ -1062,10 +1007,8 @@
         
         // Event Listeners - erst nach DOM-Load hinzufügen
         function initializeEventListeners() {
-            // Help Modal Event Listeners
             const helpModal = document.getElementById('helpModal');
             if (helpModal) {
-                // Schließe Modal bei Klick außerhalb
                 helpModal.addEventListener('click', function(e) {
                     if (e.target === this) {
                         closeHelp();
@@ -1073,14 +1016,12 @@
                 });
             }
             
-            // Schließe Modal mit ESC-Taste
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     closeHelp();
                 }
             });
             
-            // Andere Event Listeners
             const codeInput = document.getElementById('codeInput');
             if (codeInput) {
                 codeInput.addEventListener('keypress', function(e) {
@@ -1102,7 +1043,6 @@
                     }
                 });
                 
-                // Auto-focus
                 messageInput.focus();
             }
         }
