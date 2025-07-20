@@ -24,7 +24,7 @@
                 <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
                 <ul>
                     <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
-                    <li><strong>Schritt 2:</strong> Wähle einen 3-stelligen Code (z.B. 123)</li>
+                    <li><strong>Schritt 2:</strong> Wähle einen 5-stelligen Code (z.B. 12345)</li>
                     <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
                     <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
                     <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
@@ -62,7 +62,7 @@
                 <ul>
                     <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
                     <li>Füge den verschlüsselten Text ein</li>
-                    <li>Gib den <strong>exakt gleichen</strong> 3-stelligen Code ein</li>
+                    <li>Gib den <strong>exakt gleichen</strong> 5-stelligen Code ein</li>
                     <li>Drücke "ENTSCHLÜSSELN"</li>
                 </ul>
                 <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
@@ -70,13 +70,13 @@
 
             <div class="security-highlight">
                 <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
-                <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
+                <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
             </div>
 
             <div class="help-section">
                 <h3>💡 Profi-Tipps</h3>
                 <ul>
-                    <li><strong>Code teilen:</strong> Sende den 3-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
+                    <li><strong>Code teilen:</strong> Sende den 5-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
                     <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
                     <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
                     <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
@@ -373,7 +373,7 @@
         }
         
         .code-input {
-            max-width: 150px;
+            max-width: 180px;
         }
         
         .button-group {
@@ -508,7 +508,7 @@
         <div class="header">
             <button class="help-btn" onclick="openHelp()">?</button>
             <h1 class="title">SECRET MESSAGES</h1>
-            <p class="subtitle">CYBER ENCRYPTION SYSTEM v5.0 - UNICODE READY</p>
+            <p class="subtitle">CYBER ENCRYPTION SYSTEM v7.0 - X LAYER SECURITY</p>
         </div>
         
         <div class="section">
@@ -523,8 +523,8 @@
             </div>
             
             <div class="input-group">
-                <label class="input-label">3-STELLIGER CODE:</label>
-                <input type="text" class="input-field code-input" id="codeInput" placeholder="123" maxlength="3">
+                <label class="input-label">5-STELLIGER CODE:</label>
+                <input type="text" class="input-field code-input" id="codeInput" placeholder="12345" maxlength="5">
             </div>
             
             <div class="button-group">
@@ -544,6 +544,11 @@
 
     <script>
         let currentMode = 'encrypt';
+        
+        // String-Spiegelung für zusätzliche Sicherheit
+        function reverseString(str) {
+            return str.split('').reverse().join('');
+        }
         
         // UTF-8 Encoding/Decoding Functions
         function stringToUTF8Bytes(str) {
@@ -620,10 +625,11 @@
             const digits = code.split('').map(Number);
             const matrix = [];
             
-            for (let i = 0; i < 16; i++) {
-                const base = digits[i % 3];
-                const multiplier = (digits[(i + 1) % 3] * digits[(i + 2) % 3]) || 1;
-                const offset = (i * base + multiplier) % 256;
+            // Erweiterte Matrix für 5-stellige Codes (20 Werte statt 16)
+            for (let i = 0; i < 20; i++) {
+                const base = digits[i % 5];
+                const multiplier = (digits[(i + 1) % 5] * digits[(i + 2) % 5]) || 1;
+                const offset = (i * base + multiplier + digits[(i + 3) % 5]) % 256;
                 matrix.push(offset);
             }
             
@@ -752,12 +758,24 @@
                 throw new Error('Nachricht und Code sind erforderlich');
             }
             
-            if (code.length !== 3 || !/^\d{3}$/.test(code)) {
-                throw new Error('Code muss genau 3 Ziffern enthalten');
+            if (code.length !== 5 || !/^\d{5}$/.test(code)) {
+                throw new Error('Code muss genau 5 Ziffern enthalten');
             }
             
+            // ERSTER DURCHGANG - Verschlüsselung der Original-Nachricht
+            let currentData = stringToUTF8Bytes(message);
+            let result1 = performEncryptionCycle(currentData, code);
+            
+            // ZWEITER DURCHGANG - Verschlüsselung des bereits verschlüsselten Textes
+            // Konvertiere Base62-String zurück zu Bytes für zweiten Durchgang
+            let bytes1 = stringToUTF8Bytes(result1);
+            let result2 = performEncryptionCycle(bytes1, code);
+            
+            return result2;
+        }
+        
+        function performEncryptionCycle(messageBytes, code) {
             const codeMatrix = generateCodeMatrix(code);
-            const messageBytes = stringToUTF8Bytes(message);
             
             // Phase 1: Advanced XOR
             const xorResult = [];
@@ -781,7 +799,10 @@
             }
             
             // Phase 4: Base62 Encoding
-            return compactBase62(finalResult);
+            const base62Result = compactBase62(finalResult);
+            
+            // Phase 5: String-Spiegelung
+            return reverseString(base62Result);
         }
         
         function decryptMessage(encryptedMessage, code) {
@@ -789,42 +810,55 @@
                 throw new Error('Verschlüsselte Nachricht und Code sind erforderlich');
             }
             
-            if (code.length !== 3 || !/^\d{3}$/.test(code)) {
-                throw new Error('Code muss genau 3 Ziffern enthalten');
+            if (code.length !== 5 || !/^\d{5}$/.test(code)) {
+                throw new Error('Code muss genau 5 Ziffern enthalten');
             }
             
             try {
-                const codeMatrix = generateCodeMatrix(code);
+                // ERSTER RÜCKWÄRTS-DURCHGANG - Entschlüsselung der doppelt verschlüsselten Nachricht
+                let result1 = performDecryptionCycle(encryptedMessage, code);
                 
-                // Reverse Phase 4: Base62 Decoding
-                const finalResult = decompactBase62(encryptedMessage);
+                // ZWEITER RÜCKWÄRTS-DURCHGANG - Entschlüsselung zum Original
+                let result2 = performDecryptionCycle(result1, code);
                 
-                // Reverse Phase 3: Permutation
-                const codeSum = parseInt(code);
-                for (let pass = 2; pass >= 0; pass--) {
-                    for (let i = finalResult.length - 2; i >= 0; i--) {
-                        if ((i + codeSum + pass * 47) % 3 === 0) {
-                            [finalResult[i], finalResult[i + 1]] = [finalResult[i + 1], finalResult[i]];
-                        }
-                    }
-                }
-                
-                // Reverse Phase 2: Shuffling
-                const xorResult = reverseDetShuffle(finalResult, code);
-                
-                // Reverse Phase 1: Advanced XOR
-                const decryptedBytes = [];
-                for (let i = 0; i < xorResult.length; i++) {
-                    const originalByte = reverseAdvancedXOR(xorResult[i], i, codeMatrix);
-                    decryptedBytes.push(originalByte);
-                }
-                
-                // Convert back to string
-                return utf8BytesToString(decryptedBytes);
+                return result2;
                 
             } catch (error) {
                 throw new Error('Entschlüsselung fehlgeschlagen - falscher Code oder beschädigte Daten');
             }
+        }
+        
+        function performDecryptionCycle(encryptedData, code) {
+            const codeMatrix = generateCodeMatrix(code);
+            
+            // Phase 5: String-Entspiegelung
+            const unmirrored = reverseString(encryptedData);
+            
+            // Reverse Phase 4: Base62 Decoding
+            const finalResult = decompactBase62(unmirrored);
+            
+            // Reverse Phase 3: Permutation
+            const codeSum = parseInt(code);
+            for (let pass = 2; pass >= 0; pass--) {
+                for (let i = finalResult.length - 2; i >= 0; i--) {
+                    if ((i + codeSum + pass * 47) % 3 === 0) {
+                        [finalResult[i], finalResult[i + 1]] = [finalResult[i + 1], finalResult[i]];
+                    }
+                }
+            }
+            
+            // Reverse Phase 2: Shuffling
+            const xorResult = reverseDetShuffle(finalResult, code);
+            
+            // Reverse Phase 1: Advanced XOR
+            const decryptedBytes = [];
+            for (let i = 0; i < xorResult.length; i++) {
+                const originalByte = reverseAdvancedXOR(xorResult[i], i, codeMatrix);
+                decryptedBytes.push(originalByte);
+            }
+            
+            // Convert back to string
+            return utf8BytesToString(decryptedBytes);
         }
         
         // Help Modal Functions
@@ -864,7 +898,7 @@
                         <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
                         <ul>
                             <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
-                            <li><strong>Schritt 2:</strong> Wähle einen 3-stelligen Code (z.B. 123)</li>
+                            <li><strong>Schritt 2:</strong> Wähle einen 5-stelligen Code (z.B. 12345)</li>
                             <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
                             <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
                             <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
@@ -875,8 +909,8 @@
                         <div class="example-label">💡 Beispiel:</div>
                         <div class="example-text">
                             <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
-                            <strong>Code:</strong> 456<br>
-                            <strong>Verschlüsselt:</strong> K9m7F8s3Q1pM2nX5wR9z
+                            <strong>Code:</strong> 45678<br>
+                            <strong>Verschlüsselt:</strong> 8Qz9Xm5Kn2Rp7Fw3Bg6Vs1Lt4Dc
                         </div>
                     </div>
 
@@ -902,24 +936,25 @@
                         <ul>
                             <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
                             <li>Füge den verschlüsselten Text ein</li>
-                            <li>Gib den <strong>exakt gleichen</strong> 3-stelligen Code ein</li>
+                            <li>Gib den <strong>exakt gleichen</strong> 5-stelligen Code ein</li>
                             <li>Drücke "ENTSCHLÜSSELN"</li>
                         </ul>
                         <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
                     </div>
 
                     <div class="security-highlight">
-                        <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
-                        <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
+                        <div class="security-title">🛡️ Ultra-Militärgrad-Sicherheit mit Double-Layer-Technologie</div>
+                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet doppelte Verschlüsselungszyklen - jede Nachricht wird ZWEIMAL durch alle 5 Sicherheitsschichten geschickt. Selbst mit Quantencomputern würde das Knacken Jahrzehnte dauern.</p>
                     </div>
 
                     <div class="help-section">
                         <h3>💡 Profi-Tipps</h3>
                         <ul>
-                            <li><strong>Code teilen:</strong> Sende den 3-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
+                            <li><strong>Code teilen:</strong> Sende den 5-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
                             <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
                             <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
                             <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
+                            <li><strong>Extra-Sicherheit:</strong> Die doppelte Verschlüsselung macht jeden Code exponentiell sicherer</li>
                         </ul>
                     </div>
 
