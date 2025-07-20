@@ -80,128 +80,6 @@
             transform: scale(1.1);
         }
         
-        .help-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .help-content {
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00ff41;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            position: relative;
-            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
-        }
-        
-        .help-close {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            font-size: 1.5rem;
-            color: #00ff41;
-            cursor: pointer;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: all 0.3s ease;
-        }
-        
-        .help-close:hover {
-            background: rgba(255, 0, 0, 0.2);
-            color: #ff4444;
-        }
-        
-        .help-title {
-            color: #00ff41;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        
-        .help-section {
-            margin-bottom: 25px;
-        }
-        
-        .help-section h3 {
-            color: #00cc33;
-            font-size: 1.1rem;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .help-section p {
-            color: #cccccc;
-            line-height: 1.6;
-            margin-bottom: 10px;
-        }
-        
-        .help-section ul {
-            color: #cccccc;
-            margin-left: 20px;
-        }
-        
-        .help-section li {
-            margin-bottom: 8px;
-            line-height: 1.5;
-        }
-        
-        .help-example {
-            background: rgba(0, 255, 65, 0.05);
-            border: 1px solid #00ff41;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 15px 0;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .help-example .example-label {
-            color: #00ff41;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .help-example .example-text {
-            color: #cccccc;
-            word-break: break-all;
-        }
-        
-        .security-highlight {
-            background: rgba(255, 0, 0, 0.1);
-            border: 1px solid #ff4444;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-        
-        .security-highlight .security-title {
-            color: #ff4444;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-        
-        .security-highlight p {
-            color: #ffcccc;
-        }
-        
         .title {
             font-size: 2.5rem;
             font-weight: bold;
@@ -426,7 +304,7 @@
         <div class="header">
             <button class="help-btn" onclick="openHelp()">?</button>
             <h1 class="title">SECRET MESSAGES</h1>
-            <p class="subtitle">CYBER ENCRYPTION SYSTEM v8.0 - INTELLIGENT COMPRESSION</p>
+            <p class="subtitle">CYBER ENCRYPTION SYSTEM v7.0 - DOUBLE LAYER SECURITY</p>
         </div>
         
         <div class="section">
@@ -463,82 +341,6 @@
     <script>
         let currentMode = 'encrypt';
         
-        // String-Spiegelung für zusätzliche Sicherheit
-        function reverseString(str) {
-            return str.split('').reverse().join('');
-        }
-        
-        // UTF-8 Encoding/Decoding Functions
-        function stringToUTF8Bytes(str) {
-            const utf8 = [];
-            for (let i = 0; i < str.length; i++) {
-                const charCode = str.charCodeAt(i);
-                
-                if (charCode < 0x80) {
-                    utf8.push(charCode);
-                } else if (charCode < 0x800) {
-                    utf8.push(0xC0 | (charCode >> 6));
-                    utf8.push(0x80 | (charCode & 0x3F));
-                } else if (charCode < 0xD800 || charCode >= 0xE000) {
-                    utf8.push(0xE0 | (charCode >> 12));
-                    utf8.push(0x80 | ((charCode >> 6) & 0x3F));
-                    utf8.push(0x80 | (charCode & 0x3F));
-                } else {
-                    i++;
-                    const codePoint = 0x10000 + (((charCode & 0x3FF) << 10) | (str.charCodeAt(i) & 0x3FF));
-                    utf8.push(0xF0 | (codePoint >> 18));
-                    utf8.push(0x80 | ((codePoint >> 12) & 0x3F));
-                    utf8.push(0x80 | ((codePoint >> 6) & 0x3F));
-                    utf8.push(0x80 | (codePoint & 0x3F));
-                }
-            }
-            return utf8;
-        }
-        
-        function utf8BytesToString(bytes) {
-            let result = '';
-            let i = 0;
-            
-            while (i < bytes.length) {
-                const byte1 = bytes[i];
-                
-                if (byte1 < 0x80) {
-                    result += String.fromCharCode(byte1);
-                    i++;
-                } else if ((byte1 & 0xE0) === 0xC0) {
-                    const byte2 = bytes[i + 1];
-                    const charCode = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
-                    result += String.fromCharCode(charCode);
-                    i += 2;
-                } else if ((byte1 & 0xF0) === 0xE0) {
-                    const byte2 = bytes[i + 1];
-                    const byte3 = bytes[i + 2];
-                    const charCode = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F);
-                    result += String.fromCharCode(charCode);
-                    i += 3;
-                } else if ((byte1 & 0xF8) === 0xF0) {
-                    const byte2 = bytes[i + 1];
-                    const byte3 = bytes[i + 2];
-                    const byte4 = bytes[i + 3];
-                    const codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
-                    
-                    if (codePoint > 0xFFFF) {
-                        const high = 0xD800 + ((codePoint - 0x10000) >> 10);
-                        const low = 0xDC00 + ((codePoint - 0x10000) & 0x3FF);
-                        result += String.fromCharCode(high, low);
-                    } else {
-                        result += String.fromCharCode(codePoint);
-                    }
-                    i += 4;
-                } else {
-                    i++;
-                }
-            }
-            
-            return result;
-        }
-        
-        // Encryption Functions
         function generateCodeMatrix(code) {
             const digits = code.split('').map(Number);
             const matrix = [];
@@ -554,24 +356,28 @@
             return matrix;
         }
         
-        function advancedXOR(byteValue, index, codeMatrix) {
-            let result = byteValue;
+        function multiLayerXOR(char, index, codeMatrix) {
+            let result = char.charCodeAt(0);
             
-            // Multi-Layer XOR
+            // Schicht 1: XOR mit Code-Matrix
             result ^= codeMatrix[index % codeMatrix.length];
+            
+            // Schicht 2: Position-abhängige XOR
             result ^= (index * 13 + 7) % 256;
             
+            // Schicht 3: Rekursive XOR mit vorherigen Werten
             if (index > 0) {
                 result ^= (index * codeMatrix[(index - 1) % codeMatrix.length]) % 256;
             }
             
-            // Nicht-lineare Transformation
+            // Schicht 4: Nicht-lineare Transformation
             result = ((result * 17) + (codeMatrix[index % 8] * 23)) % 256;
             
             return result;
         }
         
-        function reverseAdvancedXOR(value, index, codeMatrix) {
+        function reverseMultiLayerXOR(value, index, codeMatrix) {
+            // Reverse Schicht 4: Nicht-lineare Transformation
             let originalValue = 0;
             for (let test = 0; test < 256; test++) {
                 if (((test * 17) + (codeMatrix[index % 8] * 23)) % 256 === value) {
@@ -580,11 +386,15 @@
                 }
             }
             
+            // Reverse Schicht 3: Rekursive XOR
             if (index > 0) {
                 originalValue ^= (index * codeMatrix[(index - 1) % codeMatrix.length]) % 256;
             }
             
+            // Reverse Schicht 2: Position-abhängige XOR
             originalValue ^= (index * 13 + 7) % 256;
+            
+            // Reverse Schicht 1: XOR mit Code-Matrix
             originalValue ^= codeMatrix[index % codeMatrix.length];
             
             return originalValue;
@@ -594,6 +404,7 @@
             const result = [...array];
             const codeNum = parseInt(code);
             
+            // Code-basiertes Scrambling
             for (let i = result.length - 1; i > 0; i--) {
                 const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
                 [result[i], result[j]] = [result[j], result[i]];
@@ -606,6 +417,7 @@
             const result = [...array];
             const codeNum = parseInt(code);
             
+            // Reverse scrambling
             for (let i = 1; i < result.length; i++) {
                 const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
                 [result[i], result[j]] = [result[j], result[i]];
@@ -614,9 +426,9 @@
             return result;
         }
         
-        function compactBase74(numbers) {
-            // Erweiterte Zeichen: 0-9, A-Z, a-z + Sonderzeichen
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-:*#€$!?@%=';
+        function compactBaseExtended(numbers) {
+            // Erweiterte Zeichen: Standard + alle gewünschten Sonderzeichen
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@€_&-+*"\'/:!?$£§%=';
             let result = '';
             
             for (let i = 0; i < numbers.length; i += 2) {
@@ -625,12 +437,12 @@
                     combined = combined * 256 + numbers[i + 1];
                 }
                 
-                // Konvertiere zu Base74
+                // Konvertiere zu erweiterter Base
                 let encoded = '';
                 let temp = combined;
                 do {
-                    encoded = chars[temp % 74] + encoded;
-                    temp = Math.floor(temp / 74);
+                    encoded = chars[temp % chars.length] + encoded;
+                    temp = Math.floor(temp / chars.length);
                 } while (temp > 0);
                 
                 // Feste Länge von 3 Zeichen (mit Leading Zeros)
@@ -641,8 +453,8 @@
             return result;
         }
         
-        function decompactBase74(base74String) {
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-:*#€$!?@%=';
+        function decompactBaseExtended(baseString) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@€_&-+*"\'/:!?$£§%=';
             const charMap = {};
             for (let i = 0; i < chars.length; i++) {
                 charMap[chars[i]] = i;
@@ -651,14 +463,14 @@
             const numbers = [];
             
             // Verarbeite String in 3-Zeichen-Blöcken
-            for (let i = 0; i < base74String.length; i += 3) {
-                const block = base74String.substr(i, 3);
+            for (let i = 0; i < baseString.length; i += 3) {
+                const block = baseString.substring(i, i + 3);
                 
-                // Konvertiere 3-Zeichen-Block von Base74
+                // Konvertiere 3-Zeichen-Block
                 let combined = 0;
                 for (const char of block) {
                     if (charMap[char] !== undefined) {
-                        combined = combined * 74 + charMap[char];
+                        combined = combined * chars.length + charMap[char];
                     }
                 }
                 
@@ -674,83 +486,6 @@
             return numbers;
         }
         
-        function intelligentCompress(text) {
-            // Phase 1: Pattern-Dictionary für häufige Zeichenfolgen
-            const patterns = {
-                'oo': 'Ω',    // Doppel-o
-                'ee': 'Φ',    // Doppel-e  
-                'aa': 'Ψ',    // Doppel-a
-                'ii': 'Χ',    // Doppel-i
-                'uu': 'Υ',    // Doppel-u
-                'ss': 'Τ',    // Doppel-s
-                'll': 'Σ',    // Doppel-l
-                'nn': 'Ρ',    // Doppel-n
-                'mm': 'Π',    // Doppel-m
-                'tt': 'Ο',    // Doppel-t
-                '00': 'Ξ',    // Doppel-0
-                '11': 'Ν',    // Doppel-1
-                '22': 'Μ',    // Doppel-2
-                '33': 'Λ',    // Doppel-3
-                'FF': 'Κ',    // Doppel-F
-                'AA': 'Ι',    // Doppel-A
-                'BB': 'Θ',    // Doppel-B
-                'CC': 'Η'     // Doppel-C
-            };
-            
-            let compressed = text;
-            
-            // Ersetze häufige Patterns
-            for (const [pattern, replacement] of Object.entries(patterns)) {
-                compressed = compressed.replace(new RegExp(pattern, 'g'), replacement);
-            }
-            
-            // Phase 2: Run-Length Encoding für 3+ aufeinanderfolgende gleiche Zeichen
-            compressed = compressed.replace(/(.)\1{2,}/g, function(match, char) {
-                const count = match.length;
-                if (count >= 3 && count <= 9) {
-                    return `Δ${count}${char}`; // Δ + Anzahl + Zeichen
-                }
-                return match; // Bei mehr als 9 Wiederholungen normal lassen
-            });
-            
-            return compressed;
-        }
-        
-        function intelligentDecompress(compressedText) {
-            // Reverse Phase 2: Run-Length Decoding
-            let decompressed = compressedText.replace(/Δ(\d)(.)/g, function(match, count, char) {
-                return char.repeat(parseInt(count));
-            });
-            
-            // Reverse Phase 1: Pattern-Dictionary rückgängig
-            const reversePatterns = {
-                'Ω': 'oo',
-                'Φ': 'ee',
-                'Ψ': 'aa',
-                'Χ': 'ii',
-                'Υ': 'uu',
-                'Τ': 'ss',
-                'Σ': 'll',
-                'Ρ': 'nn',
-                'Π': 'mm',
-                'Ο': 'tt',
-                'Ξ': '00',
-                'Ν': '11',
-                'Μ': '22',
-                'Λ': '33',
-                'Κ': 'FF',
-                'Ι': 'AA',
-                'Θ': 'BB',
-                'Η': 'CC'
-            };
-            
-            for (const [compressed, original] of Object.entries(reversePatterns)) {
-                decompressed = decompressed.replace(new RegExp(compressed, 'g'), original);
-            }
-            
-            return decompressed;
-        }
-        
         function encryptMessage(message, code) {
             if (!message || !code) {
                 throw new Error('Nachricht und Code sind erforderlich');
@@ -761,31 +496,28 @@
             }
             
             // ERSTER DURCHGANG - Verschlüsselung der Original-Nachricht
-            let currentData = stringToUTF8Bytes(message);
-            let result1 = performEncryptionCycle(currentData, code);
+            let result1 = performEncryptionCycle(message, code);
             
             // ZWEITER DURCHGANG - Verschlüsselung des bereits verschlüsselten Textes
-            // Konvertiere Base74-String zurück zu Bytes für zweiten Durchgang
-            let bytes1 = stringToUTF8Bytes(result1);
-            let result2 = performEncryptionCycle(bytes1, code);
+            let result2 = performEncryptionCycle(result1, code);
             
             return result2;
         }
         
-        function performEncryptionCycle(messageBytes, code) {
+        function performEncryptionCycle(message, code) {
             const codeMatrix = generateCodeMatrix(code);
             
-            // Phase 1: Advanced XOR
-            const xorResult = [];
-            for (let i = 0; i < messageBytes.length; i++) {
-                const encryptedByte = advancedXOR(messageBytes[i], i, codeMatrix);
-                xorResult.push(encryptedByte);
+            // Phase 1: Multi-Layer XOR Verschlüsselung
+            const phase1 = [];
+            for (let i = 0; i < message.length; i++) {
+                const encryptedValue = multiLayerXOR(message[i], i, codeMatrix);
+                phase1.push(encryptedValue);
             }
             
-            // Phase 2: Shuffling
-            const shuffled = deterministicShuffle(xorResult, code);
+            // Phase 2: Deterministisches Shuffling
+            const shuffled = deterministicShuffle(phase1, code);
             
-            // Phase 3: Permutation
+            // Phase 3: Code-abhängige Permutation
             const finalResult = [...shuffled];
             const codeSum = parseInt(code);
             for (let pass = 0; pass < 3; pass++) {
@@ -796,14 +528,11 @@
                 }
             }
             
-            // Phase 4: Base74 Encoding (erweiterte Zeichen)
-            const base74Result = compactBase74(finalResult);
+            // Phase 4: Erweiterte Base-Kodierung
+            const baseResult = compactBaseExtended(finalResult);
             
-            // Phase 5: Intelligente Kompression
-            const compressed = intelligentCompress(base74Result);
-            
-            // Phase 6: String-Spiegelung
-            return reverseString(compressed);
+            // Phase 5: String-Spiegelung
+            return baseResult.split('').reverse().join('');
         }
         
         function decryptMessage(encryptedMessage, code) {
@@ -816,10 +545,10 @@
             }
             
             try {
-                // ERSTER RÜCKWÄRTS-DURCHGANG - Entschlüsselung der doppelt verschlüsselten Nachricht
+                // ERSTER RÜCKWÄRTS-DURCHGANG
                 let result1 = performDecryptionCycle(encryptedMessage, code);
                 
-                // ZWEITER RÜCKWÄRTS-DURCHGANG - Entschlüsselung zum Original
+                // ZWEITER RÜCKWÄRTS-DURCHGANG
                 let result2 = performDecryptionCycle(result1, code);
                 
                 return result2;
@@ -832,16 +561,13 @@
         function performDecryptionCycle(encryptedData, code) {
             const codeMatrix = generateCodeMatrix(code);
             
-            // Phase 6: String-Entspiegelung
-            const unmirrored = reverseString(encryptedData);
+            // Reverse Phase 5: String-Entspiegelung
+            const unmirrored = encryptedData.split('').reverse().join('');
             
-            // Phase 5: Intelligente Dekompression
-            const decompressed = intelligentDecompress(unmirrored);
+            // Reverse Phase 4: Base-Dekodierung
+            const finalResult = decompactBaseExtended(unmirrored);
             
-            // Reverse Phase 4: Base74 Decoding
-            const finalResult = decompactBase74(decompressed);
-            
-            // Reverse Phase 3: Permutation
+            // Reverse Phase 3: Permutation rückgängig
             const codeSum = parseInt(code);
             for (let pass = 2; pass >= 0; pass--) {
                 for (let i = finalResult.length - 2; i >= 0; i--) {
@@ -851,200 +577,22 @@
                 }
             }
             
-            // Reverse Phase 2: Shuffling
-            const xorResult = reverseDetShuffle(finalResult, code);
+            // Reverse Phase 2: Shuffling rückgängig
+            const phase1 = reverseDetShuffle(finalResult, code);
             
-            // Reverse Phase 1: Advanced XOR
-            const decryptedBytes = [];
-            for (let i = 0; i < xorResult.length; i++) {
-                const originalByte = reverseAdvancedXOR(xorResult[i], i, codeMatrix);
-                decryptedBytes.push(originalByte);
+            // Reverse Phase 1: Multi-Layer XOR rückgängig
+            let decrypted = '';
+            for (let i = 0; i < phase1.length; i++) {
+                const originalCharCode = reverseMultiLayerXOR(phase1[i], i, codeMatrix);
+                decrypted += String.fromCharCode(originalCharCode);
             }
             
-            // Convert back to string
-            return utf8BytesToString(decryptedBytes);
+            return decrypted;
         }
         
         // Help Modal Functions
         function openHelp() {
-            const helpModal = document.getElementById('helpModal');
-            if (helpModal) {
-                helpModal.style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-            } else {
-                createHelpModal();
-            }
-        }
-        
-        function closeHelp() {
-            const helpModal = document.getElementById('helpModal');
-            if (helpModal) {
-                helpModal.style.display = 'none';
-                document.body.style.overflow = 'auto';
-            }
-        }
-        
-        function createHelpModal() {
-            const modal = document.createElement('div');
-            modal.id = 'helpModal';
-            modal.className = 'help-modal';
-            modal.style.display = 'flex';
-            
-            modal.innerHTML = `
-                <div class="help-content">
-                    <div class="help-close" onclick="closeHelp()">×</div>
-                    <h2 class="help-title">🔐 Secret Messages - Anleitung</h2>
-                    
-                    <div class="help-section">
-                        <h3>📝 Wie funktioniert es?</h3>
-                        <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
-                        <ul>
-                            <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
-                            <li><strong>Schritt 2:</strong> Wähle einen 5-stelligen Code (z.B. 12345)</li>
-                            <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
-                            <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
-                            <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
-                        </ul>
-                    </div>
-
-                    <div class="help-example">
-                        <div class="example-label">💡 Beispiel:</div>
-                        <div class="example-text">
-                            <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
-                            <strong>Code:</strong> 45678<br>
-                            <strong>Verschlüsselt:</strong> Ψ€#*!?@%Ξ+Κ-:Φ$Ω=
-                        </div>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>🔧 Erweiterte Zeichen-Kodierung</h3>
-                        <p>Der verschlüsselte Text verwendet ein erweitertes Zeichenset:</p>
-                        <ul>
-                            <li><strong>Standard:</strong> 0-9, A-Z, a-z</li>
-                            <li><strong>Sonderzeichen:</strong> + - : * # € $ ! ? @ % =</li>
-                            <li><strong>Griechische Zeichen:</strong> Ω Φ Ψ Χ Υ Τ Σ Ρ Π Ο Ξ Ν Μ Λ Κ Ι Θ Η Δ</li>
-                        </ul>
-                        <p>Alle diese Zeichen funktionieren in jedem Messenger!</p>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>🗜️ Intelligente Kompression</h3>
-                        <p>Das System erkennt automatisch Muster und komprimiert sie:</p>
-                        <ul>
-                            <li><strong>Doppelte Zeichen:</strong> "aa", "00", "FF" → Spezialzeichen</li>
-                            <li><strong>Wiederholungen:</strong> "AAA", "111" → Komprimierte Form</li>
-                            <li><strong>Häufige Patterns:</strong> Werden automatisch erkannt</li>
-                        </ul>
-                        <p>Dadurch wird der verschlüsselte Text nochmals kürzer!</p>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>📱 Messenger-Kompatibilität</h3>
-                        <p>Der verschlüsselte Text funktioniert in <strong>allen</strong> Messengern:</p>
-                        <ul>
-                            <li>WhatsApp ✅</li>
-                            <li>Telegram ✅</li>
-                            <li>Instagram ✅</li>
-                            <li>Signal ✅</li>
-                            <li>Discord ✅</li>
-                            <li>E-Mail ✅</li>
-                            <li>SMS ✅</li>
-                            <li>Facebook Messenger ✅</li>
-                        </ul>
-                        <p>Der verschlüsselte Text nutzt erweiterte Unicode-Zeichen und ist hochkomprimiert - perfekt für jeden Dienst!</p>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>🔓 Entschlüsseln</h3>
-                        <p>Um eine Nachricht zu entschlüsseln:</p>
-                        <ul>
-                            <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
-                            <li>Füge den verschlüsselten Text ein</li>
-                            <li>Gib den <strong>exakt gleichen</strong> 5-stelligen Code ein</li>
-                            <li>Drücke "ENTSCHLÜSSELN"</li>
-                        </ul>
-                        <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
-                    </div>
-
-                    <div class="security-highlight">
-                        <div class="security-title">🛡️ Ultra-Militärgrad-Sicherheit mit intelligenter Kompression</div>
-                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet doppelte Verschlüsselungszyklen mit 6 Sicherheitsschichten pro Durchgang. Selbst mit Quantencomputern würde das Knacken Jahrhunderte dauern.</p>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>💡 Profi-Tipps</h3>
-                        <ul>
-                            <li><strong>Code teilen:</strong> Sende den 5-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
-                            <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
-                            <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
-                            <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
-                            <li><strong>Extra-Sicherheit:</strong> Die doppelte Verschlüsselung macht jeden Code exponentiell sicherer</li>
-                            <li><strong>Kompression:</strong> Längere Texte werden automatisch optimal komprimiert</li>
-                        </ul>
-                    </div>
-
-                    <div class="help-section">
-                        <h3>⚠️ Wichtige Hinweise</h3>
-                        <ul>
-                            <li>Vergisst du den Code, ist die Nachricht <strong>unwiederbringlich verloren</strong></li>
-                            <li>Teile den Code niemals mit unerwünschten Personen</li>
-                            <li>Die Seite speichert keine Daten - alles bleibt bei dir</li>
-                            <li>Funktioniert offline in deinem Browser</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            document.body.style.overflow = 'hidden';
-            
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    closeHelp();
-                }
-            });
-        }
-        
-        // Event Listeners - erst nach DOM-Load hinzufügen
-        function initializeEventListeners() {
-            const helpModal = document.getElementById('helpModal');
-            if (helpModal) {
-                helpModal.addEventListener('click', function(e) {
-                    if (e.target === this) {
-                        closeHelp();
-                    }
-                });
-            }
-            
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    closeHelp();
-                }
-            });
-            
-            const codeInput = document.getElementById('codeInput');
-            if (codeInput) {
-                codeInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        processMessage();
-                    }
-                });
-                
-                codeInput.addEventListener('input', function(e) {
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                });
-            }
-            
-            const messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.addEventListener('keydown', function(e) {
-                    if (e.ctrlKey && e.key === 'Enter') {
-                        processMessage();
-                    }
-                });
-                
-                messageInput.focus();
-            }
+            alert('🔐 Secret Messages v7.0\\n\\nAnleitung:\\n1. Nachricht eingeben\\n2. 5-stelligen Code wählen (z.B. 12345)\\n3. VERSCHLÜSSELN drücken\\n4. Verschlüsselten Text kopieren und senden\\n\\nZum Entschlüsseln:\\n1. Zu ENTSCHLÜSSELN wechseln\\n2. Verschlüsselten Text einfügen\\n3. Gleichen 5-stelligen Code eingeben\\n4. ENTSCHLÜSSELN drücken\\n\\nDie Verschlüsselung verwendet doppelte 5-Phasen-Verschlüsselung mit erweiterten Sonderzeichen. Ohne den richtigen Code ist der Text unknackbar!\\n\\nUnterstützte Sonderzeichen: @€_&-+*"\\':!?/$£§%=');
         }
         
         // UI Functions
@@ -1153,9 +701,31 @@
             status.classList.remove('show');
         }
         
-        // Event Listeners - nach DOM-Load
-        window.addEventListener('load', function() {
-            initializeEventListeners();
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const codeInput = document.getElementById('codeInput');
+            if (codeInput) {
+                codeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        processMessage();
+                    }
+                });
+                
+                codeInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
+            
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        processMessage();
+                    }
+                });
+                
+                messageInput.focus();
+            }
         });
     </script>
 </body>
