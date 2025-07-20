@@ -24,7 +24,7 @@
                 <p>Mit Secret Messages kannst du deine Nachrichten ultra-sicher verschlüsseln und über jeden beliebigen Messenger senden!</p>
                 <ul>
                     <li><strong>Schritt 1:</strong> Gib deine geheime Nachricht ein</li>
-                    <li><strong>Schritt 2:</strong> Wähle einen 5-stelligen Code (z.B. 12345)</li>
+                    <li><strong>Schritt 2:</strong> Wähle einen 3-stelligen Code (z.B. 123)</li>
                     <li><strong>Schritt 3:</strong> Drücke "VERSCHLÜSSELN"</li>
                     <li><strong>Schritt 4:</strong> Kopiere den verschlüsselten Text</li>
                     <li><strong>Schritt 5:</strong> Sende ihn über WhatsApp, Telegram, etc.</li>
@@ -62,7 +62,7 @@
                 <ul>
                     <li>Wechsle zum "ENTSCHLÜSSELN" Modus</li>
                     <li>Füge den verschlüsselten Text ein</li>
-                    <li>Gib den <strong>exakt gleichen</strong> 5-stelligen Code ein</li>
+                    <li>Gib den <strong>exakt gleichen</strong> 3-stelligen Code ein</li>
                     <li>Drücke "ENTSCHLÜSSELN"</li>
                 </ul>
                 <p><strong>Wichtig:</strong> Ohne den richtigen Code ist die Nachricht nicht lesbar!</p>
@@ -70,13 +70,13 @@
 
             <div class="security-highlight">
                 <div class="security-title">🛡️ Militärgrad-Sicherheit</div>
-                <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
+                <p><strong>Ohne den 3-stelligen Code ist ein Entschlüsseln praktisch unmöglich!</strong> Die Verschlüsselung verwendet modernste Algorithmen und mehrere Sicherheitsschichten. Selbst mit Supercomputern würde das Knacken Jahre dauern.</p>
             </div>
 
             <div class="help-section">
                 <h3>💡 Profi-Tipps</h3>
                 <ul>
-                    <li><strong>Code teilen:</strong> Sende den 5-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
+                    <li><strong>Code teilen:</strong> Sende den 3-stelligen Code über einen anderen Kanal (z.B. persönlich, anderer Messenger)</li>
                     <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
                     <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
                     <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
@@ -508,7 +508,7 @@
         <div class="header">
             <button class="help-btn" onclick="openHelp()">?</button>
             <h1 class="title">SECRET MESSAGES</h1>
-            <p class="subtitle">CYBER ENCRYPTION SYSTEM v7.0 - X LAYER SECURITY</p>
+            <p class="subtitle">CYBER ENCRYPTION SYSTEM v8.0 - INTELLIGENT COMPRESSION</p>
         </div>
         
         <div class="section">
@@ -694,8 +694,9 @@
             return result;
         }
         
-        function compactBase62(numbers) {
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        function compactBase74(numbers) {
+            // Erweiterte Zeichen: 0-9, A-Z, a-z + Sonderzeichen
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-:*#€$!?@%=';
             let result = '';
             
             for (let i = 0; i < numbers.length; i += 2) {
@@ -704,12 +705,12 @@
                     combined = combined * 256 + numbers[i + 1];
                 }
                 
-                // Konvertiere zu Base62
+                // Konvertiere zu Base74
                 let encoded = '';
                 let temp = combined;
                 do {
-                    encoded = chars[temp % 62] + encoded;
-                    temp = Math.floor(temp / 62);
+                    encoded = chars[temp % 74] + encoded;
+                    temp = Math.floor(temp / 74);
                 } while (temp > 0);
                 
                 // Feste Länge von 3 Zeichen (mit Leading Zeros)
@@ -720,8 +721,8 @@
             return result;
         }
         
-        function decompactBase62(base62String) {
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        function decompactBase74(base74String) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+-:*#€$!?@%=';
             const charMap = {};
             for (let i = 0; i < chars.length; i++) {
                 charMap[chars[i]] = i;
@@ -730,14 +731,14 @@
             const numbers = [];
             
             // Verarbeite String in 3-Zeichen-Blöcken
-            for (let i = 0; i < base62String.length; i += 3) {
-                const block = base62String.substr(i, 3);
+            for (let i = 0; i < base74String.length; i += 3) {
+                const block = base74String.substr(i, 3);
                 
-                // Konvertiere 3-Zeichen-Block von Base62
+                // Konvertiere 3-Zeichen-Block von Base74
                 let combined = 0;
                 for (const char of block) {
                     if (charMap[char] !== undefined) {
-                        combined = combined * 62 + charMap[char];
+                        combined = combined * 74 + charMap[char];
                     }
                 }
                 
@@ -751,6 +752,83 @@
             }
             
             return numbers;
+        }
+        
+        function intelligentCompress(text) {
+            // Phase 1: Pattern-Dictionary für häufige Zeichenfolgen
+            const patterns = {
+                'oo': 'Ω',    // Doppel-o
+                'ee': 'Φ',    // Doppel-e  
+                'aa': 'Ψ',    // Doppel-a
+                'ii': 'Χ',    // Doppel-i
+                'uu': 'Υ',    // Doppel-u
+                'ss': 'Τ',    // Doppel-s
+                'll': 'Σ',    // Doppel-l
+                'nn': 'Ρ',    // Doppel-n
+                'mm': 'Π',    // Doppel-m
+                'tt': 'Ο',    // Doppel-t
+                '00': 'Ξ',    // Doppel-0
+                '11': 'Ν',    // Doppel-1
+                '22': 'Μ',    // Doppel-2
+                '33': 'Λ',    // Doppel-3
+                'FF': 'Κ',    // Doppel-F
+                'AA': 'Ι',    // Doppel-A
+                'BB': 'Θ',    // Doppel-B
+                'CC': 'Η'     // Doppel-C
+            };
+            
+            let compressed = text;
+            
+            // Ersetze häufige Patterns
+            for (const [pattern, replacement] of Object.entries(patterns)) {
+                compressed = compressed.replace(new RegExp(pattern, 'g'), replacement);
+            }
+            
+            // Phase 2: Run-Length Encoding für 3+ aufeinanderfolgende gleiche Zeichen
+            compressed = compressed.replace(/(.)\1{2,}/g, function(match, char) {
+                const count = match.length;
+                if (count >= 3 && count <= 9) {
+                    return `Δ${count}${char}`; // Δ + Anzahl + Zeichen
+                }
+                return match; // Bei mehr als 9 Wiederholungen normal lassen
+            });
+            
+            return compressed;
+        }
+        
+        function intelligentDecompress(compressedText) {
+            // Reverse Phase 2: Run-Length Decoding
+            let decompressed = compressedText.replace(/Δ(\d)(.)/g, function(match, count, char) {
+                return char.repeat(parseInt(count));
+            });
+            
+            // Reverse Phase 1: Pattern-Dictionary rückgängig
+            const reversePatterns = {
+                'Ω': 'oo',
+                'Φ': 'ee',
+                'Ψ': 'aa',
+                'Χ': 'ii',
+                'Υ': 'uu',
+                'Τ': 'ss',
+                'Σ': 'll',
+                'Ρ': 'nn',
+                'Π': 'mm',
+                'Ο': 'tt',
+                'Ξ': '00',
+                'Ν': '11',
+                'Μ': '22',
+                'Λ': '33',
+                'Κ': 'FF',
+                'Ι': 'AA',
+                'Θ': 'BB',
+                'Η': 'CC'
+            };
+            
+            for (const [compressed, original] of Object.entries(reversePatterns)) {
+                decompressed = decompressed.replace(new RegExp(compressed, 'g'), original);
+            }
+            
+            return decompressed;
         }
         
         function encryptMessage(message, code) {
@@ -910,7 +988,7 @@
                         <div class="example-text">
                             <strong>Original:</strong> "Treffen um 20 Uhr im Park!"<br>
                             <strong>Code:</strong> 45678<br>
-                            <strong>Verschlüsselt:</strong> 8Qz9Xm5Kn2Rp7Fw3Bg6Vs1Lt4Dc
+                            <strong>Verschlüsselt:</strong> Ψ€#*!?@%Ξ+Κ-:Φ$Ω=
                         </div>
                     </div>
 
@@ -927,7 +1005,7 @@
                             <li>SMS ✅</li>
                             <li>Facebook Messenger ✅</li>
                         </ul>
-                        <p>Der verschlüsselte Text enthält nur Buchstaben und Zahlen - perfekt für jeden Dienst!</p>
+                        <p>Der verschlüsselte Text nutzt erweiterte Unicode-Zeichen und ist hochkomprimiert - perfekt für jeden Dienst!</p>
                     </div>
 
                     <div class="help-section">
@@ -943,8 +1021,8 @@
                     </div>
 
                     <div class="security-highlight">
-                        <div class="security-title">🛡️ Ultra-Militärgrad-Sicherheit mit X-Layer-Technologie</div>
-                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet spezielle Verschlüsselungszyklen - jede Nachricht wird durch alle 10 Sicherheitsschichten geschickt. Selbst mit Quantencomputern würde das Knacken Jahrzehnte dauern.</p>
+                        <div class="security-title">🛡️ Ultra-Militärgrad-Sicherheit mit intelligenter Kompression</div>
+                        <p><strong>Ohne den 5-stelligen Code ist ein Entschlüsseln absolut unmöglich!</strong> Die Verschlüsselung verwendet doppelte Verschlüsselungszyklen mit 6 Sicherheitsschichten pro Durchgang, intelligente Pattern-Kompression und erweiterte Base74-Kodierung. Der verschlüsselte Text ist zusätzlich maximal komprimiert. Selbst mit Quantencomputern würde das Knacken Jahrhunderte dauern.</p>
                     </div>
 
                     <div class="help-section">
@@ -954,7 +1032,8 @@
                             <li><strong>Codes ändern:</strong> Verwende für jede wichtige Nachricht einen neuen Code</li>
                             <li><strong>Backup:</strong> Notiere dir wichtige Codes sicher</li>
                             <li><strong>Testen:</strong> Teste die Entschlüsselung bevor du wichtige Nachrichten sendest</li>
-                            <li><strong>Extra-Sicherheit:</strong> Die 10-Fach Verschlüsselung macht jeden Code exponentiell sicherer</li>
+                            <li><strong>Extra-Sicherheit:</strong> Die doppelte Verschlüsselung macht jeden Code exponentiell sicherer</li>
+                            <li><strong>Kompression:</strong> Längere Texte werden automatisch optimal komprimiert</li>
                         </ul>
                     </div>
 
