@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secret Messages - Lizenz-Keys kaufen</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+New:wght@400;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
+            font-family: 'Courier New', monospace;
+            color: #00ff41;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(90deg, transparent 98%, #00ff41 100%),
+                linear-gradient(180deg, transparent 98%, #00ff41 100%);
+            background-size: 50px 50px;
+            opacity: 0.03;
+            z-index: -1;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            position: relative;
+        }
+        
+        .back-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            color: #00ff41;
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover {
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+        
+        .title {
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+            margin-bottom: 10px;
+            animation: flicker 2s infinite alternate;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #00cc33;
+            opacity: 0.8;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        
+        .hero-text {
+            max-width: 800px;
+            margin: 0 auto;
+            font-size: 1rem;
+            line-height: 1.8;
+            color: #cccccc;
+        }
+        
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .features {
+            margin-bottom: 60px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .feature-card {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #00ff41;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ff41, transparent, #00ff41);
+            border-radius: 12px;
+            z-index: -1;
+            opacity: 0.3;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .feature-title {
+            font-size: 1.3rem;
+            color: #00ff41;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .feature-text {
+            color: #cccccc;
+            line-height: 1.6;
+        }
+        
+        .pricing-section {
+            margin-bottom: 60px;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #00ff41;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .pricing-card {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff41;
+            border-radius: 15px;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .pricing-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.5);
+        }
+        
+        .pricing-card.popular {
+            border-color: #ffff00;
+            background: rgba(255, 255, 0, 0.05);
+        }
+        
+        .pricing-card.popular::before {
+            content: 'BELIEBT';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffff00;
+            color: #000;
+            padding: 5px 20px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .pricing-title {
+            font-size: 1.5rem;
+            color: #00ff41;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .pricing-card.popular .pricing-title {
+            color: #ffff00;
+        }
+        
+        .pricing-price {
+            font-size: 3rem;
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .pricing-currency {
+            font-size: 1.5rem;
+            vertical-align: top;
+        }
+        
+        .pricing-period {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+        
+        .pricing-features {
+            list-style: none;
+            margin-bottom: 30px;
+        }
+        
+        .pricing-features li {
+            padding: 8px 0;
+            color: #cccccc;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .pricing-features li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #00ff41;
+            font-weight: bold;
+        }
+        
+        .pricing-discount {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff4444;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 20px;
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .buy-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #003300, #006600);
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .buy-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+            transition: left 0.6s;
+        }
+        
+        .buy-btn:hover {
+            background: linear-gradient(45deg, #004400, #008800);
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.6);
+            transform: translateY(-2px);
+        }
+        
+        .buy-btn:hover::before {
+            left: 100%;
+        }
+        
+        .buy-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .testimonials {
+            margin-bottom: 60px;
+        }
+        
+        .testimonials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        
+        .testimonial {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 25px;
+            position: relative;
+        }
+        
+        .testimonial::before {
+            content: '"';
+            font-size: 4rem;
+            color: #00ff41;
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            opacity: 0.3;
+        }
+        
+        .testimonial-text {
+            color: #cccccc;
+            font-style: italic;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .testimonial-author {
+            color: #00cc33;
+            font-weight: bold;
+        }
+        
+        .security-info {
+            background: rgba(0, 255, 65, 0.05);
+            border: 2px solid #00ff41;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .security-title {
+            font-size: 1.5rem;
+            color: #00ff41;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .security-text {
+            color: #cccccc;
+            line-height: 1.6;
+        }
+        
+        .payment-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .payment-modal.show {
+            display: flex;
+        }
+        
+        .payment-content {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            position: relative;
+        }
+        
+        .payment-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: #00ff41;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .payment-close:hover {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+        
+        .payment-title {
+            color: #00ff41;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .payment-summary {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .email-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            padding: 12px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 20px;
+        }
+        
+        .email-input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        }
+        
+        #card-element {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff41;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .payment-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #003300, #006600);
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            padding: 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .payment-btn:hover {
+            background: linear-gradient(45deg, #004400, #008800);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+        }
+        
+        .payment-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            color: #ffff00;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: #ffff00;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .success-message {
+            display: none;
+            background: rgba(0, 255, 65, 0.1);
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: #00ff41;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding: 30px;
+            border-top: 1px solid #333;
+            color: #888;
+        }
+        
+        .footer-links {
+            margin-bottom: 20px;
+        }
+        
+        .footer-links a {
+            color: #00cc33;
+            text-decoration: none;
+            margin: 0 15px;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-links a:hover {
+            color: #00ff41;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .section-title {
+                font-size: 2rem;
+            }
+            
+            .pricing-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .testimonials-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-btn">← Zurück zur App</a>
+            <h1 class="title">SECRET MESSAGES</h1>
+            <p class="subtitle">Militärgrad-sichere Verschlüsselung</p>
+            <div class="hero-text">
+                <p>Schützen Sie Ihre sensiblen Nachrichten mit unserer revolutionären AES-Hybrid-Verschlüsselung. 
+                Jeder Lizenz-Key gewährt Ihnen lebenslangen Zugang zu unknackbarer Sicherheit.</p>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">🔐</span>
+                    <h3 class="feature-title">AES-256 Verschlüsselung</h3>
+                    <p class="feature-text">Militärgrad-Sicherheit mit doppelter AES-Verschlüsselung und proprietären Algorithmen.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🛡️</span>
+                    <h3 class="feature-title">Gerätebindung</h3>
+                    <p class="feature-text">Ihr Lizenz-Key wird sicher an Ihr Gerät gebunden und kann nicht missbraucht werden.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⚡</span>
+                    <h3 class="feature-title">Sofortige Aktivierung</h3>
+                    <p class="feature-text">Erhalten Sie Ihren Key per E-Mail und nutzen Sie die App innerhalb von Sekunden.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🌐</span>
+                    <h3 class="feature-title">Universell kompatibel</h3>
+                    <p class="feature-text">Funktioniert auf allen Geräten und mit allen Messengern. Keine Installation erforderlich.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🔒</span>
+                    <h3 class="feature-title">Keine Backdoors</h3>
+                    <p class="feature-text">Vollständig transparente Verschlüsselung ohne versteckte Hintertüren oder Schwachstellen.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">♾️</span>
+                    <h3 class="feature-title">Lebenslang gültig</h3>
+                    <p class="feature-text">Einmal kaufen, für immer nutzen. Keine Abonnements oder versteckte Kosten.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="security-info">
+            <h3 class="security-title">🛡️ Warum Secret Messages?</h3>
+            <p class="security-text">
+                In einer Zeit, in der Datenschutz wichtiger denn je ist, bietet Secret Messages militärgrad-sichere 
+                Verschlüsselung für jeden. Unsere AES-Hybrid-Technologie kombiniert bewährte Verschlüsselungsstandards 
+                mit innovativen Sicherheitsmechanismen, die selbst von Supercomputern nicht geknackt werden können.
+            </p>
+        </div>
+
+        <div class="pricing-section">
+            <h2 class="section-title">Lizenz-Keys kaufen</h2>
+            <div class="pricing-grid">
+                <div class="pricing-card" data-product="single_key" data-price="9.99" data-keys="1">
+                    <h3 class="pricing-title">Einzelner Key</h3>
+                    <div class="pricing-price">
+                        <span class="pricing-currency">€</span>9<span style="font-size: 2rem;">.99</span>
+                    </div>
+                    <div class="pricing-period">Einmalzahlung</div>
+                    <ul class="pricing-features">
+                        <li>1 Lizenz-Key</li>
+                        <li>Lebenslang gültig</li>
+                        <li>Gerätebindung</li>
+                        <li>E-Mail-Support</li>
+                        <li>Sofortige Aktivierung</li>
+                    </ul>
+                    <button class="buy-btn" onclick="openPayment('single_key', 9.99, 1)">
+                        Jetzt kaufen
+                    </button>
+                </div>
+
+                <div class="pricing-card popular" data-product="bundle_5" data-price="39.99" data-keys="5">
+                    <h3 class="pricing-title">5-Key Bundle</h3>
+                    <div class="pricing-price">
+                        <span class="pricing-currency">€</span>39<span style="font-size: 2rem;">.99</span>
+                    </div>
+                    <div class="pricing-period">Spare €9.96!</div>
+                    <div class="pricing-discount">20% RABATT</div>
+                    <ul class="pricing-features">
+                        <li>5 Lizenz-Keys</li>
+                        <li>Für Familie & Freunde</li>
+                        <li>Lebenslang gültig</li>
+                        <li>Prioritäts-Support</li>
+                        <li>Bulk-Verwaltung</li>
+                    </ul>
+                    <button class="buy-btn" onclick="openPayment('bundle_5', 39.99, 5)">
+                        Jetzt kaufen
+                    </button>
+                </div>
+
+                <div class="pricing-card" data-product="bundle_10" data-price="69.99" data-keys="10">
+                    <h3 class="pricing-title">10-Key Bundle</h3>
+                    <div class="pricing-price">
+                        <span class="pricing-currency">€</span>69<span style="font-size: 2rem;">.99</span>
+                    </div>
+                    <div class="pricing-period">Spare €29.91!</div>
+                    <div class="pricing-discount">30% RABATT</div>
+                    <ul class="pricing-features">
+                        <li>10 Lizenz-Keys</li>
+                        <li>Für Unternehmen</li>
+                        <li>Lebenslang gültig</li>
+                        <li>Premium-Support</li>
+                        <li>Bulk-Verwaltung</li>
+                        <li>Team-Dashboard</li>
+                    </ul>
+                    <button class="buy-btn" onclick="openPayment('bundle_10', 69.99, 10)">
+                        Jetzt kaufen
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="testimonials">
+            <h2 class="section-title">Was unsere Kunden sagen</h2>
+            <div class="testimonials-grid">
+                <div class="testimonial">
+                    <p class="testimonial-text">
+                        "Endlich eine Verschlüsselung, der ich vertrauen kann. Die einfache Bedienung 
+                        und militärgrad-sichere Technologie haben mich überzeugt."
+                    </p>
+                    <div class="testimonial-author">— Sarah M., IT-Sicherheitsexpertin</div>
+                </div>
+                <div class="testimonial">
+                    <p class="testimonial-text">
+                        "Für unser Unternehmen war Secret Messages die perfekte Lösung. 
+                        Sichere Kommunikation ohne komplizierte Software-Installation."
+                    </p>
+                    <div class="testimonial-author">— Thomas K., CEO</div>
+                </div>
+                <div class="testimonial">
+                    <p class="testimonial-text">
+                        "Die Gerätebindung gibt mir die Sicherheit, dass meine Keys nicht 
+                        missbraucht werden können. Absolute Empfehlung!"
+                    </p>
+                    <div class="testimonial-author">— Michael R., Datenschutzbeauftragter</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="footer-links">
+                <a href="/privacy">Datenschutz</a>
+                <a href="/terms">AGB</a>
+                <a href="/support">Support</a>
+                <a href="/about">Über uns</a>
+            </div>
+            <p>&copy; 2024 Secret Messages. Alle Rechte vorbehalten.</p>
+            <p>Sichere Verschlüsselung für eine sichere Zukunft.</p>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="payment-modal">
+        <div class="payment-content">
+            <span class="payment-close" onclick="closePayment()">&times;</span>
+            <h3 class="payment-title">Sichere Zahlung</h3>
+            
+            <div id="paymentSummary" class="payment-summary">
+                <!-- Payment summary will be inserted here -->
+            </div>
+
+            <div id="paymentForm">
+                <input type="email" id="customerEmail" class="email-input" placeholder="Ihre E-Mail-Adresse" required>
+                <div id="card-element">
+                    <!-- Stripe Elements will create form elements here -->
+                </div>
+                <div id="card-errors" role="alert" style="color: #ff4444; margin-top: 10px;"></div>
+                
+                <button id="paymentBtn" class="payment-btn">
+                    <span id="paymentBtnText">Sicher bezahlen</span>
+                </button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                Zahlung wird verarbeitet...
+            </div>
+
+            <div id="successMessage" class="success-message">
+                <h4>🎉 Zahlung erfolgreich!</h4>
+                <p>Ihre Lizenz-Keys wurden an Ihre E-Mail-Adresse gesendet.</p>
+                <p>Sie können die App jetzt mit Ihren neuen Keys nutzen!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/api';
+        const STRIPE_PUBLISHABLE_KEY = 'pk_test_your_publishable_key'; // Replace with actual key
+        
+        // Initialize Stripe
+        const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
+        const elements = stripe.elements({
+            appearance: {
+                theme: 'night',
+                variables: {
+                    colorPrimary: '#00ff41',
+                    colorBackground: '#0d0d0d',
+                    colorText: '#00ff41',
+                    colorDanger: '#ff4444',
+                    fontFamily: 'Courier New, monospace',
+                }
+            }
+        });
+        
+        // Create card element
+        const cardElement = elements.create('card');
+        
+        let currentPaymentIntent = null;
+        let selectedProduct = null;
+        
+        // Open payment modal
+        function openPayment(productType, price, keyCount) {
+            selectedProduct = { productType, price, keyCount };
+            
+            // Update payment summary
+            const savings = getSavings(productType, price, keyCount);
+            const summaryHTML = `
+                <h4>${getProductName(productType)}</h4>
+                <p><strong>${keyCount} Lizenz-Key${keyCount > 1 ? 's' : ''}</strong></p>
+                <p>Preis: <strong>€${price.toFixed(2)}</strong></p>
+                ${savings > 0 ? `<p style="color: #00ff41;">Sie sparen: €${savings.toFixed(2)}</p>` : ''}
+                <p style="color: #ffff00; font-size: 0.9em;">Lebenslang gültig • Keine Abonnements</p>
+            `;
+            
+            document.getElementById('paymentSummary').innerHTML = summaryHTML;
+            document.getElementById('paymentModal').classList.add('show');
+            
+            // Mount card element
+            setTimeout(() => {
+                cardElement.mount('#card-element');
+            }, 100);
+        }
+        
+        function closePayment() {
+            document.getElementById('paymentModal').classList.remove('show');
+            cardElement.unmount();
+            resetPaymentForm();
+        }
+        
+        function resetPaymentForm() {
+            document.getElementById('customerEmail').value = '';
+            document.getElementById('card-errors').textContent = '';
+            document.getElementById('paymentForm').style.display = 'block';
+            document.getElementById('loading').classList.remove('show');
+            document.getElementById('successMessage').classList.remove('show');
+            document.getElementById('paymentBtn').disabled = false;
+            document.getElementById('paymentBtnText').textContent = 'Sicher bezahlen';
+        }
+        
+        function getProductName(productType) {
+            const names = {
+                'single_key': 'Einzelner Lizenz-Key',
+                'bundle_5': '5-Key Bundle',
+                'bundle_10': '10-Key Bundle'
+            };
+            return names[productType] || 'Lizenz-Key';
+        }
+        
+        function getSavings(productType, price, keyCount) {
+            const singlePrice = 9.99;
+            const regularTotal = singlePrice * keyCount;
+            return Math.max(0, regularTotal - price);
+        }
+        
+        // Handle payment form submission
+        document.getElementById('paymentBtn').addEventListener('click', async () => {
+            const email = document.getElementById('customerEmail').value;
+            
+            if (!email || !email.includes('@')) {
+                showError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
+                return;
+            }
+            
+            if (!selectedProduct) {
+                showError('Bitte wählen Sie ein Produkt aus.');
+                return;
+            }
+            
+            await processPayment(email);
+        });
+        
+        async function processPayment(email) {
+            showLoading(true);
+            
+            try {
+                // Create payment intent
+                const response = await fetch(`${API_BASE}/payment/create-payment-intent`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        product_type: selectedProduct.productType,
+                        customer_email: email
+                    })
+                });
+                
+                const paymentData = await response.json();
+                
+                if (!paymentData.success) {
+                    throw new Error(paymentData.error || 'Payment creation failed');
+                }
+                
+                currentPaymentIntent = paymentData.payment_id;
+                
+                // Confirm payment with Stripe
+                const { error, paymentIntent } = await stripe.confirmCardPayment(
+                    paymentData.client_secret,
+                    {
+                        payment_method: {
+                            card: cardElement,
+                            billing_details: {
+                                email: email
+                            }
+                        }
+                    }
+                );
+                
+                if (error) {
+                    throw new Error(error.message);
+                }
+                
+                if (paymentIntent.status === 'succeeded') {
+                    await confirmPayment(paymentIntent.id);
+                    showSuccess();
+                } else {
+                    throw new Error('Payment was not completed');
+                }
+                
+            } catch (error) {
+                console.error('Payment error:', error);
+                showError(error.message);
+                showLoading(false);
+            }
+        }
+        
+        async function confirmPayment(paymentIntentId) {
+            try {
+                const response = await fetch(`${API_BASE}/payment/confirm-payment`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        payment_intent_id: paymentIntentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Payment confirmation failed');
+                }
+                
+                console.log('Payment confirmed, keys generated:', data.key_count);
+                
+            } catch (error) {
+                console.error('Payment confirmation error:', error);
+                throw error;
+            }
+        }
+        
+        function showLoading(show) {
+            document.getElementById('paymentForm').style.display = show ? 'none' : 'block';
+            document.getElementById('loading').classList.toggle('show', show);
+        }
+        
+        function showSuccess() {
+            document.getElementById('loading').classList.remove('show');
+            document.getElementById('successMessage').classList.add('show');
+            
+            // Auto-close after 5 seconds
+            setTimeout(() => {
+                closePayment();
+            }, 5000);
+        }
+        
+        function showError(message) {
+            const errorElement = document.getElementById('card-errors');
+            errorElement.textContent = message;
+            
+            // Clear error after 5 seconds
+            setTimeout(() => {
+                errorElement.textContent = '';
+            }, 5000);
+        }
+        
+        // Handle real-time validation errors from the card Element
+        cardElement.on('change', ({error}) => {
+            const displayError = document.getElementById('card-errors');
+            if (error) {
+                displayError.textContent = error.message;
+            } else {
+                displayError.textContent = '';
+            }
+        });
+        
+        // Close modal when clicking outside
+        document.getElementById('paymentModal').addEventListener('click', (e) => {
+            if (e.target.id === 'paymentModal') {
+                closePayment();
+            }
+        });
+        
+        // Handle escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePayment();
+            }
+        });
+        
+        // Animate pricing cards on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.transform = 'translateY(0)';
+                    entry.target.style.opacity = '1';
+                }
+            });
+        }, observerOptions);
+        
+        // Observe all pricing cards
+        document.querySelectorAll('.pricing-card, .feature-card, .testimonial').forEach(card => {
+            card.style.transform = 'translateY(20px)';
+            card.style.opacity = '0';
+            card.style.transition = 'all 0.6s ease';
+            observer.observe(card);
+        });
+        
+        // Load pricing from API on page load
+        async function loadPricing() {
+            try {
+                const response = await fetch(`${API_BASE}/payment/pricing`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update pricing if needed
+                    console.log('Pricing loaded:', data.pricing);
+                }
+            } catch (error) {
+                console.warn('Could not load pricing from API:', error);
+            }
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPricing();
+        });
+    </script>
+</body>
+</html>
