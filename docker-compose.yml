@@ -1,0 +1,331 @@
+# docker-compose.yml - Complete Secret Messages Stack
+version: '3.8'
+
+services:
+  # Main Application
+  secret-messages-app:
+    build:
+      context: .
+      target: production
+    container_name: secret-messages-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DATABASE_URL=postgresql://secretmessages:${DB_PASSWORD}@postgres:5432/secretmessages
+      - REDIS_URL=redis://redis:6379
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - FRONTEND_URL=${FRONTEND_URL}
+    volumes:
+      - app-logs:/app/logs
+      - app-backups:/app/backups
+      - app-uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - secret-messages-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.secret-messages.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.secret-messages.tls.certresolver=letsencrypt"
+      - "traefik.http.services.secret-messages.loadbalancer.server.port=3000"
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: secret-messages-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=secretmessages
+      - POSTGRES_USER=secretmessages
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - secret-messages-network
+    ports:
+      - "5432:5432" # Remove in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secretmessages -d secretmessages"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for Caching and Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: secret-messages-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - secret-messages-network
+    ports:
+      - "6379:6379" # Remove in production
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: secret-messages-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - secret-messages-app
+    networks:
+      - secret-messages-network
+
+  # Database Backup Service
+  backup:
+    image: postgres:15-alpine
+    container_name: secret-messages-backup
+    restart: "no"
+    environment:
+      - POSTGRES_DB=secretmessages
+      - POSTGRES_USER=secretmessages
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - PGPASSWORD=${DB_PASSWORD}
+    volumes:
+      - app-backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - secret-messages-network
+    depends_on:
+      - postgres
+    command: ["sh", "/backup.sh"]
+    profiles:
+      - backup
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: secret-messages-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - secret-messages-network
+    profiles:
+      - monitoring
+
+  # Grafana for Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: secret-messages-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - secret-messages-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+  # Log Aggregation with ELK Stack
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: secret-messages-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - secret-messages-network
+    profiles:
+      - logging
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: secret-messages-logstash
+    volumes:
+      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - app-logs:/app/logs:ro
+    networks:
+      - secret-messages-network
+    depends_on:
+      - elasticsearch
+    profiles:
+      - logging
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: secret-messages-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - secret-messages-network
+    depends_on:
+      - elasticsearch
+    profiles:
+      - logging
+
+  # SSL Certificate Management
+  certbot:
+    image: certbot/certbot
+    container_name: secret-messages-certbot
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - ./nginx/webroot:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${SSL_EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+    profiles:
+      - ssl
+
+# Volumes
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  app-logs:
+    driver: local
+  app-backups:
+    driver: local
+  app-uploads:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+# Networks
+networks:
+  secret-messages-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Development Override
+---
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  secret-messages-app:
+    build:
+      target: development
+    environment:
+      - NODE_ENV=development
+      - DEBUG=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+      - "9229:9229" # Debug port
+    command: ["npm", "run", "dev"]
+
+  postgres:
+    ports:
+      - "5432:5432"
+    
+  redis:
+    ports:
+      - "6379:6379"
+
+# Production Override
+---
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  secret-messages-app:
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  nginx:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+# Testing Configuration
+---
+# docker-compose.test.yml
+version: '3.8'
+
+services:
+  test-app:
+    build:
+      context: .
+      target: development
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test:test@test-postgres:5432/test
+    depends_on:
+      - test-postgres
+    command: ["npm", "test"]
+    networks:
+      - test-network
+
+  test-postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=test
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
