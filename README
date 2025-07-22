@@ -1,0 +1,530 @@
+# 🔐 Secret Messages - Enterprise Backend System
+
+Ein professionelles, produktionsbereites Backend-System für die Secret Messages AES-Verschlüsselungs-Webapplikation mit Lizenz-Key-Management, Payment-Integration und umfassendem Monitoring.
+
+## 🚀 Features
+
+### 🔑 **Lizenz-Key-System**
+- Sichere Key-Generierung mit Crypto-Standards
+- IP-basierte Gerätebindung
+- Automatische Key-Validierung
+- Session-Management mit JWT
+- Schutz vor mehrfacher Nutzung
+
+### 💳 **Payment-Integration**
+- Stripe-Integration für sichere Zahlungen
+- Automatische Key-Generierung nach Zahlung
+- E-Mail-Versand der Lizenz-Keys
+- Webhook-Verarbeitung
+- Mehrere Preismodelle (Einzelkauf, Bundles)
+
+### 🛡️ **Enterprise-Security**
+- Rate Limiting gegen Brute-Force
+- Helmet.js Security Headers
+- CORS-Konfiguration
+- SQL Injection Schutz
+- Verschlüsselte Session-Tokens
+
+### 📊 **Monitoring & Analytics**
+- Prometheus Metriken
+- Grafana Dashboards
+- ELK Stack für Logs
+- Health Checks
+- Performance Monitoring
+
+### 🐳 **Docker-basiertes Deployment**
+- Multi-Service-Architektur
+- Automatische SSL-Zertifikate
+- Backup-System
+- Load Balancing
+- Development & Production Configs
+
+## 📋 Systemanforderungen
+
+- **OS**: Ubuntu 20.04+ / CentOS 8+ / Docker-fähiges System
+- **RAM**: Minimum 2GB (empfohlen 4GB+)
+- **Storage**: Minimum 10GB freier Speicher
+- **Software**: Docker, Docker Compose, Git
+
+## 🛠️ Schnelle Installation
+
+### 1. Repository klonen
+```bash
+git clone https://github.com/yourusername/secret-messages-backend.git
+cd secret-messages-backend
+```
+
+### 2. Automatische Installation ausführen
+```bash
+chmod +x scripts/quick-install.sh
+./scripts/quick-install.sh
+```
+
+### 3. Konfiguration anpassen
+```bash
+cp .env.example .env
+nano .env
+```
+
+### 4. System starten
+```bash
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh full
+```
+
+## ⚙️ Manuelle Installation
+
+### 1. Abhängigkeiten installieren
+```bash
+# Docker installieren (Ubuntu)
+sudo apt update
+sudo apt install -y docker.io docker-compose git curl
+
+# Docker-Service starten
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# User zu Docker-Gruppe hinzufügen
+sudo usermod -aG docker $USER
+```
+
+### 2. Projekt einrichten
+```bash
+# Repository klonen
+git clone https://github.com/yourusername/secret-messages-backend.git
+cd secret-messages-backend
+
+# NPM-Abhängigkeiten installieren
+npm install
+
+# Umgebungsvariablen konfigurieren
+cp .env.example .env
+```
+
+### 3. Umgebungsvariablen konfigurieren
+```bash
+# .env-Datei bearbeiten
+nano .env
+```
+
+**Wichtige Variablen:**
+```env
+# Security
+JWT_SECRET=your-super-secret-jwt-key-min-32-characters
+ADMIN_PASSWORD=YourSecureAdminPassword123!
+
+# Database
+DB_PASSWORD=YourSecureDatabasePassword123!
+
+# Domain
+DOMAIN=yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+
+# Stripe (optional)
+STRIPE_SECRET_KEY=sk_live_your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# Email (optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+```
+
+### 4. Datenbank initialisieren
+```bash
+# Setup-Script ausführen
+node scripts/setup.js
+```
+
+### 5. System starten
+```bash
+# Development
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Production
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+## 🔧 Konfiguration
+
+### Umgebungen
+
+#### **Development**
+```bash
+# Development-Stack starten
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Logs verfolgen
+docker-compose logs -f secret-messages-app
+```
+
+#### **Production**
+```bash
+# Production-Stack mit SSL und Monitoring
+./scripts/deploy.sh full
+
+# Oder manuell:
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile monitoring up -d
+```
+
+#### **Testing**
+```bash
+# Test-Suite ausführen
+npm test
+
+# Load-Tests
+npm run test:load
+
+# Security-Scans
+npm run test:security
+```
+
+### SSL-Zertifikate einrichten
+
+#### **Automatisch (empfohlen)**
+```bash
+# Domain in .env konfigurieren
+echo "DOMAIN=yourdomain.com" >> .env
+echo "SSL_EMAIL=your-email@domain.com" >> .env
+
+# SSL automatisch einrichten
+./scripts/deploy.sh ssl
+```
+
+#### **Manuell**
+```bash
+# Let's Encrypt Zertifikat
+docker-compose --profile ssl run --rm certbot
+
+# Nginx neu laden
+docker-compose exec nginx nginx -s reload
+```
+
+## 🎮 Nutzung
+
+### Admin Panel
+- **URL**: `https://yourdomain.com/admin`
+- **Anmeldung**: Admin-Passwort aus `.env`
+- **Features**: 
+  - Key-Generierung
+  - Statistiken
+  - User-Management
+  - System-Status
+
+### API Endpoints
+
+#### **Authentifizierung**
+```bash
+# Key aktivieren
+curl -X POST https://yourdomain.com/api/auth/activate \
+  -H "Content-Type: application/json" \
+  -d '{"licenseKey": "SM001-ALPHA-BETA1"}'
+
+# Session validieren
+curl -X POST https://yourdomain.com/api/auth/validate \
+  -H "Content-Type: application/json" \
+  -d '{"token": "your-jwt-token"}'
+```
+
+#### **Admin-Funktionen**
+```bash
+# Statistiken abrufen
+curl -X POST https://yourdomain.com/api/admin/stats \
+  -H "Content-Type: application/json" \
+  -d '{"password": "admin-password"}'
+
+# Keys generieren
+curl -X POST https://yourdomain.com/api/admin/generate-key \
+  -H "Content-Type: application/json" \
+  -d '{"password": "admin-password", "quantity": 10}'
+```
+
+#### **Payment**
+```bash
+# Preise abrufen
+curl https://yourdomain.com/api/payment/pricing
+
+# Payment Intent erstellen
+curl -X POST https://yourdomain.com/api/payment/create-payment-intent \
+  -H "Content-Type: application/json" \
+  -d '{"product_type": "single_key", "customer_email": "user@example.com"}'
+```
+
+### Monitoring-Dashboards
+
+#### **Grafana** (Port 3001)
+- **URL**: `https://yourdomain.com:3001`
+- **Login**: admin / admin (beim ersten Start ändern)
+- **Dashboards**: 
+  - System-Performance
+  - API-Metriken
+  - Benutzer-Aktivität
+  - Fehler-Tracking
+
+#### **Prometheus** (Port 9090)
+- **URL**: `https://yourdomain.com:9090`
+- **Features**: 
+  - Metriken-Explorer
+  - Alert-Manager
+  - Query-Interface
+
+#### **Kibana** (Port 5601)
+- **URL**: `https://yourdomain.com:5601`
+- **Features**: 
+  - Log-Analyse
+  - Error-Tracking
+  - User-Behavior
+
+## 💰 Monetarisierung
+
+### Preismodelle
+```javascript
+const PREISE = {
+    single_key: "€9.99",    // Ein Lizenz-Key
+    bundle_5: "€39.99",     // 5 Keys (20% Rabatt)
+    bundle_10: "€69.99"     // 10 Keys (30% Rabatt)
+};
+```
+
+### Payment-Integration
+1. **Stripe-Konto** einrichten
+2. **API-Keys** in `.env` konfigurieren
+3. **Webhooks** einrichten: `https://yourdomain.com/api/payment/webhook`
+4. **Automatische Key-Lieferung** per E-Mail
+
+### Business-Logik
+- Keys werden nach Zahlungsbestätigung generiert
+- Automatischer E-Mail-Versand mit Lizenz-Keys
+- Schutz vor Doppelverwendung
+- IP-basierte Gerätebindung
+
+## 🔒 Sicherheit
+
+### Implementierte Sicherheitsmaßnahmen
+- **Rate Limiting**: Schutz vor Brute-Force-Angriffen
+- **HTTPS**: Erzwungene SSL-Verschlüsselung
+- **JWT**: Sichere Session-Verwaltung
+- **SQL Injection**: Parametrisierte Queries
+- **XSS Protection**: Content Security Policy
+- **CORS**: Konfigurierbare Origin-Kontrolle
+
+### Security Best Practices
+```bash
+# Regelmäßige Security-Scans
+npm run test:security
+
+# Vulnerability-Checks
+npm audit
+
+# SSL-Zertifikat erneuern
+docker-compose --profile ssl run --rm certbot renew
+```
+
+## 📊 Backup & Recovery
+
+### Automatische Backups
+```bash
+# Backup-Konfiguration in docker-compose.yml aktivieren
+docker-compose --profile backup run --rm backup
+
+# Manuelles Backup
+./scripts/backup.sh
+```
+
+### Backup-Wiederherstellung
+```bash
+# Verfügbare Backups anzeigen
+ls -la /opt/backups/secret-messages/
+
+# Backup wiederherstellen
+./scripts/restore.sh /opt/backups/secret-messages/backup-20241201-120000.sql.gz
+```
+
+### Backup-Strategien
+- **Täglich**: Datenbank-Dumps
+- **Wöchentlich**: Vollständige System-Backups
+- **Monatlich**: Archivierung alter Backups
+- **Real-time**: Datenbank-Replikation (Production)
+
+## 🐛 Troubleshooting
+
+### Häufige Probleme
+
+#### **Container startet nicht**
+```bash
+# Logs prüfen
+docker-compose logs secret-messages-app
+
+# Container-Status
+docker-compose ps
+
+# Neustart
+docker-compose restart secret-messages-app
+```
+
+#### **Datenbank-Verbindungsfehler**
+```bash
+# Datenbank-Status prüfen
+docker-compose exec postgres pg_isready -U secretmessages
+
+# Datenbank-Logs
+docker-compose logs postgres
+
+# Datenbank neu starten
+docker-compose restart postgres
+```
+
+#### **SSL-Zertifikat-Probleme**
+```bash
+# Zertifikat-Status prüfen
+docker-compose exec nginx nginx -t
+
+# Zertifikat erneuern
+docker-compose --profile ssl run --rm certbot renew
+
+# Nginx neu laden
+docker-compose exec nginx nginx -s reload
+```
+
+#### **Payment-Webhook-Fehler**
+```bash
+# Webhook-Logs prüfen
+docker-compose logs secret-messages-app | grep webhook
+
+# Stripe-Dashboard prüfen
+# -> Events -> Webhook-Status
+
+# Webhook neu konfigurieren
+curl -X POST https://api.stripe.com/v1/webhook_endpoints \
+  -u sk_live_your_stripe_secret_key: \
+  -d url=https://yourdomain.com/api/payment/webhook
+```
+
+### Debug-Modus
+```bash
+# Development mit Debug-Logs
+DEBUG=* npm run dev
+
+# Docker Debug-Logs
+docker-compose logs -f --tail=100 secret-messages-app
+```
+
+## 🔄 Updates & Wartung
+
+### System-Updates
+```bash
+# Docker-Images aktualisieren
+docker-compose pull
+
+# Anwendung aktualisieren
+git pull origin main
+./scripts/deploy.sh deploy
+
+# Dependencies aktualisieren
+npm update
+```
+
+### Monitoring der Systemgesundheit
+```bash
+# Automatische Health-Checks
+./scripts/deploy.sh health
+
+# Performance-Tests
+npm run test:load
+
+# Resource-Überwachung
+docker stats
+```
+
+## 📈 Skalierung
+
+### Horizontal Scaling
+```bash
+# Mehr App-Instanzen starten
+docker-compose up -d --scale secret-messages-app=3
+
+# Load Balancer konfigurieren
+# -> nginx/nginx.conf anpassen
+```
+
+### Vertical Scaling
+```yaml
+# docker-compose.prod.yml - Resource-Limits anpassen
+deploy:
+  resources:
+    limits:
+      cpus: '2.0'
+      memory: 2G
+```
+
+### Database Scaling
+- **Read Replicas**: PostgreSQL Streaming Replication
+- **Connection Pooling**: PgBouncer
+- **Caching**: Redis für Session-Daten
+
+## 🤝 Contributing
+
+### Development Setup
+```bash
+# Fork des Repositories
+git clone https://github.com/yourusername/secret-messages-backend.git
+
+# Development-Environment
+npm install
+cp .env.example .env.dev
+npm run dev
+
+# Tests ausführen
+npm test
+npm run test:integration
+```
+
+### Code Standards
+- **ESLint**: JavaScript-Linting
+- **Prettier**: Code-Formatierung
+- **Jest**: Unit & Integration Tests
+- **JSDoc**: API-Dokumentation
+
+## 📄 Lizenz
+
+MIT License - siehe [LICENSE](LICENSE) für Details.
+
+## 🆘 Support
+
+### Community Support
+- **GitHub Issues**: Bug Reports & Feature Requests
+- **Discussions**: Community-Hilfe
+- **Wiki**: Erweiterte Dokumentation
+
+### Enterprise Support
+- **Priority Support**: 24/7 E-Mail-Support
+- **Custom Development**: Anpassungen und Erweiterungen
+- **Consulting**: Architektur- und Sicherheitsberatung
+
+### Kontakt
+- **E-Mail**: support@secretmessages.dev
+- **Website**: https://secretmessages.dev
+- **Discord**: https://discord.gg/secretmessages
+
+---
+
+## 🎉 Quick Start Checkliste
+
+- [ ] Server mit Docker vorbereiten
+- [ ] Repository klonen
+- [ ] `.env` konfigurieren
+- [ ] `./scripts/quick-install.sh` ausführen
+- [ ] SSL-Zertifikat einrichten
+- [ ] Admin Panel testen (`/admin`)
+- [ ] Stripe-Integration konfigurieren
+- [ ] E-Mail-System testen
+- [ ] Monitoring-Dashboards prüfen
+- [ ] Demo-Keys testen
+- [ ] Production-Deployment
+
+**🚀 Ihr Secret Messages Enterprise-Backend ist bereit!**
+
+---
+
+*Erstellt mit ❤️ für sichere Kommunikation*
