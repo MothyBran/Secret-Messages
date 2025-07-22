@@ -1,112 +1,194 @@
-// scripts/setup.js - Initial setup script
-const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcrypt');
+#!/usr/bin/env node
+/**
+ * Setup Script for Secret Messages Backend
+ * Initializes database, creates admin user, generates demo keys
+ */
+
+require('dotenv').config();
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 Starting Secret Messages Backend Setup...\n');
+// Database setup (supports both SQLite and PostgreSQL)
+let db;
+const DATABASE_TYPE = process.env.DATABASE_URL?.startsWith('postgresql') ? 'postgres' : 'sqlite';
 
-// Create necessary directories
-const dirs = ['logs', 'backups', 'public'];
-dirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log(`✅ Created directory: ${dir}`);
-    }
-});
-
-// Database setup
-const db = new sqlite3.Database('./secret_messages.db');
-
-console.log('\n📊 Setting up database tables...');
-
-db.serialize(() => {
-    // License Keys Table
-    db.run(`CREATE TABLE IF NOT EXISTS license_keys (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key_code TEXT UNIQUE NOT NULL,
-        key_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        activated_at DATETIME NULL,
-        activated_ip TEXT NULL,
-        device_fingerprint TEXT NULL,
-        is_active BOOLEAN DEFAULT 0,
-        usage_count INTEGER DEFAULT 0,
-        max_usage INTEGER DEFAULT 1,
-        expires_at DATETIME NULL,
-        metadata TEXT NULL
-    )`, (err) => {
-        if (err) console.error('Error creating license_keys table:', err);
-        else console.log('✅ License keys table ready');
+if (DATABASE_TYPE === 'postgres') {
+    const { Pool } = require('pg');
+    db = new Pool({
+        connectionString: process.env.DATABASE_URL
     });
+} else {
+    const sqlite3 = require('sqlite3').verbose();
+    const dbPath = process.env.DATABASE_URL || './secret_messages.db';
+    db = new sqlite3.Database(dbPath);
+}
 
-    // Authentication Sessions Table
-    db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_token TEXT UNIQUE NOT NULL,
-        key_id INTEGER NOT NULL,
-        ip_address TEXT NOT NULL,
-        device_fingerprint TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
-        expires_at DATETIME NOT NULL,
-        is_active BOOLEAN DEFAULT 1,
-        FOREIGN KEY (key_id) REFERENCES license_keys (id)
-    )`, (err) => {
-        if (err) console.error('Error creating auth_sessions table:', err);
-        else console.log('✅ Auth sessions table ready');
-    });
+// Utility functions
+function log(message) {
+    console.log(`🔧 [SETUP] ${message}`);
+}
 
-    // Usage Logs Table
-    db.run(`CREATE TABLE IF NOT EXISTS usage_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key_id INTEGER NOT NULL,
-        session_id INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        ip_address TEXT NOT NULL,
-        user_agent TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        metadata TEXT NULL,
-        FOREIGN KEY (key_id) REFERENCES license_keys (id),
-        FOREIGN KEY (session_id) REFERENCES auth_sessions (id)
-    )`, (err) => {
-        if (err) console.error('Error creating usage_logs table:', err);
-        else console.log('✅ Usage logs table ready');
-    });
+function error(message) {
+    console.error(`❌ [ERROR] ${message}`);
+    process.exit(1);
+}
 
-    // Payment Records Table
-    db.run(`CREATE TABLE IF NOT EXISTS payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        payment_id TEXT UNIQUE NOT NULL,
-        key_id INTEGER NOT NULL,
-        amount DECIMAL(10,2) NOT NULL,
-        currency TEXT DEFAULT 'EUR',
-        status TEXT NOT NULL,
-        payment_method TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        completed_at DATETIME NULL,
-        metadata TEXT NULL,
-        FOREIGN KEY (key_id) REFERENCES license_keys (id)
-    )`, (err) => {
-        if (err) console.error('Error creating payments table:', err);
-        else console.log('✅ Payments table ready');
-    });
+function success(message) {
+    console.log(`✅ [SUCCESS] ${message}`);
+}
 
-    // Admin Settings Table
-    db.run(`CREATE TABLE IF NOT EXISTS admin_settings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        setting_key TEXT UNIQUE NOT NULL,
-        setting_value TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`, (err) => {
-        if (err) console.error('Error creating admin_settings table:', err);
-        else console.log('✅ Admin settings table ready');
-    });
-});
+// Database schema creation
+const SQLITE_SCHEMA = `
+-- License Keys Table
+CREATE TABLE IF NOT EXISTS license_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_code VARCHAR(17) UNIQUE NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    activated_at DATETIME NULL,
+    activated_ip VARCHAR(45) NULL,
+    is_active BOOLEAN DEFAULT 0,
+    usage_count INTEGER DEFAULT 0,
+    expires_at DATETIME NULL,
+    created_by VARCHAR(50) DEFAULT 'system'
+);
 
-// Generate initial demo keys
+-- User Sessions Table
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_id INTEGER REFERENCES license_keys(id),
+    token_hash VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    is_active BOOLEAN DEFAULT 1,
+    last_activity DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Activity Logs Table
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_id INTEGER REFERENCES license_keys(id),
+    action VARCHAR(100) NOT NULL,
+    metadata TEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN DEFAULT 1
+);
+
+-- Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stripe_payment_id VARCHAR(255) UNIQUE,
+    amount INTEGER NOT NULL,
+    currency VARCHAR(3) DEFAULT 'EUR',
+    customer_email VARCHAR(255),
+    status VARCHAR(50),
+    key_count INTEGER,
+    generated_keys TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL
+);
+
+-- System Settings Table
+CREATE TABLE IF NOT EXISTS system_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_name VARCHAR(100) UNIQUE NOT NULL,
+    key_value TEXT,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code);
+CREATE INDEX IF NOT EXISTS idx_license_keys_active ON license_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_sessions_key_id ON user_sessions(key_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON user_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_key_id ON activity_logs(key_id);
+CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_payments_stripe_id ON payments(stripe_payment_id);
+`;
+
+const POSTGRES_SCHEMA = `
+-- License Keys Table
+CREATE TABLE IF NOT EXISTS license_keys (
+    id SERIAL PRIMARY KEY,
+    key_code VARCHAR(17) UNIQUE NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    activated_at TIMESTAMP NULL,
+    activated_ip VARCHAR(45) NULL,
+    is_active BOOLEAN DEFAULT FALSE,
+    usage_count INTEGER DEFAULT 0,
+    expires_at TIMESTAMP NULL,
+    created_by VARCHAR(50) DEFAULT 'system'
+);
+
+-- User Sessions Table
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id SERIAL PRIMARY KEY,
+    key_id INTEGER REFERENCES license_keys(id),
+    token_hash VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Activity Logs Table
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id SERIAL PRIMARY KEY,
+    key_id INTEGER REFERENCES license_keys(id),
+    action VARCHAR(100) NOT NULL,
+    metadata JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    success BOOLEAN DEFAULT TRUE
+);
+
+-- Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    stripe_payment_id VARCHAR(255) UNIQUE,
+    amount INTEGER NOT NULL,
+    currency VARCHAR(3) DEFAULT 'EUR',
+    customer_email VARCHAR(255),
+    status VARCHAR(50),
+    key_count INTEGER,
+    generated_keys JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP NULL
+);
+
+-- System Settings Table
+CREATE TABLE IF NOT EXISTS system_settings (
+    id SERIAL PRIMARY KEY,
+    key_name VARCHAR(100) UNIQUE NOT NULL,
+    key_value TEXT,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code);
+CREATE INDEX IF NOT EXISTS idx_license_keys_active ON license_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_sessions_key_id ON user_sessions(key_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON user_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_activity_key_id ON activity_logs(key_id);
+CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_payments_stripe_id ON payments(stripe_payment_id);
+`;
+
+// Key generation functions
 function generateLicenseKey() {
     const parts = [];
     for (let i = 0; i < 3; i++) {
@@ -120,319 +202,294 @@ function hashKey(key) {
     return bcrypt.hashSync(key, 10);
 }
 
-console.log('\n🔑 Generating initial demo keys...');
+// Database operations
+async function executeQuery(query, params = []) {
+    if (DATABASE_TYPE === 'postgres') {
+        const client = await db.connect();
+        try {
+            const result = await client.query(query, params);
+            return result;
+        } finally {
+            client.release();
+        }
+    } else {
+        return new Promise((resolve, reject) => {
+            db.run(query, params, function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({ lastID: this.lastID, changes: this.changes });
+                }
+            });
+        });
+    }
+}
 
-const demoKeys = [
-    'SM001-ALPHA-BETA1',
-    'SM002-GAMMA-DELT2', 
-    'SM003-ECHO-FOXTR3',
-    'SM004-HOTEL-INDI4',
-    'SM005-JULIET-KILO5'
-];
+async function selectQuery(query, params = []) {
+    if (DATABASE_TYPE === 'postgres') {
+        const client = await db.connect();
+        try {
+            const result = await client.query(query, params);
+            return result.rows;
+        } finally {
+            client.release();
+        }
+    } else {
+        return new Promise((resolve, reject) => {
+            db.all(query, params, (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }
+}
 
-setTimeout(() => {
-    demoKeys.forEach((keyCode, index) => {
+// Setup functions
+async function createDatabase() {
+    log('Creating database schema...');
+    
+    const schema = DATABASE_TYPE === 'postgres' ? POSTGRES_SCHEMA : SQLITE_SCHEMA;
+    const statements = schema.split(';').filter(stmt => stmt.trim());
+    
+    for (const statement of statements) {
+        if (statement.trim()) {
+            try {
+                await executeQuery(statement.trim());
+            } catch (error) {
+                if (!error.message.includes('already exists')) {
+                    throw error;
+                }
+            }
+        }
+    }
+    
+    success('Database schema created successfully');
+}
+
+async function generateDemoKeys() {
+    log('Generating demo license keys...');
+    
+    const demoKeys = [
+        'SM001-ALPHA-BETA1',
+        'SM002-GAMMA-DELT2',
+        'SM003-ECHO-FOXTR3',
+        'SM004-HOTEL-INDI4',
+        'SM005-JULIET-KILO5'
+    ];
+    
+    for (const keyCode of demoKeys) {
         const keyHash = hashKey(keyCode);
         
-        db.run(
-            `INSERT OR IGNORE INTO license_keys (key_code, key_hash) VALUES (?, ?)`,
-            [keyCode, keyHash],
-            function(err) {
-                if (err) {
-                    console.error(`❌ Error creating demo key ${keyCode}:`, err);
-                } else if (this.changes > 0) {
-                    console.log(`✅ Demo key created: ${keyCode}`);
-                } else {
-                    console.log(`ℹ️  Demo key already exists: ${keyCode}`);
-                }
-                
-                if (index === demoKeys.length - 1) {
-                    // Generate additional random keys
-                    console.log('\n🎲 Generating additional random keys...');
-                    
-                    for (let i = 0; i < 10; i++) {
-                        const randomKey = generateLicenseKey();
-                        const randomHash = hashKey(randomKey);
-                        
-                        db.run(
-                            `INSERT INTO license_keys (key_code, key_hash) VALUES (?, ?)`,
-                            [randomKey, randomHash],
-                            function(err) {
-                                if (err) {
-                                    console.error(`❌ Error creating random key:`, err);
-                                } else {
-                                    console.log(`✅ Random key created: ${randomKey}`);
-                                }
-                                
-                                if (i === 9) {
-                                    finishSetup();
-                                }
-                            }
-                        );
-                    }
-                }
+        try {
+            await executeQuery(
+                'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES (?, ?, ?)',
+                [keyCode, keyHash, 'setup']
+            );
+            log(`Generated demo key: ${keyCode}`);
+        } catch (error) {
+            if (error.message.includes('UNIQUE constraint') || error.message.includes('duplicate key')) {
+                log(`Demo key already exists: ${keyCode}`);
+            } else {
+                throw error;
             }
-        );
-    });
-}, 1000);
-
-function finishSetup() {
-    // Insert default admin settings
-    const defaultSettings = [
-        ['app_version', '1.0.0'],
-        ['setup_completed', 'true'],
-        ['setup_date', new Date().toISOString()],
-        ['key_price_eur', '9.99'],
-        ['max_sessions_per_key', '1'],
-        ['session_duration_days', '30']
-    ];
-
-    defaultSettings.forEach(([key, value]) => {
-        db.run(
-            `INSERT OR IGNORE INTO admin_settings (setting_key, setting_value) VALUES (?, ?)`,
-            [key, value],
-            (err) => {
-                if (err) console.error(`Error setting ${key}:`, err);
-            }
-        );
-    });
-
-    console.log('\n📄 Creating admin panel HTML...');
-    createAdminPanel();
-
-    setTimeout(() => {
-        console.log('\n✅ Setup completed successfully!');
-        console.log('\n📋 Summary:');
-        console.log('   • Database tables created');
-        console.log('   • Demo keys generated');
-        console.log('   • Random keys generated');
-        console.log('   • Admin panel created');
-        console.log('\n🚀 You can now start the server with: npm start');
-        console.log('🔧 Admin Panel: http://localhost:3000/admin');
-        console.log('🔑 Demo Keys: SM001-ALPHA-BETA1, SM002-GAMMA-DELT2, etc.');
+        }
+    }
+    
+    // Generate additional random keys
+    const additionalKeys = 10;
+    log(`Generating ${additionalKeys} additional random keys...`);
+    
+    for (let i = 0; i < additionalKeys; i++) {
+        const keyCode = generateLicenseKey();
+        const keyHash = hashKey(keyCode);
         
-        db.close((err) => {
-            if (err) console.error('Error closing database:', err);
-            process.exit(0);
-        });
-    }, 2000);
+        try {
+            await executeQuery(
+                'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES (?, ?, ?)',
+                [keyCode, keyHash, 'setup']
+            );
+            log(`Generated key ${i + 1}: ${keyCode}`);
+        } catch (error) {
+            log(`Failed to generate key ${i + 1}: ${error.message}`);
+        }
+    }
+    
+    success(`Demo keys generated successfully`);
 }
 
-function createAdminPanel() {
-    const adminHTML = `<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secret Messages - Admin Panel</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Courier New', monospace;
-            background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 50%, #0d0d0d 100%);
-            color: #00ff41;
-            min-height: 100vh;
-            padding: 20px;
+async function insertSystemSettings() {
+    log('Inserting system settings...');
+    
+    const settings = [
+        {
+            key_name: 'app_version',
+            key_value: '1.0.0',
+            description: 'Application version'
+        },
+        {
+            key_name: 'setup_completed',
+            key_value: new Date().toISOString(),
+            description: 'Setup completion timestamp'
+        },
+        {
+            key_name: 'admin_password_hash',
+            key_value: bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'SecureAdmin123!', 10),
+            description: 'Admin panel password hash'
+        },
+        {
+            key_name: 'rate_limit_enabled',
+            key_value: 'true',
+            description: 'Enable rate limiting'
+        },
+        {
+            key_name: 'maintenance_mode',
+            key_value: 'false',
+            description: 'Maintenance mode status'
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .title { font-size: 2.5rem; text-shadow: 0 0 20px #00ff41; margin-bottom: 10px; }
-        .card {
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #00ff41;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .btn {
-            background: linear-gradient(45deg, #003300, #006600);
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            margin: 5px;
-        }
-        .btn:hover { background: linear-gradient(45deg, #004400, #008800); }
-        input, textarea {
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            margin: 5px;
-        }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .stat { text-align: center; padding: 20px; }
-        .stat-number { font-size: 2rem; color: #00ff41; }
-        .stat-label { color: #00cc33; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; border: 1px solid #333; text-align: left; }
-        th { background: rgba(0, 255, 65, 0.1); }
-        .status-active { color: #00ff41; }
-        .status-inactive { color: #ff4444; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 class="title">ADMIN PANEL</h1>
-            <p>Secret Messages Management System</p>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                <h3>📊 Statistiken</h3>
-                <div id="stats">
-                    <div class="stat">
-                        <div class="stat-number" id="totalKeys">-</div>
-                        <div class="stat-label">Gesamt Keys</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number" id="activeKeys">-</div>
-                        <div class="stat-label">Aktive Keys</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-number" id="activeSessions">-</div>
-                        <div class="stat-label">Aktive Sessions</div>
-                    </div>
-                </div>
-                <button class="btn" onclick="loadStats()">Aktualisieren</button>
-            </div>
-
-            <div class="card">
-                <h3>🔑 Keys Generieren</h3>
-                <input type="number" id="keyQuantity" placeholder="Anzahl Keys" value="1" min="1" max="100">
-                <input type="number" id="keyExpiry" placeholder="Gültigkeitsdauer (Tage)" value="">
-                <input type="password" id="adminPassword" placeholder="Admin Passwort">
-                <button class="btn" onclick="generateKeys()">Keys Generieren</button>
-                <div id="generatedKeys"></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>📋 Key Management</h3>
-            <input type="password" id="listAdminPassword" placeholder="Admin Passwort">
-            <button class="btn" onclick="loadKeys()">Keys Laden</button>
-            <div id="keysTable"></div>
-        </div>
-    </div>
-
-    <script>
-        const API_BASE = '/api';
-
-        async function loadStats() {
-            try {
-                const password = prompt('Admin Passwort:');
-                const response = await fetch(API_BASE + '/admin/stats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    document.getElementById('totalKeys').textContent = data.stats.totalKeys;
-                    document.getElementById('activeKeys').textContent = data.stats.activeKeys;
-                    document.getElementById('activeSessions').textContent = data.stats.activeSessions;
-                } else {
-                    alert('Fehler: ' + data.error);
-                }
-            } catch (error) {
-                alert('Fehler beim Laden der Statistiken: ' + error.message);
+    ];
+    
+    for (const setting of settings) {
+        try {
+            await executeQuery(
+                'INSERT OR REPLACE INTO system_settings (key_name, key_value, description) VALUES (?, ?, ?)',
+                [setting.key_name, setting.key_value, setting.description]
+            );
+        } catch (error) {
+            // For PostgreSQL, use ON CONFLICT
+            if (DATABASE_TYPE === 'postgres') {
+                await executeQuery(
+                    'INSERT INTO system_settings (key_name, key_value, description) VALUES ($1, $2, $3) ON CONFLICT (key_name) DO UPDATE SET key_value = $2, description = $3, updated_at = CURRENT_TIMESTAMP',
+                    [setting.key_name, setting.key_value, setting.description]
+                );
+            } else {
+                throw error;
             }
         }
-
-        async function generateKeys() {
-            const quantity = document.getElementById('keyQuantity').value;
-            const expiry = document.getElementById('keyExpiry').value;
-            const password = document.getElementById('adminPassword').value;
-
-            if (!password) {
-                alert('Admin Passwort erforderlich');
-                return;
-            }
-
-            try {
-                const response = await fetch(API_BASE + '/admin/generate-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        password, 
-                        quantity: parseInt(quantity),
-                        expiresIn: expiry ? parseInt(expiry) : null
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    let html = '<h4>Generierte Keys:</h4>';
-                    data.keys.forEach(key => {
-                        html += '<div style="margin: 5px 0; padding: 10px; background: rgba(0,255,65,0.1); border-radius: 4px;">';
-                        html += '<strong>' + key.key + '</strong>';
-                        if (key.expires_at) html += ' (Gültig bis: ' + new Date(key.expires_at).toLocaleDateString() + ')';
-                        html += '</div>';
-                    });
-                    document.getElementById('generatedKeys').innerHTML = html;
-                    document.getElementById('adminPassword').value = '';
-                } else {
-                    alert('Fehler: ' + data.error);
-                }
-            } catch (error) {
-                alert('Fehler beim Generieren der Keys: ' + error.message);
-            }
-        }
-
-        async function loadKeys() {
-            const password = document.getElementById('listAdminPassword').value;
-
-            if (!password) {
-                alert('Admin Passwort erforderlich');
-                return;
-            }
-
-            try {
-                const response = await fetch(API_BASE + '/admin/keys', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password, page: 1, limit: 50 })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    let html = '<table><thead><tr><th>Key</th><th>Status</th><th>Erstellt</th><th>Aktiviert</th><th>IP</th><th>Nutzung</th></tr></thead><tbody>';
-                    data.keys.forEach(key => {
-                        html += '<tr>';
-                        html += '<td><code>' + key.key_code + '</code></td>';
-                        html += '<td class="' + (key.is_active ? 'status-active">Aktiv' : 'status-inactive">Inaktiv') + '</td>';
-                        html += '<td>' + new Date(key.created_at).toLocaleDateString() + '</td>';
-                        html += '<td>' + (key.activated_at ? new Date(key.activated_at).toLocaleDateString() : '-') + '</td>';
-                        html += '<td>' + (key.activated_ip || '-') + '</td>';
-                        html += '<td>' + key.usage_count + '</td>';
-                        html += '</tr>';
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('keysTable').innerHTML = html;
-                    document.getElementById('listAdminPassword').value = '';
-                } else {
-                    alert('Fehler: ' + data.error);
-                }
-            } catch (error) {
-                alert('Fehler beim Laden der Keys: ' + error.message);
-            }
-        }
-
-        // Load stats on page load
-        window.addEventListener('load', () => {
-            // Auto-load stats if this is initial setup
-            setTimeout(loadStats, 1000);
-        });
-    </script>
-</body>
-</html>`;
-
-    fs.writeFileSync('./public/admin.html', adminHTML);
-    console.log('✅ Admin panel created at: ./public/admin.html');
+    }
+    
+    success('System settings inserted successfully');
 }
+
+async function createDirectories() {
+    log('Creating necessary directories...');
+    
+    const directories = [
+        'logs',
+        'backups',
+        'uploads',
+        'public'
+    ];
+    
+    for (const dir of directories) {
+        const dirPath = path.join(process.cwd(), dir);
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+            log(`Created directory: ${dir}`);
+        } else {
+            log(`Directory already exists: ${dir}`);
+        }
+    }
+    
+    success('Directories created successfully');
+}
+
+async function verifySetup() {
+    log('Verifying setup...');
+    
+    try {
+        // Check if tables exist and have data
+        const keyCount = await selectQuery('SELECT COUNT(*) as count FROM license_keys');
+        const settingsCount = await selectQuery('SELECT COUNT(*) as count FROM system_settings');
+        
+        const keyCountValue = DATABASE_TYPE === 'postgres' ? keyCount[0].count : keyCount[0].count;
+        const settingsCountValue = DATABASE_TYPE === 'postgres' ? settingsCount[0].count : settingsCount[0].count;
+        
+        log(`License keys in database: ${keyCountValue}`);
+        log(`System settings in database: ${settingsCountValue}`);
+        
+        if (keyCountValue > 0 && settingsCountValue > 0) {
+            success('Setup verification passed');
+            return true;
+        } else {
+            error('Setup verification failed');
+            return false;
+        }
+    } catch (err) {
+        error(`Setup verification failed: ${err.message}`);
+        return false;
+    }
+}
+
+// Main setup function
+async function main() {
+    console.log('🚀 Secret Messages Backend Setup');
+    console.log('================================');
+    console.log('');
+    
+    try {
+        // Check environment
+        if (!process.env.JWT_SECRET) {
+            error('JWT_SECRET environment variable is required');
+        }
+        
+        if (!process.env.ADMIN_PASSWORD) {
+            error('ADMIN_PASSWORD environment variable is required');
+        }
+        
+        log(`Using database type: ${DATABASE_TYPE}`);
+        log(`Database URL: ${process.env.DATABASE_URL || 'SQLite (default)'}`);
+        
+        // Run setup steps
+        await createDirectories();
+        await createDatabase();
+        await insertSystemSettings();
+        await generateDemoKeys();
+        
+        // Verify setup
+        const verified = await verifySetup();
+        
+        if (verified) {
+            console.log('');
+            console.log('🎉 Setup completed successfully!');
+            console.log('');
+            console.log('📋 Summary:');
+            console.log(`   Database: ${DATABASE_TYPE}`);
+            console.log(`   Admin Password: ${process.env.ADMIN_PASSWORD}`);
+            console.log('   Demo Keys: SM001-ALPHA-BETA1, SM002-GAMMA-DELT2, etc.');
+            console.log('');
+            console.log('🚀 You can now start the application:');
+            console.log('   npm start');
+            console.log('');
+            console.log('🌐 Access points:');
+            console.log('   Main App: http://localhost:3000');
+            console.log('   Admin Panel: http://localhost:3000/admin');
+            console.log('   API Health: http://localhost:3000/api/health');
+            console.log('');
+        }
+        
+    } catch (err) {
+        error(`Setup failed: ${err.message}`);
+    } finally {
+        // Close database connection
+        if (DATABASE_TYPE === 'postgres') {
+            await db.end();
+        } else {
+            db.close();
+        }
+    }
+}
+
+// Run setup if executed directly
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    createDatabase,
+    generateDemoKeys,
+    insertSystemSettings,
+    verifySetup
+};
