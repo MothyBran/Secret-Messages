@@ -1,5 +1,5 @@
 /**
- * Test Configuration for Secret Messages Backend
+ * Jest Configuration for Secret Messages Backend
  */
 
 module.exports = {
