@@ -15,6 +15,8 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
+app.set('trust proxy', true);  // Force enable for Railway
+
 // Middleware
 app.use(helmet());
 app.use(cors({
