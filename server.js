@@ -26,18 +26,31 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static('public'));
 
-// Rate Limiting
+// Rate Limiting - Cloud optimized
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP'
+    max: 100,
+    message: 'Too many requests from this IP',
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Trust proxy aber skip validation für Railway
+    skip: (req) => {
+        // Optional: Skip rate limiting for health checks
+        return req.path === '/api/health';
+    },
+    keyGenerator: (req) => {
+        // Use X-Forwarded-For if available, fallback to connection IP
+        return req.headers['x-forwarded-for'] || 
+               req.headers['x-real-ip'] || 
+               req.connection.remoteAddress || 
+               'unknown';
+    }
 });
-app.use(limiter);
 
-// Stricter rate limiting for auth endpoints
+// Auth rate limiting also disabled temporarily
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // max 5 auth attempts per 15 minutes
+    max: 5,
     message: 'Too many authentication attempts'
 });
 
