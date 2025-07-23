@@ -86,7 +86,7 @@ RUN mkdir -p logs backups public uploads && \
 
 # Copy application files
 COPY --chown=secretmessages:nodejs server.js ./
-COPY --chown=secretmessages:nodejs scripts/ ./scripts/
+COPY --chown=secretmessages:nodejs . .
 COPY --chown=secretmessages:nodejs public/ ./public/
 COPY --chown=secretmessages:nodejs payment.js ./
 COPY --chown=secretmessages:nodejs healthcheck.js ./
