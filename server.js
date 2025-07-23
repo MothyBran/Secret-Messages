@@ -530,7 +530,7 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Secret Messages Backend running on port ${PORT}`);
     console.log(`📊 Admin Panel: http://localhost:${PORT}/admin`);
     console.log(`🔐 API Base: http://localhost:${PORT}/api`);
