@@ -43,7 +43,7 @@ db.serialize(() => {
         device_fingerprint TEXT NULL,
         is_active BOOLEAN DEFAULT 0,
         usage_count INTEGER DEFAULT 0,
-        max_usage INTEGER DEFAULT 1,
+        max_usage INTEGER DEFAULT 1
 )
     
 // Rate Limiting - DISABLED for Railway deployment
