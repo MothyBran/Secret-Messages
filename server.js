@@ -26,6 +26,22 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static('public'));
 
+// Rate Limiting - DISABLED for Railway deployment
+/*
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP'
+});
+app.use(limiter);
+
+// Auth rate limiting also disabled temporarily
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: 'Too many authentication attempts'
+});
+*/
 
 // Database Setup
 const db = new sqlite3.Database('./secret_messages.db');
@@ -47,26 +63,6 @@ db.serialize(() => {
         expires_at DATETIME NULL,
         metadata TEXT NULL
     )`);
-});
-
-// Rate Limiting - DISABLED for Railway deployment
-/*
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: 'Too many requests from this IP'
-});
-app.use(limiter);
-*/
-
-// Auth rate limiting also disabled temporarily
-/*
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: 'Too many authentication attempts'
-});
-*/
 
     // Authentication Sessions Table
     db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -229,7 +225,7 @@ app.post('/api/admin/generate-key', authenticateAdmin, (req, res) => {
     }
 });
 
-// Validate and activate license key
+// Validate and activate license key (Rate limiter removed)
 app.post('/api/auth/activate', (req, res) => {
     const { licenseKey } = req.body;
     const clientIP = getClientIP(req);
