@@ -43,9 +43,12 @@ db.serialize(() => {
         device_fingerprint TEXT NULL,
         is_active BOOLEAN DEFAULT 0,
         usage_count INTEGER DEFAULT 0,
-        max_usage INTEGER DEFAULT 1
-)
-    
+        max_usage INTEGER DEFAULT 1,
+        expires_at DATETIME NULL,
+        metadata TEXT NULL
+    )`);
+});
+
 // Rate Limiting - DISABLED for Railway deployment
 /*
 const limiter = rateLimit({
@@ -63,9 +66,7 @@ const authLimiter = rateLimit({
     max: 5,
     message: 'Too many authentication attempts'
 });
-*/    expires_at DATETIME NULL,
-        metadata TEXT NULL
-    )`);
+*/
 
     // Authentication Sessions Table
     db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
