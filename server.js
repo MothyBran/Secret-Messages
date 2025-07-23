@@ -518,6 +518,16 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Serve admin panel
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Serve store page  
+app.get('/store', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
+
 // Error handling
 app.use((err, req, res, next) => {
     console.error(err.stack);
