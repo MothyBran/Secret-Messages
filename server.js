@@ -494,6 +494,225 @@ app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
     }
 });
 
+// BACKEND ERGÄNZUNG für server.js
+// Fügen Sie diese neuen Endpoints NACH den bestehenden API-Routes ein:
+
+// Unwiderruflich Key vernichten
+app.post('/api/auth/destroy-key', async (req, res) => {
+    const { token } = req.body;
+    const clientIP = getClientIP(req);
+    const deviceFingerprint = generateDeviceFingerprint(req);
+    
+    if (!token) {
+        return res.status(400).json({ error: 'Token required' });
+    }
+
+    try {
+        // Token validieren
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const keyId = decoded.keyId;
+        
+        console.log(`🗑️ Key destruction request - KeyID: ${keyId}, IP: ${clientIP}`);
+        
+        // Prüfen ob Key zu diesem Gerät gehört
+        let keyData;
+        if (isPostgreSQL) {
+            const result = await db.query(
+                'SELECT * FROM license_keys WHERE id = $1 AND activated_ip = $2 AND device_fingerprint = $3 AND is_active = true',
+                [keyId, clientIP, deviceFingerprint]
+            );
+            keyData = result.rows[0];
+        } else {
+            const result = await dbQuery(
+                'SELECT * FROM license_keys WHERE id = ? AND activated_ip = ? AND device_fingerprint = ? AND is_active = 1',
+                [keyId, clientIP, deviceFingerprint]
+            );
+            keyData = result.rows[0];
+        }
+
+        if (!keyData) {
+            return res.status(403).json({ 
+                error: 'Key nicht gefunden oder gehört nicht zu diesem Gerät' 
+            });
+        }
+
+        // Beginne Transaktion für atomare Operation
+        if (isPostgreSQL) {
+            await db.query('BEGIN');
+            
+            try {
+                // 1. Key als "destroyed" markieren und deaktivieren
+                await db.query(`
+                    UPDATE license_keys 
+                    SET is_active = false, 
+                        destroyed_at = NOW(), 
+                        destroyed_by_ip = $1,
+                        metadata = COALESCE(metadata, '') || ' | DESTROYED_BY_USER' 
+                    WHERE id = $2
+                `, [clientIP, keyId]);
+                
+                // 2. Alle Sessions für diesen Key deaktivieren
+                await db.query(`
+                    UPDATE auth_sessions 
+                    SET is_active = false, 
+                        logout_reason = 'KEY_DESTROYED'
+                    WHERE key_id = $1
+                `, [keyId]);
+                
+                // 3. Log-Eintrag für die Vernichtung
+                await db.query(`
+                    INSERT INTO usage_logs (key_id, action, ip_address, user_agent, metadata) 
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [
+                    keyId, 
+                    'KEY_DESTROYED', 
+                    clientIP, 
+                    req.headers['user-agent'] || 'Unknown',
+                    JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        device_fingerprint: deviceFingerprint,
+                        reason: 'USER_REQUESTED_DESTRUCTION'
+                    })
+                ]);
+                
+                await db.query('COMMIT');
+                console.log(`✅ Key ${keyData.key_code} successfully destroyed`);
+                
+            } catch (error) {
+                await db.query('ROLLBACK');
+                throw error;
+            }
+            
+        } else {
+            // SQLite Version
+            await dbQuery(`
+                UPDATE license_keys 
+                SET is_active = 0, 
+                    metadata = COALESCE(metadata, '') || ' | DESTROYED_' || datetime('now') 
+                WHERE id = ?
+            `, [keyId]);
+            
+            await dbQuery(`
+                UPDATE auth_sessions 
+                SET is_active = 0 
+                WHERE key_id = ?
+            `, [keyId]);
+        }
+
+        res.json({
+            success: true,
+            message: 'Zugang unwiderruflich gelöscht',
+            destroyed_key: keyData.key_code.substring(0, 8) + '***', // Nur erste 8 Zeichen zeigen
+            warning: 'Dieser Lizenz-Key kann nie wieder verwendet werden.'
+        });
+
+    } catch (error) {
+        console.error('Key destruction error:', error);
+        
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            return res.status(403).json({ error: 'Ungültiger oder abgelaufener Token' });
+        }
+        
+        return res.status(500).json({ error: 'Fehler beim Löschen des Zugangs' });
+    }
+});
+
+// Admin-Endpoint: Gelöschte Keys anzeigen
+app.post('/api/admin/destroyed-keys', authenticateAdmin, async (req, res) => {
+    try {
+        let destroyedKeys;
+        
+        if (isPostgreSQL) {
+            const result = await db.query(`
+                SELECT 
+                    key_code,
+                    activated_at,
+                    destroyed_at,
+                    activated_ip,
+                    destroyed_by_ip,
+                    usage_count
+                FROM license_keys 
+                WHERE destroyed_at IS NOT NULL 
+                ORDER BY destroyed_at DESC 
+                LIMIT 50
+            `);
+            destroyedKeys = result.rows;
+        } else {
+            const result = await dbQuery(`
+                SELECT 
+                    key_code,
+                    activated_at,
+                    usage_count,
+                    metadata
+                FROM license_keys 
+                WHERE metadata LIKE '%DESTROYED%' 
+                ORDER BY id DESC 
+                LIMIT 50
+            `);
+            destroyedKeys = result.rows;
+        }
+
+        res.json({
+            success: true,
+            destroyed_keys: destroyedKeys,
+            count: destroyedKeys.length
+        });
+
+    } catch (error) {
+        console.error('Destroyed keys fetch error:', error);
+        res.status(500).json({ error: 'Fehler beim Abrufen der gelöschten Keys' });
+    }
+});
+
+// Statistiken um vernichtete Keys erweitern
+app.post('/api/admin/enhanced-stats', authenticateAdmin, async (req, res) => {
+    try {
+        let stats = {};
+        
+        if (isPostgreSQL) {
+            const queries = await Promise.all([
+                db.query('SELECT COUNT(*) as count FROM license_keys'),
+                db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true'),
+                db.query('SELECT COUNT(*) as count FROM license_keys WHERE destroyed_at IS NOT NULL'),
+                db.query('SELECT COUNT(*) as count FROM auth_sessions WHERE is_active = true AND expires_at > NOW()'),
+                db.query('SELECT COUNT(*) as count FROM usage_logs WHERE action = \'KEY_DESTROYED\' AND timestamp > NOW() - INTERVAL \'24 hours\'')
+            ]);
+            
+            stats = {
+                totalKeys: parseInt(queries[0].rows[0].count),
+                activeKeys: parseInt(queries[1].rows[0].count),
+                destroyedKeys: parseInt(queries[2].rows[0].count),
+                activeSessions: parseInt(queries[3].rows[0].count),
+                dailyDestructions: parseInt(queries[4].rows[0].count)
+            };
+        } else {
+            const queries = await Promise.all([
+                dbQuery('SELECT COUNT(*) as count FROM license_keys'),
+                dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1'),
+                dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE metadata LIKE \'%DESTROYED%\''),
+                dbQuery('SELECT COUNT(*) as count FROM auth_sessions WHERE is_active = 1')
+            ]);
+            
+            stats = {
+                totalKeys: queries[0].rows[0].count,
+                activeKeys: queries[1].rows[0].count,
+                destroyedKeys: queries[2].rows[0].count,
+                activeSessions: queries[3].rows[0].count,
+                dailyDestructions: 0 // SQLite limitation
+            };
+        }
+
+        res.json({
+            success: true,
+            stats: stats
+        });
+
+    } catch (error) {
+        console.error('Enhanced stats error:', error);
+        res.status(500).json({ error: 'Fehler beim Abrufen der Statistiken' });
+    }
+});
+
 // Serve static files
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
