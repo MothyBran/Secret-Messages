@@ -61,6 +61,9 @@ const initializeDatabase = async () => {
     }
 };
 
+// DATABASE SCHEMA UPDATE für server.js
+// Fügen Sie das in die createPostgreSQLTables() Funktion ein:
+
 const createPostgreSQLTables = async () => {
     await db.query(`
         CREATE TABLE IF NOT EXISTS license_keys (
@@ -74,9 +77,24 @@ const createPostgreSQLTables = async () => {
             is_active BOOLEAN DEFAULT FALSE,
             usage_count INTEGER DEFAULT 0,
             expires_at TIMESTAMP NULL,
-            created_by VARCHAR(100) DEFAULT 'system'
+            created_by VARCHAR(100) DEFAULT 'system',
+            destroyed_at TIMESTAMP NULL,
+            destroyed_by_ip VARCHAR(45) NULL,
+            metadata TEXT NULL
         )
     `);
+    
+    // Add missing columns if they don't exist (for existing databases)
+    try {
+        await db.query(`
+            ALTER TABLE license_keys 
+            ADD COLUMN IF NOT EXISTS destroyed_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS destroyed_by_ip VARCHAR(45) NULL
+        `);
+        console.log('✅ License keys table updated with destroy columns');
+    } catch (error) {
+        console.log('Destroy columns may already exist:', error.message);
+    }
     
     await db.query(`
         CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -87,11 +105,13 @@ const createPostgreSQLTables = async () => {
             device_fingerprint VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             expires_at TIMESTAMP NOT NULL,
-            is_active BOOLEAN DEFAULT TRUE
+            is_active BOOLEAN DEFAULT TRUE,
+            logout_reason VARCHAR(50) NULL
         )
     `);
     
     await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_destroyed ON license_keys(destroyed_at)');
     console.log('✅ PostgreSQL tables created');
 };
 
