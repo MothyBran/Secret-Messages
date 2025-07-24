@@ -541,11 +541,11 @@
                    maxlength="17"
                    autocomplete="off">
             
-            <button class="activate-btn" id="activateBtn">
+            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
                 <span id="activateBtnText">Lizenz Aktivieren</span>
             </button>
             
-            <button class="demo-keys-btn" id="demoKeysBtn">
+            <button class="demo-keys-btn" id="demoKeysBtn" onclick="showDemoKeys()">
                 🧪 Demo-Keys anzeigen
             </button>
             
@@ -578,10 +578,10 @@
             </div>
             
             <div class="destroy-modal-buttons">
-                <button class="confirm-destroy-btn" id="confirmDestroyBtn">
+                <button class="confirm-destroy-btn" id="confirmDestroyBtn" onclick="confirmDestroyKey()">
                     🗑️ UNWIDERRUFLICH LÖSCHEN
                 </button>
-                <button class="cancel-destroy-btn" id="cancelDestroyBtn">
+                <button class="cancel-destroy-btn" id="cancelDestroyBtn" onclick="cancelDestroyKey()">
                     🛡️ ABBRECHEN
                 </button>
             </div>
@@ -597,7 +597,7 @@
             <div class="security-warning">
                 Ihr Key ist unwiderruflich an dieses Gerät gebunden
             </div>
-            <button class="destroy-btn" id="destroyBtn">
+            <button class="destroy-btn" id="destroyBtn" onclick="showDestroyModal()">
                 🗑️ Zugang vernichten
             </button>
         </div>
@@ -619,8 +619,8 @@
                            id="encryptPassword" 
                            placeholder="Sicheres Passwort eingeben">
                 </div>
-                <button class="action-btn" id="encryptBtn">🔒 Verschlüsseln</button>
-                <button class="action-btn secondary-btn" id="generatePasswordBtn">🎲 Starkes Passwort</button>
+                <button class="action-btn" id="encryptBtn" onclick="encryptMessage()">🔒 Verschlüsseln</button>
+                <button class="action-btn secondary-btn" id="generatePasswordBtn" onclick="generateStrongPassword()">🎲 Starkes Passwort</button>
                 <div class="result-area" id="encryptResult"></div>
             </div>
 
@@ -640,8 +640,8 @@
                            id="decryptPassword" 
                            placeholder="Passwort zum Entschlüsseln">
                 </div>
-                <button class="action-btn" id="decryptBtn">🔓 Entschlüsseln</button>
-                <button class="action-btn secondary-btn" id="clearDecryptionBtn">🗑️ Löschen</button>
+                <button class="action-btn" id="decryptBtn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
+                <button class="action-btn secondary-btn" id="clearDecryptionBtn" onclick="clearDecryption()">🗑️ Löschen</button>
                 <div class="result-area" id="decryptResult"></div>
             </div>
         </div>
@@ -677,18 +677,7 @@
 
         // Event Listeners
         document.addEventListener('DOMContentLoaded', initializeApp);
-        activateBtn.addEventListener('click', activateLicense);
-        demoKeysBtn.addEventListener('click', showDemoKeys);
-        destroyBtn.addEventListener('click', showDestroyModal);
-        confirmDestroyBtn.addEventListener('click', confirmDestroyKey);
-        cancelDestroyBtn.addEventListener('click', cancelDestroyKey);
         
-        // Encryption/Decryption Event Listeners
-        document.getElementById('encryptBtn').addEventListener('click', encryptMessage);
-        document.getElementById('decryptBtn').addEventListener('click', decryptMessage);
-        document.getElementById('generatePasswordBtn').addEventListener('click', generateStrongPassword);
-        document.getElementById('clearDecryptionBtn').addEventListener('click', clearDecryption);
-
         // License Key Input Formatting
         licenseKeyInput.addEventListener('input', function(e) {
             let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
