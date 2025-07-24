@@ -494,9 +494,8 @@ app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
     }
 });
 
-// Ersetzen Sie den vorherigen /api/admin/keys Endpoint in server.js mit diesem korrigierten Code:
+// FUNKTIONIERENE VERSION: Ersetzen Sie den /api/admin/keys Endpoint in server.js
 
-// List license keys with pagination (Admin only)
 app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     const { page = 1, limit = 50 } = req.body;
     
@@ -509,10 +508,10 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
         let keys, totalCount;
         
         if (isPostgreSQL) {
-            // PostgreSQL queries - alle verfügbaren Spalten
+            // PostgreSQL queries - nur existierende Spalten
             const keysResult = await db.query(`
                 SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       device_fingerprint, is_active, usage_count, max_usage,
+                       device_fingerprint, is_active, usage_count,
                        expires_at, metadata, created_by, updated_at
                 FROM license_keys 
                 ORDER BY created_at DESC 
@@ -525,10 +524,10 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             totalCount = parseInt(countResult.rows[0].count);
             
         } else {
-            // SQLite queries - alle verfügbaren Spalten
+            // SQLite queries - nur existierende Spalten (ohne max_usage)
             const keysResult = await dbQuery(`
                 SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       device_fingerprint, is_active, usage_count, max_usage,
+                       device_fingerprint, is_active, usage_count,
                        expires_at, metadata, created_by, updated_at
                 FROM license_keys 
                 ORDER BY created_at DESC 
@@ -537,16 +536,14 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             
             const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
             
-            // Handle different return formats for SQLite
-            if (Array.isArray(keysResult.rows)) {
-                keys = keysResult.rows;
-            } else if (keysResult.rows) {
-                keys = [keysResult.rows];
+            // Handle SQLite return format
+            if (keysResult && keysResult.rows) {
+                keys = Array.isArray(keysResult.rows) ? keysResult.rows : [keysResult.rows];
             } else {
                 keys = [];
             }
             
-            totalCount = parseInt(countResult.rows?.[0]?.count || countResult.rows?.count || 0);
+            totalCount = parseInt(countResult.rows?.[0]?.count || 0);
         }
         
         // Ensure keys is always an array
@@ -557,7 +554,7 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
         // Calculate pagination info
         const totalPages = Math.ceil(totalCount / limitNum);
         
-        console.log(`Admin keys query result: ${keys.length} keys found, total: ${totalCount}`);
+        console.log(`Admin keys loaded successfully: ${keys.length} keys, total: ${totalCount}`);
         
         res.json({
             success: true,
@@ -574,14 +571,6 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
         
     } catch (error) {
         console.error('Keys listing error:', error);
-        console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            page: pageNum,
-            limit: limitNum,
-            offset: offset
-        });
-        
         res.status(500).json({ 
             error: 'Failed to fetch keys',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
