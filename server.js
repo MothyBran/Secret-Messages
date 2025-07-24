@@ -73,6 +73,7 @@ const createPostgreSQLTables = async () => {
             device_fingerprint VARCHAR(255) NULL,
             is_active BOOLEAN DEFAULT FALSE,
             usage_count INTEGER DEFAULT 0,
+            max_usage INTEGER DEFAULT NULL,
             expires_at TIMESTAMP NULL,
             created_by VARCHAR(100) DEFAULT 'system'
         )
@@ -134,6 +135,7 @@ const setupSQLiteDatabase = () => {
             device_fingerprint TEXT NULL,
             is_active BOOLEAN DEFAULT 0,
             usage_count INTEGER DEFAULT 0,
+            max_usage INTEGER DEFAULT NULL,
             expires_at DATETIME NULL
         )`);
         
