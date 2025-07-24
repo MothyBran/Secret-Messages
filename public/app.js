@@ -207,9 +207,9 @@ function showDemoKey() {
     if (licenseInput) {
         // Demo Keys (diese sollten in der Admin-Panel generiert werden)
         const demoKeys = [
-            'SM001-ALPHA-BETA1',
-            'SM002-GAMMA-DELT2',
-            'SM003-OMEGA-ZETA3'
+            '7CE4A-71263-380DC',
+            '7F2DC-9EF07-E6584',
+            '54EA3-98607-DF13A'
         ];
         
         const randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
