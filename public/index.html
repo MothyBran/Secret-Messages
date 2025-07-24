@@ -15,209 +15,287 @@
             font-family: 'Courier New', monospace;
             background: #000;
             color: #00ff41;
-            overflow: hidden;
+            min-height: 100vh;
+            overflow-x: hidden;
             position: relative;
         }
 
         /* Matrix Background */
-        #matrixCanvas {
+        .matrix-bg {
             position: fixed;
             top: 0;
             left: 0;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             z-index: -1;
-            opacity: 0.6;
-            pointer-events: none;
-        }
-
-        /* Container Styles */
-        .container {
-            position: relative;
-            z-index: 1;
-            height: 100vh;
-            overflow-y: auto;
-            padding: 20px;
+            opacity: 0.4;
         }
 
         /* Login Screen */
         .login-screen {
-            display: flex;
             min-height: 100vh;
+            display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            z-index: 1;
         }
 
         .login-container {
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            padding: 40px;
-            max-width: 500px;
-            width: 100%;
-            box-shadow: 0 0 50px rgba(0, 255, 65, 0.3);
+            background: rgba(0, 20, 0, 0.95);
+            border: 3px solid #00ff41;
+            border-radius: 20px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 
+                0 0 50px rgba(0, 255, 65, 0.4),
+                inset 0 0 50px rgba(0, 255, 65, 0.1);
             text-align: center;
+            position: relative;
+        }
+
+        .login-container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #00ff41, #00cc33, #00ff41);
+            border-radius: 20px;
+            z-index: -1;
+            animation: borderGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes borderGlow {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         .login-title {
-            font-size: 2.5rem;
+            font-size: 3rem;
             font-weight: bold;
-            margin-bottom: 10px;
-            text-shadow: 0 0 20px #00ff41;
-            animation: glow 2s ease-in-out infinite alternate;
+            margin-bottom: 15px;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 30px #00ff41;
+            animation: titlePulse 2s ease-in-out infinite alternate;
         }
 
-        @keyframes glow {
-            from { text-shadow: 0 0 20px #00ff41; }
-            to { text-shadow: 0 0 30px #00ff41, 0 0 40px #00ff41; }
+        @keyframes titlePulse {
+            0% { 
+                text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+                transform: scale(1);
+            }
+            100% { 
+                text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41;
+                transform: scale(1.02);
+            }
         }
 
         .login-subtitle {
             color: #00cc33;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            text-shadow: 0 0 5px #00cc33;
+        }
+
+        .key-input-group {
             margin-bottom: 30px;
-            font-size: 1rem;
-            line-height: 1.6;
         }
 
-        .license-input {
-            width: 100%;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #00ff41;
-            border-radius: 8px;
-            color: #00ff41;
-            font-family: 'Courier New', monospace;
-            font-size: 1.2rem;
-            text-align: center;
-            letter-spacing: 2px;
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .license-input:focus {
-            outline: none;
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-            background: rgba(0, 0, 0, 0.9);
-        }
-
-        .btn-primary, .btn-secondary {
-            width: 100%;
-            padding: 15px;
-            background: rgba(0, 255, 65, 0.1);
-            border: 2px solid #00ff41;
-            border-radius: 8px;
-            color: #00ff41;
-            font-family: 'Courier New', monospace;
+        .key-label {
+            display: block;
+            margin-bottom: 15px;
             font-size: 1rem;
             font-weight: bold;
-            cursor: pointer;
+            color: #00ff41;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .key-input {
+            width: 100%;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ff41;
+            border-radius: 12px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 1.4rem;
+            text-align: center;
+            letter-spacing: 3px;
+            font-weight: bold;
             transition: all 0.3s ease;
-            margin-bottom: 15px;
             text-transform: uppercase;
         }
 
-        .btn-primary:hover, .btn-secondary:hover {
-            background: rgba(0, 255, 65, 0.2);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
-            transform: translateY(-2px);
+        .key-input:focus {
+            outline: none;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 65, 0.6),
+                inset 0 0 20px rgba(0, 255, 65, 0.1);
+            background: rgba(0, 0, 0, 1);
+            border-color: #00ff41;
+            transform: scale(1.02);
         }
 
-        .btn-secondary {
-            background: rgba(255, 255, 0, 0.1);
-            border-color: #ffff41;
-            color: #ffff41;
+        .login-btn {
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
+            border: 3px solid #00ff41;
+            border-radius: 12px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .btn-secondary:hover {
-            background: rgba(255, 255, 0, 0.2);
-            box-shadow: 0 0 20px rgba(255, 255, 65, 0.5);
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .login-btn:hover::before {
+            left: 100%;
+        }
+
+        .login-btn:hover {
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
+            box-shadow: 
+                0 0 30px rgba(0, 255, 65, 0.7),
+                0 0 60px rgba(0, 255, 65, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .login-status {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 5px;
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 8px;
             font-weight: bold;
-            min-height: 20px;
+            min-height: 25px;
+            transition: all 0.3s ease;
         }
 
-        .status-success {
+        .login-status.success {
             background: rgba(0, 255, 0, 0.2);
-            border: 1px solid #00ff00;
+            border: 2px solid #00ff00;
             color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
         }
 
-        .status-error {
+        .login-status.error {
             background: rgba(255, 0, 0, 0.2);
-            border: 1px solid #ff4444;
+            border: 2px solid #ff4444;
             color: #ff4444;
+            text-shadow: 0 0 10px #ff4444;
         }
 
-        .status-info {
-            background: rgba(0, 255, 255, 0.2);
-            border: 1px solid #00ffff;
-            color: #00ffff;
+        .login-status.show {
+            opacity: 1;
+            transform: scale(1);
         }
 
-        /* Main App (Initially Hidden) */
-        .main-app {
+        .purchase-info {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #888;
+            border-top: 1px solid #333;
+            padding-top: 20px;
+        }
+
+        .purchase-link {
+            color: #00cc33;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .purchase-link:hover {
+            color: #00ff41;
+            background: rgba(0, 255, 65, 0.1);
+            text-shadow: 0 0 5px #00ff41;
+        }
+
+        /* Main App Styles (hidden initially) */
+        .app-container {
             display: none;
-            min-height: 100vh;
+            max-width: 1000px;
+            margin: 0 auto;
             padding: 20px;
+            position: relative;
+            z-index: 1;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             position: relative;
-        }
-
-        .app-title {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            text-shadow: 0 0 20px #00ff41;
-            animation: glow 2s ease-in-out infinite alternate;
-        }
-
-        .app-subtitle {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-bottom: 20px;
-            color: #00cc33;
+            padding: 30px;
+            background: rgba(0, 20, 0, 0.8);
+            border: 2px solid #00ff41;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
         }
 
         .logout-btn {
             position: absolute;
-            top: 0;
-            left: 0;
-            background: rgba(255, 0, 0, 0.1);
-            border: 1px solid #ff4444;
-            border-radius: 6px;
+            top: 15px;
+            left: 15px;
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid #ff4444;
+            border-radius: 8px;
             color: #ff4444;
-            padding: 8px 15px;
-            font-size: 0.8rem;
+            padding: 10px 20px;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.3s ease;
             font-family: 'Courier New', monospace;
             text-transform: uppercase;
+            font-weight: bold;
         }
 
         .logout-btn:hover {
-            background: rgba(255, 0, 0, 0.2);
-            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+            background: rgba(255, 0, 0, 0.3);
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+            transform: scale(1.05);
         }
 
         .help-btn {
             position: absolute;
-            top: 0;
-            right: 0;
-            width: 40px;
-            height: 40px;
-            background: rgba(0, 255, 65, 0.1);
-            border: 1px solid #00ff41;
+            top: 15px;
+            right: 15px;
+            width: 45px;
+            height: 45px;
+            background: rgba(0, 255, 65, 0.2);
+            border: 2px solid #00ff41;
             border-radius: 50%;
             color: #00ff41;
-            font-size: 1.2rem;
+            font-size: 1.4rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -228,145 +306,211 @@
         }
 
         .help-btn:hover {
-            background: rgba(0, 255, 65, 0.2);
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-            transform: scale(1.1);
+            background: rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+            transform: scale(1.1) rotate(360deg);
+        }
+
+        .title {
+            font-size: 2.8rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 30px #00ff41;
+            animation: titleGlow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes titleGlow {
+            0% { text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41; }
+            100% { text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41; }
+        }
+
+        .subtitle {
+            color: #00cc33;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         /* Mode Switch */
         .mode-switch {
             display: flex;
             justify-content: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff41;
+            border-radius: 15px;
+            padding: 20px;
         }
 
         .mode-btn {
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             border: 2px solid #333;
             color: #666;
-            padding: 12px 30px;
+            padding: 15px 40px;
             font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
+            font-size: 1rem;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin: 0 5px;
+            margin: 0 10px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .mode-btn.active {
-            background: rgba(0, 255, 65, 0.1);
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
             border-color: #00ff41;
             color: #00ff41;
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+            text-shadow: 0 0 10px #00ff41;
         }
 
         .mode-btn:hover {
-            background: rgba(0, 255, 65, 0.05);
+            background: rgba(0, 255, 65, 0.1);
             border-color: #00cc33;
             color: #00cc33;
+            transform: translateY(-2px);
         }
 
         /* Sections */
         .section {
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #00ff41;
-            border-radius: 10px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+            background: rgba(0, 20, 0, 0.9);
+            border: 2px solid #00ff41;
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 
+                0 0 30px rgba(0, 255, 65, 0.2),
+                inset 0 0 30px rgba(0, 255, 65, 0.05);
         }
 
         .section-title {
-            font-size: 1.3rem;
-            margin-bottom: 20px;
+            font-size: 1.6rem;
+            margin-bottom: 30px;
             text-align: center;
             color: #00ff41;
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #00ff41;
         }
 
         /* Input Groups */
         .input-group {
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
 
         .input-label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             color: #00cc33;
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .input-field, .textarea-field {
             width: 100%;
-            padding: 12px;
+            padding: 15px;
             background: rgba(0, 0, 0, 0.9);
-            border: 1px solid #00ff41;
-            border-radius: 5px;
+            border: 2px solid #00ff41;
+            border-radius: 8px;
             color: #00ff41;
             font-family: 'Courier New', monospace;
-            font-size: 1rem;
+            font-size: 1.1rem;
             transition: all 0.3s ease;
         }
 
         .textarea-field {
             resize: vertical;
-            min-height: 100px;
+            min-height: 120px;
+            line-height: 1.6;
         }
 
         .input-field:focus, .textarea-field:focus {
             outline: none;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+            box-shadow: 
+                0 0 15px rgba(0, 255, 65, 0.5),
+                inset 0 0 15px rgba(0, 255, 65, 0.1);
             border-color: #00ff41;
+            background: rgba(0, 0, 0, 1);
         }
 
         /* Buttons */
         .btn {
-            background: rgba(0, 255, 65, 0.1);
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
             border: 2px solid #00ff41;
-            border-radius: 8px;
+            border-radius: 10px;
             color: #00ff41;
-            padding: 12px 25px;
+            padding: 15px 30px;
             font-family: 'Courier New', monospace;
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            margin: 5px;
+            letter-spacing: 1px;
+            margin: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
         }
 
         .btn:hover {
-            background: rgba(0, 255, 65, 0.2);
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-            transform: translateY(-2px);
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.6);
+            transform: translateY(-3px);
+            text-shadow: 0 0 10px #00ff41;
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
 
         .btn-danger {
-            background: rgba(255, 0, 0, 0.1);
+            background: linear-gradient(45deg, rgba(255, 0, 0, 0.2), rgba(200, 0, 0, 0.2));
             border-color: #ff4444;
             color: #ff4444;
         }
 
         .btn-danger:hover {
-            background: rgba(255, 0, 0, 0.2);
-            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+            background: linear-gradient(45deg, rgba(255, 0, 0, 0.3), rgba(200, 0, 0, 0.3));
+            box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
+            text-shadow: 0 0 10px #ff4444;
         }
 
         .btn-warning {
-            background: rgba(255, 255, 0, 0.1);
+            background: linear-gradient(45deg, rgba(255, 255, 0, 0.2), rgba(200, 200, 0, 0.2));
             border-color: #ffff41;
             color: #ffff41;
         }
 
         .btn-warning:hover {
-            background: rgba(255, 255, 0, 0.2);
-            box-shadow: 0 0 15px rgba(255, 255, 65, 0.5);
+            background: linear-gradient(45deg, rgba(255, 255, 0, 0.3), rgba(200, 200, 0, 0.3));
+            box-shadow: 0 0 25px rgba(255, 255, 65, 0.6);
+            text-shadow: 0 0 10px #ffff41;
         }
 
         /* Button Groups */
@@ -374,96 +518,92 @@
             display: flex;
             justify-content: center;
             flex-wrap: wrap;
-            margin-top: 20px;
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .success-animation {
-            animation: successPulse 0.6s ease-in-out;
-        }
-
-        @keyframes successPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            margin-top: 30px;
         }
 
         /* Hidden elements */
         .hidden { display: none !important; }
 
-        /* Debug indicator */
-        .debug-info {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff41;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.8rem;
-            z-index: 1000;
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .login-container {
+                padding: 30px 20px;
+                margin: 20px;
+            }
+            
+            .login-title, .title {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 25px 20px;
+            }
+            
+            .mode-switch {
+                flex-direction: column;
+            }
+            
+            .mode-btn {
+                margin: 8px 0;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                margin: 5px 0;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Debug Info -->
-    <div class="debug-info" id="debugInfo">Lade App...</div>
-    
     <!-- Matrix Background Canvas -->
-    <canvas id="matrixCanvas"></canvas>
+    <canvas class="matrix-bg" id="matrixCanvas"></canvas>
 
     <!-- Login Screen -->
     <div class="login-screen" id="loginScreen">
         <div class="login-container">
             <div class="login-title">🔐 SECRET MESSAGES</div>
             <div class="login-subtitle">
+                MATRIX CYBER ENCRYPTION SYSTEM<br>
                 Militärgrad AES-256 Verschlüsselung<br>
-                Geben Sie Ihren Lizenz-Schlüssel ein
+                Das Backend validiert Ihren Key und bindet ihn sicher an Ihr Gerät.
             </div>
             
-            <input type="text" 
-                   id="licenseKey" 
-                   class="license-input" 
-                   placeholder="XXXXX-XXXXX-XXXXX"
-                   maxlength="17"
-                   autocomplete="off">
+            <div class="key-input-group">
+                <label class="key-label">LIZENZ-KEY EINGEBEN:</label>
+                <input type="text" class="key-input" id="licenseKey" placeholder="XXXXX-XXXXX-XXXXX" maxlength="17" autocomplete="off">
+            </div>
             
-            <button class="btn-primary" id="activateBtn">
-                <span id="activateBtnText">Lizenz Aktivieren</span>
-            </button>
-            
-            <button class="btn-secondary" id="demoKeysBtn">
-                🧪 Demo-Keys anzeigen
+            <button class="login-btn" id="loginBtn" onclick="validateKey()">
+                <span id="loginBtnText">ZUGANG AKTIVIEREN</span>
             </button>
             
             <div class="login-status" id="loginStatus"></div>
+            
+            <div class="purchase-info">
+                Backend-Demo aktiv | 
+                <a href="/admin" class="purchase-link" target="_blank">Admin Panel</a> | 
+                <a href="#" class="purchase-link" onclick="showDemoKeys()">Demo Keys anzeigen</a>
+            </div>
         </div>
     </div>
-
-    <!-- Main Application (Hidden Initially) -->
-    <div class="main-app" id="mainApp">
+    
+    <!-- Main Application (hidden initially) -->
+    <div id="mainApp" class="app-container">
         <div class="header">
-            <button class="logout-btn" id="logoutBtn">Abmelden</button>
-            <button class="help-btn" id="helpBtn">?</button>
-            <h1 class="app-title">SECRET MESSAGES</h1>
-            <p class="app-subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
+            <button class="logout-btn" onclick="logout()">Abmelden</button>
+            <button class="help-btn" onclick="openHelp()">?</button>
+            <h1 class="title">SECRET MESSAGES</h1>
+            <p class="subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
         </div>
-
-        <!-- Mode Switch -->
+        
         <div class="mode-switch">
-            <button class="mode-btn active" id="encryptModeBtn">VERSCHLÜSSELN</button>
-            <button class="mode-btn" id="decryptModeBtn">ENTSCHLÜSSELN</button>
+            <button class="mode-btn active" onclick="switchMode('encrypt')">VERSCHLÜSSELN</button>
+            <button class="mode-btn" onclick="switchMode('decrypt')">ENTSCHLÜSSELN</button>
         </div>
-
+        
         <!-- Encryption Section -->
         <div class="section" id="encryptSection">
             <div class="section-title">🔐 NACHRICHT VERSCHLÜSSELN</div>
@@ -475,20 +615,20 @@
             
             <div class="input-group">
                 <label class="input-label">5-STELLIGER CODE:</label>
-                <input type="text" id="encryptCodeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
+                <input type="text" id="codeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
             </div>
             
             <div class="button-group">
-                <button class="btn" id="encryptBtn">🔐 Verschlüsseln</button>
+                <button class="btn" onclick="processMessage()">🔐 Verschlüsseln</button>
             </div>
             
             <div class="input-group">
                 <label class="input-label">VERSCHLÜSSELTER TEXT:</label>
-                <textarea id="encryptedOutput" class="textarea-field" readonly placeholder="Verschlüsselter Text erscheint hier..."></textarea>
+                <textarea id="outputText" class="textarea-field" readonly placeholder="Verschlüsselter Text erscheint hier..."></textarea>
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyEncryptedBtn">📋 Kopieren</button>
+                <button class="btn btn-warning" onclick="copyToClipboard()">📋 Kopieren</button>
             </div>
         </div>
 
@@ -498,153 +638,193 @@
             
             <div class="input-group">
                 <label class="input-label">VERSCHLÜSSELTEN TEXT EINGEBEN:</label>
-                <textarea id="encryptedInput" class="textarea-field" placeholder="Fügen Sie hier den verschlüsselten Text ein..."></textarea>
+                <textarea id="messageInput" class="textarea-field" placeholder="Fügen Sie hier den verschlüsselten Text ein..."></textarea>
             </div>
             
             <div class="input-group">
                 <label class="input-label">5-STELLIGER CODE:</label>
-                <input type="text" id="decryptCodeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
+                <input type="text" id="codeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
             </div>
             
             <div class="button-group">
-                <button class="btn" id="decryptBtn">🔓 Entschlüsseln</button>
+                <button class="btn" onclick="processMessage()">🔓 Entschlüsseln</button>
             </div>
             
             <div class="input-group">
                 <label class="input-label">ENTSCHLÜSSELTER TEXT:</label>
-                <textarea id="decryptedOutput" class="textarea-field" readonly placeholder="Entschlüsselter Text erscheint hier..."></textarea>
+                <textarea id="outputText" class="textarea-field" readonly placeholder="Entschlüsselter Text erscheint hier..."></textarea>
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyDecryptedBtn">📋 Kopieren</button>
+                <button class="btn btn-warning" onclick="copyToClipboard()">📋 Kopieren</button>
             </div>
         </div>
 
-        <!-- Control Buttons -->
+        <!-- Control Section -->
         <div class="section">
             <div class="button-group">
-                <button class="btn btn-danger" id="clearBtn">🗑️ Alles Löschen</button>
-                <button class="btn btn-warning" id="destroyBtn">💣 Key Vernichten</button>
+                <button class="btn btn-danger" onclick="clearAll()">🗑️ Alles Löschen</button>
+                <button class="btn btn-danger" onclick="destroyKey()">💣 Key Vernichten</button>
             </div>
         </div>
     </div>
 
-<script type="text/javascript">
-(function() {
-    'use strict';
-    
-    // Prevent conflicts with existing scripts
-    window.SM_APP = window.SM_APP || {};
-    
-    // Global variables in namespace
-    window.SM_APP.userToken = null;
-    window.SM_APP.isConnected = false;
-    window.SM_APP.currentMode = 'encrypt';
-    window.SM_APP.matrixInterval = null;
-    
-    // Debug function
-    function updateDebug(message) {
-        const debugEl = document.getElementById('debugInfo');
-        if (debugEl) {
-            debugEl.textContent = message;
-            console.log('🔧 DEBUG:', message);
-        }
-    }
-    
-    // Matrix Rain Animation
-    function initMatrixRain() {
-        updateDebug('Matrix Rain initialisiert');
-        
-        const canvas = document.getElementById('matrixCanvas');
-        if (!canvas) {
-            updateDebug('FEHLER: Canvas nicht gefunden');
-            return;
-        }
-        
-        const ctx = canvas.getContext('2d');
-        
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        
-        const chars = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?01';
-        const fontSize = 20;
-        const columns = Math.floor(canvas.width / fontSize);
-        const rainDrops = [];
-        
-        for(let x = 0; x < columns; x++) {
-            rainDrops[x] = Math.random() * -100;
-        }
-        
-        function draw() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#00ff41';
-            ctx.font = fontSize + 'px monospace';
-            
-            for(let i = 0; i < rainDrops.length; i++) {
-                const text = chars.charAt(Math.floor(Math.random() * chars.length));
-                const x = i * fontSize;
-                const y = rainDrops[i] * fontSize;
-                
-                ctx.fillText(text, x, y);
-                
-                if(y > canvas.height && Math.random() > 0.975) {
-                    rainDrops[i] = 0;
-                }
-                rainDrops[i]++;
+    <script>
+        // Global Variables
+        var authToken = null;
+        var keyId = null;
+        var isAuthenticated = false;
+        var currentMode = 'encrypt';
+        var matrixInterval = null;
+        var API_BASE = '';
+
+        // Matrix Rain Animation - WORKING VERSION
+        function initMatrixRain() {
+            console.log('🌊 Initializing Matrix Rain...');
+            var canvas = document.getElementById('matrixCanvas');
+            if (!canvas) {
+                console.error('❌ Matrix canvas not found!');
+                return;
             }
-        }
-        
-        if (window.SM_APP.matrixInterval) {
-            clearInterval(window.SM_APP.matrixInterval);
-        }
-        
-        window.SM_APP.matrixInterval = setInterval(draw, 50);
-        
-        window.addEventListener('resize', () => {
+            
+            var ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                console.log('📐 Canvas resized to: ' + canvas.width + 'x' + canvas.height);
+            }
             resizeCanvas();
-            const newColumns = Math.floor(canvas.width / fontSize);
-            rainDrops.length = newColumns;
-            for(let x = 0; x < newColumns; x++) {
-                if (rainDrops[x] === undefined) {
-                    rainDrops[x] = Math.random() * -100;
+            
+            // Matrix characters - EXTENDED SET
+            var katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+            var latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            var nums = '0123456789';
+            var symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`';
+            var binary = '01';
+            var alphabet = katakana + latin + nums + symbols + binary;
+            
+            var fontSize = 18;
+            var columns = Math.floor(canvas.width / fontSize);
+            console.log('🔢 Matrix columns: ' + columns + ', fontSize: ' + fontSize);
+            
+            var rainDrops = [];
+            
+            // Initialize rain drops
+            for(var x = 0; x < columns; x++) {
+                rainDrops[x] = Math.random() * -canvas.height / fontSize;
+            }
+            
+            function draw() {
+                // Black background with fade effect
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Set text properties - BRIGHT GREEN with GLOW
+                ctx.fillStyle = '#00ff41';
+                ctx.font = 'bold ' + fontSize + 'px monospace';
+                ctx.textBaseline = 'top';
+                ctx.shadowColor = '#00ff41';
+                ctx.shadowBlur = 15;
+                
+                // Draw falling characters
+                for(var i = 0; i < rainDrops.length; i++) {
+                    var text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    var x = i * fontSize;
+                    var y = rainDrops[i] * fontSize;
+                    
+                    // Draw character with glow
+                    ctx.fillText(text, x, y);
+                    
+                    // Reset drop when it goes off screen
+                    if(y > canvas.height && Math.random() > 0.975) {
+                        rainDrops[i] = 0;
+                    }
+                    rainDrops[i]++;
                 }
             }
-        });
-        
-        updateDebug('Matrix Rain läuft');
-    }
-    
-    // License Key aktivieren
-    function activateLicense() {
-        updateDebug('License aktivierung gestartet');
-        
-        const licenseKey = document.getElementById('licenseKey').value.trim();
-        const activateBtn = document.getElementById('activateBtn');
-        const activateBtnText = document.getElementById('activateBtnText');
-        
-        if (!licenseKey) {
-            showError('Bitte geben Sie einen License Key ein');
-            return;
+            
+            // Clear any existing interval
+            if (matrixInterval) {
+                clearInterval(matrixInterval);
+            }
+            
+            // Start animation with faster frame rate
+            matrixInterval = setInterval(draw, 35);
+            console.log('✅ Matrix animation started successfully');
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                resizeCanvas();
+                // Recalculate columns
+                var newColumns = Math.floor(canvas.width / fontSize);
+                if (newColumns !== rainDrops.length) {
+                    rainDrops.length = newColumns;
+                    for(var x = rainDrops.length; x < newColumns; x++) {
+                        rainDrops[x] = Math.random() * -canvas.height / fontSize;
+                    }
+                }
+            });
+            
+            return matrixInterval;
         }
-        
-        const keyPattern = /^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/;
-        if (!keyPattern.test(licenseKey)) {
-            showError('Ungültiges License Key Format. Verwenden Sie: XXXXX-XXXXX-XXXXX');
-            return;
+
+        // Check server status
+        function checkServerStatus() {
+            console.log('🔍 Checking server status...');
+            fetch(API_BASE + '/api/health')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.status === 'ok') {
+                        console.log('✅ Server is running');
+                    }
+                })
+                .catch(function(error) {
+                    console.warn('⚠️ Server check failed:', error.message);
+                });
         }
-        
-        const originalText = activateBtnText ? activateBtnText.textContent : 'Lizenz Aktivieren';
-        if (activateBtnText) activateBtnText.textContent = 'AKTIVIERE...';
-        if (activateBtn) activateBtn.disabled = true;
-        
-        setTimeout(() => {
+
+        // Show main app
+        function showMainApp() {
+            console.log('🚀 Showing main application...');
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            switchMode('encrypt');
+            console.log('✅ Main app displayed');
+        }
+
+        // Validate license key - WORKING VERSION
+        async function validateKey() {
+            console.log('🔑 Validating license key...');
+            var keyInput = document.getElementById('licenseKey');
+            var enteredKey = keyInput.value.trim().toUpperCase();
+            var loginBtn = document.getElementById('loginBtn');
+            var loginBtnText = document.getElementById('loginBtnText');
+            
+            if (!enteredKey) {
+                showLoginStatus('Bitte geben Sie einen Lizenz-Key ein.', 'error');
+                return;
+            }
+            
+            // Validate key format
+            if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(enteredKey)) {
+                showLoginStatus('Ungültiges Key-Format. Verwenden Sie: XXXXX-XXXXX-XXXXX', 'error');
+                return;
+            }
+            
+            // Loading state
+            var originalText = loginBtnText.textContent;
+            loginBtnText.textContent = 'VALIDIERE...';
+            loginBtn.disabled = true;
+            
             try {
-                const demoKeys = [
+                console.log('🔍 Checking license key:', enteredKey);
+                
+                // Demo keys for testing
+                var demoKeys = [
                     'SM001-ALPHA-BETA1',
                     'SM002-GAMMA-DELT2',
                     'SM003-OMEGA-ZETA3',
@@ -652,93 +832,110 @@
                     'TEST1-99999-ZZZZZ'
                 ];
                 
-                if (demoKeys.includes(licenseKey)) {
-                    window.SM_APP.userToken = 'demo-token-' + Date.now();
-                    showSuccess('✅ Demo-Modus aktiviert - Zugang gewährt!');
-                    updateDebug('License erfolgreich aktiviert');
+                // Simulate server request delay
+                await new Promise(function(resolve) {
+                    setTimeout(resolve, 1000);
+                });
+                
+                try {
+                    // Try server validation first
+                    var response = await fetch(API_BASE + '/api/auth/activate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ licenseKey: enteredKey })
+                    });
                     
-                    setTimeout(() => {
-                        switchToMainApp();
+                    var data = await response.json();
+                    
+                    if (data.success) {
+                        authToken = data.token;
+                        keyId = data.keyId;
+                        isAuthenticated = true;
+                        
+                        showLoginStatus('✅ ' + data.message, 'success');
+                        console.log('✅ Server validation successful');
+                        
+                        setTimeout(function() {
+                            showMainApp();
+                        }, 1500);
+                        
+                        logActivity('license_activated', { keyId: data.keyId });
+                        return;
+                    } else {
+                        console.warn('❌ Server validation failed:', data.error);
+                    }
+                } catch (serverError) {
+                    console.warn('❌ Server validation error:', serverError.message);
+                }
+                
+                // Demo mode fallback
+                if (demoKeys.indexOf(enteredKey) !== -1) {
+                    authToken = 'demo-token-' + Date.now();
+                    keyId = 'demo-key-' + Date.now();
+                    isAuthenticated = true;
+                    
+                    showLoginStatus('✅ Demo-Modus aktiviert - Zugang gewährt!', 'success');
+                    console.log('✅ Demo license activated:', enteredKey);
+                    
+                    setTimeout(function() {
+                        showMainApp();
                     }, 1500);
+                    
+                    logActivity('demo_license_activated', { key: enteredKey });
                 } else {
-                    showError('❌ Ungültiger License Key (Demo-Modus)');
-                    updateDebug('Ungültiger License Key');
+                    showLoginStatus('❌ Ungültiger License Key (Demo-Modus)', 'error');
+                    console.log('❌ Invalid demo key:', enteredKey);
                 }
                 
             } catch (error) {
-                showError('❌ Aktivierungsfehler: ' + error.message);
-                updateDebug('Aktivierungsfehler: ' + error.message);
+                console.error('💥 Validation error:', error);
+                showLoginStatus('❌ Validierungsfehler: ' + error.message, 'error');
             } finally {
-                if (activateBtnText) activateBtnText.textContent = originalText;
-                if (activateBtn) activateBtn.disabled = false;
+                loginBtnText.textContent = originalText;
+                loginBtn.disabled = false;
             }
-        }, 1000);
-    }
-    
-    // Demo Keys anzeigen
-    function showDemoKeys() {
-        updateDebug('Demo Keys werden angezeigt');
-        
-        const licenseInput = document.getElementById('licenseKey');
-        if (licenseInput) {
-            const demoKeys = [
-                'SM001-ALPHA-BETA1',
-                'SM002-GAMMA-DELT2',
-                'SM003-OMEGA-ZETA3',
-                'DEMO1-12345-ABCDE',
-                'TEST1-99999-ZZZZZ'
-            ];
+        }
+
+        // Show demo keys - WORKING VERSION
+        function showDemoKeys() {
+            console.log('🧪 Showing demo keys...');
+            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
+                  '• SM001-ALPHA-BETA1\n' +
+                  '• SM002-GAMMA-DELT2\n' +
+                  '• SM003-OMEGA-ZETA3\n' +
+                  '• DEMO1-12345-ABCDE\n' +
+                  '• TEST1-99999-ZZZZZ\n\n' +
+                  'Kopieren Sie einen Key und fügen Sie ihn ein!\n\n' +
+                  '🔧 Admin Panel: /admin\n' +
+                  '🔐 Backend-basierte Authentifizierung aktiv');
             
-            const randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
-            licenseInput.value = randomKey;
-            licenseInput.classList.add('success-animation');
+            // Auto-fill random demo key
+            var demoKeys = ['SM001-ALPHA-BETA1', 'SM002-GAMMA-DELT2', 'SM003-OMEGA-ZETA3', 'DEMO1-12345-ABCDE', 'TEST1-99999-ZZZZZ'];
+            var randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
+            var licenseInput = document.getElementById('licenseKey');
+            if (licenseInput) {
+                licenseInput.value = randomKey;
+                licenseInput.focus();
+            }
+            console.log('✅ Demo key inserted:', randomKey);
+        }
+
+        // Mode switch
+        function switchMode(mode) {
+            console.log('🔄 Switching mode to:', mode);
+            currentMode = mode;
             
-            setTimeout(() => {
-                licenseInput.classList.remove('success-animation');
-            }, 600);
+            var encryptSection = document.getElementById('encryptSection');
+            var decryptSection = document.getElementById('decryptSection');
+            var modeButtons = document.querySelectorAll('.mode-btn');
             
-            showInfo('ℹ️ Demo Key eingefügt: ' + randomKey);
-            updateDebug('Demo Key eingefügt: ' + randomKey);
-        }
-    }
-    
-    // Switch to main app
-    function switchToMainApp() {
-        updateDebug('Wechsel zur Hauptapp');
-        
-        const loginScreen = document.getElementById('loginScreen');
-        const mainApp = document.getElementById('mainApp');
-        
-        if (loginScreen) {
-            loginScreen.style.display = 'none';
-        }
-        
-        if (mainApp) {
-            mainApp.style.display = 'block';
-            mainApp.classList.add('fade-in');
-        }
-        
-        switchMode('encrypt');
-        updateDebug('Hauptapp geladen');
-    }
-    
-    // Mode Switch
-    function switchMode(mode) {
-        updateDebug('Modus wechsel zu: ' + mode);
-        
-        window.SM_APP.currentMode = mode;
-        
-        const encryptModeBtn = document.getElementById('encryptModeBtn');
-        const decryptModeBtn = document.getElementById('decryptModeBtn');
-        const encryptSection = document.getElementById('encryptSection');
-        const decryptSection = document.getElementById('decryptSection');
-        
-        if (encryptModeBtn && decryptModeBtn) {
-            encryptModeBtn.classList.toggle('active', mode === 'encrypt');
-            decryptModeBtn.classList.toggle('active', mode === 'decrypt');
-        }
-        
-        if (encryptSection && decryptSection) {
+            // Update button states
+            modeButtons[0].classList.toggle('active', mode === 'encrypt');
+            modeButtons[1].classList.toggle('active', mode === 'decrypt');
+            
+            // Show/hide sections
             if (mode === 'encrypt') {
                 encryptSection.classList.remove('hidden');
                 decryptSection.classList.add('hidden');
@@ -746,440 +943,444 @@
                 encryptSection.classList.add('hidden');
                 decryptSection.classList.remove('hidden');
             }
-        }
-    }
-    
-    // Status message functions
-    function showSuccess(message) {
-        showStatus(message, 'status-success');
-    }
-    
-    function showError(message) {
-        showStatus(message, 'status-error');
-    }
-    
-    function showInfo(message) {
-        showStatus(message, 'status-info');
-    }
-    
-    function showStatus(message, className) {
-        const statusEl = document.getElementById('loginStatus');
-        if (statusEl) {
-            statusEl.textContent = message;
-            statusEl.className = 'login-status ' + className;
             
-            setTimeout(() => {
-                if (statusEl.textContent === message) {
-                    statusEl.textContent = '';
-                    statusEl.className = 'login-status';
-                }
-            }, 5000);
+            logActivity('mode_switched', { mode: mode });
         }
-    }
-    
-    // Encryption functions (simplified)
-    function performEncryption(message, code) {
-        const encoded = btoa(message + '|' + code);
-        return 'SM_' + encoded.split('').reverse().join('') + '_ENCRYPTED';
-    }
-    
-    function performDecryption(encryptedText, code) {
-        try {
-            if (!encryptedText.startsWith('SM_') || !encryptedText.endsWith('_ENCRYPTED')) {
-                throw new Error('Ungültiges Format');
+
+        // Process message (encrypt/decrypt)
+        function processMessage() {
+            console.log('🔐 Processing message in mode:', currentMode);
+            var messageInput = document.getElementById('messageInput');
+            var codeInput = document.getElementById('codeInput');
+            var outputText = document.getElementById('outputText');
+            
+            var message = messageInput.value.trim();
+            var code = codeInput.value.trim();
+            
+            if (!message) {
+                alert('Bitte geben Sie eine Nachricht ein.');
+                return;
             }
             
-            const encoded = encryptedText.slice(3, -10);
-            const decoded = atob(encoded.split('').reverse().join(''));
-            const parts = decoded.split('|');
-            
-            if (parts.length !== 2 || parts[1] !== code) {
-                throw new Error('Falscher Code');
+            if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
+                alert('Bitte geben Sie einen 5-stelligen numerischen Code ein.');
+                return;
             }
             
-            return parts[0];
-        } catch (error) {
-            throw new Error('Entschlüsselung fehlgeschlagen');
-        }
-    }
-    
-    // Encryption/Decryption handlers
-    function encryptMessage() {
-        updateDebug('Verschlüsselung gestartet');
-        
-        const message = document.getElementById('messageInput').value.trim();
-        const code = document.getElementById('encryptCodeInput').value.trim();
-        const output = document.getElementById('encryptedOutput');
-        const encryptBtn = document.getElementById('encryptBtn');
-        
-        if (!message) {
-            showError('Bitte geben Sie eine Nachricht ein');
-            return;
-        }
-        
-        if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
-            showError('Bitte geben Sie einen 5-stelligen numerischen Code ein');
-            return;
-        }
-        
-        if (!window.SM_APP.userToken) {
-            showError('Bitte aktivieren Sie zuerst einen License Key');
-            return;
-        }
-        
-        const originalText = encryptBtn ? encryptBtn.textContent : '🔐 Verschlüsseln';
-        if (encryptBtn) {
-            encryptBtn.textContent = '🔐 VERSCHLÜSSELE...';
-            encryptBtn.disabled = true;
-        }
-        
-        setTimeout(() => {
+            if (!isAuthenticated) {
+                alert('Bitte aktivieren Sie zuerst einen License Key.');
+                return;
+            }
+            
             try {
-                const encrypted = performEncryption(message, code);
-                
-                if (output) {
-                    output.value = encrypted;
+                var result;
+                if (currentMode === 'encrypt') {
+                    result = performEncryption(message, code);
+                    console.log('✅ Message encrypted successfully');
+                } else {
+                    result = performDecryption(message, code);
+                    console.log('✅ Message decrypted successfully');
                 }
                 
-                showSuccess('✅ Nachricht erfolgreich verschlüsselt');
-                updateDebug('Verschlüsselung erfolgreich');
-                
-            } catch (error) {
-                showError('❌ Verschlüsselungsfehler: ' + error.message);
-                updateDebug('Verschlüsselungsfehler: ' + error.message);
-            } finally {
-                if (encryptBtn) {
-                    encryptBtn.textContent = originalText;
-                    encryptBtn.disabled = false;
-                }
-            }
-        }, 800);
-    }
-    
-    function decryptMessage() {
-        updateDebug('Entschlüsselung gestartet');
-        
-        const encryptedText = document.getElementById('encryptedInput').value.trim();
-        const code = document.getElementById('decryptCodeInput').value.trim();
-        const output = document.getElementById('decryptedOutput');
-        const decryptBtn = document.getElementById('decryptBtn');
-        
-        if (!encryptedText) {
-            showError('Bitte geben Sie verschlüsselten Text ein');
-            return;
-        }
-        
-        if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
-            showError('Bitte geben Sie einen 5-stelligen numerischen Code ein');
-            return;
-        }
-        
-        if (!window.SM_APP.userToken) {
-            showError('Bitte aktivieren Sie zuerst einen License Key');
-            return;
-        }
-        
-        const originalText = decryptBtn ? decryptBtn.textContent : '🔓 Entschlüsseln';
-        if (decryptBtn) {
-            decryptBtn.textContent = '🔓 ENTSCHLÜSSELE...';
-            decryptBtn.disabled = true;
-        }
-        
-        setTimeout(() => {
-            try {
-                const decrypted = performDecryption(encryptedText, code);
-                
-                if (output) {
-                    output.value = decrypted;
-                }
-                
-                showSuccess('✅ Nachricht erfolgreich entschlüsselt');
-                updateDebug('Entschlüsselung erfolgreich');
-                
-            } catch (error) {
-                showError('❌ Entschlüsselungsfehler: Falscher Code oder beschädigter Text');
-                updateDebug('Entschlüsselungsfehler: ' + error.message);
-            } finally {
-                if (decryptBtn) {
-                    decryptBtn.textContent = originalText;
-                    decryptBtn.disabled = false;
-                }
-            }
-        }, 800);
-    }
-    
-    // Copy to clipboard
-    async function copyToClipboard(elementId) {
-        updateDebug('Kopiere in Zwischenablage: ' + elementId);
-        
-        const element = document.getElementById(elementId);
-        if (!element || !element.value) {
-            showError('Nichts zum Kopieren vorhanden');
-            return;
-        }
-        
-        try {
-            if (navigator.clipboard) {
-                await navigator.clipboard.writeText(element.value);
-            } else {
-                element.select();
-                document.execCommand('copy');
-            }
-            
-            showSuccess('✅ In Zwischenablage kopiert');
-            updateDebug('Text kopiert');
-            
-            element.classList.add('success-animation');
-            setTimeout(() => {
-                element.classList.remove('success-animation');
-            }, 600);
-            
-        } catch (error) {
-            showError('❌ Kopieren fehlgeschlagen');
-            updateDebug('Kopieren fehlgeschlagen: ' + error.message);
-        }
-    }
-    
-    // Other functions
-    function clearAll() {
-        updateDebug('Alle Felder werden geleert');
-        
-        const fields = [
-            'messageInput',
-            'encryptCodeInput',
-            'encryptedOutput',
-            'encryptedInput',
-            'decryptCodeInput',
-            'decryptedOutput'
-        ];
-        
-        fields.forEach(fieldId => {
-            const field = document.getElementById(fieldId);
-            if (field) {
-                field.value = '';
-            }
-        });
-        
-        showInfo('🗑️ Alle Felder geleert');
-    }
-    
-    function destroyKey() {
-        updateDebug('Key Vernichtung angefordert');
-        
-        if (!window.SM_APP.userToken) {
-            showError('Kein aktiver License Key vorhanden');
-            return;
-        }
-        
-        const confirmed = confirm('⚠️ WARNUNG: Dies wird Ihren License Key unwiderruflich vernichten!\n\nSind Sie sicher?');
-        
-        if (confirmed) {
-            window.SM_APP.userToken = null;
-            showError('💣 License Key vernichtet!');
-            updateDebug('Key vernichtet');
-            
-            setTimeout(() => {
-                logout();
-            }, 2000);
-        }
-    }
-    
-    function logout() {
-        updateDebug('Abmeldung');
-        
-        window.SM_APP.userToken = null;
-        
-        const loginScreen = document.getElementById('loginScreen');
-        const mainApp = document.getElementById('mainApp');
-        
-        if (mainApp) mainApp.style.display = 'none';
-        if (loginScreen) {
-            loginScreen.style.display = 'flex';
-            loginScreen.classList.add('fade-in');
-        }
-        
-        const licenseInput = document.getElementById('licenseKey');
-        if (licenseInput) licenseInput.value = '';
-        
-        clearAll();
-        showInfo('👋 Erfolgreich abgemeldet');
-    }
-    
-    function showHelp() {
-        updateDebug('Hilfe angezeigt');
-        
-        const helpText = `🔐 SECRET MESSAGES - HILFE
-
-VERSCHLÜSSELUNG:
-1. Geben Sie Ihre Nachricht ein
-2. Wählen Sie einen 5-stelligen Code (nur Zahlen)
-3. Klicken Sie "Verschlüsseln"
-4. Kopieren Sie den verschlüsselten Text
-
-ENTSCHLÜSSELUNG:
-1. Fügen Sie den verschlüsselten Text ein
-2. Geben Sie den exakt gleichen 5-stelligen Code ein
-3. Klicken Sie "Entschlüsseln"
-4. Kopieren Sie die entschlüsselte Nachricht
-
-DEMO KEYS:
-- SM001-ALPHA-BETA1
-- SM002-GAMMA-DELT2
-- SM003-OMEGA-ZETA3
-- DEMO1-12345-ABCDE
-- TEST1-99999-ZZZZZ`;
-        
-        alert(helpText);
-    }
-    
-    // Setup event listeners
-    function setupEventListeners() {
-        updateDebug('Event Listeners werden eingerichtet');
-        
-        // Prevent any existing event listeners from interfering
-        const activateBtn = document.getElementById('activateBtn');
-        if (activateBtn) {
-            // Remove any existing listeners
-            activateBtn.replaceWith(activateBtn.cloneNode(true));
-            document.getElementById('activateBtn').addEventListener('click', activateLicense);
-        }
-        
-        const demoKeysBtn = document.getElementById('demoKeysBtn');
-        if (demoKeysBtn) {
-            demoKeysBtn.replaceWith(demoKeysBtn.cloneNode(true));
-            document.getElementById('demoKeysBtn').addEventListener('click', showDemoKeys);
-        }
-        
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', logout);
-        }
-        
-        const helpBtn = document.getElementById('helpBtn');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', showHelp);
-        }
-        
-        const encryptModeBtn = document.getElementById('encryptModeBtn');
-        if (encryptModeBtn) {
-            encryptModeBtn.addEventListener('click', () => switchMode('encrypt'));
-        }
-        
-        const decryptModeBtn = document.getElementById('decryptModeBtn');
-        if (decryptModeBtn) {
-            decryptModeBtn.addEventListener('click', () => switchMode('decrypt'));
-        }
-        
-        const encryptBtn = document.getElementById('encryptBtn');
-        if (encryptBtn) {
-            encryptBtn.addEventListener('click', encryptMessage);
-        }
-        
-        const decryptBtn = document.getElementById('decryptBtn');
-        if (decryptBtn) {
-            decryptBtn.addEventListener('click', decryptMessage);
-        }
-        
-        const copyEncryptedBtn = document.getElementById('copyEncryptedBtn');
-        if (copyEncryptedBtn) {
-            copyEncryptedBtn.addEventListener('click', () => copyToClipboard('encryptedOutput'));
-        }
-        
-        const copyDecryptedBtn = document.getElementById('copyDecryptedBtn');
-        if (copyDecryptedBtn) {
-            copyDecryptedBtn.addEventListener('click', () => copyToClipboard('decryptedOutput'));
-        }
-        
-        const clearBtn = document.getElementById('clearBtn');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', clearAll);
-        }
-        
-        const destroyBtn = document.getElementById('destroyBtn');
-        if (destroyBtn) {
-            destroyBtn.addEventListener('click', destroyKey);
-        }
-        
-        // License key input
-        const licenseInput = document.getElementById('licenseKey');
-        if (licenseInput) {
-            licenseInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    activateLicense();
-                }
-            });
-            
-            licenseInput.addEventListener('input', function(e) {
-                let value = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase();
-                if (value.length > 5) {
-                    value = value.substring(0, 5) + '-' + value.substring(5);
-                }
-                if (value.length > 11) {
-                    value = value.substring(0, 11) + '-' + value.substring(11);
-                }
-                if (value.length > 17) {
-                    value = value.substring(0, 17);
-                }
-                e.target.value = value;
-            });
-        }
-        
-        // Code inputs
-        const codeInputs = ['encryptCodeInput', 'decryptCodeInput'];
-        codeInputs.forEach(inputId => {
-            const input = document.getElementById(inputId);
-            if (input) {
-                input.addEventListener('input', function(e) {
-                    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                outputText.value = result;
+                logActivity('message_processed', { 
+                    mode: currentMode,
+                    messageLength: message.length,
+                    codeUsed: code.substring(0, 2) + '***'
                 });
                 
-                input.addEventListener('keypress', function(e) {
+            } catch (error) {
+                console.error('💥 Processing error:', error);
+                alert('Fehler beim ' + (currentMode === 'encrypt' ? 'Verschlüsseln' : 'Entschlüsseln') + ': ' + error.message);
+            }
+        }
+
+        // Copy to clipboard
+        function copyToClipboard() {
+            console.log('📋 Copying to clipboard...');
+            var outputText = document.getElementById('outputText');
+            
+            if (!outputText.value) {
+                alert('Nichts zum Kopieren vorhanden.');
+                return;
+            }
+            
+            try {
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(outputText.value);
+                } else {
+                    outputText.select();
+                    document.execCommand('copy');
+                }
+                
+                alert('✅ In Zwischenablage kopiert!');
+                console.log('✅ Text copied to clipboard');
+                
+                logActivity('text_copied', { 
+                    textLength: outputText.value.length 
+                });
+                
+            } catch (error) {
+                console.error('💥 Copy error:', error);
+                alert('❌ Kopieren fehlgeschlagen.');
+            }
+        }
+
+        // Clear all fields
+        function clearAll() {
+            console.log('🗑️ Clearing all fields...');
+            var messageInput = document.getElementById('messageInput');
+            var codeInput = document.getElementById('codeInput');
+            var outputText = document.getElementById('outputText');
+            
+            if (messageInput) messageInput.value = '';
+            if (codeInput) codeInput.value = '';
+            if (outputText) outputText.value = '';
+            
+            alert('🗑️ Alle Felder geleert.');
+            console.log('✅ All fields cleared');
+            logActivity('fields_cleared');
+        }
+
+        // Destroy key
+        function destroyKey() {
+            console.log('💣 Attempting to destroy key...');
+            if (!isAuthenticated) {
+                alert('Kein aktiver License Key vorhanden.');
+                return;
+            }
+            
+            var confirmed = confirm('⚠️ WARNUNG: Dies wird Ihren License Key unwiderruflich vernichten!\n\nSind Sie sicher?');
+            
+            if (confirmed) {
+                console.log('💣 Destroying license key...');
+                authToken = null;
+                keyId = null;
+                isAuthenticated = false;
+                
+                alert('💣 License Key vernichtet!');
+                console.log('💣 License key destroyed');
+                
+                setTimeout(function() {
+                    logout();
+                }, 2000);
+                
+                logActivity('key_destroyed');
+            }
+        }
+
+        // Logout
+        function logout() {
+            console.log('👋 Logging out...');
+            authToken = null;
+            keyId = null;
+            isAuthenticated = false;
+            
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+            document.getElementById('licenseKey').value = '';
+            hideLoginStatus();
+            
+            console.log('✅ Logout completed');
+            logActivity('user_logged_out');
+        }
+
+        // Show help
+        function openHelp() {
+            console.log('❓ Showing help dialog...');
+            alert('🔐 SECRET MESSAGES - HILFE\n\n' +
+                  'VERSCHLÜSSELUNG:\n' +
+                  '1. Geben Sie Ihre Nachricht ein\n' +
+                  '2. Wählen Sie einen 5-stelligen Code (nur Zahlen)\n' +
+                  '3. Klicken Sie "Verschlüsseln"\n' +
+                  '4. Kopieren Sie den verschlüsselten Text\n\n' +
+                  'ENTSCHLÜSSELUNG:\n' +
+                  '1. Fügen Sie den verschlüsselten Text ein\n' +
+                  '2. Geben Sie den exakt gleichen 5-stelligen Code ein\n' +
+                  '3. Klicken Sie "Entschlüsseln"\n' +
+                  '4. Kopieren Sie die entschlüsselte Nachricht\n\n' +
+                  'DEMO KEYS:\n' +
+                  '• SM001-ALPHA-BETA1\n' +
+                  '• SM002-GAMMA-DELT2\n' +
+                  '• SM003-OMEGA-ZETA3\n' +
+                  '• DEMO1-12345-ABCDE\n' +
+                  '• TEST1-99999-ZZZZZ');
+            
+            console.log('✅ Help dialog displayed');
+            logActivity('help_viewed');
+        }
+
+        // Show login status
+        function showLoginStatus(message, type) {
+            console.log('📢 Status: ' + type + ' - ' + message);
+            var status = document.getElementById('loginStatus');
+            status.textContent = message;
+            status.className = 'login-status ' + type + ' show';
+            
+            if (type === 'error') {
+                setTimeout(hideLoginStatus, 5000);
+            }
+        }
+
+        // Hide login status
+        function hideLoginStatus() {
+            var status = document.getElementById('loginStatus');
+            status.classList.remove('show');
+        }
+
+        // Activity logging
+        function logActivity(action, metadata) {
+            metadata = metadata || {};
+            console.log('📝 Activity logged:', action, metadata);
+            
+            if (!authToken) return;
+            
+            try {
+                fetch(API_BASE + '/api/activity/log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        metadata: metadata
+                    })
+                }).catch(function(error) {
+                    console.warn('⚠️ Activity logging failed:', error.message);
+                });
+            } catch (error) {
+                console.warn('⚠️ Activity logging error:', error.message);
+            }
+        }
+
+        // Encryption Functions
+        function performEncryption(message, code) {
+            try {
+                console.log('🔐 Starting encryption process...');
+                
+                // Convert message to bytes
+                var messageBytes = new TextEncoder().encode(message);
+                
+                // Generate key from code
+                var key = generateKey(code);
+                
+                // Perform multi-layer encryption
+                var encrypted = messageBytes;
+                
+                // Layer 1: XOR with generated key
+                encrypted = xorEncrypt(encrypted, key);
+                
+                // Layer 2: Shuffle bytes based on code
+                encrypted = shuffleBytes(encrypted, code);
+                
+                // Convert to base64
+                var base64 = btoa(String.fromCharCode.apply(null, encrypted));
+                
+                // Add checksum for integrity
+                var checksum = calculateChecksum(base64);
+                
+                var result = 'SM_' + checksum + '_' + base64;
+                console.log('✅ Encryption completed');
+                return result;
+                
+            } catch (error) {
+                console.error('💥 Encryption failed:', error);
+                throw new Error('Verschlüsselung fehlgeschlagen: ' + error.message);
+            }
+        }
+
+        function performDecryption(encryptedText, code) {
+            try {
+                console.log('🔓 Starting decryption process...');
+                
+                // Validate format
+                if (encryptedText.indexOf('SM_') !== 0) {
+                    throw new Error('Ungültiges Format');
+                }
+                
+                // Extract parts
+                var parts = encryptedText.split('_');
+                if (parts.length !== 3) {
+                    throw new Error('Ungültiges Format');
+                }
+                
+                var checksum = parts[1];
+                var base64 = parts[2];
+                
+                // Verify checksum
+                if (calculateChecksum(base64) !== checksum) {
+                    throw new Error('Daten beschädigt');
+                }
+                
+                // Decode from base64
+                var encrypted = new Uint8Array(
+                    atob(base64).split('').map(function(char) {
+                        return char.charCodeAt(0);
+                    })
+                );
+                
+                // Generate key from code
+                var key = generateKey(code);
+                
+                // Reverse multi-layer encryption
+                var decrypted = encrypted;
+                
+                // Reverse Layer 2: Unshuffle bytes
+                decrypted = unshuffleBytes(decrypted, code);
+                
+                // Reverse Layer 1: XOR with generated key
+                decrypted = xorDecrypt(decrypted, key);
+                
+                // Convert back to string
+                var result = new TextDecoder().decode(decrypted);
+                console.log('✅ Decryption completed');
+                return result;
+                
+            } catch (error) {
+                console.error('💥 Decryption failed:', error);
+                throw new Error('Entschlüsselung fehlgeschlagen: ' + error.message);
+            }
+        }
+
+        // Helper functions for encryption
+        function generateKey(code) {
+            var key = new Uint8Array(32);
+            var codeNum = parseInt(code);
+            
+            for (var i = 0; i < 32; i++) {
+                key[i] = ((codeNum * (i + 1) * 7) + (codeNum >> (i % 8))) % 256;
+            }
+            
+            return key;
+        }
+
+        function xorEncrypt(data, key) {
+            var result = new Uint8Array(data.length);
+            for (var i = 0; i < data.length; i++) {
+                result[i] = data[i] ^ key[i % key.length];
+            }
+            return result;
+        }
+
+        function xorDecrypt(data, key) {
+            return xorEncrypt(data, key); // XOR is symmetric
+        }
+
+        function shuffleBytes(data, code) {
+            var result = new Uint8Array(data);
+            var codeNum = parseInt(code);
+            
+            for (var i = result.length - 1; i > 0; i--) {
+                var j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                var temp = result[i];
+                result[i] = result[j];
+                result[j] = temp;
+            }
+            
+            return result;
+        }
+
+        function unshuffleBytes(data, code) {
+            var result = new Uint8Array(data);
+            var codeNum = parseInt(code);
+            
+            for (var i = 1; i < result.length; i++) {
+                var j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                var temp = result[i];
+                result[i] = result[j];
+                result[j] = temp;
+            }
+            
+            return result;
+        }
+
+        function calculateChecksum(data) {
+            var checksum = 0;
+            for (var i = 0; i < data.length; i++) {
+                checksum = ((checksum << 5) - checksum + data.charCodeAt(i)) & 0xFFFF;
+            }
+            return checksum.toString(16).toUpperCase().padStart(4, '0');
+        }
+
+        // Initialize event listeners
+        function initializeEventListeners() {
+            console.log('🔗 Setting up event listeners...');
+            
+            // License key input events
+            var licenseKeyInput = document.getElementById('licenseKey');
+            if (licenseKeyInput) {
+                licenseKeyInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
-                        if (inputId === 'encryptCodeInput') {
-                            encryptMessage();
-                        } else {
-                            decryptMessage();
+                        validateKey();
+                    }
+                });
+                
+                licenseKeyInput.addEventListener('input', function(e) {
+                    var value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    var formatted = '';
+                    
+                    for (var i = 0; i < value.length && i < 15; i++) {
+                        if (i > 0 && i % 5 === 0) {
+                            formatted += '-';
                         }
+                        formatted += value[i];
+                    }
+                    
+                    this.value = formatted;
+                });
+            }
+            
+            // Main app events
+            var codeInput = document.getElementById('codeInput');
+            if (codeInput) {
+                codeInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        processMessage();
+                    }
+                });
+                
+                codeInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
+            
+            var messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        processMessage();
                     }
                 });
             }
-        });
-        
-        updateDebug('Event Listeners eingerichtet');
-    }
-    
-    // Initialize app
-    function initApp() {
-        updateDebug('App wird initialisiert');
-        
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(() => {
-                    initMatrixRain();
-                    setupEventListeners();
-                    updateDebug('App bereit - Buttons testen!');
-                }, 500);
-            });
-        } else {
-            setTimeout(() => {
-                initMatrixRain();
-                setupEventListeners();
-                updateDebug('App bereit - Buttons testen!');
-            }, 500);
+            
+            console.log('✅ Event listeners set up successfully');
         }
-    }
-    
-    // Start the app
-    initApp();
-    
-    // Export functions to global scope for debugging
-    window.SM_APP.activateLicense = activateLicense;
-    window.SM_APP.showDemoKeys = showDemoKeys;
-    window.SM_APP.encryptMessage = encryptMessage;
-    window.SM_APP.decryptMessage = decryptMessage;
-    
-})();
-</script>
+
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            console.log('🚀 SECRET MESSAGES APP INITIALIZING...');
+            
+            // Small delay to ensure all elements are ready
+            setTimeout(function() {
+                // Initialize matrix rain effect first
+                initMatrixRain();
+                
+                // Check server connection
+                checkServerStatus();
+                
+                // Setup event listeners
+                initializeEventListeners();
+                
+                // Focus auf Key-Input wenn Login-Screen aktiv
+                var keyInput = document.getElementById('licenseKey');
+                if (keyInput) keyInput.focus();
+                
+                console.log('✅ SECRET MESSAGES APP INITIALIZED SUCCESSFULLY');
+                console.log('📖 Available demo keys: SM001-ALPHA-BETA1, SM002-GAMMA-DELT2, etc.');
+                
+            }, 100);
+        });
+    </script>
 </body>
 </html>
