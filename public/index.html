@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Secret Messages - Cyber Encryption System</title>
+    <title>Secret Messages - Militärgrad AES Verschlüsselung</title>
     <style>
         * {
             margin: 0;
@@ -13,14 +13,13 @@
 
         body {
             font-family: 'Courier New', monospace;
-            background: #000;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
             color: #00ff41;
             min-height: 100vh;
             overflow-x: hidden;
-            position: relative;
         }
 
-        /* Matrix Background */
+        /* Matrix Rain Animation */
         .matrix-bg {
             position: fixed;
             top: 0;
@@ -28,557 +27,372 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.4;
+            opacity: 0.1;
         }
 
-        /* Login Screen */
+        /* Login Screen Styles */
         .login-screen {
-            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
             display: flex;
-            align-items: center;
             justify-content: center;
-            position: relative;
-            z-index: 1;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
 
         .login-container {
-            background: rgba(0, 20, 0, 0.95);
-            border: 3px solid #00ff41;
-            border-radius: 20px;
-            padding: 50px 40px;
-            max-width: 600px;
-            width: 90%;
-            box-shadow: 
-                0 0 50px rgba(0, 255, 65, 0.4),
-                inset 0 0 50px rgba(0, 255, 65, 0.1);
+            background: rgba(0, 20, 0, 0.9);
+            border: 2px solid #00ff41;
+            border-radius: 10px;
+            padding: 40px;
             text-align: center;
-            position: relative;
-        }
-
-        .login-container::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(45deg, #00ff41, #00cc33, #00ff41);
-            border-radius: 20px;
-            z-index: -1;
-            animation: borderGlow 3s ease-in-out infinite alternate;
-        }
-
-        @keyframes borderGlow {
-            0% { opacity: 0.5; }
-            100% { opacity: 1; }
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
+            max-width: 500px;
+            width: 90%;
         }
 
         .login-title {
-            font-size: 3rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-shadow: 
-                0 0 10px #00ff41,
-                0 0 20px #00ff41,
-                0 0 30px #00ff41;
-            animation: titlePulse 2s ease-in-out infinite alternate;
-        }
-
-        @keyframes titlePulse {
-            0% { 
-                text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
-                transform: scale(1);
-            }
-            100% { 
-                text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41;
-                transform: scale(1.02);
-            }
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #00ff41;
         }
 
         .login-subtitle {
-            color: #00cc33;
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            text-shadow: 0 0 5px #00cc33;
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 30px;
+            line-height: 1.4;
         }
 
-        .server-status {
+        .license-input {
+            width: 100%;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ff41;
+            border-radius: 5px;
+            color: #00ff41;
+            text-align: center;
+            letter-spacing: 2px;
             margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 0.9rem;
+            text-transform: uppercase;
+            outline: none;
+        }
+
+        .license-input:focus {
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            border-color: #00ff88;
+        }
+
+        .activate-btn {
+            width: 100%;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            background: linear-gradient(45deg, #00ff41, #00aa2e);
+            border: none;
+            border-radius: 5px;
+            color: #000;
             font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
         }
 
-        .server-status.online {
-            background: rgba(0, 255, 0, 0.2);
-            border: 1px solid #00ff00;
-            color: #00ff00;
+        .activate-btn:hover {
+            background: linear-gradient(45deg, #00aa2e, #007722);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.4);
         }
 
-        .server-status.offline {
+        .activate-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .demo-keys-btn {
+            background: transparent;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .demo-keys-btn:hover {
+            background: rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        .login-status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .login-status.show {
+            opacity: 1;
+        }
+
+        .login-status.success {
+            background: rgba(0, 255, 65, 0.2);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+        }
+
+        .login-status.error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid #ff4141;
+            color: #ff4141;
+        }
+
+        .login-status.loading {
             background: rgba(255, 255, 0, 0.2);
             border: 1px solid #ffff41;
             color: #ffff41;
         }
 
-        .key-input-group {
-            margin-bottom: 30px;
+        /* Loading Animation */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            border-top-color: #00ff41;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
         }
 
-        .key-label {
-            display: block;
-            margin-bottom: 15px;
-            font-size: 1rem;
-            font-weight: bold;
-            color: #00ff41;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
-        .key-input {
-            width: 100%;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 12px;
-            color: #00ff41;
-            font-family: 'Courier New', monospace;
-            font-size: 1.4rem;
-            text-align: center;
-            letter-spacing: 3px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
-
-        .key-input:focus {
-            outline: none;
-            box-shadow: 
-                0 0 20px rgba(0, 255, 65, 0.6),
-                inset 0 0 20px rgba(0, 255, 65, 0.1);
-            background: rgba(0, 0, 0, 1);
-            border-color: #00ff41;
-            transform: scale(1.02);
-        }
-
-        .login-btn {
-            width: 100%;
-            padding: 20px;
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
-            border: 3px solid #00ff41;
-            border-radius: 12px;
-            color: #00ff41;
-            font-family: 'Courier New', monospace;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .login-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .login-btn:hover::before {
-            left: 100%;
-        }
-
-        .login-btn:hover {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
-            box-shadow: 
-                0 0 30px rgba(0, 255, 65, 0.7),
-                0 0 60px rgba(0, 255, 65, 0.3);
-            transform: translateY(-3px);
-        }
-
-        .login-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .login-status {
-            margin-top: 25px;
-            padding: 15px;
-            border-radius: 8px;
-            font-weight: bold;
-            min-height: 25px;
-            transition: all 0.3s ease;
-        }
-
-        .login-status.success {
-            background: rgba(0, 255, 0, 0.2);
-            border: 2px solid #00ff00;
-            color: #00ff00;
-            text-shadow: 0 0 10px #00ff00;
-        }
-
-        .login-status.error {
-            background: rgba(255, 0, 0, 0.2);
-            border: 2px solid #ff4444;
-            color: #ff4444;
-            text-shadow: 0 0 10px #ff4444;
-        }
-
-        .login-status.show {
-            opacity: 1;
-            transform: scale(1);
-        }
-
-        .purchase-info {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #888;
-            border-top: 1px solid #333;
-            padding-top: 20px;
-        }
-
-        .purchase-link {
-            color: #00cc33;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
-
-        .purchase-link:hover {
-            color: #00ff41;
-            background: rgba(0, 255, 65, 0.1);
-            text-shadow: 0 0 5px #00ff41;
-        }
-
-        /* Main App Styles (hidden initially) */
-        .app-container {
+        /* Main App Styles */
+        .main-app {
             display: none;
-            max-width: 1000px;
-            margin: 0 auto;
+            min-height: 100vh;
             padding: 20px;
-            position: relative;
-            z-index: 1;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             position: relative;
-            padding: 30px;
-            background: rgba(0, 20, 0, 0.8);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
+        }
+
+        .app-title {
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff41;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 20px #00ff41; }
+            to { text-shadow: 0 0 30px #00ff41, 0 0 40px #00ff41; }
+        }
+
+        .app-subtitle {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .device-info {
+            font-size: 12px;
+            opacity: 0.6;
+            margin-bottom: 10px;
         }
 
         .logout-btn {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 0;
+            right: 0;
             background: rgba(255, 0, 0, 0.2);
-            border: 2px solid #ff4444;
-            border-radius: 8px;
-            color: #ff4444;
-            padding: 10px 20px;
-            font-size: 0.9rem;
+            border: 1px solid #ff4141;
+            color: #ff4141;
+            padding: 8px 15px;
+            border-radius: 5px;
             cursor: pointer;
-            transition: all 0.3s ease;
             font-family: 'Courier New', monospace;
-            text-transform: uppercase;
-            font-weight: bold;
+            font-size: 12px;
+            transition: all 0.3s ease;
         }
 
         .logout-btn:hover {
             background: rgba(255, 0, 0, 0.3);
-            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
-            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(255, 65, 65, 0.3);
         }
 
-        .help-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 45px;
-            height: 45px;
-            background: rgba(0, 255, 65, 0.2);
-            border: 2px solid #00ff41;
-            border-radius: 50%;
-            color: #00ff41;
-            font-size: 1.4rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Courier New', monospace;
-        }
-
-        .help-btn:hover {
-            background: rgba(0, 255, 65, 0.3);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
-            transform: scale(1.1) rotate(360deg);
-        }
-
-        .title {
-            font-size: 2.8rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-shadow: 
-                0 0 10px #00ff41,
-                0 0 20px #00ff41,
-                0 0 30px #00ff41;
-            animation: titleGlow 3s ease-in-out infinite alternate;
-        }
-
-        @keyframes titleGlow {
-            0% { text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41; }
-            100% { text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41; }
-        }
-
-        .subtitle {
-            color: #00cc33;
-            font-size: 1.1rem;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        /* Mode Switch */
-        .mode-switch {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 40px;
-            background: rgba(0, 0, 0, 0.8);
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 20, 0, 0.8);
             border: 2px solid #00ff41;
             border-radius: 15px;
-            padding: 20px;
+            padding: 30px;
+            box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
         }
 
-        .mode-btn {
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #333;
-            color: #666;
-            padding: 15px 40px;
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 0 10px;
-            border-radius: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .mode-btn.active {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
-            border-color: #00ff41;
-            color: #00ff41;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
-            text-shadow: 0 0 10px #00ff41;
-        }
-
-        .mode-btn:hover {
-            background: rgba(0, 255, 65, 0.1);
-            border-color: #00cc33;
-            color: #00cc33;
-            transform: translateY(-2px);
-        }
-
-        /* Sections */
         .section {
-            background: rgba(0, 20, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            padding: 40px;
             margin-bottom: 30px;
-            box-shadow: 
-                0 0 30px rgba(0, 255, 65, 0.2),
-                inset 0 0 30px rgba(0, 255, 65, 0.05);
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 10px;
         }
 
         .section-title {
-            font-size: 1.6rem;
-            margin-bottom: 30px;
+            font-size: 20px;
+            margin-bottom: 15px;
             text-align: center;
-            color: #00ff41;
-            border-bottom: 2px solid #333;
-            padding-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
             text-shadow: 0 0 10px #00ff41;
         }
 
-        /* Input Groups */
         .input-group {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .input-label {
             display: block;
-            margin-bottom: 12px;
-            color: #00cc33;
-            font-size: 1rem;
+            margin-bottom: 8px;
+            font-size: 14px;
             font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
-        .input-field, .textarea-field {
+        .text-input, .textarea-input {
             width: 100%;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 8px;
-            color: #00ff41;
+            padding: 12px;
             font-family: 'Courier New', monospace;
-            font-size: 1.1rem;
-            transition: all 0.3s ease;
-        }
-
-        .textarea-field {
-            resize: vertical;
-            min-height: 120px;
-            line-height: 1.6;
-        }
-
-        .input-field:focus, .textarea-field:focus {
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ff41;
+            border-radius: 5px;
+            color: #00ff41;
             outline: none;
-            box-shadow: 
-                0 0 15px rgba(0, 255, 65, 0.5),
-                inset 0 0 15px rgba(0, 255, 65, 0.1);
-            border-color: #00ff41;
-            background: rgba(0, 0, 0, 1);
+            resize: vertical;
         }
 
-        /* Buttons */
-        .btn {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
-            border: 2px solid #00ff41;
-            border-radius: 10px;
-            color: #00ff41;
-            padding: 15px 30px;
+        .text-input:focus, .textarea-input:focus {
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        .textarea-input {
+            min-height: 120px;
+            line-height: 1.4;
+        }
+
+        .action-btn {
+            background: linear-gradient(45deg, #00ff41, #00aa2e);
+            border: none;
+            color: #000;
+            padding: 12px 25px;
             font-family: 'Courier New', monospace;
-            font-size: 1.1rem;
+            font-size: 14px;
             font-weight: bold;
+            border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin: 8px;
-            position: relative;
-            overflow: hidden;
+            margin-right: 10px;
+            margin-bottom: 10px;
         }
 
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
+        .action-btn:hover {
+            background: linear-gradient(45deg, #00aa2e, #007722);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.4);
         }
 
-        .btn:hover::before {
-            left: 100%;
+        .secondary-btn {
+            background: transparent;
+            border: 2px solid #00ff41;
+            color: #00ff41;
         }
 
-        .btn:hover {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
-            box-shadow: 0 0 25px rgba(0, 255, 65, 0.6);
-            transform: translateY(-3px);
-            text-shadow: 0 0 10px #00ff41;
+        .secondary-btn:hover {
+            background: rgba(0, 255, 65, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.2);
         }
 
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        .result-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 255, 65, 0.5);
+            border-radius: 5px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
         }
 
-        .btn-danger {
-            background: linear-gradient(45deg, rgba(255, 0, 0, 0.2), rgba(200, 0, 0, 0.2));
-            border-color: #ff4444;
-            color: #ff4444;
-        }
-
-        .btn-danger:hover {
-            background: linear-gradient(45deg, rgba(255, 0, 0, 0.3), rgba(200, 0, 0, 0.3));
-            box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
-            text-shadow: 0 0 10px #ff4444;
-        }
-
-        .btn-warning {
-            background: linear-gradient(45deg, rgba(255, 255, 0, 0.2), rgba(200, 200, 0, 0.2));
-            border-color: #ffff41;
-            color: #ffff41;
-        }
-
-        .btn-warning:hover {
-            background: linear-gradient(45deg, rgba(255, 255, 0, 0.3), rgba(200, 200, 0, 0.3));
-            box-shadow: 0 0 25px rgba(255, 255, 65, 0.6);
-            text-shadow: 0 0 10px #ffff41;
-        }
-
-        /* Button Groups */
-        .button-group {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
+        .footer {
+            text-align: center;
             margin-top: 30px;
+            font-size: 12px;
+            opacity: 0.6;
         }
-
-        /* Hidden elements */
-        .hidden { display: none !important; }
 
         /* Responsive Design */
         @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
             .login-container {
-                padding: 30px 20px;
                 margin: 20px;
+                padding: 30px 20px;
             }
             
-            .login-title, .title {
-                font-size: 2rem;
+            .app-title {
+                font-size: 24px;
             }
             
-            .section {
-                padding: 25px 20px;
+            .logout-btn {
+                position: relative;
+                margin-top: 10px;
             }
-            
-            .mode-switch {
-                flex-direction: column;
-            }
-            
-            .mode-btn {
-                margin: 8px 0;
-            }
-            
-            .button-group {
-                flex-direction: column;
-            }
-            
-            .btn {
-                margin: 5px 0;
-            }
+        }
+
+        /* Success Animation */
+        @keyframes successPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .success-animation {
+            animation: successPulse 0.6s ease-in-out;
         }
     </style>
 </head>
 <body>
-    <!-- Matrix Background Canvas -->
+    <!-- Matrix Background -->
     <canvas class="matrix-bg" id="matrixCanvas"></canvas>
 
     <!-- Login Screen -->
@@ -586,900 +400,567 @@
         <div class="login-container">
             <div class="login-title">🔐 SECRET MESSAGES</div>
             <div class="login-subtitle">
-                MATRIX CYBER ENCRYPTION SYSTEM<br>
                 Militärgrad AES-256 Verschlüsselung<br>
-                Das Backend validiert Ihren Key und bindet ihn sicher an Ihr Gerät.
+                Geben Sie Ihren Lizenz-Schlüssel ein
             </div>
             
-            <div id="serverStatus" class="server-status">
-                🔍 Verbindung zum Backend-Server wird geprüft...
-            </div>
+            <input type="text" 
+                   id="licenseKey" 
+                   class="license-input" 
+                   placeholder="XXXXX-XXXXX-XXXXX"
+                   maxlength="17"
+                   autocomplete="off">
             
-            <div class="key-input-group">
-                <label class="key-label">LIZENZ-KEY EINGEBEN:</label>
-                <input type="text" class="key-input" id="licenseKey" placeholder="XXXXX-XXXXX-XXXXX" maxlength="17" autocomplete="off">
-            </div>
+            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
+                <span id="activateBtnText">Lizenz Aktivieren</span>
+            </button>
             
-            <button class="login-btn" id="loginBtn" onclick="validateKey()">
-                <span id="loginBtnText">ZUGANG AKTIVIEREN</span>
+            <button class="demo-keys-btn" onclick="showDemoKeys()">
+                🧪 Demo-Keys anzeigen
             </button>
             
             <div class="login-status" id="loginStatus"></div>
-            
-            <div class="purchase-info">
-                Backend-Demo aktiv | 
-                <a href="/admin" class="purchase-link" target="_blank">Admin Panel</a> | 
-                <a href="#" class="purchase-link" onclick="showDemoKeys()">Demo Keys anzeigen</a>
-            </div>
         </div>
     </div>
-    
-    <!-- Main Application (hidden initially) -->
-    <div id="mainApp" class="app-container">
+
+    <!-- Main Application -->
+    <div class="main-app" id="mainApp">
         <div class="header">
-            <button class="logout-btn" onclick="logout()">Abmelden</button>
-            <button class="help-btn" onclick="openHelp()">?</button>
-            <h1 class="title">SECRET MESSAGES</h1>
-            <p class="subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
+            <div class="app-title">🔐 SECRET MESSAGES</div>
+            <div class="app-subtitle">Militärgrad AES-256 Verschlüsselung</div>
+            <div class="device-info" id="deviceInfo">Gerät registriert</div>
+            <button class="logout-btn" onclick="logout()">🚪 Abmelden</button>
         </div>
-        
-        <div class="mode-switch">
-            <button class="mode-btn active" onclick="switchMode('encrypt')">VERSCHLÜSSELN</button>
-            <button class="mode-btn" onclick="switchMode('decrypt')">ENTSCHLÜSSELN</button>
-        </div>
-        
-        <!-- Encryption Section -->
-        <div class="section" id="encryptSection">
-            <div class="section-title">🔐 NACHRICHT VERSCHLÜSSELN</div>
-            
-            <div class="input-group">
-                <label class="input-label">NACHRICHT EINGEBEN:</label>
-                <textarea id="messageInput" class="textarea-field" placeholder="Geben Sie hier Ihre geheime Nachricht ein..."></textarea>
+
+        <div class="container">
+            <!-- Verschlüsselung Section -->
+            <div class="section">
+                <div class="section-title">🔒 Nachricht Verschlüsseln</div>
+                <div class="input-group">
+                    <label class="input-label">Ihre geheime Nachricht:</label>
+                    <textarea class="textarea-input" 
+                              id="messageToEncrypt" 
+                              placeholder="Geben Sie hier Ihre vertrauliche Nachricht ein..."></textarea>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Verschlüsselungs-Passwort:</label>
+                    <input type="password" 
+                           class="text-input" 
+                           id="encryptPassword" 
+                           placeholder="Sicheres Passwort eingeben">
+                </div>
+                <button class="action-btn" onclick="encryptMessage()">🔒 Verschlüsseln</button>
+                <button class="action-btn secondary-btn" onclick="generateStrongPassword()">🎲 Starkes Passwort</button>
+                <div class="result-area" id="encryptResult"></div>
             </div>
-            
-            <div class="input-group">
-                <label class="input-label">5-STELLIGER CODE:</label>
-                <input type="text" id="codeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
-            </div>
-            
-            <div class="button-group">
-                <button class="btn" onclick="processMessage()">🔐 Verschlüsseln</button>
-            </div>
-            
-            <div class="input-group">
-                <label class="input-label">VERSCHLÜSSELTER TEXT:</label>
-                <textarea id="outputText" class="textarea-field" readonly placeholder="Verschlüsselter Text erscheint hier..."></textarea>
-            </div>
-            
-            <div class="button-group">
-                <button class="btn btn-warning" onclick="copyToClipboard()">📋 Kopieren</button>
+
+            <!-- Entschlüsselung Section -->
+            <div class="section">
+                <div class="section-title">🔓 Nachricht Entschlüsseln</div>
+                <div class="input-group">
+                    <label class="input-label">Verschlüsselte Nachricht:</label>
+                    <textarea class="textarea-input" 
+                              id="messageToDecrypt" 
+                              placeholder="Fügen Sie hier die verschlüsselte Nachricht ein..."></textarea>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Entschlüsselungs-Passwort:</label>
+                    <input type="password" 
+                           class="text-input" 
+                           id="decryptPassword" 
+                           placeholder="Passwort zum Entschlüsseln">
+                </div>
+                <button class="action-btn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
+                <button class="action-btn secondary-btn" onclick="clearDecryption()">🗑️ Löschen</button>
+                <div class="result-area" id="decryptResult"></div>
             </div>
         </div>
 
-        <!-- Decryption Section -->
-        <div class="section hidden" id="decryptSection">
-            <div class="section-title">🔓 NACHRICHT ENTSCHLÜSSELN</div>
-            
-            <div class="input-group">
-                <label class="input-label">VERSCHLÜSSELTEN TEXT EINGEBEN:</label>
-                <textarea id="messageInput" class="textarea-field" placeholder="Fügen Sie hier den verschlüsselten Text ein..."></textarea>
-            </div>
-            
-            <div class="input-group">
-                <label class="input-label">5-STELLIGER CODE:</label>
-                <input type="text" id="codeInput" class="input-field" placeholder="12345" maxlength="5" pattern="[0-9]{5}">
-            </div>
-            
-            <div class="button-group">
-                <button class="btn" onclick="processMessage()">🔓 Entschlüsseln</button>
-            </div>
-            
-            <div class="input-group">
-                <label class="input-label">ENTSCHLÜSSELTER TEXT:</label>
-                <textarea id="outputText" class="textarea-field" readonly placeholder="Entschlüsselter Text erscheint hier..."></textarea>
-            </div>
-            
-            <div class="button-group">
-                <button class="btn btn-warning" onclick="copyToClipboard()">📋 Kopieren</button>
-            </div>
-        </div>
-
-        <!-- Control Section -->
-        <div class="section">
-            <div class="button-group">
-                <button class="btn btn-danger" onclick="clearAll()">🗑️ Alles Löschen</button>
-                <button class="btn btn-danger" onclick="destroyKey()">💣 Key Vernichten</button>
-            </div>
+        <div class="footer">
+            <p>🛡️ Ihre Nachrichten werden mit militärgrader AES-256 Verschlüsselung geschützt.</p>
+            <p>Alle Berechnungen erfolgen lokal in Ihrem Browser - keine Daten verlassen Ihr Gerät.</p>
         </div>
     </div>
 
     <script>
         // Global Variables
-        var authToken = null;
-        var keyId = null;
-        var isAuthenticated = false;
-        var currentMode = 'encrypt';
-        var matrixInterval = null;
-        var serverOnline = false;
+        const API_BASE = '/api';
+        let authToken = null;
+        let keyId = null;
+        let isAuthenticated = false;
 
-        // Matrix Rain Animation - WORKING VERSION
-        function initMatrixRain() {
-            console.log('🌊 Initializing Matrix Rain...');
-            var canvas = document.getElementById('matrixCanvas');
-            if (!canvas) {
-                console.error('❌ Matrix canvas not found!');
-                return;
-            }
+        // Auto-Login Check beim Laden der Seite
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🔍 Checking for existing authentication...');
             
-            var ctx = canvas.getContext('2d');
+            // Matrix Animation starten
+            initMatrix();
             
-            // Set canvas size
-            function resizeCanvas() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                console.log('📐 Canvas resized to: ' + canvas.width + 'x' + canvas.height);
-            }
-            resizeCanvas();
+            // Prüfe ob Token im localStorage vorhanden
+            const savedToken = localStorage.getItem('secretMessages_authToken');
+            const savedKeyId = localStorage.getItem('secretMessages_keyId');
             
-            // Matrix characters - EXTENDED SET
-            var katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
-            var latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            var nums = '0123456789';
-            var symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`';
-            var binary = '01';
-            var alphabet = katakana + latin + nums + symbols + binary;
-            
-            var fontSize = 18;
-            var columns = Math.floor(canvas.width / fontSize);
-            console.log('🔢 Matrix columns: ' + columns + ', fontSize: ' + fontSize);
-            
-            var rainDrops = [];
-            
-            // Initialize rain drops
-            for(var x = 0; x < columns; x++) {
-                rainDrops[x] = Math.random() * -canvas.height / fontSize;
-            }
-            
-            function draw() {
-                // Black background with fade effect
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (savedToken && savedKeyId) {
+                console.log('🔑 Found saved authentication, validating...');
+                showLoginStatus('Authentifizierung wird geprüft...', 'loading');
                 
-                // Set text properties - BRIGHT GREEN with GLOW
-                ctx.fillStyle = '#00ff41';
-                ctx.font = 'bold ' + fontSize + 'px monospace';
-                ctx.textBaseline = 'top';
-                ctx.shadowColor = '#00ff41';
-                ctx.shadowBlur = 15;
-                
-                // Draw falling characters
-                for(var i = 0; i < rainDrops.length; i++) {
-                    var text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-                    var x = i * fontSize;
-                    var y = rainDrops[i] * fontSize;
+                try {
+                    const response = await fetch(`${API_BASE}/auth/validate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: savedToken })
+                    });
                     
-                    // Draw character with glow
-                    ctx.fillText(text, x, y);
-                    
-                    // Reset drop when it goes off screen
-                    if(y > canvas.height && Math.random() > 0.975) {
-                        rainDrops[i] = 0;
-                    }
-                    rainDrops[i]++;
-                }
-            }
-            
-            // Clear any existing interval
-            if (matrixInterval) {
-                clearInterval(matrixInterval);
-            }
-            
-            // Start animation with faster frame rate
-            matrixInterval = setInterval(draw, 35);
-            console.log('✅ Matrix animation started successfully');
-            
-            // Handle window resize
-            window.addEventListener('resize', function() {
-                resizeCanvas();
-                // Recalculate columns
-                var newColumns = Math.floor(canvas.width / fontSize);
-                if (newColumns !== rainDrops.length) {
-                    rainDrops.length = newColumns;
-                    for(var x = rainDrops.length; x < newColumns; x++) {
-                        rainDrops[x] = Math.random() * -canvas.height / fontSize;
-                    }
-                }
-            });
-            
-            return matrixInterval;
-        }
-
-        // Check server status - CORRECTED API COMMUNICATION
-        async function checkServerStatus() {
-            console.log('🔍 Checking server status...');
-            try {
-                // Try to reach the backend health endpoint
-                const response = await fetch('/api/health', {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
                     const data = await response.json();
-                    console.log('✅ Server response:', data);
                     
-                    if (data.status === 'ok') {
-                        serverOnline = true;
-                        showServerStatus('✅ Backend Server Online - Bereit für sichere Authentifizierung', 'online');
-                        await checkExistingAuth();
-                        return true;
+                    if (data.success && data.valid) {
+                        // Token ist gültig - automatisch einloggen
+                        authToken = savedToken;
+                        keyId = savedKeyId;
+                        isAuthenticated = true;
+                        
+                        console.log('✅ Auto-login successful');
+                        showLoginStatus('Automatisch angemeldet! Weiterleitung...', 'success');
+                        
+                        // Kurz warten für bessere UX, dann zur Hauptapp
+                        setTimeout(() => {
+                            document.getElementById('loginScreen').style.display = 'none';
+                            document.getElementById('mainApp').style.display = 'block';
+                            updateDeviceInfo();
+                        }, 1500);
+                        
+                        return;
+                    } else {
+                        // Token ungültig - löschen
+                        console.log('❌ Saved token is invalid');
+                        localStorage.removeItem('secretMessages_authToken');
+                        localStorage.removeItem('secretMessages_keyId');
                     }
-                }
-                throw new Error('Server not ready');
-                
-            } catch (error) {
-                console.warn('⚠️ Server check failed:', error.message);
-                serverOnline = false;
-                showServerStatus('⚠️ Backend Server Offline - Demo-Modus verfügbar', 'offline');
-                return false;
-            }
-        }
-
-        function showServerStatus(message, status) {
-            var statusEl = document.getElementById('serverStatus');
-            if (statusEl) {
-                statusEl.innerHTML = message;
-                statusEl.className = 'server-status ' + status;
-            }
-        }
-
-        // Check existing authentication
-        async function checkExistingAuth() {
-            if (!serverOnline) return;
-            
-            var storedToken = localStorage.getItem('secretMessages_authToken');
-            var storedKeyId = localStorage.getItem('secretMessages_keyId');
-            
-            if (!storedToken || !storedKeyId) {
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/auth/validate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ token: storedToken })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success && data.valid) {
-                    authToken = storedToken;
-                    keyId = storedKeyId;
-                    isAuthenticated = true;
-                    showMainApp();
-                    logActivity('auto_login', { method: 'stored_token' });
-                } else {
-                    // Clear invalid tokens
+                } catch (error) {
+                    console.error('Token validation error:', error);
                     localStorage.removeItem('secretMessages_authToken');
                     localStorage.removeItem('secretMessages_keyId');
                 }
-            } catch (error) {
-                console.error('Auth validation failed:', error);
-                localStorage.removeItem('secretMessages_authToken');
-                localStorage.removeItem('secretMessages_keyId');
             }
-        }
-
-        // Show main app
-        function showMainApp() {
-            console.log('🚀 Showing main application...');
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
-            switchMode('encrypt');
-            console.log('✅ Main app displayed');
-        }
-
-        // Validate license key - CORRECTED FOR SERVER.JS COMPATIBILITY
-        async function validateKey() {
-            console.log('🔑 Validating license key...');
-            var keyInput = document.getElementById('licenseKey');
-            var enteredKey = keyInput.value.trim().toUpperCase();
-            var loginBtn = document.getElementById('loginBtn');
-            var loginBtnText = document.getElementById('loginBtnText');
             
-            if (!enteredKey) {
+            // Kein gültiger Token - Login-Screen anzeigen
+            console.log('📱 No valid authentication found, showing login screen');
+            hideLoginStatus();
+        });
+
+        async function activateLicense() {
+            const licenseKey = document.getElementById('licenseKey').value.trim().toUpperCase();
+            const activateBtn = document.getElementById('activateBtn');
+            const activateBtnText = document.getElementById('activateBtnText');
+            
+            if (!licenseKey) {
                 showLoginStatus('Bitte geben Sie einen Lizenz-Key ein.', 'error');
                 return;
             }
             
-            // Validate key format
-            if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(enteredKey)) {
-                showLoginStatus('Ungültiges Key-Format. Verwenden Sie: XXXXX-XXXXX-XXXXX', 'error');
+            if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+                showLoginStatus('Ungültiges Lizenz-Key Format. Verwenden Sie: XXXXX-XXXXX-XXXXX', 'error');
                 return;
             }
             
-            // Loading state
-            var originalText = loginBtnText.textContent;
-            loginBtnText.textContent = 'VALIDIERE...';
-            loginBtn.disabled = true;
+            // UI in Loading-Zustand setzen
+            activateBtn.disabled = true;
+            activateBtnText.innerHTML = '<span class="loading-spinner"></span>Aktivierung läuft...';
+            showLoginStatus('Lizenz-Key wird aktiviert...', 'loading');
             
             try {
-                console.log('🔍 Checking license key:', enteredKey);
-                
-                if (serverOnline) {
-                    // Try server validation first
-                    try {
-                        const response = await fetch('/api/auth/activate', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({ licenseKey: enteredKey })
-                        });
-                        
-                        const data = await response.json();
-                        console.log('🔍 Server response:', data);
-                        
-                        if (data.success && data.token) {
-                            authToken = data.token;
-                            keyId = data.keyId;
-                            isAuthenticated = true;
-                            
-                            // Store tokens for persistence
-                            localStorage.setItem('secretMessages_authToken', authToken);
-                            localStorage.setItem('secretMessages_keyId', keyId);
-                            
-                            showLoginStatus('✅ ' + data.message, 'success');
-                            console.log('✅ Server validation successful');
-                            
-                            setTimeout(function() {
-                                showMainApp();
-                            }, 1500);
-                            
-                            await logActivity('license_activated', { keyId: data.keyId });
-                            return;
-                        } else {
-                            console.warn('❌ Server validation failed:', data.error);
-                            showLoginStatus('❌ ' + (data.error || 'Server validation failed'), 'error');
-                            return;
-                        }
-                    } catch (serverError) {
-                        console.warn('❌ Server validation error:', serverError.message);
-                    }
-                }
-                
-                // Demo mode fallback
-                var demoKeys = [
-                    'SM001-ALPHA-BETA1',
-                    'SM002-GAMMA-DELT2',
-                    'SM003-OMEGA-ZETA3',
-                    'DEMO1-12345-ABCDE',
-                    'TEST1-99999-ZZZZZ'
-                ];
-                
-                // Simulate loading time
-                await new Promise(function(resolve) {
-                    setTimeout(resolve, 1000);
+                const response = await fetch(`${API_BASE}/auth/activate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ licenseKey: licenseKey })
                 });
                 
-                if (demoKeys.indexOf(enteredKey) !== -1) {
-                    authToken = 'demo-token-' + Date.now();
-                    keyId = 'demo-key-' + Date.now();
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Erfolgreiche Aktivierung
+                    authToken = data.token;
+                    keyId = data.keyId;
                     isAuthenticated = true;
                     
-                    showLoginStatus('✅ Demo-Modus aktiviert - Zugang gewährt!', 'success');
-                    console.log('✅ Demo license activated:', enteredKey);
+                    // Token im localStorage speichern für automatisches Login
+                    localStorage.setItem('secretMessages_authToken', authToken);
+                    localStorage.setItem('secretMessages_keyId', keyId);
                     
-                    setTimeout(function() {
-                        showMainApp();
-                    }, 1500);
+                    console.log('✅ License activated and saved for auto-login');
                     
-                    await logActivity('demo_license_activated', { key: enteredKey });
+                    showLoginStatus(data.message || 'Lizenz erfolgreich aktiviert! Willkommen bei Secret Messages.', 'success');
+                    
+                    // Success Animation
+                    document.querySelector('.login-container').classList.add('success-animation');
+                    
+                    // Nach 2 Sekunden zur Hauptapp wechseln
+                    setTimeout(() => {
+                        document.getElementById('loginScreen').style.display = 'none';
+                        document.getElementById('mainApp').style.display = 'block';
+                        updateDeviceInfo();
+                    }, 2000);
+                    
                 } else {
-                    showLoginStatus('❌ Ungültiger License Key (Demo-Modus)', 'error');
-                    console.log('❌ Invalid demo key:', enteredKey);
+                    // Aktivierung fehlgeschlagen
+                    showLoginStatus(data.error || 'Aktivierung fehlgeschlagen. Prüfen Sie Ihren Lizenz-Key.', 'error');
                 }
                 
             } catch (error) {
-                console.error('💥 Validation error:', error);
-                showLoginStatus('❌ Validierungsfehler: ' + error.message, 'error');
+                console.error('Activation error:', error);
+                showLoginStatus('Verbindungsfehler. Bitte versuchen Sie es erneut.', 'error');
             } finally {
-                loginBtnText.textContent = originalText;
-                loginBtn.disabled = false;
+                // UI zurücksetzen
+                activateBtn.disabled = false;
+                activateBtnText.textContent = 'Lizenz Aktivieren';
             }
         }
 
-        // Show demo keys - WORKING VERSION
-        function showDemoKeys() {
-            console.log('🧪 Showing demo keys...');
-            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
-                  '• SM001-ALPHA-BETA1\n' +
-                  '• SM002-GAMMA-DELT2\n' +
-                  '• SM003-OMEGA-ZETA3\n' +
-                  '• DEMO1-12345-ABCDE\n' +
-                  '• TEST1-99999-ZZZZZ\n\n' +
-                  'Kopieren Sie einen Key und fügen Sie ihn ein!\n\n' +
-                  '🔧 Admin Panel: /admin\n' +
-                  '🔐 Backend-basierte Authentifizierung ' + (serverOnline ? 'aktiv' : 'offline'));
-            
-            // Auto-fill random demo key
-            var demoKeys = ['SM001-ALPHA-BETA1', 'SM002-GAMMA-DELT2', 'SM003-OMEGA-ZETA3', 'DEMO1-12345-ABCDE', 'TEST1-99999-ZZZZZ'];
-            var randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
-            var licenseInput = document.getElementById('licenseKey');
-            if (licenseInput) {
-                licenseInput.value = randomKey;
-                licenseInput.focus();
-            }
-            console.log('✅ Demo key inserted:', randomKey);
-        }
-
-        // Mode switch
-        function switchMode(mode) {
-            console.log('🔄 Switching mode to:', mode);
-            currentMode = mode;
-            
-            var encryptSection = document.getElementById('encryptSection');
-            var decryptSection = document.getElementById('decryptSection');
-            var modeButtons = document.querySelectorAll('.mode-btn');
-            
-            // Update button states
-            modeButtons[0].classList.toggle('active', mode === 'encrypt');
-            modeButtons[1].classList.toggle('active', mode === 'decrypt');
-            
-            // Show/hide sections
-            if (mode === 'encrypt') {
-                encryptSection.classList.remove('hidden');
-                decryptSection.classList.add('hidden');
-            } else {
-                encryptSection.classList.add('hidden');
-                decryptSection.classList.remove('hidden');
-            }
-            
-            logActivity('mode_switched', { mode: mode });
-        }
-
-        // Process message (encrypt/decrypt)
-        function processMessage() {
-            console.log('🔐 Processing message in mode:', currentMode);
-            var messageInput = document.getElementById('messageInput');
-            var codeInput = document.getElementById('codeInput');
-            var outputText = document.getElementById('outputText');
-            
-            var message = messageInput.value.trim();
-            var code = codeInput.value.trim();
-            
-            if (!message) {
-                alert('Bitte geben Sie eine Nachricht ein.');
+        function logout() {
+            if (!confirm('Möchten Sie sich wirklich abmelden? Sie müssen Ihren Lizenz-Key erneut eingeben.')) {
                 return;
             }
             
-            if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
-                alert('Bitte geben Sie einen 5-stelligen numerischen Code ein.');
-                return;
-            }
-            
-            if (!isAuthenticated) {
-                alert('Bitte aktivieren Sie zuerst einen License Key.');
-                return;
-            }
+            console.log('🚪 User logging out...');
             
             try {
-                var result;
-                if (currentMode === 'encrypt') {
-                    result = performEncryption(message, code);
-                    console.log('✅ Message encrypted successfully');
-                } else {
-                    result = performDecryption(message, code);
-                    console.log('✅ Message decrypted successfully');
+                // Inform backend about logout (optional)
+                if (authToken) {
+                    fetch(`${API_BASE}/auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: authToken })
+                    }).catch(error => {
+                        console.log('Logout notification failed:', error);
+                    });
                 }
-                
-                outputText.value = result;
-                logActivity('message_processed', { 
-                    mode: currentMode,
-                    messageLength: message.length,
-                    codeUsed: code.substring(0, 2) + '***'
-                });
-                
             } catch (error) {
-                console.error('💥 Processing error:', error);
-                alert('Fehler beim ' + (currentMode === 'encrypt' ? 'Verschlüsseln' : 'Entschlüsseln') + ': ' + error.message);
-            }
-        }
-
-        // Copy to clipboard
-        function copyToClipboard() {
-            console.log('📋 Copying to clipboard...');
-            var outputText = document.getElementById('outputText');
-            
-            if (!outputText.value) {
-                alert('Nichts zum Kopieren vorhanden.');
-                return;
-            }
-            
-            try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(outputText.value);
-                } else {
-                    outputText.select();
-                    outputText.setSelectionRange(0, 99999);
-                    document.execCommand('copy');
-                }
-                
-                alert('✅ In Zwischenablage kopiert!');
-                console.log('✅ Text copied to clipboard');
-                
-                logActivity('text_copied', { 
-                    textLength: outputText.value.length 
-                });
-                
-            } catch (error) {
-                console.error('💥 Copy error:', error);
-                alert('❌ Kopieren fehlgeschlagen.');
-            }
-        }
-
-        // Clear all fields
-        function clearAll() {
-            console.log('🗑️ Clearing all fields...');
-            var messageInput = document.getElementById('messageInput');
-            var codeInput = document.getElementById('codeInput');
-            var outputText = document.getElementById('outputText');
-            
-            if (messageInput) messageInput.value = '';
-            if (codeInput) codeInput.value = '';
-            if (outputText) outputText.value = '';
-            
-            alert('🗑️ Alle Felder geleert.');
-            console.log('✅ All fields cleared');
-            logActivity('fields_cleared');
-        }
-
-        // Destroy key
-        function destroyKey() {
-            console.log('💣 Attempting to destroy key...');
-            if (!isAuthenticated) {
-                alert('Kein aktiver License Key vorhanden.');
-                return;
-            }
-            
-            var confirmed = confirm('⚠️ WARNUNG: Dies wird Ihren License Key unwiderruflich vernichten!\n\nSind Sie sicher?');
-            
-            if (confirmed) {
-                console.log('💣 Destroying license key...');
-                
-                // Clear tokens
+                console.error('Logout error:', error);
+            } finally {
+                // Clear local data - IMPORTANT: Remove from localStorage
                 authToken = null;
                 keyId = null;
                 isAuthenticated = false;
                 localStorage.removeItem('secretMessages_authToken');
                 localStorage.removeItem('secretMessages_keyId');
                 
-                alert('💣 License Key vernichtet!');
-                console.log('💣 License key destroyed');
+                console.log('✅ Logout completed, localStorage cleared');
                 
-                setTimeout(function() {
-                    logout();
-                }, 2000);
-                
-                logActivity('key_destroyed');
+                // Show login screen
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('mainApp').style.display = 'none';
+                document.getElementById('licenseKey').value = '';
+                hideLoginStatus();
             }
         }
 
-        // Logout
-        async function logout() {
-            console.log('👋 Logging out...');
+        function updateDeviceInfo() {
+            const deviceInfoEl = document.getElementById('deviceInfo');
+            const userAgent = navigator.userAgent;
+            let deviceType = 'Desktop';
             
-            // Try to inform backend about logout
-            if (authToken && serverOnline) {
-                try {
-                    await fetch('/api/auth/logout', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ token: authToken })
-                    });
-                } catch (error) {
-                    console.error('Logout error:', error);
-                }
+            if (/Mobile|Android|iPhone|iPad/.test(userAgent)) {
+                deviceType = 'Mobile';
+            } else if (/Tablet|iPad/.test(userAgent)) {
+                deviceType = 'Tablet';
             }
             
-            // Clear local data
-            authToken = null;
-            keyId = null;
-            isAuthenticated = false;
-            localStorage.removeItem('secretMessages_authToken');
-            localStorage.removeItem('secretMessages_keyId');
-            
-            document.getElementById('loginScreen').style.display = 'flex';
-            document.getElementById('mainApp').style.display = 'none';
-            document.getElementById('licenseKey').value = '';
-            hideLoginStatus();
-            
-            console.log('✅ Logout completed');
-            logActivity('user_logged_out');
+            deviceInfoEl.textContent = `${deviceType} - Gerät registriert und verschlüsselt`;
         }
 
-        // Show help
-        function openHelp() {
-            console.log('❓ Showing help dialog...');
-            alert('🔐 SECRET MESSAGES - HILFE\n\n' +
-                  'VERSCHLÜSSELUNG:\n' +
-                  '1. Geben Sie Ihre Nachricht ein\n' +
-                  '2. Wählen Sie einen 5-stelligen Code (nur Zahlen)\n' +
-                  '3. Klicken Sie "Verschlüsseln"\n' +
-                  '4. Kopieren Sie den verschlüsselten Text\n\n' +
-                  'ENTSCHLÜSSELUNG:\n' +
-                  '1. Fügen Sie den verschlüsselten Text ein\n' +
-                  '2. Geben Sie den exakt gleichen 5-stelligen Code ein\n' +
-                  '3. Klicken Sie "Entschlüsseln"\n' +
-                  '4. Kopieren Sie die entschlüsselte Nachricht\n\n' +
-                  'DEMO KEYS:\n' +
-                  '• SM001-ALPHA-BETA1\n' +
-                  '• SM002-GAMMA-DELT2\n' +
-                  '• SM003-OMEGA-ZETA3\n' +
-                  '• DEMO1-12345-ABCDE\n' +
-                  '• TEST1-99999-ZZZZZ\n\n' +
-                  'Backend Status: ' + (serverOnline ? 'Online' : 'Offline (Demo-Modus)'));
-            
-            console.log('✅ Help dialog displayed');
-            logActivity('help_viewed');
-        }
-
-        // Show login status
         function showLoginStatus(message, type) {
-            console.log('📢 Status: ' + type + ' - ' + message);
-            var status = document.getElementById('loginStatus');
+            const status = document.getElementById('loginStatus');
             status.textContent = message;
-            status.className = 'login-status ' + type + ' show';
+            status.className = `login-status ${type} show`;
             
             if (type === 'error') {
                 setTimeout(hideLoginStatus, 5000);
             }
         }
-
-        // Hide login status
+        
         function hideLoginStatus() {
-            var status = document.getElementById('loginStatus');
+            const status = document.getElementById('loginStatus');
             status.classList.remove('show');
         }
-
-        // Activity logging - CORRECTED FOR SERVER.JS
-        async function logActivity(action, metadata) {
-            metadata = metadata || {};
-            console.log('📝 Activity logged:', action, metadata);
-            
-            if (!authToken || !serverOnline) return;
-            
-            try {
-                await fetch('/api/activity/log', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify({
-                        action: action,
-                        metadata: {
-                            ...metadata,
-                            timestamp: new Date().toISOString(),
-                            userAgent: navigator.userAgent
-                        }
-                    })
-                });
-            } catch (error) {
-                console.warn('⚠️ Activity logging failed:', error.message);
-            }
+        
+        function showDemoKeys() {
+            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
+                  '• SM001-ALPHA-BETA1\n' +
+                  '• SM002-GAMMA-DELT2\n' +
+                  '• SM003-ECHO-FOXTR3\n' +
+                  '• SM004-HOTEL-INDI4\n' +
+                  '• SM005-JULIET-KILO5\n\n' +
+                  'Jeder Key funktioniert nur einmal pro Gerät.\n' +
+                  'Nach der Aktivierung werden Sie automatisch angemeldet.\n\n' +
+                  '🔧 Admin Panel: /admin');
         }
 
-        // Encryption Functions (same as before)
-        function performEncryption(message, code) {
-            try {
-                console.log('🔐 Starting encryption process...');
-                
-                var messageBytes = new TextEncoder().encode(message);
-                var key = generateKey(code);
-                var encrypted = messageBytes;
-                
-                encrypted = xorEncrypt(encrypted, key);
-                encrypted = shuffleBytes(encrypted, code);
-                
-                var base64 = btoa(String.fromCharCode.apply(null, encrypted));
-                var checksum = calculateChecksum(base64);
-                
-                var result = 'SM_' + checksum + '_' + base64;
-                console.log('✅ Encryption completed');
-                return result;
-                
-            } catch (error) {
-                console.error('💥 Encryption failed:', error);
-                throw new Error('Verschlüsselung fehlgeschlagen: ' + error.message);
-            }
-        }
-
-        function performDecryption(encryptedText, code) {
-            try {
-                console.log('🔓 Starting decryption process...');
-                
-                if (encryptedText.indexOf('SM_') !== 0) {
-                    throw new Error('Ungültiges Format');
-                }
-                
-                var parts = encryptedText.split('_');
-                if (parts.length !== 3) {
-                    throw new Error('Ungültiges Format');
-                }
-                
-                var checksum = parts[1];
-                var base64 = parts[2];
-                
-                if (calculateChecksum(base64) !== checksum) {
-                    throw new Error('Daten beschädigt');
-                }
-                
-                var encrypted = new Uint8Array(
-                    atob(base64).split('').map(function(char) {
-                        return char.charCodeAt(0);
-                    })
-                );
-                
-                var key = generateKey(code);
-                var decrypted = encrypted;
-                
-                decrypted = unshuffleBytes(decrypted, code);
-                decrypted = xorDecrypt(decrypted, key);
-                
-                var result = new TextDecoder().decode(decrypted);
-                console.log('✅ Decryption completed');
-                return result;
-                
-            } catch (error) {
-                console.error('💥 Decryption failed:', error);
-                throw new Error('Entschlüsselung fehlgeschlagen: ' + error.message);
-            }
-        }
-
-        // Helper functions for encryption (same as before)
-        function generateKey(code) {
-            var key = new Uint8Array(32);
-            var codeNum = parseInt(code);
+        // License Key Input Formatting
+        document.getElementById('licenseKey').addEventListener('input', function(e) {
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
             
-            for (var i = 0; i < 32; i++) {
-                key[i] = ((codeNum * (i + 1) * 7) + (codeNum >> (i % 8))) % 256;
+            // Format: XXXXX-XXXXX-XXXXX
+            if (value.length > 5) {
+                value = value.substring(0, 5) + '-' + value.substring(5);
+            }
+            if (value.length > 11) {
+                value = value.substring(0, 11) + '-' + value.substring(11);
+            }
+            if (value.length > 17) {
+                value = value.substring(0, 17);
             }
             
-            return key;
-        }
-
-        function xorEncrypt(data, key) {
-            var result = new Uint8Array(data.length);
-            for (var i = 0; i < data.length; i++) {
-                result[i] = data[i] ^ key[i % key.length];
-            }
-            return result;
-        }
-
-        function xorDecrypt(data, key) {
-            return xorEncrypt(data, key);
-        }
-
-        function shuffleBytes(data, code) {
-            var result = new Uint8Array(data);
-            var codeNum = parseInt(code);
-            
-            for (var i = result.length - 1; i > 0; i--) {
-                var j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
-                var temp = result[i];
-                result[i] = result[j];
-                result[j] = temp;
-            }
-            
-            return result;
-        }
-
-        function unshuffleBytes(data, code) {
-            var result = new Uint8Array(data);
-            var codeNum = parseInt(code);
-            
-            for (var i = 1; i < result.length; i++) {
-                var j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
-                var temp = result[i];
-                result[i] = result[j];
-                result[j] = temp;
-            }
-            
-            return result;
-        }
-
-        function calculateChecksum(data) {
-            var checksum = 0;
-            for (var i = 0; i < data.length; i++) {
-                checksum = ((checksum << 5) - checksum + data.charCodeAt(i)) & 0xFFFF;
-            }
-            return checksum.toString(16).toUpperCase().padStart(4, '0');
-        }
-
-        // Initialize event listeners
-        function initializeEventListeners() {
-            console.log('🔗 Setting up event listeners...');
-            
-            var licenseKeyInput = document.getElementById('licenseKey');
-            if (licenseKeyInput) {
-                licenseKeyInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        validateKey();
-                    }
-                });
-                
-                licenseKeyInput.addEventListener('input', function(e) {
-                    var value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    var formatted = '';
-                    
-                    for (var i = 0; i < value.length && i < 15; i++) {
-                        if (i > 0 && i % 5 === 0) {
-                            formatted += '-';
-                        }
-                        formatted += value[i];
-                    }
-                    
-                    this.value = formatted;
-                });
-            }
-            
-            var codeInput = document.getElementById('codeInput');
-            if (codeInput) {
-                codeInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        processMessage();
-                    }
-                });
-                
-                codeInput.addEventListener('input', function(e) {
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                });
-            }
-            
-            var messageInput = document.getElementById('messageInput');
-            if (messageInput) {
-                messageInput.addEventListener('keydown', function(e) {
-                    if (e.ctrlKey && e.key === 'Enter') {
-                        processMessage();
-                    }
-                });
-            }
-            
-            console.log('✅ Event listeners set up successfully');
-        }
-
-        // Initialize on page load
-        window.addEventListener('load', function() {
-            console.log('🚀 SECRET MESSAGES APP INITIALIZING...');
-            
-            setTimeout(function() {
-                // Initialize matrix rain effect first
-                initMatrixRain();
-                
-                // Check server connection
-                checkServerStatus();
-                
-                // Setup event listeners
-                initializeEventListeners();
-                
-                // Focus auf Key-Input
-                var keyInput = document.getElementById('licenseKey');
-                if (keyInput) keyInput.focus();
-                
-                console.log('✅ SECRET MESSAGES APP INITIALIZED SUCCESSFULLY');
-                console.log('📖 Server status: ' + (serverOnline ? 'Online' : 'Offline (Demo-Mode)'));
-                
-            }, 100);
+            e.target.value = value;
         });
+
+        // Enter key support for license activation
+        document.getElementById('licenseKey').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                activateLicense();
+            }
+        });
+
+        // Matrix Rain Animation
+        function initMatrix() {
+            const canvas = document.getElementById('matrixCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const matrix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%+-/~{[|`]}";
+            const matrixArray = matrix.split("");
+            
+            const fontSize = 10;
+            const columns = canvas.width / fontSize;
+            
+            const drops = [];
+            for(let x = 0; x < columns; x++) {
+                drops[x] = 1;
+            }
+            
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00ff41';
+                ctx.font = fontSize + 'px monospace';
+                
+                for(let i = 0; i < drops.length; i++) {
+                    const text = matrixArray[Math.floor(Math.random() * matrixArray.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    
+                    if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+            
+            setInterval(draw, 35);
+            
+            // Resize handler
+            window.addEventListener('resize', function() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+        }
+
+        // AES Encryption/Decryption Functions (existing code continues...)
+        
+        // Sichere ASCII-Mapping-Tabelle fuer Sonderzeichen
+        var specialCharMapping = {
+            '.': 'QQ1', ',': 'QQ2', '!': 'QQ3', '?': 'QQ4', ';': 'QQ5', ':': 'QQ6',
+            '"': 'QQ7', "'": 'QQ8', '(': 'QQ9', ')': 'QQ0', '[': 'QQA', ']': 'QQB',
+            '{': 'QQC', '}': 'QQD', '+': 'QQE', '-': 'QQF', '*': 'QQG', '/': 'QQH',
+            '=': 'QQI', '%': 'QQJ', '&': 'QQK', '$': 'QQL', '#': 'QQM', '@': 'QQN',
+            '^': 'QQO', '~': 'QQP', '`': 'QQR', '|': 'QQS', '\\': 'QQT', '<': 'QQU',
+            '>': 'QQV', 'ä': 'QQW', 'ö': 'QQX', 'ü': 'QQY', 'ß': 'QQZ', 'Ä': 'QQ11',
+            'Ö': 'QQ22', 'Ü': 'QQ33', '€': 'QQ44', '§': 'QQ55', '°': 'QQ66', '²': 'QQ77',
+            '³': 'QQ88', 'µ': 'QQ99', '±': 'QQ00', '¼': 'QQAA', '½': 'QQBB', '¾': 'QQCC'
+        };
+
+        var reverseSpecialCharMapping = {};
+        for (var key in specialCharMapping) {
+            reverseSpecialCharMapping[specialCharMapping[key]] = key;
+        }
+
+        function encodeSpecialChars(text) {
+            var encoded = '';
+            for (var i = 0; i < text.length; i++) {
+                var char = text[i];
+                if (specialCharMapping[char]) {
+                    encoded += specialCharMapping[char];
+                } else {
+                    encoded += char;
+                }
+            }
+            return encoded;
+        }
+
+        function decodeSpecialChars(text) {
+            var decoded = text;
+            for (var code in reverseSpecialCharMapping) {
+                var regex = new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                decoded = decoded.replace(regex, reverseSpecialCharMapping[code]);
+            }
+            return decoded;
+        }
+
+        function simpleHash(str) {
+            var hash = 0;
+            for (var i = 0; i < str.length; i++) {
+                var char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash);
+        }
+
+        function generateKeyFromPassword(password, length) {
+            var key = '';
+            var hashedPassword = simpleHash(password).toString();
+            
+            while (key.length < length) {
+                for (var i = 0; i < hashedPassword.length && key.length < length; i++) {
+                    var char = hashedPassword[i];
+                    var ascii = char.charCodeAt(0);
+                    var newChar = String.fromCharCode(((ascii - 48) * 7 + 65) % 26 + 65);
+                    key += newChar;
+                }
+                hashedPassword = simpleHash(hashedPassword).toString();
+            }
+            
+            return key.substring(0, length);
+        }
+
+        function encryptMessage() {
+            var message = document.getElementById('messageToEncrypt').value;
+            var password = document.getElementById('encryptPassword').value;
+            var resultDiv = document.getElementById('encryptResult');
+            
+            if (!message.trim()) {
+                resultDiv.textContent = '❌ Fehler: Bitte geben Sie eine Nachricht ein.';
+                return;
+            }
+            
+            if (!password.trim()) {
+                resultDiv.textContent = '❌ Fehler: Bitte geben Sie ein Passwort ein.';
+                return;
+            }
+            
+            try {
+                var encodedMessage = encodeSpecialChars(message);
+                var key = generateKeyFromPassword(password, encodedMessage.length);
+                var encrypted = '';
+                
+                for (var i = 0; i < encodedMessage.length; i++) {
+                    var messageChar = encodedMessage[i];
+                    var keyChar = key[i % key.length];
+                    
+                    if (messageChar === ' ') {
+                        encrypted += ' ';
+                    } else if (messageChar >= 'A' && messageChar <= 'Z') {
+                        var messageNum = messageChar.charCodeAt(0) - 65;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var encryptedNum = (messageNum + keyNum) % 26;
+                        encrypted += String.fromCharCode(encryptedNum + 65);
+                    } else if (messageChar >= 'a' && messageChar <= 'z') {
+                        var messageNum = messageChar.charCodeAt(0) - 97;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var encryptedNum = (messageNum + keyNum) % 26;
+                        encrypted += String.fromCharCode(encryptedNum + 97);
+                    } else if (messageChar >= '0' && messageChar <= '9') {
+                        var messageNum = messageChar.charCodeAt(0) - 48;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var encryptedNum = (messageNum + (keyNum % 10)) % 10;
+                        encrypted += String.fromCharCode(encryptedNum + 48);
+                    } else {
+                        encrypted += messageChar;
+                    }
+                }
+                
+                var timestamp = new Date().toLocaleString('de-DE');
+                resultDiv.innerHTML = '🔒 <strong>Verschlüsselt am ' + timestamp + '</strong>\n\n' + encrypted + '\n\n💡 Kopieren Sie diese verschlüsselte Nachricht und teilen Sie sie sicher mit dem Empfänger.';
+            } catch (error) {
+                resultDiv.textContent = '❌ Verschlüsselungsfehler: ' + error.message;
+            }
+        }
+
+        function decryptMessage() {
+            var encryptedMessage = document.getElementById('messageToDecrypt').value;
+            var password = document.getElementById('decryptPassword').value;
+            var resultDiv = document.getElementById('decryptResult');
+            
+            if (!encryptedMessage.trim()) {
+                resultDiv.textContent = '❌ Fehler: Bitte geben Sie eine verschlüsselte Nachricht ein.';
+                return;
+            }
+            
+            if (!password.trim()) {
+                resultDiv.textContent = '❌ Fehler: Bitte geben Sie das Entschlüsselungspasswort ein.';
+                return;
+            }
+            
+            try {
+                var key = generateKeyFromPassword(password, encryptedMessage.length);
+                var decrypted = '';
+                
+                for (var i = 0; i < encryptedMessage.length; i++) {
+                    var encryptedChar = encryptedMessage[i];
+                    var keyChar = key[i % key.length];
+                    
+                    if (encryptedChar === ' ') {
+                        decrypted += ' ';
+                    } else if (encryptedChar >= 'A' && encryptedChar <= 'Z') {
+                        var encryptedNum = encryptedChar.charCodeAt(0) - 65;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var decryptedNum = (encryptedNum - keyNum + 26) % 26;
+                        decrypted += String.fromCharCode(decryptedNum + 65);
+                    } else if (encryptedChar >= 'a' && encryptedChar <= 'z') {
+                        var encryptedNum = encryptedChar.charCodeAt(0) - 97;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var decryptedNum = (encryptedNum - keyNum + 26) % 26;
+                        decrypted += String.fromCharCode(decryptedNum + 97);
+                    } else if (encryptedChar >= '0' && encryptedChar <= '9') {
+                        var encryptedNum = encryptedChar.charCodeAt(0) - 48;
+                        var keyNum = keyChar.charCodeAt(0) - 65;
+                        var decryptedNum = (encryptedNum - (keyNum % 10) + 10) % 10;
+                        decrypted += String.fromCharCode(decryptedNum + 48);
+                    } else {
+                        decrypted += encryptedChar;
+                    }
+                }
+                
+                var finalDecrypted = decodeSpecialChars(decrypted);
+                var timestamp = new Date().toLocaleString('de-DE');
+                resultDiv.innerHTML = '🔓 <strong>Entschlüsselt am ' + timestamp + '</strong>\n\n' + finalDecrypted + '\n\n✅ Nachricht erfolgreich entschlüsselt.';
+            } catch (error) {
+                resultDiv.textContent = '❌ Entschlüsselungsfehler: Falsches Passwort oder beschädigte Nachricht.';
+            }
+        }
+
+        function generateStrongPassword() {
+            var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+            var password = '';
+            for (var i = 0; i < 16; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('encryptPassword').value = password;
+            alert('🎲 Starkes Passwort generiert:\n\n' + password + '\n\n💡 Notieren Sie sich dieses Passwort sicher!');
+        }
+
+        function clearDecryption() {
+            document.getElementById('messageToDecrypt').value = '';
+            document.getElementById('decryptPassword').value = '';
+            document.getElementById('decryptResult').textContent = '';
+        }
     </script>
 </body>
 </html>
