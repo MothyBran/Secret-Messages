@@ -275,9 +275,9 @@ async function generateDemoKeys() {
     const demoKeys = [
         'SM001-ALPHA-BETA1',
         'SM002-GAMMA-DELT2',
-        'SM003-ECHO-FOXTR3',
-        'SM004-HOTEL-INDI4',
-        'SM005-JULIET-KILO5'
+        '7CE4A-71263-380DC',
+        '7F2DC-9EF07-E6584',
+        '54EA3-98607-DF13A'
     ];
     
     for (const keyCode of demoKeys) {
