@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secret Messages - Militärgrad AES Verschlüsselung</title>
+    <title>Secret Messages - AES Hybrid Encryption System</title>
+    <meta name="description" content="Militärgrad-sichere Verschlüsselung mit AES-256 Hybrid-Technologie">
     <style>
+        /* CSS Reset & Base Styles */
         * {
             margin: 0;
             padding: 0;
@@ -13,954 +15,610 @@
 
         body {
             font-family: 'Courier New', monospace;
-            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
             color: #00ff41;
             min-height: 100vh;
             overflow-x: hidden;
+            line-height: 1.6;
         }
 
-        /* Matrix Rain Animation */
-        .matrix-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            opacity: 0.1;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
 
-        /* Login Screen Styles */
-        .login-screen {
-            position: fixed;
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
+            background: linear-gradient(45deg, #00ff41, #00aa22);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .version {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .admin-link {
+            position: absolute;
             top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+            right: 0;
+            padding: 10px 20px;
+            background: rgba(0, 255, 65, 0.2);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .admin-link:hover {
+            background: rgba(0, 255, 65, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Connection Status */
+        .connection-status {
+            background: rgba(255, 165, 0, 0.2);
+            border: 1px solid #ffa500;
+            color: #ffaa00;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+
+        /* Main Sections */
+        .section {
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
             backdrop-filter: blur(10px);
         }
 
-        .login-container {
-            background: rgba(0, 20, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 10px;
-            padding: 40px;
+        .section-title {
+            color: #00ff41;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* License Section */
+        .license-section {
             text-align: center;
-            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3);
-            max-width: 500px;
-            width: 90%;
         }
 
-        .login-title {
-            font-size: 24px;
-            margin-bottom: 10px;
-            text-shadow: 0 0 10px #00ff41;
-        }
-
-        .login-subtitle {
-            font-size: 14px;
-            opacity: 0.8;
-            margin-bottom: 30px;
-            line-height: 1.4;
+        .license-description {
+            color: #888;
+            margin-bottom: 25px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .license-input {
             width: 100%;
+            max-width: 400px;
             padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
+            margin: 20px auto;
             background: rgba(0, 0, 0, 0.7);
             border: 2px solid #00ff41;
-            border-radius: 5px;
+            border-radius: 10px;
             color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
             text-align: center;
             letter-spacing: 2px;
-            margin-bottom: 20px;
             text-transform: uppercase;
-            outline: none;
+            transition: all 0.3s ease;
+            display: block;
         }
 
         .license-input:focus {
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            outline: none;
             border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+            transform: scale(1.02);
         }
 
-        .activate-btn {
-            width: 100%;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
-            background: linear-gradient(45deg, #00ff41, #00aa2e);
+        .license-input::placeholder {
+            color: #555;
+            letter-spacing: normal;
+            text-transform: none;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 15px 30px;
             border: none;
-            border-radius: 5px;
-            color: #000;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
             font-weight: bold;
+            font-size: 1rem;
             cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
             transition: all 0.3s ease;
-            margin-bottom: 20px;
+            text-transform: uppercase;
+            margin: 10px;
+            display: inline-block;
         }
 
-        .activate-btn:hover {
-            background: linear-gradient(45deg, #00aa2e, #007722);
+        .btn-primary {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(45deg, #00cc33, #00aa22);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 255, 65, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(0, 255, 65, 0.2);
+            color: #00ff41;
+            border: 1px solid #00ff41;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 255, 65, 0.3);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.4);
         }
 
-        .activate-btn:disabled {
-            background: #333;
-            color: #666;
+        .btn-danger {
+            background: linear-gradient(45deg, #ff4444, #cc0000);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(45deg, #cc0000, #aa0000);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
 
-        .demo-keys-btn {
-            background: transparent;
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .demo-keys-btn:hover {
-            background: rgba(0, 255, 65, 0.1);
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
-        }
-
-        .login-status {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-
-        .login-status.show {
-            opacity: 1;
-        }
-
-        .login-status.success {
-            background: rgba(0, 255, 65, 0.2);
-            border: 1px solid #00ff41;
-            color: #00ff41;
-        }
-
-        .login-status.error {
-            background: rgba(255, 0, 0, 0.2);
-            border: 1px solid #ff4141;
-            color: #ff4141;
-        }
-
-        .login-status.loading {
-            background: rgba(255, 255, 0, 0.2);
-            border: 1px solid #ffff41;
-            color: #ffff41;
-        }
-
-        /* Loading Animation */
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #333;
-            border-radius: 50%;
-            border-top-color: #00ff41;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Main App Styles */
-        .main-app {
+        /* Encryption Section */
+        .encryption-section {
             display: none;
-            min-height: 100vh;
-            padding: 20px;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            position: relative;
+        .form-group {
+            margin-bottom: 25px;
         }
 
-        .app-title {
-            font-size: 32px;
-            margin-bottom: 10px;
-            text-shadow: 0 0 20px #00ff41;
-            animation: glow 2s ease-in-out infinite alternate;
-        }
-
-        @keyframes glow {
-            from { text-shadow: 0 0 20px #00ff41; }
-            to { text-shadow: 0 0 30px #00ff41, 0 0 40px #00ff41; }
-        }
-
-        .app-subtitle {
-            font-size: 14px;
-            opacity: 0.8;
-            margin-bottom: 10px;
-        }
-
-        .device-info {
-            font-size: 12px;
-            opacity: 0.6;
-            margin-bottom: 10px;
-        }
-
-        .logout-btn {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: rgba(255, 0, 0, 0.2);
-            border: 1px solid #ff4141;
-            color: #ff4141;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .logout-btn:hover {
-            background: rgba(255, 0, 0, 0.3);
-            box-shadow: 0 0 10px rgba(255, 65, 65, 0.3);
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(0, 20, 0, 0.8);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
-        }
-
-        .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(0, 255, 65, 0.3);
-            border-radius: 10px;
-        }
-
-        .section-title {
-            font-size: 20px;
-            margin-bottom: 15px;
-            text-align: center;
-            text-shadow: 0 0 10px #00ff41;
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-label {
+        .form-label {
             display: block;
+            color: #00ff41;
             margin-bottom: 8px;
-            font-size: 14px;
             font-weight: bold;
+            font-size: 1rem;
         }
 
-        .text-input, .textarea-input {
+        .form-input, .form-textarea {
             width: 100%;
-            padding: 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            padding: 15px;
             background: rgba(0, 0, 0, 0.7);
-            border: 2px solid #00ff41;
-            border-radius: 5px;
+            border: 1px solid #00ff41;
+            border-radius: 8px;
             color: #00ff41;
-            outline: none;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            transition: all 0.3s ease;
             resize: vertical;
         }
 
-        .text-input:focus, .textarea-input:focus {
-            border-color: #00ff88;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
-        }
-
-        .textarea-input {
+        .form-textarea {
             min-height: 120px;
-            line-height: 1.4;
+            resize: vertical;
         }
 
-        .action-btn {
-            background: linear-gradient(45deg, #00ff41, #00aa2e);
-            border: none;
-            color: #000;
-            padding: 12px 25px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+        }
+
+        .code-input {
+            max-width: 200px;
+            text-align: center;
+            font-size: 1.2rem;
+            letter-spacing: 3px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-right: 10px;
+        }
+
+        /* Output Areas */
+        .output-group {
+            position: relative;
+            margin-top: 20px;
+        }
+
+        .output-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 15px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            display: none;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            background: rgba(0, 255, 65, 0.2);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: none;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(0, 255, 65, 0.3);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        /* Grid Layout */
+        .crypto-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        /* Features Section */
+        .features {
+            background: rgba(0, 255, 65, 0.02);
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .feature-item {
+            padding: 20px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 2rem;
             margin-bottom: 10px;
         }
 
-        .action-btn:hover {
-            background: linear-gradient(45deg, #00aa2e, #007722);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.4);
-        }
-
-        .secondary-btn {
-            background: transparent;
-            border: 2px solid #00ff41;
+        .feature-title {
             color: #00ff41;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            font-weight: bold;
         }
 
-        .secondary-btn:hover {
-            background: rgba(0, 255, 65, 0.1);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 255, 65, 0.2);
-        }
-
-        .result-area {
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(0, 255, 65, 0.5);
-            border-radius: 5px;
-            min-height: 100px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            font-size: 12px;
-            opacity: 0.6;
+        .feature-description {
+            color: #888;
+            font-size: 0.9rem;
         }
 
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
-                margin: 10px;
-                padding: 20px;
+                padding: 15px;
             }
-            
-            .login-container {
-                margin: 20px;
-                padding: 30px 20px;
+
+            .logo {
+                font-size: 2rem;
             }
-            
-            .app-title {
-                font-size: 24px;
+
+            .crypto-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
             }
-            
-            .logout-btn {
-                position: relative;
-                margin-top: 10px;
+
+            .admin-link {
+                position: static;
+                display: inline-block;
+                margin-top: 20px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
             }
         }
 
-        /* Success Animation */
-        @keyframes successPulse {
+        /* Animations */
+        @keyframes pulse {
             0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            50% { transform: scale(1.02); }
             100% { transform: scale(1); }
         }
 
-        .success-animation {
-            animation: successPulse 0.6s ease-in-out;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(0, 255, 65, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 65, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(0, 255, 65, 0.3); }
+        }
+
+        .glow {
+            animation: glow 2s infinite;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 65, 0.7);
         }
     </style>
 </head>
 <body>
-    <!-- Matrix Background -->
-    <canvas class="matrix-bg" id="matrixCanvas"></canvas>
-
-    <!-- Login Screen -->
-    <div class="login-screen" id="loginScreen">
-        <div class="login-container">
-            <div class="login-title">🔐 SECRET MESSAGES</div>
-            <div class="login-subtitle">
-                Militärgrad AES-256 Verschlüsselung<br>
-                Geben Sie Ihren Lizenz-Schlüssel ein
-            </div>
-            
-            <input type="text" 
-                   id="licenseKey" 
-                   class="license-input" 
-                   placeholder="XXXXX-XXXXX-XXXXX"
-                   maxlength="17"
-                   autocomplete="off">
-            
-            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
-                <span id="activateBtnText">Lizenz Aktivieren</span>
-            </button>
-            
-            <button class="demo-keys-btn" onclick="showDemoKeys()">
-                🧪 Demo-Keys anzeigen
-            </button>
-            
-            <div class="login-status" id="loginStatus"></div>
-        </div>
-    </div>
-
-    <!-- Main Application -->
-    <div class="main-app" id="mainApp">
+    <div class="container">
+        <!-- Header -->
         <div class="header">
-            <div class="app-title">🔐 SECRET MESSAGES</div>
-            <div class="app-subtitle">Militärgrad AES-256 Verschlüsselung</div>
-            <div class="device-info" id="deviceInfo">Gerät registriert</div>
-            <button class="logout-btn" onclick="logout()">🚪 Abmelden</button>
+            <a href="/admin" class="admin-link">🔧 Admin Panel</a>
+            <h1 class="logo">🔐 SECRET MESSAGES</h1>
+            <p class="tagline">AES HYBRID ENCRYPTION SYSTEM</p>
+            <p class="version">v13.0</p>
         </div>
 
-        <div class="container">
-            <!-- Verschlüsselung Section -->
-            <div class="section">
-                <div class="section-title">🔒 Nachricht Verschlüsseln</div>
-                <div class="input-group">
-                    <label class="input-label">Ihre geheime Nachricht:</label>
-                    <textarea class="textarea-input" 
-                              id="messageToEncrypt" 
-                              placeholder="Geben Sie hier Ihre vertrauliche Nachricht ein..."></textarea>
-                </div>
-                <div class="input-group">
-                    <label class="input-label">Verschlüsselungs-Passwort:</label>
-                    <input type="password" 
-                           class="text-input" 
-                           id="encryptPassword" 
-                           placeholder="Sicheres Passwort eingeben">
-                </div>
-                <button class="action-btn" onclick="encryptMessage()">🔒 Verschlüsseln</button>
-                <button class="action-btn secondary-btn" onclick="generateStrongPassword()">🎲 Starkes Passwort</button>
-                <div class="result-area" id="encryptResult"></div>
-            </div>
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="connection-status" style="display: none;">
+            <div id="statusText">Verbindung zum Server wird geprüft...</div>
+        </div>
 
-            <!-- Entschlüsselung Section -->
-            <div class="section">
-                <div class="section-title">🔓 Nachricht Entschlüsseln</div>
-                <div class="input-group">
-                    <label class="input-label">Verschlüsselte Nachricht:</label>
-                    <textarea class="textarea-input" 
-                              id="messageToDecrypt" 
-                              placeholder="Fügen Sie hier die verschlüsselte Nachricht ein..."></textarea>
-                </div>
-                <div class="input-group">
-                    <label class="input-label">Entschlüsselungs-Passwort:</label>
-                    <input type="password" 
-                           class="text-input" 
-                           id="decryptPassword" 
-                           placeholder="Passwort zum Entschlüsseln">
-                </div>
-                <button class="action-btn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
-                <button class="action-btn secondary-btn" onclick="clearDecryption()">🗑️ Löschen</button>
-                <div class="result-area" id="decryptResult"></div>
+        <!-- License Key Section -->
+        <div id="licenseSection" class="section license-section">
+            <h2 class="section-title">
+                🔒 SECURE BACKEND-AUTHENTIFIZIERUNG
+            </h2>
+            
+            <p class="license-description">
+                Geben Sie Ihren persönlichen Lizenz-Key ein, um Zugang zu diesem 
+                militärgrad-sicheren Verschlüsselungssystem zu erhalten. Das Backend 
+                validiert Ihren Key und bindet ihn sicher an Ihr Gerät.
+            </p>
+
+            <input 
+                type="text" 
+                id="licenseKey" 
+                class="license-input" 
+                placeholder="XXXXX-XXXXX-XXXXX"
+                maxlength="17"
+                autocomplete="off"
+            >
+
+            <div class="action-buttons">
+                <button id="activateBtn" class="btn btn-primary">
+                    ZUGANG AKTIVIEREN
+                </button>
+                <button id="demoBtn" class="btn btn-secondary">
+                    Demo Key anzeigen
+                </button>
             </div>
         </div>
 
-        <div class="footer">
-            <p>🛡️ Ihre Nachrichten werden mit militärgrader AES-256 Verschlüsselung geschützt.</p>
-            <p>Alle Berechnungen erfolgen lokal in Ihrem Browser - keine Daten verlassen Ihr Gerät.</p>
+        <!-- Encryption Section -->
+        <div id="encryptionSection" class="section encryption-section">
+            <h2 class="section-title">
+                🛡️ AES-256 VERSCHLÜSSELUNG
+            </h2>
+
+            <!-- Shared Code Input -->
+            <div class="form-group">
+                <label class="form-label" for="codeInput">
+                    🔑 Sicherheitscode (5 Zeichen):
+                </label>
+                <input 
+                    type="text" 
+                    id="codeInput" 
+                    class="form-input code-input" 
+                    placeholder="12345"
+                    maxlength="5"
+                    pattern="[0-9A-Za-z]{5}"
+                    title="Genau 5 Zeichen (Buchstaben oder Zahlen)"
+                >
+            </div>
+
+            <!-- Crypto Grid -->
+            <div class="crypto-grid">
+                <!-- Encryption Panel -->
+                <div>
+                    <h3 class="section-title">📤 VERSCHLÜSSELN</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="messageInput">
+                            Nachricht eingeben:
+                        </label>
+                        <textarea 
+                            id="messageInput" 
+                            class="form-textarea" 
+                            placeholder="Geben Sie hier Ihre geheime Nachricht ein..."
+                        ></textarea>
+                    </div>
+
+                    <button id="encryptBtn" class="btn btn-primary" style="width: 100%;">
+                        🔒 VERSCHLÜSSELN
+                    </button>
+
+                    <div class="output-group">
+                        <textarea 
+                            id="encryptedOutput" 
+                            class="output-textarea" 
+                            placeholder="Verschlüsselter Text erscheint hier..."
+                            readonly
+                        ></textarea>
+                        <button id="copyEncryptedBtn" class="copy-btn">📋 Kopieren</button>
+                    </div>
+                </div>
+
+                <!-- Decryption Panel -->
+                <div>
+                    <h3 class="section-title">📥 ENTSCHLÜSSELN</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="encryptedInput">
+                            Verschlüsselten Text eingeben:
+                        </label>
+                        <textarea 
+                            id="encryptedInput" 
+                            class="form-textarea" 
+                            placeholder="Fügen Sie hier den verschlüsselten Text ein..."
+                        ></textarea>
+                    </div>
+
+                    <button id="decryptBtn" class="btn btn-primary" style="width: 100%;">
+                        🔓 ENTSCHLÜSSELN
+                    </button>
+
+                    <div class="output-group">
+                        <textarea 
+                            id="decryptedOutput" 
+                            class="output-textarea" 
+                            placeholder="Entschlüsselter Text erscheint hier..."
+                            readonly
+                        ></textarea>
+                        <button id="copyDecryptedBtn" class="copy-btn">📋 Kopieren</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Actions -->
+            <div class="action-buttons">
+                <button id="clearBtn" class="btn btn-danger">
+                    🗑️ Alle Felder löschen
+                </button>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features">
+            <h2 class="section-title">✨ FEATURES</h2>
+            
+            <div class="features-grid">
+                <div class="feature-item">
+                    <div class="feature-icon">🛡️</div>
+                    <div class="feature-title">AES-256 Hybrid</div>
+                    <div class="feature-description">
+                        Militärgrad-sichere Verschlüsselung mit doppelter Sicherheitsschicht
+                    </div>
+                </div>
+                
+                <div class="feature-item">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-title">Instant Processing</div>
+                    <div class="feature-description">
+                        Blitzschnelle Ver- und Entschlüsselung direkt im Browser
+                    </div>
+                </div>
+                
+                <div class="feature-item">
+                    <div class="feature-icon">🌐</div>
+                    <div class="feature-title">Universal</div>
+                    <div class="feature-description">
+                        Kompatibel mit allen Messengern und Plattformen weltweit
+                    </div>
+                </div>
+                
+                <div class="feature-item">
+                    <div class="feature-icon">🔒</div>
+                    <div class="feature-title">Zero Knowledge</div>
+                    <div class="feature-description">
+                        Ihre Nachrichten verlassen niemals Ihr Gerät unverschlüsselt
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; color: #555; margin-top: 40px; padding: 20px;">
+            <p>&copy; 2024 Secret Messages. Alle Rechte vorbehalten.</p>
+            <p style="font-size: 0.8rem; margin-top: 5px;">
+                End-to-End Verschlüsselung für maximale Sicherheit
+            </p>
         </div>
     </div>
 
-    <script>
-        // Global Variables
-        const API_BASE = '/api';
-        let authToken = null;
-        let keyId = null;
-        let isAuthenticated = false;
-
-        // Auto-Login Check beim Laden der Seite
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🔍 Checking for existing authentication...');
-            
-            // Matrix Animation starten
-            initMatrix();
-            
-            // Prüfe ob Token im localStorage vorhanden
-            const savedToken = localStorage.getItem('secretMessages_authToken');
-            const savedKeyId = localStorage.getItem('secretMessages_keyId');
-            
-            if (savedToken && savedKeyId) {
-                console.log('🔑 Found saved authentication, validating...');
-                showLoginStatus('Authentifizierung wird geprüft...', 'loading');
-                
-                try {
-                    const response = await fetch(`${API_BASE}/auth/validate`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ token: savedToken })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success && data.valid) {
-                        // Token ist gültig - automatisch einloggen
-                        authToken = savedToken;
-                        keyId = savedKeyId;
-                        isAuthenticated = true;
-                        
-                        console.log('✅ Auto-login successful');
-                        showLoginStatus('Automatisch angemeldet! Weiterleitung...', 'success');
-                        
-                        // Kurz warten für bessere UX, dann zur Hauptapp
-                        setTimeout(() => {
-                            document.getElementById('loginScreen').style.display = 'none';
-                            document.getElementById('mainApp').style.display = 'block';
-                            updateDeviceInfo();
-                        }, 1500);
-                        
-                        return;
-                    } else {
-                        // Token ungültig - löschen
-                        console.log('❌ Saved token is invalid');
-                        localStorage.removeItem('secretMessages_authToken');
-                        localStorage.removeItem('secretMessages_keyId');
-                    }
-                } catch (error) {
-                    console.error('Token validation error:', error);
-                    localStorage.removeItem('secretMessages_authToken');
-                    localStorage.removeItem('secretMessages_keyId');
-                }
-            }
-            
-            // Kein gültiger Token - Login-Screen anzeigen
-            console.log('📱 No valid authentication found, showing login screen');
-            hideLoginStatus();
-        });
-
-        async function activateLicense() {
-            const licenseKey = document.getElementById('licenseKey').value.trim().toUpperCase();
-            const activateBtn = document.getElementById('activateBtn');
-            const activateBtnText = document.getElementById('activateBtnText');
-            
-            if (!licenseKey) {
-                showLoginStatus('Bitte geben Sie einen Lizenz-Key ein.', 'error');
-                return;
-            }
-            
-            if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
-                showLoginStatus('Ungültiges Lizenz-Key Format. Verwenden Sie: XXXXX-XXXXX-XXXXX', 'error');
-                return;
-            }
-            
-            // UI in Loading-Zustand setzen
-            activateBtn.disabled = true;
-            activateBtnText.innerHTML = '<span class="loading-spinner"></span>Aktivierung läuft...';
-            showLoginStatus('Lizenz-Key wird aktiviert...', 'loading');
-            
-            try {
-                const response = await fetch(`${API_BASE}/auth/activate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ licenseKey: licenseKey })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Erfolgreiche Aktivierung
-                    authToken = data.token;
-                    keyId = data.keyId;
-                    isAuthenticated = true;
-                    
-                    // Token im localStorage speichern für automatisches Login
-                    localStorage.setItem('secretMessages_authToken', authToken);
-                    localStorage.setItem('secretMessages_keyId', keyId);
-                    
-                    console.log('✅ License activated and saved for auto-login');
-                    
-                    showLoginStatus(data.message || 'Lizenz erfolgreich aktiviert! Willkommen bei Secret Messages.', 'success');
-                    
-                    // Success Animation
-                    document.querySelector('.login-container').classList.add('success-animation');
-                    
-                    // Nach 2 Sekunden zur Hauptapp wechseln
-                    setTimeout(() => {
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('mainApp').style.display = 'block';
-                        updateDeviceInfo();
-                    }, 2000);
-                    
-                } else {
-                    // Aktivierung fehlgeschlagen
-                    showLoginStatus(data.error || 'Aktivierung fehlgeschlagen. Prüfen Sie Ihren Lizenz-Key.', 'error');
-                }
-                
-            } catch (error) {
-                console.error('Activation error:', error);
-                showLoginStatus('Verbindungsfehler. Bitte versuchen Sie es erneut.', 'error');
-            } finally {
-                // UI zurücksetzen
-                activateBtn.disabled = false;
-                activateBtnText.textContent = 'Lizenz Aktivieren';
-            }
-        }
-
-        function logout() {
-            if (!confirm('Möchten Sie sich wirklich abmelden? Sie müssen Ihren Lizenz-Key erneut eingeben.')) {
-                return;
-            }
-            
-            console.log('🚪 User logging out...');
-            
-            try {
-                // Inform backend about logout (optional)
-                if (authToken) {
-                    fetch(`${API_BASE}/auth/logout`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ token: authToken })
-                    }).catch(error => {
-                        console.log('Logout notification failed:', error);
-                    });
-                }
-            } catch (error) {
-                console.error('Logout error:', error);
-            } finally {
-                // Clear local data - IMPORTANT: Remove from localStorage
-                authToken = null;
-                keyId = null;
-                isAuthenticated = false;
-                localStorage.removeItem('secretMessages_authToken');
-                localStorage.removeItem('secretMessages_keyId');
-                
-                console.log('✅ Logout completed, localStorage cleared');
-                
-                // Show login screen
-                document.getElementById('loginScreen').style.display = 'flex';
-                document.getElementById('mainApp').style.display = 'none';
-                document.getElementById('licenseKey').value = '';
-                hideLoginStatus();
-            }
-        }
-
-        function updateDeviceInfo() {
-            const deviceInfoEl = document.getElementById('deviceInfo');
-            const userAgent = navigator.userAgent;
-            let deviceType = 'Desktop';
-            
-            if (/Mobile|Android|iPhone|iPad/.test(userAgent)) {
-                deviceType = 'Mobile';
-            } else if (/Tablet|iPad/.test(userAgent)) {
-                deviceType = 'Tablet';
-            }
-            
-            deviceInfoEl.textContent = `${deviceType} - Gerät registriert und verschlüsselt`;
-        }
-
-        function showLoginStatus(message, type) {
-            const status = document.getElementById('loginStatus');
-            status.textContent = message;
-            status.className = `login-status ${type} show`;
-            
-            if (type === 'error') {
-                setTimeout(hideLoginStatus, 5000);
-            }
-        }
-        
-        function hideLoginStatus() {
-            const status = document.getElementById('loginStatus');
-            status.classList.remove('show');
-        }
-        
-        function showDemoKeys() {
-            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
-                  '• SM001-ALPHA-BETA1\n' +
-                  '• SM002-GAMMA-DELT2\n' +
-                  '• SM003-ECHO-FOXTR3\n' +
-                  '• SM004-HOTEL-INDI4\n' +
-                  '• SM005-JULIET-KILO5\n\n' +
-                  'Jeder Key funktioniert nur einmal pro Gerät.\n' +
-                  'Nach der Aktivierung werden Sie automatisch angemeldet.\n\n' +
-                  '🔧 Admin Panel: /admin');
-        }
-
-        // License Key Input Formatting
-        document.getElementById('licenseKey').addEventListener('input', function(e) {
-            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            
-            // Format: XXXXX-XXXXX-XXXXX
-            if (value.length > 5) {
-                value = value.substring(0, 5) + '-' + value.substring(5);
-            }
-            if (value.length > 11) {
-                value = value.substring(0, 11) + '-' + value.substring(11);
-            }
-            if (value.length > 17) {
-                value = value.substring(0, 17);
-            }
-            
-            e.target.value = value;
-        });
-
-        // Enter key support for license activation
-        document.getElementById('licenseKey').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                activateLicense();
-            }
-        });
-
-        // Matrix Rain Animation
-        function initMatrix() {
-            const canvas = document.getElementById('matrixCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            
-            const matrix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%+-/~{[|`]}";
-            const matrixArray = matrix.split("");
-            
-            const fontSize = 10;
-            const columns = canvas.width / fontSize;
-            
-            const drops = [];
-            for(let x = 0; x < columns; x++) {
-                drops[x] = 1;
-            }
-            
-            function draw() {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                ctx.fillStyle = '#00ff41';
-                ctx.font = fontSize + 'px monospace';
-                
-                for(let i = 0; i < drops.length; i++) {
-                    const text = matrixArray[Math.floor(Math.random() * matrixArray.length)];
-                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                    
-                    if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-                        drops[i] = 0;
-                    }
-                    drops[i]++;
-                }
-            }
-            
-            setInterval(draw, 35);
-            
-            // Resize handler
-            window.addEventListener('resize', function() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            });
-        }
-
-        // AES Encryption/Decryption Functions (existing code continues...)
-        
-        // Sichere ASCII-Mapping-Tabelle fuer Sonderzeichen
-        var specialCharMapping = {
-            '.': 'QQ1', ',': 'QQ2', '!': 'QQ3', '?': 'QQ4', ';': 'QQ5', ':': 'QQ6',
-            '"': 'QQ7', "'": 'QQ8', '(': 'QQ9', ')': 'QQ0', '[': 'QQA', ']': 'QQB',
-            '{': 'QQC', '}': 'QQD', '+': 'QQE', '-': 'QQF', '*': 'QQG', '/': 'QQH',
-            '=': 'QQI', '%': 'QQJ', '&': 'QQK', '$': 'QQL', '#': 'QQM', '@': 'QQN',
-            '^': 'QQO', '~': 'QQP', '`': 'QQR', '|': 'QQS', '\\': 'QQT', '<': 'QQU',
-            '>': 'QQV', 'ä': 'QQW', 'ö': 'QQX', 'ü': 'QQY', 'ß': 'QQZ', 'Ä': 'QQ11',
-            'Ö': 'QQ22', 'Ü': 'QQ33', '€': 'QQ44', '§': 'QQ55', '°': 'QQ66', '²': 'QQ77',
-            '³': 'QQ88', 'µ': 'QQ99', '±': 'QQ00', '¼': 'QQAA', '½': 'QQBB', '¾': 'QQCC'
-        };
-
-        var reverseSpecialCharMapping = {};
-        for (var key in specialCharMapping) {
-            reverseSpecialCharMapping[specialCharMapping[key]] = key;
-        }
-
-        function encodeSpecialChars(text) {
-            var encoded = '';
-            for (var i = 0; i < text.length; i++) {
-                var char = text[i];
-                if (specialCharMapping[char]) {
-                    encoded += specialCharMapping[char];
-                } else {
-                    encoded += char;
-                }
-            }
-            return encoded;
-        }
-
-        function decodeSpecialChars(text) {
-            var decoded = text;
-            for (var code in reverseSpecialCharMapping) {
-                var regex = new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                decoded = decoded.replace(regex, reverseSpecialCharMapping[code]);
-            }
-            return decoded;
-        }
-
-        function simpleHash(str) {
-            var hash = 0;
-            for (var i = 0; i < str.length; i++) {
-                var char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash);
-        }
-
-        function generateKeyFromPassword(password, length) {
-            var key = '';
-            var hashedPassword = simpleHash(password).toString();
-            
-            while (key.length < length) {
-                for (var i = 0; i < hashedPassword.length && key.length < length; i++) {
-                    var char = hashedPassword[i];
-                    var ascii = char.charCodeAt(0);
-                    var newChar = String.fromCharCode(((ascii - 48) * 7 + 65) % 26 + 65);
-                    key += newChar;
-                }
-                hashedPassword = simpleHash(hashedPassword).toString();
-            }
-            
-            return key.substring(0, length);
-        }
-
-        function encryptMessage() {
-            var message = document.getElementById('messageToEncrypt').value;
-            var password = document.getElementById('encryptPassword').value;
-            var resultDiv = document.getElementById('encryptResult');
-            
-            if (!message.trim()) {
-                resultDiv.textContent = '❌ Fehler: Bitte geben Sie eine Nachricht ein.';
-                return;
-            }
-            
-            if (!password.trim()) {
-                resultDiv.textContent = '❌ Fehler: Bitte geben Sie ein Passwort ein.';
-                return;
-            }
-            
-            try {
-                var encodedMessage = encodeSpecialChars(message);
-                var key = generateKeyFromPassword(password, encodedMessage.length);
-                var encrypted = '';
-                
-                for (var i = 0; i < encodedMessage.length; i++) {
-                    var messageChar = encodedMessage[i];
-                    var keyChar = key[i % key.length];
-                    
-                    if (messageChar === ' ') {
-                        encrypted += ' ';
-                    } else if (messageChar >= 'A' && messageChar <= 'Z') {
-                        var messageNum = messageChar.charCodeAt(0) - 65;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var encryptedNum = (messageNum + keyNum) % 26;
-                        encrypted += String.fromCharCode(encryptedNum + 65);
-                    } else if (messageChar >= 'a' && messageChar <= 'z') {
-                        var messageNum = messageChar.charCodeAt(0) - 97;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var encryptedNum = (messageNum + keyNum) % 26;
-                        encrypted += String.fromCharCode(encryptedNum + 97);
-                    } else if (messageChar >= '0' && messageChar <= '9') {
-                        var messageNum = messageChar.charCodeAt(0) - 48;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var encryptedNum = (messageNum + (keyNum % 10)) % 10;
-                        encrypted += String.fromCharCode(encryptedNum + 48);
-                    } else {
-                        encrypted += messageChar;
-                    }
-                }
-                
-                var timestamp = new Date().toLocaleString('de-DE');
-                resultDiv.innerHTML = '🔒 <strong>Verschlüsselt am ' + timestamp + '</strong>\n\n' + encrypted + '\n\n💡 Kopieren Sie diese verschlüsselte Nachricht und teilen Sie sie sicher mit dem Empfänger.';
-            } catch (error) {
-                resultDiv.textContent = '❌ Verschlüsselungsfehler: ' + error.message;
-            }
-        }
-
-        function decryptMessage() {
-            var encryptedMessage = document.getElementById('messageToDecrypt').value;
-            var password = document.getElementById('decryptPassword').value;
-            var resultDiv = document.getElementById('decryptResult');
-            
-            if (!encryptedMessage.trim()) {
-                resultDiv.textContent = '❌ Fehler: Bitte geben Sie eine verschlüsselte Nachricht ein.';
-                return;
-            }
-            
-            if (!password.trim()) {
-                resultDiv.textContent = '❌ Fehler: Bitte geben Sie das Entschlüsselungspasswort ein.';
-                return;
-            }
-            
-            try {
-                var key = generateKeyFromPassword(password, encryptedMessage.length);
-                var decrypted = '';
-                
-                for (var i = 0; i < encryptedMessage.length; i++) {
-                    var encryptedChar = encryptedMessage[i];
-                    var keyChar = key[i % key.length];
-                    
-                    if (encryptedChar === ' ') {
-                        decrypted += ' ';
-                    } else if (encryptedChar >= 'A' && encryptedChar <= 'Z') {
-                        var encryptedNum = encryptedChar.charCodeAt(0) - 65;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var decryptedNum = (encryptedNum - keyNum + 26) % 26;
-                        decrypted += String.fromCharCode(decryptedNum + 65);
-                    } else if (encryptedChar >= 'a' && encryptedChar <= 'z') {
-                        var encryptedNum = encryptedChar.charCodeAt(0) - 97;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var decryptedNum = (encryptedNum - keyNum + 26) % 26;
-                        decrypted += String.fromCharCode(decryptedNum + 97);
-                    } else if (encryptedChar >= '0' && encryptedChar <= '9') {
-                        var encryptedNum = encryptedChar.charCodeAt(0) - 48;
-                        var keyNum = keyChar.charCodeAt(0) - 65;
-                        var decryptedNum = (encryptedNum - (keyNum % 10) + 10) % 10;
-                        decrypted += String.fromCharCode(decryptedNum + 48);
-                    } else {
-                        decrypted += encryptedChar;
-                    }
-                }
-                
-                var finalDecrypted = decodeSpecialChars(decrypted);
-                var timestamp = new Date().toLocaleString('de-DE');
-                resultDiv.innerHTML = '🔓 <strong>Entschlüsselt am ' + timestamp + '</strong>\n\n' + finalDecrypted + '\n\n✅ Nachricht erfolgreich entschlüsselt.';
-            } catch (error) {
-                resultDiv.textContent = '❌ Entschlüsselungsfehler: Falsches Passwort oder beschädigte Nachricht.';
-            }
-        }
-
-        function generateStrongPassword() {
-            var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-            var password = '';
-            for (var i = 0; i < 16; i++) {
-                password += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            document.getElementById('encryptPassword').value = password;
-            alert('🎲 Starkes Passwort generiert:\n\n' + password + '\n\n💡 Notieren Sie sich dieses Passwort sicher!');
-        }
-
-        function clearDecryption() {
-            document.getElementById('messageToDecrypt').value = '';
-            document.getElementById('decryptPassword').value = '';
-            document.getElementById('decryptResult').textContent = '';
-        }
-    </script>
+    <!-- External JavaScript -->
+    <script src="app.js"></script>
 </body>
 </html>
