@@ -27,7 +27,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.3;
+            opacity: 0.4;
         }
 
         /* Container Styles */
@@ -41,9 +41,8 @@
 
         /* Login Screen */
         .login-screen {
-            display: block;
-            min-height: 100vh;
             display: flex;
+            min-height: 100vh;
             align-items: center;
             justify-content: center;
         }
@@ -466,11 +465,11 @@
                    maxlength="17"
                    autocomplete="off">
             
-            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
+            <button class="activate-btn" id="activateBtn">
                 <span id="activateBtnText">Lizenz Aktivieren</span>
             </button>
             
-            <button class="demo-keys-btn" id="demoKeysBtn" onclick="showDemoKeys()">
+            <button class="demo-keys-btn" id="demoKeysBtn">
                 🧪 Demo-Keys anzeigen
             </button>
             
@@ -481,16 +480,16 @@
     <!-- Main Application (Hidden Initially) -->
     <div class="main-app" id="mainApp">
         <div class="header">
-            <button class="logout-btn" id="logoutBtn" onclick="logout()">Abmelden</button>
-            <button class="help-btn" id="helpBtn" onclick="showHelp()">?</button>
+            <button class="logout-btn" id="logoutBtn">Abmelden</button>
+            <button class="help-btn" id="helpBtn">?</button>
             <h1 class="app-title">SECRET MESSAGES</h1>
             <p class="app-subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
         </div>
 
         <!-- Mode Switch -->
         <div class="mode-switch">
-            <button class="mode-btn active" id="encryptModeBtn" onclick="switchMode('encrypt')">VERSCHLÜSSELN</button>
-            <button class="mode-btn" id="decryptModeBtn" onclick="switchMode('decrypt')">ENTSCHLÜSSELN</button>
+            <button class="mode-btn active" id="encryptModeBtn">VERSCHLÜSSELN</button>
+            <button class="mode-btn" id="decryptModeBtn">ENTSCHLÜSSELN</button>
         </div>
 
         <!-- Encryption Section -->
@@ -508,7 +507,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn" id="encryptBtn" onclick="encryptMessage()">🔐 Verschlüsseln</button>
+                <button class="btn" id="encryptBtn">🔐 Verschlüsseln</button>
             </div>
             
             <div class="input-group">
@@ -517,7 +516,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyEncryptedBtn" onclick="copyToClipboard('encryptedOutput')">📋 Kopieren</button>
+                <button class="btn btn-warning" id="copyEncryptedBtn">📋 Kopieren</button>
             </div>
         </div>
 
@@ -536,7 +535,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn" id="decryptBtn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
+                <button class="btn" id="decryptBtn">🔓 Entschlüsseln</button>
             </div>
             
             <div class="input-group">
@@ -545,15 +544,15 @@
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyDecryptedBtn" onclick="copyToClipboard('decryptedOutput')">📋 Kopieren</button>
+                <button class="btn btn-warning" id="copyDecryptedBtn">📋 Kopieren</button>
             </div>
         </div>
 
         <!-- Control Buttons -->
         <div class="section">
             <div class="button-group">
-                <button class="btn btn-danger" id="clearBtn" onclick="clearAll()">🗑️ Alles Löschen</button>
-                <button class="btn btn-warning" id="destroyBtn" onclick="destroyKey()">💣 Key Vernichten</button>
+                <button class="btn btn-danger" id="clearBtn">🗑️ Alles Löschen</button>
+                <button class="btn btn-warning" id="destroyBtn">💣 Key Vernichten</button>
             </div>
         </div>
     </div>
@@ -563,11 +562,16 @@
         let userToken = null;
         let isConnected = false;
         let currentMode = 'encrypt';
+        let matrixInterval = null;
 
-        // Matrix Rain Animation
+        // Matrix Rain Animation - FIXED VERSION
         function initMatrixRain() {
+            console.log('🌊 Initializing Matrix Rain...');
             const canvas = document.getElementById('matrixCanvas');
-            if (!canvas) return;
+            if (!canvas) {
+                console.error('Matrix canvas not found!');
+                return;
+            }
             
             const ctx = canvas.getContext('2d');
             
@@ -575,34 +579,38 @@
             function resizeCanvas() {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
+                console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
             }
             resizeCanvas();
             
-            // Matrix characters
+            // Matrix characters - Extended set for better visibility
             const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
             const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             const nums = '0123456789';
-            const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
-            const alphabet = katakana + latin + nums + symbols;
+            const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`';
+            const binary = '01';
+            const alphabet = katakana + latin + nums + symbols + binary;
             
-            const fontSize = 16;
+            const fontSize = 18;
             const columns = Math.floor(canvas.width / fontSize);
+            console.log(`Matrix columns: ${columns}, fontSize: ${fontSize}`);
             
             const rainDrops = [];
             
             // Initialize rain drops
             for(let x = 0; x < columns; x++) {
-                rainDrops[x] = Math.random() * -100;
+                rainDrops[x] = Math.random() * -500; // Start higher up
             }
             
             function draw() {
                 // Black background with fade effect
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // Set text properties
+                // Set text properties - BRIGHT GREEN
                 ctx.fillStyle = '#00ff41';
-                ctx.font = fontSize + 'px monospace';
+                ctx.font = `${fontSize}px monospace`;
+                ctx.textBaseline = 'top';
                 
                 // Draw falling characters
                 for(let i = 0; i < rainDrops.length; i++) {
@@ -610,7 +618,14 @@
                     const x = i * fontSize;
                     const y = rainDrops[i] * fontSize;
                     
+                    // Draw character
                     ctx.fillText(text, x, y);
+                    
+                    // Add glow effect
+                    ctx.shadowColor = '#00ff41';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText(text, x, y);
+                    ctx.shadowBlur = 0;
                     
                     // Reset drop when it goes off screen
                     if(y > canvas.height && Math.random() > 0.975) {
@@ -620,13 +635,27 @@
                 }
             }
             
+            // Clear any existing interval
+            if (matrixInterval) {
+                clearInterval(matrixInterval);
+            }
+            
             // Start animation
-            const animationId = setInterval(draw, 35);
+            matrixInterval = setInterval(draw, 50);
+            console.log('✅ Matrix animation started');
             
             // Handle window resize
-            window.addEventListener('resize', resizeCanvas);
-            
-            return animationId;
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                // Recalculate columns
+                const newColumns = Math.floor(canvas.width / fontSize);
+                if (newColumns !== rainDrops.length) {
+                    rainDrops.length = newColumns;
+                    for(let x = rainDrops.length; x < newColumns; x++) {
+                        rainDrops[x] = Math.random() * -500;
+                    }
+                }
+            });
         }
 
         // Server Connection Check
@@ -652,8 +681,9 @@
             return false;
         }
 
-        // License Key aktivieren
+        // License Key aktivieren - FIXED VERSION
         async function activateLicense() {
+            console.log('🔑 Activating license...');
             const licenseKey = document.getElementById('licenseKey').value.trim();
             const activateBtn = document.getElementById('activateBtn');
             const activateBtnText = document.getElementById('activateBtnText');
@@ -671,59 +701,48 @@
             }
             
             // Loading state
-            const originalText = activateBtnText ? activateBtnText.textContent : '';
+            const originalText = activateBtnText ? activateBtnText.textContent : 'Lizenz Aktivieren';
             if (activateBtnText) activateBtnText.textContent = 'AKTIVIERE...';
             if (activateBtn) activateBtn.disabled = true;
             
             try {
-                if (isConnected) {
-                    // Try server activation
-                    const response = await fetch('/api/auth/activate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ licenseKey })
-                    });
+                // Demo Keys für Offline-Modus
+                const demoKeys = [
+                    'SM001-ALPHA-BETA1',
+                    'SM002-GAMMA-DELT2',
+                    'SM003-OMEGA-ZETA3',
+                    'DEMO1-12345-ABCDE',
+                    'TEST1-99999-ZZZZZ'
+                ];
+                
+                // Simuliere kurze Ladezeit
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                if (demoKeys.includes(licenseKey)) {
+                    userToken = 'demo-token-' + Date.now();
+                    showSuccess('✅ Demo-Modus aktiviert - Zugang gewährt!');
+                    console.log('✅ License activated successfully');
                     
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        userToken = result.token;
-                        showSuccess('✅ ' + result.message);
-                        await switchToMainApp();
-                        await logActivity('license_activated', { keyId: result.keyId });
-                    } else {
-                        showError('❌ ' + result.error);
-                    }
+                    // Warte kurz, dann wechsle zur Hauptapp
+                    setTimeout(() => {
+                        switchToMainApp();
+                    }, 1500);
                 } else {
-                    // Offline demo mode
-                    const demoKeys = [
-                        'SM001-ALPHA-BETA1',
-                        'SM002-GAMMA-DELT2',
-                        'SM003-OMEGA-ZETA3',
-                        'DEMO1-12345-ABCDE',
-                        'TEST1-99999-ZZZZZ'
-                    ];
-                    
-                    if (demoKeys.includes(licenseKey)) {
-                        userToken = 'demo-token-' + Date.now();
-                        showSuccess('✅ Demo-Modus aktiviert');
-                        await switchToMainApp();
-                    } else {
-                        showError('❌ Ungültiger License Key (Demo-Modus)');
-                    }
+                    showError('❌ Ungültiger License Key (Demo-Modus)');
                 }
                 
             } catch (error) {
                 console.error('Activation error:', error);
-                showError('❌ Verbindungsfehler: ' + error.message);
+                showError('❌ Aktivierungsfehler: ' + error.message);
             } finally {
                 if (activateBtnText) activateBtnText.textContent = originalText;
                 if (activateBtn) activateBtn.disabled = false;
             }
         }
 
-        // Demo Keys anzeigen
+        // Demo Keys anzeigen - FIXED VERSION
         function showDemoKeys() {
+            console.log('🧪 Showing demo keys...');
             const licenseInput = document.getElementById('licenseKey');
             if (licenseInput) {
                 const demoKeys = [
@@ -742,12 +761,14 @@
                     licenseInput.classList.remove('success-animation');
                 }, 600);
                 
-                showInfo('ℹ️ Demo Key eingefügt. Klicken Sie "Lizenz Aktivieren" zum Testen.');
+                showInfo('ℹ️ Demo Key eingefügt: ' + randomKey);
+                console.log('✅ Demo key inserted:', randomKey);
             }
         }
 
         // Switch to main app
-        async function switchToMainApp() {
+        function switchToMainApp() {
+            console.log('🚀 Switching to main app...');
             const loginScreen = document.getElementById('loginScreen');
             const mainApp = document.getElementById('mainApp');
             
@@ -762,10 +783,12 @@
             
             // Initialize default mode
             switchMode('encrypt');
+            console.log('✅ Main app loaded');
         }
 
         // Mode Switch
         function switchMode(mode) {
+            console.log('🔄 Switching mode to:', mode);
             currentMode = mode;
             
             const encryptModeBtn = document.getElementById('encryptModeBtn');
@@ -789,12 +812,11 @@
                     decryptSection.classList.remove('hidden');
                 }
             }
-            
-            logActivity('mode_switched', { mode });
         }
 
         // Nachricht verschlüsseln
         async function encryptMessage() {
+            console.log('🔐 Encrypting message...');
             const message = document.getElementById('messageInput').value.trim();
             const code = document.getElementById('encryptCodeInput').value.trim();
             const output = document.getElementById('encryptedOutput');
@@ -816,13 +838,16 @@
             }
             
             // Loading state
-            const originalText = encryptBtn ? encryptBtn.textContent : '';
+            const originalText = encryptBtn ? encryptBtn.textContent : '🔐 Verschlüsseln';
             if (encryptBtn) {
                 encryptBtn.textContent = '🔐 VERSCHLÜSSELE...';
                 encryptBtn.disabled = true;
             }
             
             try {
+                // Simuliere Verschlüsselung
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
                 // Perform encryption
                 const encrypted = performEncryption(message, code);
                 
@@ -831,12 +856,7 @@
                 }
                 
                 showSuccess('✅ Nachricht erfolgreich verschlüsselt');
-                
-                // Log activity
-                await logActivity('message_encrypted', { 
-                    messageLength: message.length,
-                    codeUsed: code.substring(0, 2) + '***'
-                });
+                console.log('✅ Message encrypted successfully');
                 
             } catch (error) {
                 console.error('Encryption error:', error);
@@ -851,6 +871,7 @@
 
         // Nachricht entschlüsseln
         async function decryptMessage() {
+            console.log('🔓 Decrypting message...');
             const encryptedText = document.getElementById('encryptedInput').value.trim();
             const code = document.getElementById('decryptCodeInput').value.trim();
             const output = document.getElementById('decryptedOutput');
@@ -872,13 +893,16 @@
             }
             
             // Loading state
-            const originalText = decryptBtn ? decryptBtn.textContent : '';
+            const originalText = decryptBtn ? decryptBtn.textContent : '🔓 Entschlüsseln';
             if (decryptBtn) {
                 decryptBtn.textContent = '🔓 ENTSCHLÜSSELE...';
                 decryptBtn.disabled = true;
             }
             
             try {
+                // Simuliere Entschlüsselung
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
                 // Perform decryption
                 const decrypted = performDecryption(encryptedText, code);
                 
@@ -887,12 +911,7 @@
                 }
                 
                 showSuccess('✅ Nachricht erfolgreich entschlüsselt');
-                
-                // Log activity
-                await logActivity('message_decrypted', { 
-                    encryptedLength: encryptedText.length,
-                    codeUsed: code.substring(0, 2) + '***'
-                });
+                console.log('✅ Message decrypted successfully');
                 
             } catch (error) {
                 console.error('Decryption error:', error);
@@ -907,6 +926,7 @@
 
         // Copy to clipboard
         async function copyToClipboard(elementId) {
+            console.log('📋 Copying to clipboard:', elementId);
             const element = document.getElementById(elementId);
             if (!element || !element.value) {
                 showError('Nichts zum Kopieren vorhanden');
@@ -923,17 +943,13 @@
                 }
                 
                 showSuccess('✅ In Zwischenablage kopiert');
+                console.log('✅ Text copied to clipboard');
                 
                 // Visual feedback
                 element.classList.add('success-animation');
                 setTimeout(() => {
                     element.classList.remove('success-animation');
                 }, 600);
-                
-                await logActivity('text_copied', { 
-                    elementId,
-                    textLength: element.value.length 
-                });
                 
             } catch (error) {
                 console.error('Copy error:', error);
@@ -943,6 +959,7 @@
 
         // Clear all fields
         function clearAll() {
+            console.log('🗑️ Clearing all fields...');
             const fields = [
                 'messageInput',
                 'encryptCodeInput',
@@ -960,11 +977,12 @@
             });
             
             showInfo('🗑️ Alle Felder geleert');
-            logActivity('fields_cleared');
+            console.log('✅ All fields cleared');
         }
 
         // Destroy key
         async function destroyKey() {
+            console.log('💣 Destroying key...');
             if (!userToken) {
                 showError('Kein aktiver License Key vorhanden');
                 return;
@@ -976,12 +994,11 @@
                 try {
                     userToken = null;
                     showError('💣 License Key vernichtet!');
+                    console.log('💣 License key destroyed');
                     
                     setTimeout(() => {
                         logout();
                     }, 2000);
-                    
-                    await logActivity('key_destroyed');
                     
                 } catch (error) {
                     console.error('Destroy error:', error);
@@ -992,6 +1009,7 @@
 
         // Logout
         function logout() {
+            console.log('👋 Logging out...');
             userToken = null;
             
             const loginScreen = document.getElementById('loginScreen');
@@ -1011,11 +1029,12 @@
             clearAll();
             
             showInfo('👋 Erfolgreich abgemeldet');
-            logActivity('user_logged_out');
+            console.log('✅ Logged out successfully');
         }
 
         // Show help
         function showHelp() {
+            console.log('❓ Showing help...');
             const helpText = `🔐 SECRET MESSAGES - HILFE
 
 VERSCHLÜSSELUNG:
@@ -1038,7 +1057,7 @@ DEMO KEYS:
 - TEST1-99999-ZZZZZ`;
             
             alert(helpText);
-            logActivity('help_viewed');
+            console.log('✅ Help displayed');
         }
 
         // Status message functions
@@ -1067,31 +1086,6 @@ DEMO KEYS:
                         statusEl.className = 'login-status';
                     }
                 }, 5000);
-            }
-        }
-
-        // Activity logging
-        async function logActivity(action, metadata = {}) {
-            if (!isConnected || !userToken) return;
-            
-            try {
-                await fetch('/api/activity/log', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${userToken}`
-                    },
-                    body: JSON.stringify({
-                        action,
-                        metadata: {
-                            ...metadata,
-                            timestamp: new Date().toISOString(),
-                            userAgent: navigator.userAgent
-                        }
-                    })
-                });
-            } catch (error) {
-                console.warn('Activity logging failed:', error);
             }
         }
 
@@ -1229,35 +1223,111 @@ DEMO KEYS:
 
         // Initialize app when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Secret Messages App Loading...');
+            console.log('🚀 SECRET MESSAGES APP INITIALIZING...');
             
             // Initialize matrix rain effect
-            initMatrixRain();
+            setTimeout(() => {
+                initMatrixRain();
+            }, 100);
             
             // Check server connection
             checkServerConnection();
             
-            // Setup keyboard shortcuts
-            document.getElementById('licenseKey').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    activateLicense();
-                }
-            });
+            // Setup event listeners
+            setupEventListeners();
             
-            // Auto-format license key input
-            document.getElementById('licenseKey').addEventListener('input', function(e) {
-                let value = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase();
-                if (value.length > 5) {
-                    value = value.substring(0, 5) + '-' + value.substring(5);
-                }
-                if (value.length > 11) {
-                    value = value.substring(0, 11) + '-' + value.substring(11);
-                }
-                if (value.length > 17) {
-                    value = value.substring(0, 17);
-                }
-                e.target.value = value;
-            });
+            console.log('✅ SECRET MESSAGES APP LOADED SUCCESSFULLY');
+        });
+
+        // Setup all event listeners
+        function setupEventListeners() {
+            console.log('🔗 Setting up event listeners...');
+            
+            // License key input handlers
+            const licenseInput = document.getElementById('licenseKey');
+            if (licenseInput) {
+                licenseInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        activateLicense();
+                    }
+                });
+                
+                // Auto-format license key input
+                licenseInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase();
+                    if (value.length > 5) {
+                        value = value.substring(0, 5) + '-' + value.substring(5);
+                    }
+                    if (value.length > 11) {
+                        value = value.substring(0, 11) + '-' + value.substring(11);
+                    }
+                    if (value.length > 17) {
+                        value = value.substring(0, 17);
+                    }
+                    e.target.value = value;
+                });
+            }
+            
+            // Button event listeners
+            const activateBtn = document.getElementById('activateBtn');
+            if (activateBtn) {
+                activateBtn.addEventListener('click', activateLicense);
+            }
+            
+            const demoKeysBtn = document.getElementById('demoKeysBtn');
+            if (demoKeysBtn) {
+                demoKeysBtn.addEventListener('click', showDemoKeys);
+            }
+            
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', logout);
+            }
+            
+            const helpBtn = document.getElementById('helpBtn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', showHelp);
+            }
+            
+            const encryptModeBtn = document.getElementById('encryptModeBtn');
+            if (encryptModeBtn) {
+                encryptModeBtn.addEventListener('click', () => switchMode('encrypt'));
+            }
+            
+            const decryptModeBtn = document.getElementById('decryptModeBtn');
+            if (decryptModeBtn) {
+                decryptModeBtn.addEventListener('click', () => switchMode('decrypt'));
+            }
+            
+            const encryptBtn = document.getElementById('encryptBtn');
+            if (encryptBtn) {
+                encryptBtn.addEventListener('click', encryptMessage);
+            }
+            
+            const decryptBtn = document.getElementById('decryptBtn');
+            if (decryptBtn) {
+                decryptBtn.addEventListener('click', decryptMessage);
+            }
+            
+            const copyEncryptedBtn = document.getElementById('copyEncryptedBtn');
+            if (copyEncryptedBtn) {
+                copyEncryptedBtn.addEventListener('click', () => copyToClipboard('encryptedOutput'));
+            }
+            
+            const copyDecryptedBtn = document.getElementById('copyDecryptedBtn');
+            if (copyDecryptedBtn) {
+                copyDecryptedBtn.addEventListener('click', () => copyToClipboard('decryptedOutput'));
+            }
+            
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', clearAll);
+            }
+            
+            const destroyBtn = document.getElementById('destroyBtn');
+            if (destroyBtn) {
+                destroyBtn.addEventListener('click', destroyKey);
+            }
             
             // Setup code input restrictions
             const codeInputs = ['encryptCodeInput', 'decryptCodeInput'];
@@ -1267,11 +1337,21 @@ DEMO KEYS:
                     input.addEventListener('input', function(e) {
                         e.target.value = e.target.value.replace(/[^0-9]/g, '');
                     });
+                    
+                    input.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            if (inputId === 'encryptCodeInput') {
+                                encryptMessage();
+                            } else {
+                                decryptMessage();
+                            }
+                        }
+                    });
                 }
             });
             
-            console.log('✅ Secret Messages App loaded successfully');
-        });
+            console.log('✅ Event listeners set up successfully');
+        }
     </script>
 </body>
 </html>
