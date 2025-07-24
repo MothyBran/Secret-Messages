@@ -541,11 +541,11 @@
                    maxlength="17"
                    autocomplete="off">
             
-            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
+            <button class="activate-btn" id="activateBtn">
                 <span id="activateBtnText">Lizenz Aktivieren</span>
             </button>
             
-            <button class="demo-keys-btn" onclick="showDemoKeys()">
+            <button class="demo-keys-btn" id="demoKeysBtn">
                 🧪 Demo-Keys anzeigen
             </button>
             
@@ -578,10 +578,10 @@
             </div>
             
             <div class="destroy-modal-buttons">
-                <button class="confirm-destroy-btn" onclick="confirmDestroyKey()">
+                <button class="confirm-destroy-btn" id="confirmDestroyBtn">
                     🗑️ UNWIDERRUFLICH LÖSCHEN
                 </button>
-                <button class="cancel-destroy-btn" onclick="cancelDestroyKey()">
+                <button class="cancel-destroy-btn" id="cancelDestroyBtn">
                     🛡️ ABBRECHEN
                 </button>
             </div>
@@ -597,7 +597,7 @@
             <div class="security-warning">
                 Ihr Key ist unwiderruflich an dieses Gerät gebunden
             </div>
-            <button class="destroy-btn" onclick="showDestroyModal()">
+            <button class="destroy-btn" id="destroyBtn">
                 🗑️ Zugang vernichten
             </button>
         </div>
@@ -619,8 +619,8 @@
                            id="encryptPassword" 
                            placeholder="Sicheres Passwort eingeben">
                 </div>
-                <button class="action-btn" onclick="encryptMessage()">🔒 Verschlüsseln</button>
-                <button class="action-btn secondary-btn" onclick="generateStrongPassword()">🎲 Starkes Passwort</button>
+                <button class="action-btn" id="encryptBtn">🔒 Verschlüsseln</button>
+                <button class="action-btn secondary-btn" id="generatePasswordBtn">🎲 Starkes Passwort</button>
                 <div class="result-area" id="encryptResult"></div>
             </div>
 
@@ -640,8 +640,8 @@
                            id="decryptPassword" 
                            placeholder="Passwort zum Entschlüsseln">
                 </div>
-                <button class="action-btn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
-                <button class="action-btn secondary-btn" onclick="clearDecryption()">🗑️ Löschen</button>
+                <button class="action-btn" id="decryptBtn">🔓 Entschlüsseln</button>
+                <button class="action-btn secondary-btn" id="clearDecryptionBtn">🗑️ Löschen</button>
                 <div class="result-area" id="decryptResult"></div>
             </div>
         </div>
@@ -662,8 +662,60 @@
         let keyId = null;
         let isAuthenticated = false;
 
+        // DOM Elements
+        const loginScreen = document.getElementById('loginScreen');
+        const mainApp = document.getElementById('mainApp');
+        const licenseKeyInput = document.getElementById('licenseKey');
+        const activateBtn = document.getElementById('activateBtn');
+        const activateBtnText = document.getElementById('activateBtnText');
+        const demoKeysBtn = document.getElementById('demoKeysBtn');
+        const loginStatus = document.getElementById('loginStatus');
+        const destroyModal = document.getElementById('destroyModal');
+        const destroyBtn = document.getElementById('destroyBtn');
+        const confirmDestroyBtn = document.getElementById('confirmDestroyBtn');
+        const cancelDestroyBtn = document.getElementById('cancelDestroyBtn');
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        activateBtn.addEventListener('click', activateLicense);
+        demoKeysBtn.addEventListener('click', showDemoKeys);
+        destroyBtn.addEventListener('click', showDestroyModal);
+        confirmDestroyBtn.addEventListener('click', confirmDestroyKey);
+        cancelDestroyBtn.addEventListener('click', cancelDestroyKey);
+        
+        // Encryption/Decryption Event Listeners
+        document.getElementById('encryptBtn').addEventListener('click', encryptMessage);
+        document.getElementById('decryptBtn').addEventListener('click', decryptMessage);
+        document.getElementById('generatePasswordBtn').addEventListener('click', generateStrongPassword);
+        document.getElementById('clearDecryptionBtn').addEventListener('click', clearDecryption);
+
+        // License Key Input Formatting
+        licenseKeyInput.addEventListener('input', function(e) {
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            
+            // Format: XXXXX-XXXXX-XXXXX
+            if (value.length > 5) {
+                value = value.substring(0, 5) + '-' + value.substring(5);
+            }
+            if (value.length > 11) {
+                value = value.substring(0, 11) + '-' + value.substring(11);
+            }
+            if (value.length > 17) {
+                value = value.substring(0, 17);
+            }
+            
+            e.target.value = value;
+        });
+
+        // Enter key support for license activation
+        licenseKeyInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                activateLicense();
+            }
+        });
+
         // Auto-Login Check beim Laden der Seite
-        document.addEventListener('DOMContentLoaded', async function() {
+        async function initializeApp() {
             console.log('🔍 Checking for existing authentication...');
             
             // Matrix Animation starten
@@ -699,8 +751,8 @@
                         
                         // Kurz warten für bessere UX, dann zur Hauptapp
                         setTimeout(() => {
-                            document.getElementById('loginScreen').style.display = 'none';
-                            document.getElementById('mainApp').style.display = 'block';
+                            loginScreen.style.display = 'none';
+                            mainApp.style.display = 'block';
                             updateDeviceInfo();
                         }, 1500);
                         
@@ -721,12 +773,10 @@
             // Kein gültiger Token - Login-Screen anzeigen
             console.log('📱 No valid authentication found, showing login screen');
             hideLoginStatus();
-        });
+        }
 
         async function activateLicense() {
-            const licenseKey = document.getElementById('licenseKey').value.trim().toUpperCase();
-            const activateBtn = document.getElementById('activateBtn');
-            const activateBtnText = document.getElementById('activateBtnText');
+            const licenseKey = licenseKeyInput.value.trim().toUpperCase();
             
             if (!licenseKey) {
                 showLoginStatus('Bitte geben Sie einen Lizenz-Key ein.', 'error');
@@ -773,8 +823,8 @@
                     
                     // Nach 2 Sekunden zur Hauptapp wechseln
                     setTimeout(() => {
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('mainApp').style.display = 'block';
+                        loginScreen.style.display = 'none';
+                        mainApp.style.display = 'block';
                         updateDeviceInfo();
                     }, 2000);
                     
@@ -793,13 +843,25 @@
             }
         }
 
-        // DESTROY KEY FUNCTIONS (Replace logout)
+        function showDemoKeys() {
+            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
+                  '• SM001-ALPHA-BETA1\n' +
+                  '• SM002-GAMMA-DELT2\n' +
+                  '• SM003-ECHO-FOXTR3\n' +
+                  '• SM004-HOTEL-INDI4\n' +
+                  '• SM005-JULIET-KILO5\n\n' +
+                  '⚠️ WICHTIG: Jeder Key wird DAUERHAFT an Ihr Gerät gebunden!\n' +
+                  'Nach Aktivierung kann der Key nur unwiderruflich vernichtet werden.\n\n' +
+                  '🔧 Admin Panel: /admin');
+        }
+
+        // DESTROY KEY FUNCTIONS
         function showDestroyModal() {
-            document.getElementById('destroyModal').style.display = 'flex';
+            destroyModal.style.display = 'flex';
         }
 
         function cancelDestroyKey() {
-            document.getElementById('destroyModal').style.display = 'none';
+            destroyModal.style.display = 'none';
         }
 
         async function confirmDestroyKey() {
@@ -812,10 +874,9 @@
             
             try {
                 // Show loading state
-                const confirmBtn = document.querySelector('.confirm-destroy-btn');
-                const originalText = confirmBtn.textContent;
-                confirmBtn.innerHTML = '<span class="loading-spinner"></span>VERNICHTE...';
-                confirmBtn.disabled = true;
+                const originalText = confirmDestroyBtn.textContent;
+                confirmDestroyBtn.innerHTML = '<span class="loading-spinner"></span>VERNICHTE...';
+                confirmDestroyBtn.disabled = true;
                 
                 const response = await fetch(`${API_BASE}/auth/destroy-key`, {
                     method: 'POST',
@@ -844,10 +905,10 @@
                           `Sie werden zur Login-Seite weitergeleitet.`);
                     
                     // Hide modal and show login screen
-                    document.getElementById('destroyModal').style.display = 'none';
-                    document.getElementById('loginScreen').style.display = 'flex';
-                    document.getElementById('mainApp').style.display = 'none';
-                    document.getElementById('licenseKey').value = '';
+                    destroyModal.style.display = 'none';
+                    loginScreen.style.display = 'flex';
+                    mainApp.style.display = 'none';
+                    licenseKeyInput.value = '';
                     
                     showLoginStatus('Zugang vernichtet. Neuer Lizenz-Key erforderlich.', 'error');
                     
@@ -860,9 +921,8 @@
                 alert('❌ Verbindungsfehler bei der Vernichtung. Bitte versuchen Sie es erneut.');
             } finally {
                 // Reset button
-                const confirmBtn = document.querySelector('.confirm-destroy-btn');
-                confirmBtn.textContent = originalText;
-                confirmBtn.disabled = false;
+                confirmDestroyBtn.textContent = '🗑️ UNWIDERRUFLICH LÖSCHEN';
+                confirmDestroyBtn.disabled = false;
             }
         }
 
@@ -881,9 +941,8 @@
         }
 
         function showLoginStatus(message, type) {
-            const status = document.getElementById('loginStatus');
-            status.textContent = message;
-            status.className = `login-status ${type} show`;
+            loginStatus.textContent = message;
+            loginStatus.className = `login-status ${type} show`;
             
             if (type === 'error') {
                 setTimeout(hideLoginStatus, 5000);
@@ -891,46 +950,8 @@
         }
         
         function hideLoginStatus() {
-            const status = document.getElementById('loginStatus');
-            status.classList.remove('show');
+            loginStatus.classList.remove('show');
         }
-        
-        function showDemoKeys() {
-            alert('🔐 DEMO LIZENZ-KEYS ZUM TESTEN:\n\n' +
-                  '• SM001-ALPHA-BETA1\n' +
-                  '• SM002-GAMMA-DELT2\n' +
-                  '• SM003-ECHO-FOXTR3\n' +
-                  '• SM004-HOTEL-INDI4\n' +
-                  '• SM005-JULIET-KILO5\n\n' +
-                  '⚠️ WICHTIG: Jeder Key wird DAUERHAFT an Ihr Gerät gebunden!\n' +
-                  'Nach Aktivierung kann der Key nur unwiderruflich vernichtet werden.\n\n' +
-                  '🔧 Admin Panel: /admin');
-        }
-
-        // License Key Input Formatting
-        document.getElementById('licenseKey').addEventListener('input', function(e) {
-            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            
-            // Format: XXXXX-XXXXX-XXXXX
-            if (value.length > 5) {
-                value = value.substring(0, 5) + '-' + value.substring(5);
-            }
-            if (value.length > 11) {
-                value = value.substring(0, 11) + '-' + value.substring(11);
-            }
-            if (value.length > 17) {
-                value = value.substring(0, 17);
-            }
-            
-            e.target.value = value;
-        });
-
-        // Enter key support for license activation
-        document.getElementById('licenseKey').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                activateLicense();
-            }
-        });
 
         // Matrix Rain Animation
         function initMatrix() {
@@ -978,7 +999,7 @@
             });
         }
 
-        // AES Encryption/Decryption Functions (existing code continues...)
+        // AES Encryption/Decryption Functions
         
         // Sichere ASCII-Mapping-Tabelle fuer Sonderzeichen
         var specialCharMapping = {
