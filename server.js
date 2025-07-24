@@ -589,6 +589,159 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     }
 });
 
+// DEBUG-VERSION: Verwenden Sie diese Version temporär, um das Problem zu identifizieren
+
+app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
+    console.log('=== ADMIN KEYS DEBUG START ===');
+    console.log('Request body:', req.body);
+    
+    const { page = 1, limit = 50 } = req.body;
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+    
+    console.log('Pagination params:', { pageNum, limitNum, offset });
+    console.log('Database type:', isPostgreSQL ? 'PostgreSQL' : 'SQLite');
+    
+    try {
+        // Erst eine einfache Test-Query
+        console.log('Testing basic query...');
+        
+        let testResult;
+        if (isPostgreSQL) {
+            testResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
+            console.log('PostgreSQL test result:', testResult.rows);
+        } else {
+            testResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
+            console.log('SQLite test result:', testResult);
+        }
+        
+        // Dann die Haupt-Query
+        console.log('Executing main query...');
+        
+        let keys, totalCount;
+        
+        if (isPostgreSQL) {
+            console.log('Using PostgreSQL queries...');
+            
+            // Einfachere Query zuerst
+            const keysResult = await db.query(`
+                SELECT id, key_code, created_at, is_active, usage_count
+                FROM license_keys 
+                ORDER BY created_at DESC 
+                LIMIT $1 OFFSET $2
+            `, [limitNum, offset]);
+            
+            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
+            
+            keys = keysResult.rows;
+            totalCount = parseInt(countResult.rows[0].count);
+            
+            console.log('PostgreSQL results:', { keysCount: keys.length, totalCount });
+            
+        } else {
+            console.log('Using SQLite queries...');
+            
+            // Einfachere Query zuerst  
+            const keysResult = await dbQuery(`
+                SELECT id, key_code, created_at, is_active, usage_count
+                FROM license_keys 
+                ORDER BY created_at DESC 
+                LIMIT ? OFFSET ?
+            `, [limitNum, offset]);
+            
+            console.log('SQLite keys result structure:', typeof keysResult, Object.keys(keysResult || {}));
+            
+            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
+            
+            console.log('SQLite count result structure:', typeof countResult, Object.keys(countResult || {}));
+            
+            // Handle different SQLite return formats
+            if (keysResult && keysResult.rows) {
+                if (Array.isArray(keysResult.rows)) {
+                    keys = keysResult.rows;
+                } else {
+                    keys = [keysResult.rows];
+                }
+            } else if (Array.isArray(keysResult)) {
+                keys = keysResult;
+            } else {
+                keys = [];
+            }
+            
+            if (countResult && countResult.rows) {
+                if (Array.isArray(countResult.rows)) {
+                    totalCount = parseInt(countResult.rows[0]?.count || 0);
+                } else {
+                    totalCount = parseInt(countResult.rows.count || 0);
+                }
+            } else {
+                totalCount = 0;
+            }
+            
+            console.log('SQLite processed results:', { keysCount: keys.length, totalCount });
+        }
+        
+        // Ensure keys is array
+        if (!Array.isArray(keys)) {
+            console.log('Converting keys to array, current type:', typeof keys);
+            keys = [];
+        }
+        
+        const totalPages = Math.ceil(totalCount / limitNum);
+        
+        console.log('Final results:', { 
+            keysLength: keys.length, 
+            totalCount, 
+            totalPages,
+            sampleKey: keys[0] ? Object.keys(keys[0]) : 'no keys'
+        });
+        
+        const response = {
+            success: true,
+            keys: keys,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total: totalCount,
+                pages: totalPages,
+                hasNext: pageNum < totalPages,
+                hasPrev: pageNum > 1
+            },
+            debug: {
+                dbType: isPostgreSQL ? 'PostgreSQL' : 'SQLite',
+                queryParams: { pageNum, limitNum, offset }
+            }
+        };
+        
+        console.log('Sending response:', JSON.stringify(response, null, 2));
+        console.log('=== ADMIN KEYS DEBUG END ===');
+        
+        res.json(response);
+        
+    } catch (error) {
+        console.error('=== ADMIN KEYS ERROR ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error details:', {
+            name: error.name,
+            code: error.code,
+            errno: error.errno,
+            sqlState: error.sqlState
+        });
+        console.log('=== ERROR END ===');
+        
+        res.status(500).json({ 
+            error: 'Failed to fetch keys',
+            debug: {
+                message: error.message,
+                type: error.name,
+                dbType: isPostgreSQL ? 'PostgreSQL' : 'SQLite'
+            }
+        });
+    }
+});
+
 // Serve static files
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
