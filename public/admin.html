@@ -612,6 +612,219 @@
                 </div>
             </div>
 
+            <!-- ADMIN PANEL ERGÄNZUNG - Fügen Sie das nach der Key-Verwaltung Section ein: -->
+
+<!-- Destroyed Keys Section -->
+<div class="section">
+    <h3 class="section-title">🗑️ Vernichtete Keys</h3>
+    
+    <div style="margin-bottom: 20px;">
+        <button class="btn" onclick="loadDestroyedKeys()">Vernichtete Keys anzeigen</button>
+        <button class="btn danger" onclick="showDestroyedStats()">Vernichtungs-Statistiken</button>
+    </div>
+    
+    <div id="destroyedKeysContainer">
+        <div class="loading" id="destroyedKeysLoading" style="display: none;">
+            <div class="spinner"></div>
+            Lade vernichtete Keys...
+        </div>
+        
+        <div id="destroyedKeysStats" style="display: none; margin-bottom: 20px;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDestroyed">-</div>
+                    <div class="stat-label">Vernichtete Keys</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="dailyDestructions">-</div>
+                    <div class="stat-label">Heute vernichtet</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="destructionRate">-</div>
+                    <div class="stat-label">Vernichtungsrate</div>
+                </div>
+            </div>
+        </div>
+        
+        <table class="keys-table" id="destroyedKeysTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Key Code</th>
+                    <th>Aktiviert am</th>
+                    <th>Vernichtet am</th>
+                    <th>Aktivierungs-IP</th>
+                    <th>Vernichtungs-IP</th>
+                    <th>Nutzungsanzahl</th>
+                </tr>
+            </thead>
+            <tbody id="destroyedKeysTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- JAVASCRIPT ERGÄNZUNGEN für admin.html: -->
+<script>
+// Fügen Sie diese Funktionen zu Ihrem bestehenden admin.html JavaScript hinzu:
+
+async function loadDestroyedKeys() {
+    const loadingEl = document.getElementById('destroyedKeysLoading');
+    const tableEl = document.getElementById('destroyedKeysTable');
+    
+    loadingEl.style.display = 'block';
+    tableEl.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/destroyed-keys`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayDestroyedKeys(data.destroyed_keys);
+            showAlert(`✅ ${data.count} vernichtete Keys geladen`, 'success');
+        } else {
+            showAlert(`❌ Fehler beim Laden: ${data.error}`, 'error');
+        }
+        
+    } catch (error) {
+        showAlert(`❌ Verbindungsfehler: ${error.message}`, 'error');
+    } finally {
+        loadingEl.style.display = 'none';
+    }
+}
+
+function displayDestroyedKeys(keys) {
+    const tbody = document.getElementById('destroyedKeysTableBody');
+    const tableEl = document.getElementById('destroyedKeysTable');
+    
+    tbody.innerHTML = '';
+    
+    keys.forEach(key => {
+        const row = document.createElement('tr');
+        
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleString('de-DE');
+        };
+        
+        row.innerHTML = `
+            <td><code style="color: #ff4141;">${key.key_code}</code></td>
+            <td>${formatDate(key.activated_at)}</td>
+            <td><span style="color: #ff4141;">${formatDate(key.destroyed_at)}</span></td>
+            <td>${key.activated_ip || '-'}</td>
+            <td><span style="color: #ff4141;">${key.destroyed_by_ip || '-'}</span></td>
+            <td>${key.usage_count || 0}</td>
+        `;
+        
+        row.style.backgroundColor = 'rgba(255, 65, 65, 0.1)';
+        row.style.border = '1px solid rgba(255, 65, 65, 0.3)';
+        
+        tbody.appendChild(row);
+    });
+    
+    tableEl.style.display = 'table';
+}
+
+async function showDestroyedStats() {
+    const statsEl = document.getElementById('destroyedKeysStats');
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/enhanced-stats`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data.stats;
+            
+            document.getElementById('totalDestroyed').textContent = stats.destroyedKeys;
+            document.getElementById('dailyDestructions').textContent = stats.dailyDestructions;
+            
+            // Calculate destruction rate
+            const destructionRate = stats.totalKeys > 0 ? 
+                ((stats.destroyedKeys / stats.totalKeys) * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('destructionRate').textContent = destructionRate;
+            
+            statsEl.style.display = 'block';
+            
+            showAlert('✅ Vernichtungs-Statistiken aktualisiert', 'success');
+        } else {
+            showAlert(`❌ Fehler: ${data.error}`, 'error');
+        }
+        
+    } catch (error) {
+        showAlert(`❌ Verbindungsfehler: ${error.message}`, 'error');
+    }
+}
+
+// Update main refreshStats function to include destroyed keys
+async function refreshStats() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/enhanced-stats`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('totalKeys').textContent = data.stats.totalKeys;
+            document.getElementById('activeKeys').textContent = data.stats.activeKeys;
+            document.getElementById('activeSessions').textContent = data.stats.activeSessions;
+            document.getElementById('dailyUsage').textContent = data.stats.dailyDestructions; // Show destructions instead
+            
+            // Update destroyed keys stats if visible
+            if (document.getElementById('destroyedKeysStats').style.display === 'block') {
+                showDestroyedStats();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Stats refresh failed:', error);
+    }
+}
+
+// Add warning styling for destroy-related elements
+const style = document.createElement('style');
+style.textContent = `
+    .destroy-warning {
+        background: rgba(255, 65, 65, 0.1);
+        border: 2px solid #ff4141;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 15px 0;
+        color: #ff4141;
+        font-weight: bold;
+        text-align: center;
+    }
+    
+    .destroy-stat {
+        color: #ff4141 !important;
+        text-shadow: 0 0 5px rgba(255, 65, 65, 0.5);
+    }
+`;
+document.head.appendChild(style);
+</script>
+
+<!-- Add this warning notice at the top of admin panel: -->
+<div class="destroy-warning">
+    ⚠️ WICHTIG: Keys können nur unwiderruflich vernichtet werden - keine Abmeldung möglich!
+</div>
+
             <!-- System Information -->
             <div class="section">
                 <h3 class="section-title">⚙️ System Information</h3>
