@@ -245,72 +245,6 @@ function authenticateAdmin(req, res, next) {
 }
 
 // API Endpoints
-// Fügen Sie diesen Code in Ihre server.js nach dem /api/admin/stats Endpoint hinzu:
-
-// List license keys with pagination (Admin only)
-app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
-    const { page = 1, limit = 50 } = req.body;
-    
-    // Validate pagination parameters
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-    const offset = (pageNum - 1) * limitNum;
-    
-    try {
-        let keys, totalCount;
-        
-        if (isPostgreSQL) {
-            // PostgreSQL queries
-            const keysResult = await db.query(`
-                SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       is_active, usage_count, expires_at, created_by
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT $1 OFFSET $2
-            `, [limitNum, offset]);
-            
-            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows;
-            totalCount = parseInt(countResult.rows[0].count);
-            
-        } else {
-            // SQLite queries
-            const keysResult = await dbQuery(`
-                SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       is_active, usage_count, expires_at, created_by
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
-            `, [limitNum, offset]);
-            
-            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows || [];
-            totalCount = parseInt(countResult.rows?.[0]?.count || 0);
-        }
-        
-        // Calculate pagination info
-        const totalPages = Math.ceil(totalCount / limitNum);
-        
-        res.json({
-            success: true,
-            keys: keys,
-            pagination: {
-                page: pageNum,
-                limit: limitNum,
-                total: totalCount,
-                pages: totalPages,
-                hasNext: pageNum < totalPages,
-                hasPrev: pageNum > 1
-            }
-        });
-        
-    } catch (error) {
-        console.error('Keys listing error:', error);
-        res.status(500).json({ error: 'Failed to fetch keys' });
-    }
-});
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -557,6 +491,71 @@ app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error('Stats error:', error);
         res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// List license keys with pagination (Admin only)
+app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
+    const { page = 1, limit = 50 } = req.body;
+    
+    // Validate pagination parameters
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageNum - 1) * limitNum;
+    
+    try {
+        let keys, totalCount;
+        
+        if (isPostgreSQL) {
+            // PostgreSQL queries
+            const keysResult = await db.query(`
+                SELECT id, key_code, created_at, activated_at, activated_ip, 
+                       is_active, usage_count, expires_at, created_by
+                FROM license_keys 
+                ORDER BY created_at DESC 
+                LIMIT $1 OFFSET $2
+            `, [limitNum, offset]);
+            
+            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
+            
+            keys = keysResult.rows;
+            totalCount = parseInt(countResult.rows[0].count);
+            
+        } else {
+            // SQLite queries
+            const keysResult = await dbQuery(`
+                SELECT id, key_code, created_at, activated_at, activated_ip, 
+                       is_active, usage_count, expires_at, created_by
+                FROM license_keys 
+                ORDER BY created_at DESC 
+                LIMIT ? OFFSET ?
+            `, [limitNum, offset]);
+            
+            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
+            
+            keys = keysResult.rows || [];
+            totalCount = parseInt(countResult.rows?.[0]?.count || 0);
+        }
+        
+        // Calculate pagination info
+        const totalPages = Math.ceil(totalCount / limitNum);
+        
+        res.json({
+            success: true,
+            keys: keys,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total: totalCount,
+                pages: totalPages,
+                hasNext: pageNum < totalPages,
+                hasPrev: pageNum > 1
+            }
+        });
+        
+    } catch (error) {
+        console.error('Keys listing error:', error);
+        res.status(500).json({ error: 'Failed to fetch keys' });
     }
 });
 
