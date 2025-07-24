@@ -43,26 +43,284 @@ const authLimiter = rateLimit({
 });
 */
 
-// Database Setup
-const db = new sqlite3.Database('./secret_messages.db');
+// Database Setup - FINAL FIX for Railway PostgreSQL
+let db;
+let isPostgreSQL = false;
 
-// Initialize Database Tables
-db.serialize(() => {
+const initializeDatabase = async () => {
+    console.log('🔧 Initializing Database...');
+    
+    // Check if we have Railway PostgreSQL
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql')) {
+        console.log('📡 Railway PostgreSQL detected');
+        isPostgreSQL = true;
+        
+        try {
+            const { Pool } = require('pg');
+            db = new Pool({
+                connectionString: process.env.DATABASE_URL,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 5000,
+                idleTimeoutMillis: 30000,
+                max: 10
+            });
+            
+            // Test connection
+            console.log('🔗 Testing PostgreSQL connection...');
+            await db.query('SELECT NOW()');
+            console.log('✅ PostgreSQL connection successful!');
+            
+            // Create all tables
+            await createPostgreSQLTables();
+            await insertDemoKeysPostgreSQL();
+            
+            console.log('🎉 PostgreSQL setup completed successfully!');
+            
+        } catch (error) {
+            console.error('❌ PostgreSQL failed:', error.message);
+            console.log('🔄 Falling back to SQLite...');
+            setupSQLiteDatabase();
+        }
+    } else {
+        console.log('📁 Using SQLite (local development)');
+        setupSQLiteDatabase();
+    }
+};
+
+const createPostgreSQLTables = async () => {
+    console.log('🏗️ Creating PostgreSQL tables...');
+    
     // License Keys Table
-    db.run(`CREATE TABLE IF NOT EXISTS license_keys (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key_code TEXT UNIQUE NOT NULL,
-        key_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        activated_at DATETIME NULL,
-        activated_ip TEXT NULL,
-        device_fingerprint TEXT NULL,
-        is_active BOOLEAN DEFAULT 0,
-        usage_count INTEGER DEFAULT 0,
-        max_usage INTEGER DEFAULT 1,
-        expires_at DATETIME NULL,
-        metadata TEXT NULL
-    )`);
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS license_keys (
+            id SERIAL PRIMARY KEY,
+            key_code VARCHAR(17) UNIQUE NOT NULL,
+            key_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            activated_at TIMESTAMP NULL,
+            activated_ip VARCHAR(45) NULL,
+            device_fingerprint VARCHAR(255) NULL,
+            is_active BOOLEAN DEFAULT FALSE,
+            usage_count INTEGER DEFAULT 0,
+            max_usage INTEGER DEFAULT 1,
+            expires_at TIMESTAMP NULL,
+            metadata TEXT NULL,
+            created_by VARCHAR(100) DEFAULT 'system'
+        )
+    `);
+    console.log('✅ license_keys table ready');
+    
+    // Auth Sessions Table
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            id SERIAL PRIMARY KEY,
+            session_token VARCHAR(500) UNIQUE NOT NULL,
+            key_id INTEGER REFERENCES license_keys(id) ON DELETE CASCADE,
+            ip_address VARCHAR(45) NOT NULL,
+            device_fingerprint VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE,
+            last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    console.log('✅ auth_sessions table ready');
+    
+    // Usage Logs Table
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS usage_logs (
+            id SERIAL PRIMARY KEY,
+            key_id INTEGER REFERENCES license_keys(id) ON DELETE CASCADE,
+            session_id INTEGER REFERENCES auth_sessions(id) ON DELETE SET NULL,
+            action VARCHAR(100) NOT NULL,
+            ip_address VARCHAR(45) NOT NULL,
+            user_agent TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata TEXT
+        )
+    `);
+    console.log('✅ usage_logs table ready');
+    
+    // Payments Table
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            stripe_payment_id VARCHAR(255) UNIQUE,
+            key_id INTEGER REFERENCES license_keys(id) ON DELETE CASCADE,
+            amount DECIMAL(10,2) NOT NULL,
+            currency VARCHAR(3) DEFAULT 'EUR',
+            status VARCHAR(50) NOT NULL,
+            payment_method VARCHAR(100),
+            customer_email VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP NULL,
+            metadata TEXT
+        )
+    `);
+    console.log('✅ payments table ready');
+    
+    // Create indexes
+    const indexes = [
+        'CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)',
+        'CREATE INDEX IF NOT EXISTS idx_license_keys_active ON license_keys(is_active)',
+        'CREATE INDEX IF NOT EXISTS idx_license_keys_fingerprint ON license_keys(device_fingerprint)',
+        'CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(session_token)',
+        'CREATE INDEX IF NOT EXISTS idx_auth_sessions_key_id ON auth_sessions(key_id)'
+    ];
+    
+    for (const indexQuery of indexes) {
+        await db.query(indexQuery);
+    }
+    console.log('✅ Indexes created');
+};
+
+const insertDemoKeysPostgreSQL = async () => {
+    console.log('🔑 Checking for demo keys...');
+    
+    try {
+        const result = await db.query('SELECT COUNT(*) FROM license_keys');
+        const keyCount = parseInt(result.rows[0].count);
+        
+        if (keyCount === 0) {
+            console.log('📝 Inserting demo keys...');
+            
+            const demoKeys = [
+                ['SM001-ALPHA-BETA1', '$2b$10$E1l7eU5lGGn6c6KJxL0pAeJQKqFhGjWKz8YvI0pUfBdMjFsU2xMzm'],
+                ['SM002-GAMMA-DELT2', '$2b$10$F2m8fV6mHHo7d7LKyM1qBfKRLrGiHkXLz9ZwJ1qVgCeNkGtV3yN0n'],
+                ['SM003-ECHO-FOXTR3', '$2b$10$G3n9gW7nIIp8e8MLzN2rCgLSMsHjIlYMz0AxK2rWhDfOlHuW4zO1o'],
+                ['SM004-HOTEL-INDI4', '$2b$10$H4o0hX8oJJq9f9NM0O3sDhMTNtIkJmZNz1ByL3sXiEgPmIvX5zP2p'],
+                ['SM005-JULIET-KILO5', '$2b$10$I5p1iY9pKKr0g0ON1P4tEiNUOuJlKnaPz2CzM4tYjFhQnJwY6zQ3q']
+            ];
+            
+            for (const [keyCode, keyHash] of demoKeys) {
+                await db.query(
+                    'INSERT INTO license_keys (key_code, key_hash, created_by, is_active) VALUES ($1, $2, $3, $4)',
+                    [keyCode, keyHash, 'demo', false]
+                );
+            }
+            
+            console.log(`✅ ${demoKeys.length} demo keys inserted successfully!`);
+            console.log('🧪 Test with: SM001-ALPHA-BETA1');
+        } else {
+            console.log(`✅ Found ${keyCount} existing keys, skipping demo insertion`);
+        }
+    } catch (error) {
+        console.log('⚠️ Demo key insertion info:', error.message);
+    }
+};
+
+const setupSQLiteDatabase = () => {
+    console.log('📁 Setting up SQLite fallback...');
+    isPostgreSQL = false;
+    
+    const sqlite3 = require('sqlite3').verbose();
+    db = new sqlite3.Database('./secret_messages.db');
+    
+    db.serialize(() => {
+        // License Keys Table
+        db.run(`CREATE TABLE IF NOT EXISTS license_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_code TEXT UNIQUE NOT NULL,
+            key_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            activated_at DATETIME NULL,
+            activated_ip TEXT NULL,
+            device_fingerprint TEXT NULL,
+            is_active BOOLEAN DEFAULT 0,
+            usage_count INTEGER DEFAULT 0,
+            max_usage INTEGER DEFAULT 1,
+            expires_at DATETIME NULL,
+            metadata TEXT NULL
+        )`);
+        
+        // Auth Sessions Table
+        db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_token TEXT UNIQUE NOT NULL,
+            key_id INTEGER NOT NULL,
+            ip_address TEXT NOT NULL,
+            device_fingerprint TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            is_active BOOLEAN DEFAULT 1,
+            FOREIGN KEY (key_id) REFERENCES license_keys (id)
+        )`);
+        
+        // Usage Logs Table
+        db.run(`CREATE TABLE IF NOT EXISTS usage_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_id INTEGER NOT NULL,
+            session_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            ip_address TEXT NOT NULL,
+            user_agent TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            metadata TEXT NULL,
+            FOREIGN KEY (key_id) REFERENCES license_keys (id),
+            FOREIGN KEY (session_id) REFERENCES auth_sessions (id)
+        )`);
+        
+        // Payments Table
+        db.run(`CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payment_id TEXT UNIQUE NOT NULL,
+            key_id INTEGER NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            currency TEXT DEFAULT 'EUR',
+            status TEXT NOT NULL,
+            payment_method TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME NULL,
+            metadata TEXT NULL,
+            FOREIGN KEY (key_id) REFERENCES license_keys (id)
+        )`);
+        
+        // Insert demo keys for SQLite
+        const bcrypt = require('bcrypt');
+        const demoKeys = [
+            'SM001-ALPHA-BETA1',
+            'SM002-GAMMA-DELT2',
+            'SM003-ECHO-FOXTR3',
+            'SM004-HOTEL-INDI4',
+            'SM005-JULIET-KILO5'
+        ];
+        
+        demoKeys.forEach(keyCode => {
+            const keyHash = bcrypt.hashSync(keyCode.split('-')[2], 10);
+            db.run(
+                'INSERT OR IGNORE INTO license_keys (key_code, key_hash, created_by) VALUES (?, ?, ?)',
+                [keyCode, keyHash, 'demo']
+            );
+        });
+        
+        console.log('✅ SQLite tables and demo keys ready');
+    });
+};
+
+// Database query helper function
+const dbQuery = (query, params = []) => {
+    if (isPostgreSQL) {
+        return db.query(query, params);
+    } else {
+        return new Promise((resolve, reject) => {
+            if (query.toLowerCase().includes('select')) {
+                db.get(query, params, (err, row) => {
+                    if (err) reject(err);
+                    else resolve({ rows: row ? [row] : [] });
+                });
+            } else {
+                db.run(query, params, function(err) {
+                    if (err) reject(err);
+                    else resolve({ lastID: this.lastID, changes: this.changes });
+                });
+            }
+        });
+    }
+};
+
+// Initialize database when server starts
+initializeDatabase();
 
     // Authentication Sessions Table
     db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
