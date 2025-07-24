@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Secret Messages - Matrix Encryption System</title>
+    <title>🔐 Secret Messages - Cyber Encryption System</title>
     <style>
         * {
             margin: 0;
@@ -15,8 +15,8 @@
             font-family: 'Courier New', monospace;
             background: #000;
             color: #00ff41;
-            min-height: 100vh;
-            overflow-x: hidden;
+            overflow: hidden;
+            position: relative;
         }
 
         /* Matrix Background */
@@ -27,270 +27,197 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.15;
+            opacity: 0.3;
+        }
+
+        /* Container Styles */
+        .container {
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
         }
 
         /* Login Screen */
         .login-screen {
+            display: block;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
-            z-index: 1;
         }
 
         .login-container {
-            background: rgba(0, 20, 0, 0.95);
-            border: 3px solid #00ff41;
-            border-radius: 20px;
-            padding: 50px 40px;
-            max-width: 600px;
-            width: 90%;
-            box-shadow: 
-                0 0 50px rgba(0, 255, 65, 0.4),
-                inset 0 0 50px rgba(0, 255, 65, 0.1);
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ff41;
+            border-radius: 15px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 0 50px rgba(0, 255, 65, 0.3);
             text-align: center;
-            position: relative;
-        }
-
-        .login-container::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(45deg, #00ff41, #00cc33, #00ff41);
-            border-radius: 20px;
-            z-index: -1;
-            animation: borderGlow 3s ease-in-out infinite alternate;
-        }
-
-        @keyframes borderGlow {
-            0% { opacity: 0.5; }
-            100% { opacity: 1; }
         }
 
         .login-title {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: bold;
-            margin-bottom: 15px;
-            text-shadow: 
-                0 0 10px #00ff41,
-                0 0 20px #00ff41,
-                0 0 30px #00ff41;
-            animation: titlePulse 2s ease-in-out infinite alternate;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff41;
+            animation: glow 2s ease-in-out infinite alternate;
         }
 
-        @keyframes titlePulse {
-            0% { 
-                text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
-                transform: scale(1);
-            }
-            100% { 
-                text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41;
-                transform: scale(1.02);
-            }
+        @keyframes glow {
+            from { text-shadow: 0 0 20px #00ff41; }
+            to { text-shadow: 0 0 30px #00ff41, 0 0 40px #00ff41; }
         }
 
         .login-subtitle {
             color: #00cc33;
-            margin-bottom: 40px;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            text-shadow: 0 0 5px #00cc33;
-        }
-
-        .key-input-group {
             margin-bottom: 30px;
-        }
-
-        .key-label {
-            display: block;
-            margin-bottom: 15px;
             font-size: 1rem;
-            font-weight: bold;
-            color: #00ff41;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            line-height: 1.6;
         }
 
-        .key-input {
+        .license-input {
             width: 100%;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
             border: 2px solid #00ff41;
-            border-radius: 12px;
-            color: #00ff41;
-            font-family: 'Courier New', monospace;
-            font-size: 1.4rem;
-            text-align: center;
-            letter-spacing: 3px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
-
-        .key-input:focus {
-            outline: none;
-            box-shadow: 
-                0 0 20px rgba(0, 255, 65, 0.6),
-                inset 0 0 20px rgba(0, 255, 65, 0.1);
-            background: rgba(0, 0, 0, 1);
-            border-color: #00ff41;
-            transform: scale(1.02);
-        }
-
-        .login-btn {
-            width: 100%;
-            padding: 20px;
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
-            border: 3px solid #00ff41;
-            border-radius: 12px;
+            border-radius: 8px;
             color: #00ff41;
             font-family: 'Courier New', monospace;
             font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .license-input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .activate-btn, .demo-keys-btn {
+            width: 100%;
+            padding: 15px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
+            margin-bottom: 15px;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            position: relative;
-            overflow: hidden;
         }
 
-        .login-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
+        .activate-btn:hover, .demo-keys-btn:hover {
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            transform: translateY(-2px);
         }
 
-        .login-btn:hover::before {
-            left: 100%;
+        .demo-keys-btn {
+            background: rgba(255, 255, 0, 0.1);
+            border-color: #ffff41;
+            color: #ffff41;
         }
 
-        .login-btn:hover {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
-            box-shadow: 
-                0 0 30px rgba(0, 255, 65, 0.7),
-                0 0 60px rgba(0, 255, 65, 0.3);
-            transform: translateY(-3px);
+        .demo-keys-btn:hover {
+            background: rgba(255, 255, 0, 0.2);
+            box-shadow: 0 0 20px rgba(255, 255, 65, 0.5);
         }
 
         .login-status {
-            margin-top: 25px;
-            padding: 15px;
-            border-radius: 8px;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
             font-weight: bold;
-            min-height: 25px;
-            transition: all 0.3s ease;
+            min-height: 20px;
         }
 
         .status-success {
             background: rgba(0, 255, 0, 0.2);
-            border: 2px solid #00ff00;
+            border: 1px solid #00ff00;
             color: #00ff00;
-            text-shadow: 0 0 10px #00ff00;
         }
 
         .status-error {
             background: rgba(255, 0, 0, 0.2);
-            border: 2px solid #ff4444;
+            border: 1px solid #ff4444;
             color: #ff4444;
-            text-shadow: 0 0 10px #ff4444;
         }
 
         .status-info {
             background: rgba(0, 255, 255, 0.2);
-            border: 2px solid #00ffff;
+            border: 1px solid #00ffff;
             color: #00ffff;
-            text-shadow: 0 0 10px #00ffff;
         }
 
-        .purchase-info {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #888;
-            border-top: 1px solid #333;
-            padding-top: 20px;
-        }
-
-        .purchase-link {
-            color: #00cc33;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
-
-        .purchase-link:hover {
-            color: #00ff41;
-            background: rgba(0, 255, 65, 0.1);
-            text-shadow: 0 0 5px #00ff41;
-        }
-
-        /* Main App Styles (hidden initially) */
-        .app-container {
+        /* Main App (Initially Hidden) */
+        .main-app {
             display: none;
-            max-width: 1000px;
-            margin: 0 auto;
+            min-height: 100vh;
             padding: 20px;
-            position: relative;
-            z-index: 1;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             position: relative;
-            padding: 30px;
-            background: rgba(0, 20, 0, 0.8);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
+        }
+
+        .app-title {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff41;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        .app-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 20px;
+            color: #00cc33;
         }
 
         .logout-btn {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            background: rgba(255, 0, 0, 0.2);
-            border: 2px solid #ff4444;
-            border-radius: 8px;
+            top: 0;
+            left: 0;
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff4444;
+            border-radius: 6px;
             color: #ff4444;
-            padding: 10px 20px;
-            font-size: 0.9rem;
+            padding: 8px 15px;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.3s ease;
             font-family: 'Courier New', monospace;
             text-transform: uppercase;
-            font-weight: bold;
         }
 
         .logout-btn:hover {
-            background: rgba(255, 0, 0, 0.3);
-            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
-            transform: scale(1.05);
+            background: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
         }
 
         .help-btn {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 45px;
-            height: 45px;
-            background: rgba(0, 255, 65, 0.2);
-            border: 2px solid #00ff41;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
             border-radius: 50%;
             color: #00ff41;
-            font-size: 1.4rem;
+            font-size: 1.2rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -301,211 +228,145 @@
         }
 
         .help-btn:hover {
-            background: rgba(0, 255, 65, 0.3);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
-            transform: scale(1.1) rotate(360deg);
-        }
-
-        .title {
-            font-size: 2.8rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-shadow: 
-                0 0 10px #00ff41,
-                0 0 20px #00ff41,
-                0 0 30px #00ff41;
-            animation: titleGlow 3s ease-in-out infinite alternate;
-        }
-
-        @keyframes titleGlow {
-            0% { text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41; }
-            100% { text-shadow: 0 0 15px #00ff41, 0 0 25px #00ff41, 0 0 35px #00ff41; }
-        }
-
-        .subtitle {
-            color: #00cc33;
-            font-size: 1.1rem;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            transform: scale(1.1);
         }
 
         /* Mode Switch */
         .mode-switch {
             display: flex;
             justify-content: center;
-            margin-bottom: 40px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            padding: 20px;
+            margin-bottom: 30px;
         }
 
         .mode-btn {
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.8);
             border: 2px solid #333;
             color: #666;
-            padding: 15px 40px;
+            padding: 12px 30px;
             font-family: 'Courier New', monospace;
-            font-size: 1rem;
-            font-weight: bold;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin: 0 10px;
-            border-radius: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            margin: 0 5px;
         }
 
         .mode-btn.active {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
+            background: rgba(0, 255, 65, 0.1);
             border-color: #00ff41;
             color: #00ff41;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
-            text-shadow: 0 0 10px #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
         }
 
         .mode-btn:hover {
-            background: rgba(0, 255, 65, 0.1);
+            background: rgba(0, 255, 65, 0.05);
             border-color: #00cc33;
             color: #00cc33;
-            transform: translateY(-2px);
         }
 
         /* Sections */
         .section {
-            background: rgba(0, 20, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 15px;
-            padding: 40px;
-            margin-bottom: 30px;
-            box-shadow: 
-                0 0 30px rgba(0, 255, 65, 0.2),
-                inset 0 0 30px rgba(0, 255, 65, 0.05);
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff41;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
         }
 
         .section-title {
-            font-size: 1.6rem;
-            margin-bottom: 30px;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
             text-align: center;
             color: #00ff41;
-            border-bottom: 2px solid #333;
-            padding-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px #00ff41;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
         }
 
         /* Input Groups */
         .input-group {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .input-label {
             display: block;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             color: #00cc33;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
         .input-field, .textarea-field {
             width: 100%;
-            padding: 15px;
+            padding: 12px;
             background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #00ff41;
-            border-radius: 8px;
+            border: 1px solid #00ff41;
+            border-radius: 5px;
             color: #00ff41;
             font-family: 'Courier New', monospace;
-            font-size: 1.1rem;
+            font-size: 1rem;
             transition: all 0.3s ease;
         }
 
         .textarea-field {
             resize: vertical;
-            min-height: 120px;
-            line-height: 1.6;
+            min-height: 100px;
         }
 
         .input-field:focus, .textarea-field:focus {
             outline: none;
-            box-shadow: 
-                0 0 15px rgba(0, 255, 65, 0.5),
-                inset 0 0 15px rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
             border-color: #00ff41;
-            background: rgba(0, 0, 0, 1);
         }
 
         /* Buttons */
         .btn {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 200, 50, 0.2));
+            background: rgba(0, 255, 65, 0.1);
             border: 2px solid #00ff41;
-            border-radius: 10px;
+            border-radius: 8px;
             color: #00ff41;
-            padding: 15px 30px;
+            padding: 12px 25px;
             font-family: 'Courier New', monospace;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 8px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn:hover::before {
-            left: 100%;
+            margin: 5px;
         }
 
         .btn:hover {
-            background: linear-gradient(45deg, rgba(0, 255, 65, 0.3), rgba(0, 200, 50, 0.3));
-            box-shadow: 0 0 25px rgba(0, 255, 65, 0.6);
-            transform: translateY(-3px);
-            text-shadow: 0 0 10px #00ff41;
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            transform: translateY(-2px);
         }
 
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
         }
 
         .btn-danger {
-            background: linear-gradient(45deg, rgba(255, 0, 0, 0.2), rgba(200, 0, 0, 0.2));
+            background: rgba(255, 0, 0, 0.1);
             border-color: #ff4444;
             color: #ff4444;
         }
 
         .btn-danger:hover {
-            background: linear-gradient(45deg, rgba(255, 0, 0, 0.3), rgba(200, 0, 0, 0.3));
-            box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
-            text-shadow: 0 0 10px #ff4444;
+            background: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
         }
 
         .btn-warning {
-            background: linear-gradient(45deg, rgba(255, 255, 0, 0.2), rgba(200, 200, 0, 0.2));
+            background: rgba(255, 255, 0, 0.1);
             border-color: #ffff41;
             color: #ffff41;
         }
 
         .btn-warning:hover {
-            background: linear-gradient(45deg, rgba(255, 255, 0, 0.3), rgba(200, 200, 0, 0.3));
-            box-shadow: 0 0 25px rgba(255, 255, 65, 0.6);
-            text-shadow: 0 0 10px #ffff41;
+            background: rgba(255, 255, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 255, 65, 0.5);
         }
 
         /* Button Groups */
@@ -513,7 +374,43 @@
             display: flex;
             justify-content: center;
             flex-wrap: wrap;
-            margin-top: 30px;
+            margin-top: 20px;
+        }
+
+        /* Loading Animation */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-radius: 50%;
+            border-top-color: #00ff41;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-animation {
+            animation: successPulse 0.6s ease-in-out;
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         /* Hidden elements */
@@ -521,17 +418,18 @@
 
         /* Responsive Design */
         @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
             .login-container {
-                padding: 30px 20px;
                 margin: 20px;
+                padding: 30px 20px;
             }
             
-            .login-title, .title {
-                font-size: 2rem;
-            }
-            
-            .section {
-                padding: 25px 20px;
+            .login-title, .app-title {
+                font-size: 1.8rem;
             }
             
             .mode-switch {
@@ -539,15 +437,11 @@
             }
             
             .mode-btn {
-                margin: 8px 0;
+                margin: 5px 0;
             }
             
             .button-group {
                 flex-direction: column;
-            }
-            
-            .btn {
-                margin: 5px 0;
             }
         }
     </style>
@@ -561,44 +455,44 @@
         <div class="login-container">
             <div class="login-title">🔐 SECRET MESSAGES</div>
             <div class="login-subtitle">
-                MATRIX CYBER ENCRYPTION SYSTEM<br>
                 Militärgrad AES-256 Verschlüsselung<br>
-                Das Backend validiert Ihren Key und bindet ihn sicher an Ihr Gerät.
+                Geben Sie Ihren Lizenz-Schlüssel ein
             </div>
             
-            <div class="key-input-group">
-                <label class="key-label">LIZENZ-KEY EINGEBEN:</label>
-                <input type="text" class="key-input" id="licenseKey" placeholder="XXXXX-XXXXX-XXXXX" maxlength="17" autocomplete="off">
-            </div>
+            <input type="text" 
+                   id="licenseKey" 
+                   class="license-input" 
+                   placeholder="XXXXX-XXXXX-XXXXX"
+                   maxlength="17"
+                   autocomplete="off">
             
-            <button class="login-btn" id="loginBtn">
-                <span id="loginBtnText">ZUGANG AKTIVIEREN</span>
+            <button class="activate-btn" id="activateBtn" onclick="activateLicense()">
+                <span id="activateBtnText">Lizenz Aktivieren</span>
+            </button>
+            
+            <button class="demo-keys-btn" id="demoKeysBtn" onclick="showDemoKeys()">
+                🧪 Demo-Keys anzeigen
             </button>
             
             <div class="login-status" id="loginStatus"></div>
-            
-            <div class="purchase-info">
-                Backend-Demo aktiv | 
-                <a href="/admin" class="purchase-link" target="_blank">Admin Panel</a> | 
-                <a href="#" class="purchase-link" id="showDemoKeysLink">Demo Keys anzeigen</a>
-            </div>
         </div>
     </div>
-    
-    <!-- Main Application (hidden initially) -->
-    <div id="mainApp" class="app-container">
+
+    <!-- Main Application (Hidden Initially) -->
+    <div class="main-app" id="mainApp">
         <div class="header">
-            <button class="logout-btn" id="logoutBtn">Abmelden</button>
-            <button class="help-btn" id="helpBtn">?</button>
-            <h1 class="title">SECRET MESSAGES</h1>
-            <p class="subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
+            <button class="logout-btn" id="logoutBtn" onclick="logout()">Abmelden</button>
+            <button class="help-btn" id="helpBtn" onclick="showHelp()">?</button>
+            <h1 class="app-title">SECRET MESSAGES</h1>
+            <p class="app-subtitle">CYBER ENCRYPTION SYSTEM v13.0 - AES + 5x CUSTOM SECURITY</p>
         </div>
-        
+
+        <!-- Mode Switch -->
         <div class="mode-switch">
-            <button class="mode-btn active" id="encryptModeBtn">VERSCHLÜSSELN</button>
-            <button class="mode-btn" id="decryptModeBtn">ENTSCHLÜSSELN</button>
+            <button class="mode-btn active" id="encryptModeBtn" onclick="switchMode('encrypt')">VERSCHLÜSSELN</button>
+            <button class="mode-btn" id="decryptModeBtn" onclick="switchMode('decrypt')">ENTSCHLÜSSELN</button>
         </div>
-        
+
         <!-- Encryption Section -->
         <div class="section" id="encryptSection">
             <div class="section-title">🔐 NACHRICHT VERSCHLÜSSELN</div>
@@ -614,7 +508,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn" id="encryptBtn">🔐 Verschlüsseln</button>
+                <button class="btn" id="encryptBtn" onclick="encryptMessage()">🔐 Verschlüsseln</button>
             </div>
             
             <div class="input-group">
@@ -623,7 +517,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyEncryptedBtn">📋 Kopieren</button>
+                <button class="btn btn-warning" id="copyEncryptedBtn" onclick="copyToClipboard('encryptedOutput')">📋 Kopieren</button>
             </div>
         </div>
 
@@ -642,7 +536,7 @@
             </div>
             
             <div class="button-group">
-                <button class="btn" id="decryptBtn">🔓 Entschlüsseln</button>
+                <button class="btn" id="decryptBtn" onclick="decryptMessage()">🔓 Entschlüsseln</button>
             </div>
             
             <div class="input-group">
@@ -651,73 +545,733 @@
             </div>
             
             <div class="button-group">
-                <button class="btn btn-warning" id="copyDecryptedBtn">📋 Kopieren</button>
+                <button class="btn btn-warning" id="copyDecryptedBtn" onclick="copyToClipboard('decryptedOutput')">📋 Kopieren</button>
             </div>
         </div>
 
-        <!-- Control Section -->
+        <!-- Control Buttons -->
         <div class="section">
             <div class="button-group">
-                <button class="btn btn-danger" id="clearBtn">🗑️ Alles Löschen</button>
-                <button class="btn btn-danger" id="destroyBtn">💣 Key Vernichten</button>
+                <button class="btn btn-danger" id="clearBtn" onclick="clearAll()">🗑️ Alles Löschen</button>
+                <button class="btn btn-warning" id="destroyBtn" onclick="destroyKey()">💣 Key Vernichten</button>
             </div>
         </div>
     </div>
 
-    <!-- Include External JavaScript -->
     <script>
+        // Global Variables
+        let userToken = null;
+        let isConnected = false;
+        let currentMode = 'encrypt';
+
         // Matrix Rain Animation
         function initMatrixRain() {
             const canvas = document.getElementById('matrixCanvas');
+            if (!canvas) return;
+            
             const ctx = canvas.getContext('2d');
             
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            // Set canvas size
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resizeCanvas();
             
+            // Matrix characters
             const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
             const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             const nums = '0123456789';
             const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
             const alphabet = katakana + latin + nums + symbols;
             
-            const fontSize = 14;
-            const columns = canvas.width / fontSize;
+            const fontSize = 16;
+            const columns = Math.floor(canvas.width / fontSize);
             
             const rainDrops = [];
             
+            // Initialize rain drops
             for(let x = 0; x < columns; x++) {
-                rainDrops[x] = Math.random() * canvas.height / fontSize;
+                rainDrops[x] = Math.random() * -100;
             }
             
             function draw() {
+                // Black background with fade effect
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
+                // Set text properties
                 ctx.fillStyle = '#00ff41';
                 ctx.font = fontSize + 'px monospace';
                 
+                // Draw falling characters
                 for(let i = 0; i < rainDrops.length; i++) {
                     const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-                    ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+                    const x = i * fontSize;
+                    const y = rainDrops[i] * fontSize;
                     
-                    if(rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    ctx.fillText(text, x, y);
+                    
+                    // Reset drop when it goes off screen
+                    if(y > canvas.height && Math.random() > 0.975) {
                         rainDrops[i] = 0;
                     }
                     rainDrops[i]++;
                 }
             }
             
-            setInterval(draw, 35);
+            // Start animation
+            const animationId = setInterval(draw, 35);
             
-            window.addEventListener('resize', () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            });
+            // Handle window resize
+            window.addEventListener('resize', resizeCanvas);
+            
+            return animationId;
         }
-        
-        // Initialize matrix rain on page load
-        initMatrixRain();
+
+        // Server Connection Check
+        async function checkServerConnection() {
+            try {
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    timeout: 5000
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        isConnected = true;
+                        console.log('✅ Server connection established');
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ Server connection failed, using offline mode');
+            }
+            isConnected = false;
+            return false;
+        }
+
+        // License Key aktivieren
+        async function activateLicense() {
+            const licenseKey = document.getElementById('licenseKey').value.trim();
+            const activateBtn = document.getElementById('activateBtn');
+            const activateBtnText = document.getElementById('activateBtnText');
+            
+            if (!licenseKey) {
+                showError('Bitte geben Sie einen License Key ein');
+                return;
+            }
+            
+            // Validate format
+            const keyPattern = /^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/;
+            if (!keyPattern.test(licenseKey)) {
+                showError('Ungültiges License Key Format. Verwenden Sie: XXXXX-XXXXX-XXXXX');
+                return;
+            }
+            
+            // Loading state
+            const originalText = activateBtnText ? activateBtnText.textContent : '';
+            if (activateBtnText) activateBtnText.textContent = 'AKTIVIERE...';
+            if (activateBtn) activateBtn.disabled = true;
+            
+            try {
+                if (isConnected) {
+                    // Try server activation
+                    const response = await fetch('/api/auth/activate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ licenseKey })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        userToken = result.token;
+                        showSuccess('✅ ' + result.message);
+                        await switchToMainApp();
+                        await logActivity('license_activated', { keyId: result.keyId });
+                    } else {
+                        showError('❌ ' + result.error);
+                    }
+                } else {
+                    // Offline demo mode
+                    const demoKeys = [
+                        'SM001-ALPHA-BETA1',
+                        'SM002-GAMMA-DELT2',
+                        'SM003-OMEGA-ZETA3',
+                        'DEMO1-12345-ABCDE',
+                        'TEST1-99999-ZZZZZ'
+                    ];
+                    
+                    if (demoKeys.includes(licenseKey)) {
+                        userToken = 'demo-token-' + Date.now();
+                        showSuccess('✅ Demo-Modus aktiviert');
+                        await switchToMainApp();
+                    } else {
+                        showError('❌ Ungültiger License Key (Demo-Modus)');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Activation error:', error);
+                showError('❌ Verbindungsfehler: ' + error.message);
+            } finally {
+                if (activateBtnText) activateBtnText.textContent = originalText;
+                if (activateBtn) activateBtn.disabled = false;
+            }
+        }
+
+        // Demo Keys anzeigen
+        function showDemoKeys() {
+            const licenseInput = document.getElementById('licenseKey');
+            if (licenseInput) {
+                const demoKeys = [
+                    'SM001-ALPHA-BETA1',
+                    'SM002-GAMMA-DELT2',
+                    'SM003-OMEGA-ZETA3',
+                    'DEMO1-12345-ABCDE',
+                    'TEST1-99999-ZZZZZ'
+                ];
+                
+                const randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
+                licenseInput.value = randomKey;
+                licenseInput.classList.add('success-animation');
+                
+                setTimeout(() => {
+                    licenseInput.classList.remove('success-animation');
+                }, 600);
+                
+                showInfo('ℹ️ Demo Key eingefügt. Klicken Sie "Lizenz Aktivieren" zum Testen.');
+            }
+        }
+
+        // Switch to main app
+        async function switchToMainApp() {
+            const loginScreen = document.getElementById('loginScreen');
+            const mainApp = document.getElementById('mainApp');
+            
+            if (loginScreen) {
+                loginScreen.style.display = 'none';
+            }
+            
+            if (mainApp) {
+                mainApp.style.display = 'block';
+                mainApp.classList.add('fade-in');
+            }
+            
+            // Initialize default mode
+            switchMode('encrypt');
+        }
+
+        // Mode Switch
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            const encryptModeBtn = document.getElementById('encryptModeBtn');
+            const decryptModeBtn = document.getElementById('decryptModeBtn');
+            const encryptSection = document.getElementById('encryptSection');
+            const decryptSection = document.getElementById('decryptSection');
+            
+            // Update button states
+            if (encryptModeBtn && decryptModeBtn) {
+                encryptModeBtn.classList.toggle('active', mode === 'encrypt');
+                decryptModeBtn.classList.toggle('active', mode === 'decrypt');
+            }
+            
+            // Show/hide sections
+            if (encryptSection && decryptSection) {
+                if (mode === 'encrypt') {
+                    encryptSection.classList.remove('hidden');
+                    decryptSection.classList.add('hidden');
+                } else {
+                    encryptSection.classList.add('hidden');
+                    decryptSection.classList.remove('hidden');
+                }
+            }
+            
+            logActivity('mode_switched', { mode });
+        }
+
+        // Nachricht verschlüsseln
+        async function encryptMessage() {
+            const message = document.getElementById('messageInput').value.trim();
+            const code = document.getElementById('encryptCodeInput').value.trim();
+            const output = document.getElementById('encryptedOutput');
+            const encryptBtn = document.getElementById('encryptBtn');
+            
+            if (!message) {
+                showError('Bitte geben Sie eine Nachricht ein');
+                return;
+            }
+            
+            if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
+                showError('Bitte geben Sie einen 5-stelligen numerischen Code ein');
+                return;
+            }
+            
+            if (!userToken) {
+                showError('Bitte aktivieren Sie zuerst einen License Key');
+                return;
+            }
+            
+            // Loading state
+            const originalText = encryptBtn ? encryptBtn.textContent : '';
+            if (encryptBtn) {
+                encryptBtn.textContent = '🔐 VERSCHLÜSSELE...';
+                encryptBtn.disabled = true;
+            }
+            
+            try {
+                // Perform encryption
+                const encrypted = performEncryption(message, code);
+                
+                if (output) {
+                    output.value = encrypted;
+                }
+                
+                showSuccess('✅ Nachricht erfolgreich verschlüsselt');
+                
+                // Log activity
+                await logActivity('message_encrypted', { 
+                    messageLength: message.length,
+                    codeUsed: code.substring(0, 2) + '***'
+                });
+                
+            } catch (error) {
+                console.error('Encryption error:', error);
+                showError('❌ Verschlüsselungsfehler: ' + error.message);
+            } finally {
+                if (encryptBtn) {
+                    encryptBtn.textContent = originalText;
+                    encryptBtn.disabled = false;
+                }
+            }
+        }
+
+        // Nachricht entschlüsseln
+        async function decryptMessage() {
+            const encryptedText = document.getElementById('encryptedInput').value.trim();
+            const code = document.getElementById('decryptCodeInput').value.trim();
+            const output = document.getElementById('decryptedOutput');
+            const decryptBtn = document.getElementById('decryptBtn');
+            
+            if (!encryptedText) {
+                showError('Bitte geben Sie verschlüsselten Text ein');
+                return;
+            }
+            
+            if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
+                showError('Bitte geben Sie einen 5-stelligen numerischen Code ein');
+                return;
+            }
+            
+            if (!userToken) {
+                showError('Bitte aktivieren Sie zuerst einen License Key');
+                return;
+            }
+            
+            // Loading state
+            const originalText = decryptBtn ? decryptBtn.textContent : '';
+            if (decryptBtn) {
+                decryptBtn.textContent = '🔓 ENTSCHLÜSSELE...';
+                decryptBtn.disabled = true;
+            }
+            
+            try {
+                // Perform decryption
+                const decrypted = performDecryption(encryptedText, code);
+                
+                if (output) {
+                    output.value = decrypted;
+                }
+                
+                showSuccess('✅ Nachricht erfolgreich entschlüsselt');
+                
+                // Log activity
+                await logActivity('message_decrypted', { 
+                    encryptedLength: encryptedText.length,
+                    codeUsed: code.substring(0, 2) + '***'
+                });
+                
+            } catch (error) {
+                console.error('Decryption error:', error);
+                showError('❌ Entschlüsselungsfehler: Falscher Code oder beschädigter Text');
+            } finally {
+                if (decryptBtn) {
+                    decryptBtn.textContent = originalText;
+                    decryptBtn.disabled = false;
+                }
+            }
+        }
+
+        // Copy to clipboard
+        async function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element || !element.value) {
+                showError('Nichts zum Kopieren vorhanden');
+                return;
+            }
+            
+            try {
+                if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(element.value);
+                } else {
+                    // Fallback for older browsers
+                    element.select();
+                    document.execCommand('copy');
+                }
+                
+                showSuccess('✅ In Zwischenablage kopiert');
+                
+                // Visual feedback
+                element.classList.add('success-animation');
+                setTimeout(() => {
+                    element.classList.remove('success-animation');
+                }, 600);
+                
+                await logActivity('text_copied', { 
+                    elementId,
+                    textLength: element.value.length 
+                });
+                
+            } catch (error) {
+                console.error('Copy error:', error);
+                showError('❌ Kopieren fehlgeschlagen');
+            }
+        }
+
+        // Clear all fields
+        function clearAll() {
+            const fields = [
+                'messageInput',
+                'encryptCodeInput',
+                'encryptedOutput',
+                'encryptedInput',
+                'decryptCodeInput',
+                'decryptedOutput'
+            ];
+            
+            fields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.value = '';
+                }
+            });
+            
+            showInfo('🗑️ Alle Felder geleert');
+            logActivity('fields_cleared');
+        }
+
+        // Destroy key
+        async function destroyKey() {
+            if (!userToken) {
+                showError('Kein aktiver License Key vorhanden');
+                return;
+            }
+            
+            const confirmed = confirm('⚠️ WARNUNG: Dies wird Ihren License Key unwiderruflich vernichten!\n\nSind Sie sicher?');
+            
+            if (confirmed) {
+                try {
+                    userToken = null;
+                    showError('💣 License Key vernichtet!');
+                    
+                    setTimeout(() => {
+                        logout();
+                    }, 2000);
+                    
+                    await logActivity('key_destroyed');
+                    
+                } catch (error) {
+                    console.error('Destroy error:', error);
+                    showError('❌ Fehler bei der Vernichtung: ' + error.message);
+                }
+            }
+        }
+
+        // Logout
+        function logout() {
+            userToken = null;
+            
+            const loginScreen = document.getElementById('loginScreen');
+            const mainApp = document.getElementById('mainApp');
+            
+            if (mainApp) mainApp.style.display = 'none';
+            if (loginScreen) {
+                loginScreen.style.display = 'flex';
+                loginScreen.classList.add('fade-in');
+            }
+            
+            // Clear license input
+            const licenseInput = document.getElementById('licenseKey');
+            if (licenseInput) licenseInput.value = '';
+            
+            // Clear all fields
+            clearAll();
+            
+            showInfo('👋 Erfolgreich abgemeldet');
+            logActivity('user_logged_out');
+        }
+
+        // Show help
+        function showHelp() {
+            const helpText = `🔐 SECRET MESSAGES - HILFE
+
+VERSCHLÜSSELUNG:
+1. Geben Sie Ihre Nachricht ein
+2. Wählen Sie einen 5-stelligen Code (nur Zahlen)
+3. Klicken Sie "Verschlüsseln"
+4. Kopieren Sie den verschlüsselten Text
+
+ENTSCHLÜSSELUNG:
+1. Fügen Sie den verschlüsselten Text ein
+2. Geben Sie den exakt gleichen 5-stelligen Code ein
+3. Klicken Sie "Entschlüsseln"
+4. Kopieren Sie die entschlüsselte Nachricht
+
+DEMO KEYS:
+- SM001-ALPHA-BETA1
+- SM002-GAMMA-DELT2
+- SM003-OMEGA-ZETA3
+- DEMO1-12345-ABCDE
+- TEST1-99999-ZZZZZ`;
+            
+            alert(helpText);
+            logActivity('help_viewed');
+        }
+
+        // Status message functions
+        function showSuccess(message) {
+            showStatus(message, 'status-success');
+        }
+
+        function showError(message) {
+            showStatus(message, 'status-error');
+        }
+
+        function showInfo(message) {
+            showStatus(message, 'status-info');
+        }
+
+        function showStatus(message, className) {
+            const statusEl = document.getElementById('loginStatus');
+            if (statusEl) {
+                statusEl.textContent = message;
+                statusEl.className = 'login-status ' + className;
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    if (statusEl.textContent === message) {
+                        statusEl.textContent = '';
+                        statusEl.className = 'login-status';
+                    }
+                }, 5000);
+            }
+        }
+
+        // Activity logging
+        async function logActivity(action, metadata = {}) {
+            if (!isConnected || !userToken) return;
+            
+            try {
+                await fetch('/api/activity/log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userToken}`
+                    },
+                    body: JSON.stringify({
+                        action,
+                        metadata: {
+                            ...metadata,
+                            timestamp: new Date().toISOString(),
+                            userAgent: navigator.userAgent
+                        }
+                    })
+                });
+            } catch (error) {
+                console.warn('Activity logging failed:', error);
+            }
+        }
+
+        // Encryption Functions
+        function performEncryption(message, code) {
+            try {
+                // Convert message to bytes
+                const messageBytes = new TextEncoder().encode(message);
+                
+                // Generate key from code
+                const key = generateKey(code);
+                
+                // Perform multi-layer encryption
+                let encrypted = messageBytes;
+                
+                // Layer 1: XOR with generated key
+                encrypted = xorEncrypt(encrypted, key);
+                
+                // Layer 2: Shuffle bytes based on code
+                encrypted = shuffleBytes(encrypted, code);
+                
+                // Convert to base64
+                const base64 = btoa(String.fromCharCode.apply(null, encrypted));
+                
+                // Add checksum for integrity
+                const checksum = calculateChecksum(base64);
+                
+                return `SM_${checksum}_${base64}`;
+                
+            } catch (error) {
+                throw new Error('Verschlüsselung fehlgeschlagen: ' + error.message);
+            }
+        }
+
+        function performDecryption(encryptedText, code) {
+            try {
+                // Validate format
+                if (!encryptedText.startsWith('SM_')) {
+                    throw new Error('Ungültiges Format');
+                }
+                
+                // Extract parts
+                const parts = encryptedText.split('_');
+                if (parts.length !== 3) {
+                    throw new Error('Ungültiges Format');
+                }
+                
+                const [, checksum, base64] = parts;
+                
+                // Verify checksum
+                if (calculateChecksum(base64) !== checksum) {
+                    throw new Error('Daten beschädigt');
+                }
+                
+                // Decode from base64
+                const encrypted = new Uint8Array(
+                    atob(base64).split('').map(char => char.charCodeAt(0))
+                );
+                
+                // Generate key from code
+                const key = generateKey(code);
+                
+                // Reverse multi-layer encryption
+                let decrypted = encrypted;
+                
+                // Reverse Layer 2: Unshuffle bytes
+                decrypted = unshuffleBytes(decrypted, code);
+                
+                // Reverse Layer 1: XOR with generated key
+                decrypted = xorDecrypt(decrypted, key);
+                
+                // Convert back to string
+                return new TextDecoder().decode(decrypted);
+                
+            } catch (error) {
+                throw new Error('Entschlüsselung fehlgeschlagen: ' + error.message);
+            }
+        }
+
+        // Helper functions for encryption
+        function generateKey(code) {
+            const key = new Uint8Array(32);
+            const codeNum = parseInt(code);
+            
+            for (let i = 0; i < 32; i++) {
+                key[i] = ((codeNum * (i + 1) * 7) + (codeNum >> (i % 8))) % 256;
+            }
+            
+            return key;
+        }
+
+        function xorEncrypt(data, key) {
+            const result = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                result[i] = data[i] ^ key[i % key.length];
+            }
+            return result;
+        }
+
+        function xorDecrypt(data, key) {
+            return xorEncrypt(data, key);
+        }
+
+        function shuffleBytes(data, code) {
+            const result = new Uint8Array(data);
+            const codeNum = parseInt(code);
+            
+            for (let i = result.length - 1; i > 0; i--) {
+                const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            
+            return result;
+        }
+
+        function unshuffleBytes(data, code) {
+            const result = new Uint8Array(data);
+            const codeNum = parseInt(code);
+            
+            for (let i = 1; i < result.length; i++) {
+                const j = ((i * codeNum * 73) + (i * 19)) % (i + 1);
+                [result[i], result[j]] = [result[j], result[i]];
+            }
+            
+            return result;
+        }
+
+        function calculateChecksum(data) {
+            let checksum = 0;
+            for (let i = 0; i < data.length; i++) {
+                checksum = ((checksum << 5) - checksum + data.charCodeAt(i)) & 0xFFFF;
+            }
+            return checksum.toString(16).padStart(4, '0').toUpperCase();
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Secret Messages App Loading...');
+            
+            // Initialize matrix rain effect
+            initMatrixRain();
+            
+            // Check server connection
+            checkServerConnection();
+            
+            // Setup keyboard shortcuts
+            document.getElementById('licenseKey').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    activateLicense();
+                }
+            });
+            
+            // Auto-format license key input
+            document.getElementById('licenseKey').addEventListener('input', function(e) {
+                let value = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase();
+                if (value.length > 5) {
+                    value = value.substring(0, 5) + '-' + value.substring(5);
+                }
+                if (value.length > 11) {
+                    value = value.substring(0, 11) + '-' + value.substring(11);
+                }
+                if (value.length > 17) {
+                    value = value.substring(0, 17);
+                }
+                e.target.value = value;
+            });
+            
+            // Setup code input restrictions
+            const codeInputs = ['encryptCodeInput', 'decryptCodeInput'];
+            codeInputs.forEach(inputId => {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.addEventListener('input', function(e) {
+                        e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                    });
+                }
+            });
+            
+            console.log('✅ Secret Messages App loaded successfully');
+        });
     </script>
-    <script src="app.js"></script>
 </body>
 </html>
