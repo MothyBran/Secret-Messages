@@ -97,10 +97,30 @@
 
         .login-subtitle {
             color: #00cc33;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
             font-size: 1.1rem;
             line-height: 1.8;
             text-shadow: 0 0 5px #00cc33;
+        }
+
+        .server-status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .server-status.online {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+        }
+
+        .server-status.offline {
+            background: rgba(255, 255, 0, 0.2);
+            border: 1px solid #ffff41;
+            color: #ffff41;
         }
 
         .key-input-group {
@@ -571,6 +591,10 @@
                 Das Backend validiert Ihren Key und bindet ihn sicher an Ihr Gerät.
             </div>
             
+            <div id="serverStatus" class="server-status">
+                🔍 Verbindung zum Backend-Server wird geprüft...
+            </div>
+            
             <div class="key-input-group">
                 <label class="key-label">LIZENZ-KEY EINGEBEN:</label>
                 <input type="text" class="key-input" id="licenseKey" placeholder="XXXXX-XXXXX-XXXXX" maxlength="17" autocomplete="off">
@@ -676,7 +700,7 @@
         var isAuthenticated = false;
         var currentMode = 'encrypt';
         var matrixInterval = null;
-        var API_BASE = '';
+        var serverOnline = false;
 
         // Matrix Rain Animation - WORKING VERSION
         function initMatrixRain() {
@@ -770,21 +794,85 @@
             return matrixInterval;
         }
 
-        // Check server status
-        function checkServerStatus() {
+        // Check server status - CORRECTED API COMMUNICATION
+        async function checkServerStatus() {
             console.log('🔍 Checking server status...');
-            fetch(API_BASE + '/api/health')
-                .then(function(response) {
-                    return response.json();
-                })
-                .then(function(data) {
-                    if (data.status === 'ok') {
-                        console.log('✅ Server is running');
+            try {
+                // Try to reach the backend health endpoint
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
                     }
-                })
-                .catch(function(error) {
-                    console.warn('⚠️ Server check failed:', error.message);
                 });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Server response:', data);
+                    
+                    if (data.status === 'ok') {
+                        serverOnline = true;
+                        showServerStatus('✅ Backend Server Online - Bereit für sichere Authentifizierung', 'online');
+                        await checkExistingAuth();
+                        return true;
+                    }
+                }
+                throw new Error('Server not ready');
+                
+            } catch (error) {
+                console.warn('⚠️ Server check failed:', error.message);
+                serverOnline = false;
+                showServerStatus('⚠️ Backend Server Offline - Demo-Modus verfügbar', 'offline');
+                return false;
+            }
+        }
+
+        function showServerStatus(message, status) {
+            var statusEl = document.getElementById('serverStatus');
+            if (statusEl) {
+                statusEl.innerHTML = message;
+                statusEl.className = 'server-status ' + status;
+            }
+        }
+
+        // Check existing authentication
+        async function checkExistingAuth() {
+            if (!serverOnline) return;
+            
+            var storedToken = localStorage.getItem('secretMessages_authToken');
+            var storedKeyId = localStorage.getItem('secretMessages_keyId');
+            
+            if (!storedToken || !storedKeyId) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/auth/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token: storedToken })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.valid) {
+                    authToken = storedToken;
+                    keyId = storedKeyId;
+                    isAuthenticated = true;
+                    showMainApp();
+                    logActivity('auto_login', { method: 'stored_token' });
+                } else {
+                    // Clear invalid tokens
+                    localStorage.removeItem('secretMessages_authToken');
+                    localStorage.removeItem('secretMessages_keyId');
+                }
+            } catch (error) {
+                console.error('Auth validation failed:', error);
+                localStorage.removeItem('secretMessages_authToken');
+                localStorage.removeItem('secretMessages_keyId');
+            }
         }
 
         // Show main app
@@ -796,7 +884,7 @@
             console.log('✅ Main app displayed');
         }
 
-        // Validate license key - WORKING VERSION
+        // Validate license key - CORRECTED FOR SERVER.JS COMPATIBILITY
         async function validateKey() {
             console.log('🔑 Validating license key...');
             var keyInput = document.getElementById('licenseKey');
@@ -823,7 +911,50 @@
             try {
                 console.log('🔍 Checking license key:', enteredKey);
                 
-                // Demo keys for testing
+                if (serverOnline) {
+                    // Try server validation first
+                    try {
+                        const response = await fetch('/api/auth/activate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ licenseKey: enteredKey })
+                        });
+                        
+                        const data = await response.json();
+                        console.log('🔍 Server response:', data);
+                        
+                        if (data.success && data.token) {
+                            authToken = data.token;
+                            keyId = data.keyId;
+                            isAuthenticated = true;
+                            
+                            // Store tokens for persistence
+                            localStorage.setItem('secretMessages_authToken', authToken);
+                            localStorage.setItem('secretMessages_keyId', keyId);
+                            
+                            showLoginStatus('✅ ' + data.message, 'success');
+                            console.log('✅ Server validation successful');
+                            
+                            setTimeout(function() {
+                                showMainApp();
+                            }, 1500);
+                            
+                            await logActivity('license_activated', { keyId: data.keyId });
+                            return;
+                        } else {
+                            console.warn('❌ Server validation failed:', data.error);
+                            showLoginStatus('❌ ' + (data.error || 'Server validation failed'), 'error');
+                            return;
+                        }
+                    } catch (serverError) {
+                        console.warn('❌ Server validation error:', serverError.message);
+                    }
+                }
+                
+                // Demo mode fallback
                 var demoKeys = [
                     'SM001-ALPHA-BETA1',
                     'SM002-GAMMA-DELT2',
@@ -832,45 +963,11 @@
                     'TEST1-99999-ZZZZZ'
                 ];
                 
-                // Simulate server request delay
+                // Simulate loading time
                 await new Promise(function(resolve) {
                     setTimeout(resolve, 1000);
                 });
                 
-                try {
-                    // Try server validation first
-                    var response = await fetch(API_BASE + '/api/auth/activate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ licenseKey: enteredKey })
-                    });
-                    
-                    var data = await response.json();
-                    
-                    if (data.success) {
-                        authToken = data.token;
-                        keyId = data.keyId;
-                        isAuthenticated = true;
-                        
-                        showLoginStatus('✅ ' + data.message, 'success');
-                        console.log('✅ Server validation successful');
-                        
-                        setTimeout(function() {
-                            showMainApp();
-                        }, 1500);
-                        
-                        logActivity('license_activated', { keyId: data.keyId });
-                        return;
-                    } else {
-                        console.warn('❌ Server validation failed:', data.error);
-                    }
-                } catch (serverError) {
-                    console.warn('❌ Server validation error:', serverError.message);
-                }
-                
-                // Demo mode fallback
                 if (demoKeys.indexOf(enteredKey) !== -1) {
                     authToken = 'demo-token-' + Date.now();
                     keyId = 'demo-key-' + Date.now();
@@ -883,7 +980,7 @@
                         showMainApp();
                     }, 1500);
                     
-                    logActivity('demo_license_activated', { key: enteredKey });
+                    await logActivity('demo_license_activated', { key: enteredKey });
                 } else {
                     showLoginStatus('❌ Ungültiger License Key (Demo-Modus)', 'error');
                     console.log('❌ Invalid demo key:', enteredKey);
@@ -909,7 +1006,7 @@
                   '• TEST1-99999-ZZZZZ\n\n' +
                   'Kopieren Sie einen Key und fügen Sie ihn ein!\n\n' +
                   '🔧 Admin Panel: /admin\n' +
-                  '🔐 Backend-basierte Authentifizierung aktiv');
+                  '🔐 Backend-basierte Authentifizierung ' + (serverOnline ? 'aktiv' : 'offline'));
             
             // Auto-fill random demo key
             var demoKeys = ['SM001-ALPHA-BETA1', 'SM002-GAMMA-DELT2', 'SM003-OMEGA-ZETA3', 'DEMO1-12345-ABCDE', 'TEST1-99999-ZZZZZ'];
@@ -1006,10 +1103,11 @@
             }
             
             try {
-                if (navigator.clipboard) {
+                if (navigator.clipboard && window.isSecureContext) {
                     navigator.clipboard.writeText(outputText.value);
                 } else {
                     outputText.select();
+                    outputText.setSelectionRange(0, 99999);
                     document.execCommand('copy');
                 }
                 
@@ -1054,9 +1152,13 @@
             
             if (confirmed) {
                 console.log('💣 Destroying license key...');
+                
+                // Clear tokens
                 authToken = null;
                 keyId = null;
                 isAuthenticated = false;
+                localStorage.removeItem('secretMessages_authToken');
+                localStorage.removeItem('secretMessages_keyId');
                 
                 alert('💣 License Key vernichtet!');
                 console.log('💣 License key destroyed');
@@ -1070,11 +1172,30 @@
         }
 
         // Logout
-        function logout() {
+        async function logout() {
             console.log('👋 Logging out...');
+            
+            // Try to inform backend about logout
+            if (authToken && serverOnline) {
+                try {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: authToken })
+                    });
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+            }
+            
+            // Clear local data
             authToken = null;
             keyId = null;
             isAuthenticated = false;
+            localStorage.removeItem('secretMessages_authToken');
+            localStorage.removeItem('secretMessages_keyId');
             
             document.getElementById('loginScreen').style.display = 'flex';
             document.getElementById('mainApp').style.display = 'none';
@@ -1104,7 +1225,8 @@
                   '• SM002-GAMMA-DELT2\n' +
                   '• SM003-OMEGA-ZETA3\n' +
                   '• DEMO1-12345-ABCDE\n' +
-                  '• TEST1-99999-ZZZZZ');
+                  '• TEST1-99999-ZZZZZ\n\n' +
+                  'Backend Status: ' + (serverOnline ? 'Online' : 'Offline (Demo-Modus)'));
             
             console.log('✅ Help dialog displayed');
             logActivity('help_viewed');
@@ -1128,15 +1250,15 @@
             status.classList.remove('show');
         }
 
-        // Activity logging
-        function logActivity(action, metadata) {
+        // Activity logging - CORRECTED FOR SERVER.JS
+        async function logActivity(action, metadata) {
             metadata = metadata || {};
             console.log('📝 Activity logged:', action, metadata);
             
-            if (!authToken) return;
+            if (!authToken || !serverOnline) return;
             
             try {
-                fetch(API_BASE + '/api/activity/log', {
+                await fetch('/api/activity/log', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1144,40 +1266,31 @@
                     },
                     body: JSON.stringify({
                         action: action,
-                        metadata: metadata
+                        metadata: {
+                            ...metadata,
+                            timestamp: new Date().toISOString(),
+                            userAgent: navigator.userAgent
+                        }
                     })
-                }).catch(function(error) {
-                    console.warn('⚠️ Activity logging failed:', error.message);
                 });
             } catch (error) {
-                console.warn('⚠️ Activity logging error:', error.message);
+                console.warn('⚠️ Activity logging failed:', error.message);
             }
         }
 
-        // Encryption Functions
+        // Encryption Functions (same as before)
         function performEncryption(message, code) {
             try {
                 console.log('🔐 Starting encryption process...');
                 
-                // Convert message to bytes
                 var messageBytes = new TextEncoder().encode(message);
-                
-                // Generate key from code
                 var key = generateKey(code);
-                
-                // Perform multi-layer encryption
                 var encrypted = messageBytes;
                 
-                // Layer 1: XOR with generated key
                 encrypted = xorEncrypt(encrypted, key);
-                
-                // Layer 2: Shuffle bytes based on code
                 encrypted = shuffleBytes(encrypted, code);
                 
-                // Convert to base64
                 var base64 = btoa(String.fromCharCode.apply(null, encrypted));
-                
-                // Add checksum for integrity
                 var checksum = calculateChecksum(base64);
                 
                 var result = 'SM_' + checksum + '_' + base64;
@@ -1194,12 +1307,10 @@
             try {
                 console.log('🔓 Starting decryption process...');
                 
-                // Validate format
                 if (encryptedText.indexOf('SM_') !== 0) {
                     throw new Error('Ungültiges Format');
                 }
                 
-                // Extract parts
                 var parts = encryptedText.split('_');
                 if (parts.length !== 3) {
                     throw new Error('Ungültiges Format');
@@ -1208,31 +1319,22 @@
                 var checksum = parts[1];
                 var base64 = parts[2];
                 
-                // Verify checksum
                 if (calculateChecksum(base64) !== checksum) {
                     throw new Error('Daten beschädigt');
                 }
                 
-                // Decode from base64
                 var encrypted = new Uint8Array(
                     atob(base64).split('').map(function(char) {
                         return char.charCodeAt(0);
                     })
                 );
                 
-                // Generate key from code
                 var key = generateKey(code);
-                
-                // Reverse multi-layer encryption
                 var decrypted = encrypted;
                 
-                // Reverse Layer 2: Unshuffle bytes
                 decrypted = unshuffleBytes(decrypted, code);
-                
-                // Reverse Layer 1: XOR with generated key
                 decrypted = xorDecrypt(decrypted, key);
                 
-                // Convert back to string
                 var result = new TextDecoder().decode(decrypted);
                 console.log('✅ Decryption completed');
                 return result;
@@ -1243,7 +1345,7 @@
             }
         }
 
-        // Helper functions for encryption
+        // Helper functions for encryption (same as before)
         function generateKey(code) {
             var key = new Uint8Array(32);
             var codeNum = parseInt(code);
@@ -1264,7 +1366,7 @@
         }
 
         function xorDecrypt(data, key) {
-            return xorEncrypt(data, key); // XOR is symmetric
+            return xorEncrypt(data, key);
         }
 
         function shuffleBytes(data, code) {
@@ -1307,7 +1409,6 @@
         function initializeEventListeners() {
             console.log('🔗 Setting up event listeners...');
             
-            // License key input events
             var licenseKeyInput = document.getElementById('licenseKey');
             if (licenseKeyInput) {
                 licenseKeyInput.addEventListener('keypress', function(e) {
@@ -1331,7 +1432,6 @@
                 });
             }
             
-            // Main app events
             var codeInput = document.getElementById('codeInput');
             if (codeInput) {
                 codeInput.addEventListener('keypress', function(e) {
@@ -1361,7 +1461,6 @@
         window.addEventListener('load', function() {
             console.log('🚀 SECRET MESSAGES APP INITIALIZING...');
             
-            // Small delay to ensure all elements are ready
             setTimeout(function() {
                 // Initialize matrix rain effect first
                 initMatrixRain();
@@ -1372,12 +1471,12 @@
                 // Setup event listeners
                 initializeEventListeners();
                 
-                // Focus auf Key-Input wenn Login-Screen aktiv
+                // Focus auf Key-Input
                 var keyInput = document.getElementById('licenseKey');
                 if (keyInput) keyInput.focus();
                 
                 console.log('✅ SECRET MESSAGES APP INITIALIZED SUCCESSFULLY');
-                console.log('📖 Available demo keys: SM001-ALPHA-BETA1, SM002-GAMMA-DELT2, etc.');
+                console.log('📖 Server status: ' + (serverOnline ? 'Online' : 'Offline (Demo-Mode)'));
                 
             }, 100);
         });
