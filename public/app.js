@@ -1,70 +1,101 @@
-// AUTO-LOGIN SYSTEM - Fügen Sie diesen Code in Ihre app.js ein
+// ================================================================
+// AUTO-LOGIN SYSTEM - KONFLIKTFREIE VERSION
+// Fügen Sie diesen Code AM ANFANG Ihrer bestehenden app.js ein
+// ================================================================
 
-// Globale Variablen
-let userToken = null;
-let isAuthenticated = false;
+// PRÜFEN, ob Variablen bereits existieren, bevor wir sie deklarieren
+if (typeof userToken === 'undefined') {
+    var userToken = null;
+}
+if (typeof isAuthenticated === 'undefined') {
+    var isAuthenticated = false;
+}
 
-// ==================================================
-// AUTO-LOGIN SYSTEM
-// ==================================================
+console.log('🚀 Auto-Login System initializing...');
 
-// Beim Laden der Seite prüfen, ob Benutzer bereits authentifiziert ist
-document.addEventListener('DOMContentLoaded', async function() {
+// ================================================================
+// AUTO-LOGIN SYSTEM HAUPTFUNKTION
+// ================================================================
+
+// Diese Funktion wird beim Laden der Seite ausgeführt
+async function initializeAutoLogin() {
     console.log('🔍 Checking authentication status...');
     
-    // Prüfen, ob bereits ein Token vorhanden ist
-    const savedToken = getStoredToken();
-    
-    if (savedToken) {
-        console.log('🔑 Found saved token, validating...');
+    try {
+        // Loading Screen anzeigen
+        showLoadingScreen();
         
-        // Token validieren
-        const isValid = await validateToken(savedToken);
+        // Prüfen, ob bereits ein Token vorhanden ist
+        const savedToken = getStoredToken();
         
-        if (isValid) {
-            console.log('✅ Token is valid, auto-login successful');
-            userToken = savedToken;
-            isAuthenticated = true;
+        if (savedToken) {
+            console.log('🔑 Found saved token, validating...');
             
-            // Direkt zur Hauptseite weiterleiten
-            showMainApplication();
-            return;
-        } else {
-            console.log('❌ Token is invalid, removing...');
-            removeStoredToken();
+            // Token validieren
+            const isValid = await validateToken(savedToken);
+            
+            if (isValid) {
+                console.log('✅ Token is valid, auto-login successful');
+                userToken = savedToken;
+                isAuthenticated = true;
+                
+                // Direkt zur Hauptseite weiterleiten
+                hideLoadingScreen();
+                showMainApplication();
+                return;
+            } else {
+                console.log('❌ Token is invalid, removing...');
+                removeStoredToken();
+            }
         }
+        
+        console.log('📝 No valid token found, showing license key screen');
+        // Kein gültiger Token -> License Key Screen anzeigen
+        hideLoadingScreen();
+        showLicenseKeyScreen();
+        
+    } catch (error) {
+        console.error('❌ Auto-login initialization failed:', error);
+        hideLoadingScreen();
+        showLicenseKeyScreen();
     }
-    
-    console.log('📝 No valid token found, showing license key screen');
-    // Kein gültiger Token -> License Key Screen anzeigen
-    showLicenseKeyScreen();
-});
+}
 
-// ==================================================
+// ================================================================
+// LOADING SCREEN MANAGEMENT
+// ================================================================
+
+function showLoadingScreen() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.style.display = 'flex';
+    }
+}
+
+function hideLoadingScreen() {
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) {
+        loadingScreen.style.display = 'none';
+    }
+}
+
+// ================================================================
 // TOKEN MANAGEMENT
-// ==================================================
+// ================================================================
 
-// Token sicher speichern
 function storeToken(token) {
     try {
-        // In production verwenden Sie localStorage
-        // WARNUNG: localStorage funktioniert nicht in Claude.ai Artifacts!
         localStorage.setItem('secret_messages_token', token);
-        
-        // Backup: Als Cookie speichern (funktioniert in Claude.ai)
         document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
-        
         console.log('💾 Token stored successfully');
     } catch (error) {
-        console.warn('⚠️ Could not store token in localStorage, using cookie only');
+        console.warn('⚠️ localStorage not available, using cookie only');
         document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
     }
 }
 
-// Gespeicherten Token abrufen
 function getStoredToken() {
     try {
-        // Zuerst localStorage prüfen
         const token = localStorage.getItem('secret_messages_token');
         if (token) return token;
     } catch (error) {
@@ -79,11 +110,9 @@ function getStoredToken() {
             return value;
         }
     }
-    
     return null;
 }
 
-// Token entfernen
 function removeStoredToken() {
     try {
         localStorage.removeItem('secret_messages_token');
@@ -91,20 +120,16 @@ function removeStoredToken() {
         console.warn('⚠️ localStorage not available for removal');
     }
     
-    // Cookie entfernen
     document.cookie = 'sm_token=; max-age=0; secure; samesite=strict';
-    
     userToken = null;
     isAuthenticated = false;
-    
     console.log('🗑️ Token removed successfully');
 }
 
-// ==================================================
+// ================================================================
 // TOKEN VALIDATION
-// ==================================================
+// ================================================================
 
-// Token beim Server validieren
 async function validateToken(token) {
     try {
         const response = await fetch('/api/auth/validate', {
@@ -122,47 +147,48 @@ async function validateToken(token) {
     }
 }
 
-// ==================================================
+// ================================================================
 // UI MANAGEMENT
-// ==================================================
+// ================================================================
 
-// License Key Screen anzeigen
 function showLicenseKeyScreen() {
-    // Alle Sections verstecken
     hideAllSections();
     
-    // License Section anzeigen
     const licenseSection = document.getElementById('licenseSection');
     if (licenseSection) {
         licenseSection.style.display = 'block';
         licenseSection.classList.add('fade-in');
     }
     
-    // Titel und Design für Authentifizierung
-    updatePageForAuth();
+    // Page-Title anpassen
+    document.title = 'Secret Messages - Authentication Required';
+    
+    // Logout Button verstecken
+    const logoutBtn = document.querySelector('.logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
     
     console.log('📝 License key screen displayed');
 }
 
-// Hauptanwendung anzeigen
 function showMainApplication() {
-    // Alle Sections verstecken
     hideAllSections();
     
-    // Hauptanwendung anzeigen
     const encryptionSection = document.getElementById('encryptionSection');
     if (encryptionSection) {
         encryptionSection.style.display = 'block';
         encryptionSection.classList.add('fade-in');
     }
     
-    // Titel und Design für Hauptanwendung
-    updatePageForApp();
+    // Page-Title anpassen
+    document.title = 'Secret Messages - Encryption Tool';
+    
+    // Logout Button anzeigen
+    const logoutBtn = document.querySelector('.logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'block';
     
     console.log('🎉 Main application displayed');
 }
 
-// Alle Sections verstecken
 function hideAllSections() {
     const sections = ['licenseSection', 'encryptionSection'];
     sections.forEach(sectionId => {
@@ -174,89 +200,29 @@ function hideAllSections() {
     });
 }
 
-// Page-Design für Authentifizierung anpassen
-function updatePageForAuth() {
-    // Titel ändern
-    document.title = 'Secret Messages - Secure Backend Authentication';
-    
-    // Header-Text ändern falls vorhanden
-    const headerTitle = document.querySelector('h1');
-    if (headerTitle) {
-        headerTitle.textContent = '🔐 SECURE BACKEND-AUTHENTIFIZIERUNG';
-    }
-    
-    // Beschreibung hinzufügen
-    const licenseSection = document.getElementById('licenseSection');
-    if (licenseSection && !licenseSection.querySelector('.auth-description')) {
-        const description = document.createElement('div');
-        description.className = 'auth-description';
-        description.innerHTML = `
-            <p style="margin-bottom: 20px; color: #666; text-align: center;">
-                🛡️ Sichere Backend-Authentifizierung erforderlich<br>
-                <small>Geben Sie Ihren License Key ein, um fortzufahren</small>
-            </p>
-        `;
-        licenseSection.insertBefore(description, licenseSection.firstChild);
-    }
-}
+// ================================================================
+// MODIFIZIERTE LICENSE ACTIVATION (ÜBERSCHREIBT BESTEHENDE FUNKTION)
+// ================================================================
 
-// Page-Design für Hauptanwendung anpassen
-function updatePageForApp() {
-    // Titel ändern
-    document.title = 'Secret Messages - Encryption Tool';
-    
-    // Header-Text ändern falls vorhanden
-    const headerTitle = document.querySelector('h1');
-    if (headerTitle) {
-        headerTitle.textContent = '🔐 Secret Messages';
-    }
-    
-    // Logout-Button hinzufügen falls nicht vorhanden
-    addLogoutButton();
-}
-
-// Logout-Button hinzufügen
-function addLogoutButton() {
-    const encryptionSection = document.getElementById('encryptionSection');
-    if (encryptionSection && !encryptionSection.querySelector('.logout-btn')) {
-        const logoutBtn = document.createElement('button');
-        logoutBtn.className = 'logout-btn';
-        logoutBtn.innerHTML = '🚪 Abmelden';
-        logoutBtn.style.cssText = `
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: #ff6b6b;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            z-index: 1000;
-        `;
-        
-        logoutBtn.addEventListener('click', logout);
-        document.body.appendChild(logoutBtn);
-    }
-}
-
-// ==================================================
-// MODIFIED LICENSE ACTIVATION
-// ==================================================
-
-// Modifizierte activateLicenseKey Funktion
+// Diese Funktion überschreibt Ihre bestehende activateLicenseKey Funktion
 async function activateLicenseKey() {
     const licenseInput = document.getElementById('licenseKey');
     const activateBtn = document.getElementById('activateBtn');
     
-    if (!licenseInput || !activateBtn) return;
+    if (!licenseInput || !activateBtn) {
+        console.error('❌ License input elements not found');
+        return;
+    }
     
     const licenseKey = licenseInput.value.trim();
     const originalText = activateBtn.textContent;
     
     if (!licenseKey) {
-        showError('Bitte geben Sie einen License Key ein');
+        if (typeof showError === 'function') {
+            showError('Bitte geben Sie einen License Key ein');
+        } else {
+            alert('Bitte geben Sie einen License Key ein');
+        }
         return;
     }
     
@@ -280,10 +246,17 @@ async function activateLicenseKey() {
             // Token speichern für automatisches Login
             storeToken(result.token);
             
-            showSuccess('✅ Authentifizierung erfolgreich! Weiterleitung...');
+            // Success message
+            if (typeof showSuccess === 'function') {
+                showSuccess('✅ Authentifizierung erfolgreich! Weiterleitung...');
+            } else {
+                console.log('✅ Authentifizierung erfolgreich!');
+            }
             
-            // Log activity
-            logActivity('license_activated', { keyId: result.keyId });
+            // Log activity (falls vorhanden)
+            if (typeof logActivity === 'function') {
+                logActivity('license_activated', { keyId: result.keyId });
+            }
             
             // Nach kurzer Verzögerung zur Hauptanwendung wechseln
             setTimeout(() => {
@@ -291,22 +264,29 @@ async function activateLicenseKey() {
             }, 1500);
             
         } else {
-            showError('❌ ' + result.error);
+            if (typeof showError === 'function') {
+                showError('❌ ' + result.error);
+            } else {
+                alert('❌ ' + result.error);
+            }
         }
         
     } catch (error) {
-        showError('Verbindungsfehler: ' + error.message);
+        if (typeof showError === 'function') {
+            showError('Verbindungsfehler: ' + error.message);
+        } else {
+            alert('Verbindungsfehler: ' + error.message);
+        }
     } finally {
         activateBtn.textContent = originalText;
         activateBtn.disabled = false;
     }
 }
 
-// ==================================================
+// ================================================================
 // LOGOUT FUNCTION
-// ==================================================
+// ================================================================
 
-// Logout-Funktion
 function logout() {
     if (confirm('Möchten Sie sich wirklich abmelden?')) {
         console.log('👋 User logging out...');
@@ -335,11 +315,79 @@ function logout() {
         });
         
         // Success-Message anzeigen
-        showSuccess('✅ Erfolgreich abgemeldet');
+        if (typeof showSuccess === 'function') {
+            showSuccess('✅ Erfolgreich abgemeldet');
+        }
         
         console.log('✅ Logout completed');
     }
 }
+
+// ================================================================
+// DEMO KEY FUNCTION (FALLS NICHT VORHANDEN)
+// ================================================================
+
+if (typeof showDemoKey === 'undefined') {
+    function showDemoKey() {
+        const licenseInput = document.getElementById('licenseKey');
+        if (licenseInput) {
+            const demoKeys = [
+                '7CE4A-71263-380DC',
+                '7F2DC-9EF07-E6584', 
+                '54EA3-98607-DF13A'
+            ];
+            const randomKey = demoKeys[Math.floor(Math.random() * demoKeys.length)];
+            licenseInput.value = randomKey;
+            
+            if (typeof showInfo === 'function') {
+                showInfo('ℹ️ Demo Key eingefügt. Klicken Sie "ZUGANG AKTIVIEREN" zum Testen.');
+            } else {
+                console.log('ℹ️ Demo Key eingefügt: ' + randomKey);
+            }
+        }
+    }
+}
+
+// ================================================================
+// CSS für Fade-In Animation hinzufügen
+// ================================================================
+
+if (!document.querySelector('#auto-login-styles')) {
+    const style = document.createElement('style');
+    style.id = 'auto-login-styles';
+    style.textContent = `
+        .fade-in {
+            animation: fadeInAuto 0.5s ease-in;
+        }
+        
+        @keyframes fadeInAuto {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ================================================================
+// AUTOMATISCHE INITIALISIERUNG
+// ================================================================
+
+// Auto-Login beim Laden der Seite starten
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM loaded, starting auto-login...');
+    initializeAutoLogin();
+});
+
+// Fallback falls DOMContentLoaded bereits ausgeführt wurde
+if (document.readyState === 'loading') {
+    // DOM wird noch geladen, DOMContentLoaded wird ausgeführt
+} else {
+    // DOM ist bereits geladen
+    console.log('📄 DOM already loaded, starting auto-login immediately...');
+    initializeAutoLogin();
+}
+
+console.log('🚀 Auto-login system code loaded successfully');
 
 // ==================================================
 // UTILITY FUNCTIONS
