@@ -120,7 +120,7 @@ function removeStoredToken() {
         console.warn('⚠️ localStorage not available for removal');
     }
     
-    document.cookie = 'sm_token=; max-age=0; path=/`;
+    document.cookie = "sm_token=" + token + "; max-age=0; path=/";
     userToken = null;
     isAuthenticated = false;
     console.log('🗑️ Token removed successfully');
