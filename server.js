@@ -424,4 +424,104 @@ process.on('uncaughtException', (error) => {
 
 startServer();
 
+// ====== TEMPORÄRER SETUP ENDPOINT - NACH SETUP ENTFERNEN! ======
+app.get('/api/emergency-setup', async (req, res) => {
+    try {
+        console.log('🚨 Emergency Database Setup gestartet...');
+        
+        // Demo Keys erstellen
+        const demoKeys = [
+            'SM001-ALPHA-BETA1',
+            'SM002-GAMMA-DELT2', 
+            'SM003-ECHO-FOXTR3',
+            'SM004-HOTEL-INDI4',
+            'SM005-JULIET-KILO5'
+        ];
+
+        let createdKeys = 0;
+        for (const keyCode of demoKeys) {
+            const keyHash = hashKey(keyCode);
+            
+            try {
+                await db.query(`
+                    INSERT INTO license_keys (key_code, key_hash, created_by, is_active) 
+                    VALUES ($1, $2, 'emergency-setup', false)
+                    ON CONFLICT (key_code) DO NOTHING
+                `, [keyCode, keyHash]);
+                createdKeys++;
+            } catch (error) {
+                // Key bereits vorhanden
+            }
+        }
+
+        // System Settings Tabelle erstellen falls nicht vorhanden
+        try {
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    id SERIAL PRIMARY KEY,
+                    key_name VARCHAR(100) UNIQUE NOT NULL,
+                    key_value TEXT,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+        } catch (error) {
+            // Tabelle bereits vorhanden
+        }
+
+        // Admin Settings mit korrektem Passwort
+        const adminPassword = 'SecretMsg2024Admin987'; // Ihr gesetztes Passwort
+        const adminHash = bcrypt.hashSync(adminPassword, 10);
+        
+        await db.query(`
+            INSERT INTO system_settings (key_name, key_value, description) 
+            VALUES ('admin_password_hash', $1, 'Admin panel password hash')
+            ON CONFLICT (key_name) DO UPDATE SET 
+                key_value = EXCLUDED.key_value,
+                updated_at = CURRENT_TIMESTAMP
+        `, [adminHash]);
+
+        await db.query(`
+            INSERT INTO system_settings (key_name, key_value, description) 
+            VALUES ('setup_completed', $1, 'Emergency setup completion')
+            ON CONFLICT (key_name) DO UPDATE SET 
+                key_value = EXCLUDED.key_value,
+                updated_at = CURRENT_TIMESTAMP
+        `, [new Date().toISOString()]);
+
+        // Verifikation
+        const keyCount = await db.query('SELECT COUNT(*) as count FROM license_keys');
+        const settingsCount = await db.query('SELECT COUNT(*) as count FROM system_settings');
+
+        res.json({
+            success: true,
+            message: 'Emergency Database Setup erfolgreich!',
+            data: {
+                totalKeys: keyCount.rows[0].count,
+                newKeysCreated: createdKeys,
+                settingsCount: settingsCount.rows[0].count,
+                adminPassword: adminPassword,
+                demoKeys: demoKeys,
+                nextSteps: [
+                    'Testen Sie Demo Key: SM001-ALPHA-BETA1',
+                    'Admin Panel: /admin',
+                    'WICHTIG: Entfernen Sie /api/emergency-setup nach dem Test!'
+                ]
+            }
+        });
+
+        console.log('✅ Emergency Setup erfolgreich abgeschlossen');
+
+    } catch (error) {
+        console.error('❌ Emergency Setup fehlgeschlagen:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Emergency Setup fehlgeschlagen',
+            details: error.message
+        });
+    }
+});
+// ====== ENDE TEMPORÄRER ENDPOINT ======
+
 module.exports = { app };
