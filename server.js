@@ -1,6 +1,5 @@
 // ================================================================
-// ALTERNATIVE SERVER.JS - MIT BCRYPT STATT BCRYPTJS
-// Falls bcryptjs Probleme macht, verwenden Sie diese Version
+// FIXED SERVER.JS FÜR RAILWAY DEPLOYMENT
 // ================================================================
 
 require('dotenv').config();
@@ -34,24 +33,37 @@ const PORT = process.env.PORT || 3000;
 // Environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-min-32-characters';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'SecureAdmin123!';
-const DATABASE_URL = process.env.DATABASE_URL || './secret_messages.db';
+const DATABASE_URL = process.env.DATABASE_URL;
 
-// Database setup
+// ================================================================
+// RAILWAY DATABASE SETUP - NUR POSTGRESQL
+// ================================================================
+
 let db;
+if (!DATABASE_URL) {
+    console.error('❌ DATABASE_URL environment variable is required');
+    process.exit(1);
+}
+
 if (DATABASE_URL.startsWith('postgresql') || DATABASE_URL.startsWith('postgres')) {
     const { Pool } = require('pg');
     db = new Pool({
         connectionString: DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        max: 20,
+        min: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000
     });
-    console.log('📊 Using PostgreSQL database');
+    console.log('✅ PostgreSQL database configured');
 } else {
-    console.error('❌ Only PostgreSQL supported in Railway');
+    console.error('❌ Only PostgreSQL supported on Railway');
+    console.error('Current DATABASE_URL:', DATABASE_URL?.substring(0, 20) + '...');
     process.exit(1);
 }
 
 // ================================================================
-// MIDDLEWARE MIT KORRIGIERTER CSP
+// MIDDLEWARE
 // ================================================================
 
 app.use(helmet({
@@ -60,7 +72,7 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrcAttr: ["'unsafe-inline'"], // WICHTIG für onclick
+            scriptSrcAttr: ["'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "https:"],
             fontSrc: ["'self'", "https:", "data:"],
             connectSrc: ["'self'"],
@@ -110,7 +122,7 @@ function generateLicenseKey() {
 }
 
 function hashKey(key) {
-    return bcrypt.hashSync(key, 10); // Funktioniert mit bcrypt oder bcryptjs
+    return bcrypt.hashSync(key, 10);
 }
 
 function generateDeviceFingerprint(req) {
@@ -190,7 +202,8 @@ app.get('/api/health', (req, res) => {
         version: '1.0.0',
         database: 'PostgreSQL',
         bcrypt_library: bcrypt.name || 'bcrypt',
-        node_version: process.version
+        node_version: process.version,
+        environment: process.env.NODE_ENV || 'development'
     });
 });
 
@@ -202,346 +215,90 @@ app.post('/api/auth/activate', async (req, res) => {
 
     console.log(`🔑 License activation attempt: ${licenseKey} from IP: ${clientIP}`);
 
-    if (!licenseKey || !/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+    if (!licenseKey || licenseKey.length !== 17) {
         return res.status(400).json({ error: 'Invalid license key format' });
     }
 
     try {
-        const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
-        const keyData = result.rows[0];
-
-        if (!keyData) {
-            console.log(`❌ License key not found: ${licenseKey}`);
+        const result = await db.query(
+            'SELECT * FROM license_keys WHERE key_code = $1',
+            [licenseKey]
+        );
+        
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'License key not found' });
         }
-
-        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-            console.log(`❌ License key expired: ${licenseKey}`);
-            return res.status(403).json({ error: 'License key has expired' });
+        
+        const key = result.rows[0];
+        
+        if (!bcrypt.compareSync(licenseKey, key.key_hash)) {
+            return res.status(401).json({ error: 'Invalid license key' });
         }
-
-        if (keyData.is_active) {
-            if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
-                const sessionToken = jwt.sign(
-                    { 
-                        keyId: keyData.id, 
-                        ip: clientIP, 
-                        fingerprint: deviceFingerprint,
-                        keyCode: licenseKey
-                    },
-                    JWT_SECRET,
-                    { expiresIn: '30d' }
-                );
-
-                await logActivity(keyData.id, 'auto_login_success', {
-                    ip: clientIP,
-                    deviceFingerprint: deviceFingerprint
-                });
-
-                console.log(`✅ Returning user auto-login: ${licenseKey}`);
-                return res.json({
-                    success: true,
-                    message: 'Welcome back! Automatic login successful.',
-                    token: sessionToken,
-                    keyId: keyData.id,
-                    autoLogin: true
-                });
-            } else {
-                console.log(`❌ Device binding violation: ${licenseKey} - IP: ${clientIP} vs ${keyData.activated_ip}`);
-                return res.status(403).json({ 
-                    error: 'This license key is already bound to another device.' 
-                });
-            }
+        
+        if (key.is_active && key.activated_ip !== clientIP) {
+            return res.status(409).json({ error: 'License key already activated on different device' });
         }
-
-        const sessionToken = jwt.sign(
-            { 
-                keyId: keyData.id, 
-                ip: clientIP, 
-                fingerprint: deviceFingerprint,
-                keyCode: licenseKey
-            },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-
+        
+        if (key.expires_at && new Date(key.expires_at) < new Date()) {
+            return res.status(410).json({ error: 'License key has expired' });
+        }
+        
+        // Activate the key
         await db.query(
-            'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
-            [clientIP, deviceFingerprint, keyData.id]
+            'UPDATE license_keys SET is_active = TRUE, activated_at = CURRENT_TIMESTAMP, activated_ip = $1, device_fingerprint = $2 WHERE id = $3',
+            [clientIP, deviceFingerprint, key.id]
         );
-
-        await logActivity(keyData.id, 'license_activated', {
-            ip: clientIP,
-            deviceFingerprint: deviceFingerprint,
-            firstActivation: true
-        });
-
-        console.log(`✅ New license activation successful: ${licenseKey}`);
-        res.json({
-            success: true,
-            message: 'License key activated successfully! Device registered.',
-            token: sessionToken,
-            keyId: keyData.id,
-            autoLogin: false
-        });
-
-    } catch (error) {
-        console.error('❌ Activation error:', error);
-        res.status(500).json({ error: 'Internal server error during activation' });
-    }
-});
-
-// Token Validation
-app.post('/api/auth/validate', async (req, res) => {
-    const { token } = req.body;
-    
-    console.log(`🔍 Token validation request received`);
-
-    if (!token) {
-        return res.status(400).json({ 
-            success: false, 
-            valid: false, 
-            error: 'Token required' 
-        });
-    }
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        console.log(`🔍 JWT decoded successfully for keyId: ${decoded.keyId}`);
-
-        const result = await db.query(
-            'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
-            [decoded.keyId]
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { keyId: key.id, keyCode: licenseKey },
+            JWT_SECRET,
+            { expiresIn: '24h' }
         );
-        const keyData = result.rows[0];
-
-        if (!keyData) {
-            console.log(`❌ Key no longer active for keyId: ${decoded.keyId}`);
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'License key no longer active' 
-            });
-        }
-
-        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-            console.log(`❌ Key expired for keyId: ${decoded.keyId}`);
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'License key expired' 
-            });
-        }
-
-        await logActivity(decoded.keyId, 'session_validated', {
-            ip: getClientIP(req),
-            timestamp: new Date().toISOString()
-        });
-
-        console.log(`✅ Token validation successful for keyId: ${decoded.keyId}`);
-        res.json({
-            success: true,
-            valid: true,
-            keyId: decoded.keyId,
-            keyCode: keyData.key_code,
-            expiresAt: keyData.expires_at
-        });
-
-    } catch (error) {
-        if (error.name === 'JsonWebTokenError') {
-            console.log(`❌ Invalid JWT token: ${error.message}`);
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'Invalid token' 
-            });
-        } else if (error.name === 'TokenExpiredError') {
-            console.log(`❌ Expired JWT token: ${error.message}`);
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'Token expired' 
-            });
-        } else {
-            console.error(`❌ Token validation error:`, error);
-            return res.status(500).json({ 
-                success: false, 
-                valid: false, 
-                error: 'Internal server error' 
-            });
-        }
-    }
-});
-
-// Logout endpoint
-app.post('/api/auth/logout', async (req, res) => {
-    const { token } = req.body;
-    
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            await logActivity(decoded.keyId, 'user_logout', {
-                ip: getClientIP(req),
-                timestamp: new Date().toISOString()
-            });
-            console.log(`👋 User logout: keyId ${decoded.keyId}`);
-        } catch (error) {
-            // Token invalid, but logout anyway
-        }
-    }
-    
-    res.json({
-        success: true,
-        message: 'Logged out successfully'
-    });
-});
-
-// Admin stats
-app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
-    try {
-        const totalResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-        const activeResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true');
-        const sessionsResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true AND (expires_at IS NULL OR expires_at > NOW())');
         
-        const totalKeys = totalResult.rows[0].count;
-        const activeKeys = activeResult.rows[0].count;
-        const activeSessions = sessionsResult.rows[0].count;
-
-        res.json({
-            success: true,
-            stats: {
-                totalKeys: parseInt(totalKeys),
-                activeKeys: parseInt(activeKeys),
-                activeSessions: parseInt(activeSessions),
-                dailyUsage: 0
-            }
-        });
-    } catch (error) {
-        console.error('Stats error:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
-    }
-});
-
-// Generate new license keys
-app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
-    const { quantity = 1, expiresIn = null } = req.body;
-    
-    if (quantity > 100) {
-        return res.status(400).json({ error: 'Maximum 100 keys per request' });
-    }
-
-    const keys = [];
-    
-    try {
-        for (let i = 0; i < quantity; i++) {
-            const keyCode = generateLicenseKey();
-            const keyHash = hashKey(keyCode);
-            const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000) : null;
-
-            const result = await db.query(
-                'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
-                [keyCode, keyHash, expiresAt, 'admin']
-            );
-            
-            keys.push({
-                id: result.rows[0].id,
-                key: keyCode,
-                expires_at: expiresAt
-            });
-        }
+        await logActivity(key.id, 'license_activated', { ip: clientIP, deviceFingerprint });
         
-        console.log(`✅ Generated ${quantity} new license keys`);
-        res.json({ 
-            success: true, 
-            keys: keys,
-            generated: quantity 
-        });
-    } catch (error) {
-        console.error('Key generation error:', error);
-        res.status(500).json({ error: 'Key generation failed' });
-    }
-});
-
-// List license keys with pagination
-app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
-    const { page = 1, limit = 50 } = req.body;
-    
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-    const offset = (pageNum - 1) * limitNum;
-    
-    try {
-        const keysResult = await db.query(`
-            SELECT id, key_code, created_at, activated_at, activated_ip,
-                   device_fingerprint, is_active, usage_count, expires_at,
-                   created_by, updated_at
-            FROM license_keys 
-            ORDER BY created_at DESC 
-            LIMIT $1 OFFSET $2
-        `, [limitNum, offset]);
-        
-        const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-        
-        const keys = keysResult.rows;
-        const totalCount = parseInt(countResult.rows[0].count);
-        
-        const totalPages = Math.ceil(totalCount / limitNum);
+        console.log(`✅ License activated: ${licenseKey}`);
         
         res.json({
             success: true,
-            keys: keys.map(key => ({
-                id: key.id,
-                key_code: key.key_code,
-                created_at: key.created_at,
-                activated_at: key.activated_at || null,
-                activated_ip: key.activated_ip || null,
-                device_fingerprint: key.device_fingerprint || null,
-                is_active: key.is_active ? true : false,
-                usage_count: key.usage_count || 0,
-                expires_at: key.expires_at || null,
-                created_by: key.created_by || 'system',
-                updated_at: key.updated_at || key.created_at,
-                metadata: null,
-                max_usage: null
-            })),
-            pagination: {
-                page: pageNum,
-                limit: limitNum,
-                total: totalCount,
-                pages: totalPages,
-                hasNext: pageNum < totalPages,
-                hasPrev: pageNum > 1
+            token,
+            message: 'License key activated successfully',
+            keyInfo: {
+                keyCode: key.key_code,
+                activatedAt: new Date().toISOString(),
+                usageCount: key.usage_count || 0
             }
         });
         
     } catch (error) {
-        console.error('❌ Keys listing error:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch keys',
-            message: error.message
-        });
+        console.error('❌ License activation error:', error);
+        res.status(500).json({ error: 'Activation failed', message: error.message });
     }
 });
 
-// Activity logging endpoint
-app.post('/api/activity/log', authenticateToken, async (req, res) => {
-    const { action, metadata = {} } = req.body;
-    const keyId = req.user.keyId;
-    
+// Generate demo license key
+app.post('/api/demo/generate', async (req, res) => {
     try {
-        await logActivity(keyId, action, {
-            ...metadata,
-            ip: getClientIP(req),
-            userAgent: req.headers['user-agent']
-        });
+        const demoKey = generateLicenseKey();
+        const hashedKey = hashKey(demoKey);
+        
+        await db.query(
+            'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES ($1, $2, $3)',
+            [demoKey, hashedKey, 'demo']
+        );
+        
+        console.log(`🎯 Demo key generated: ${demoKey}`);
         
         res.json({
             success: true,
-            logged: true
+            licenseKey: demoKey,
+            message: 'Demo license key generated'
         });
+        
     } catch (error) {
-        console.error('Activity logging error:', error);
-        res.status(500).json({ error: 'Failed to log activity' });
+        console.error('❌ Demo key generation error:', error);
+        res.status(500).json({ error: 'Failed to generate demo key' });
     }
 });
 
@@ -559,6 +316,10 @@ async function initializeDatabase() {
     console.log('🔧 Initializing PostgreSQL database...');
     
     try {
+        // Test connection
+        await db.query('SELECT NOW()');
+        console.log('✅ Database connection successful');
+        
         await db.query(`
             CREATE TABLE IF NOT EXISTS license_keys (
                 id SERIAL PRIMARY KEY,
@@ -589,6 +350,7 @@ async function initializeDatabase() {
         console.log('✅ PostgreSQL tables ready');
     } catch (error) {
         console.error('❌ PostgreSQL initialization failed:', error);
+        throw error;
     }
 }
 
@@ -605,24 +367,39 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// Server startup
+// ================================================================
+// SERVER STARTUP - RAILWAY FIX
+// ================================================================
+
 async function startServer() {
     try {
         await initializeDatabase();
         
-        const server = app.listen(PORT, () => {
+        // WICHTIG: Railway benötigt '0.0.0.0' als Host
+        const server = app.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 Secret Messages Server running on port ' + PORT);
+            console.log('🌐 Server listening on 0.0.0.0:' + PORT);
             console.log('📊 Using PostgreSQL database');
             console.log('🔐 Using bcrypt library:', bcrypt.name || 'bcrypt');
-            console.log('🔧 CSP configured for inline event handlers');
-            console.log('📱 Frontend: https://' + (process.env.DOMAIN || 'localhost:' + PORT));
-            console.log('🔧 Admin Panel: https://' + (process.env.DOMAIN || 'localhost:' + PORT) + '/admin');
+            console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+            console.log('📱 Frontend: https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost:' + PORT));
+            console.log('🔧 Admin Panel: https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost:' + PORT) + '/admin');
         });
 
+        // Graceful shutdown
         process.on('SIGTERM', () => {
             console.log('🛑 SIGTERM received, shutting down gracefully');
             server.close(() => {
                 console.log('💤 Process terminated');
+                process.exit(0);
+            });
+        });
+
+        process.on('SIGINT', () => {
+            console.log('🛑 SIGINT received, shutting down gracefully');
+            server.close(() => {
+                console.log('💤 Process terminated');
+                process.exit(0);
             });
         });
 
@@ -632,6 +409,18 @@ async function startServer() {
         process.exit(1);
     }
 }
+
+// Unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+});
+
+// Uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
 
 startServer();
 
