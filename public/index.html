@@ -369,7 +369,7 @@
                     <p class="subtitle">MILITARY GRADE ENCRYPTION</p>
                 </div>
                 
-                <form id="loginForm" onsubmit="handleLogin(event)">
+                <form id="loginForm">
                     <div class="form-group">
                         <label class="form-label" for="username">Benutzername</label>
                         <input 
@@ -404,7 +404,7 @@
                 <div id="loginStatus" class="status"></div>
                 
                 <div style="text-align: center;">
-                    <a href="#" class="link" onclick="showActivationSection()">License-Key aktivieren</a>
+                    <a href="#" class="link" id="showActivationLink">License-Key aktivieren</a>
                 </div>
             </div>
         </div>
@@ -417,7 +417,7 @@
                     <p class="subtitle">Erstellen Sie Ihren Zugang</p>
                 </div>
                 
-                <form id="activationForm" onsubmit="handleActivation(event)">
+                <form id="activationForm">
                     <div class="form-group">
                         <label class="form-label" for="licenseKey">License-Key</label>
                         <input 
@@ -465,7 +465,7 @@
                 <div id="activationStatus" class="status"></div>
                 
                 <div style="text-align: center;">
-                    <a href="#" class="link" onclick="showLoginSection()">Zurück zum Login</a>
+                    <a href="#" class="link" id="showLoginLink">Zurück zum Login</a>
                 </div>
             </div>
         </div>
@@ -473,7 +473,7 @@
         <!-- Main Application Section -->
         <div id="mainSection" class="section">
             <div class="app-header">
-                <button class="logout-btn" onclick="handleLogout()">Abmelden</button>
+                <button class="logout-btn" id="logoutBtn">Abmelden</button>
                 <div class="user-info" id="userInfo"></div>
                 <h1 class="app-title">SECRET MESSAGES</h1>
                 <p class="subtitle" style="text-align: center;">AES-256 HYBRID ENCRYPTION</p>
@@ -505,8 +505,8 @@
                 </div>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <button class="btn" onclick="encryptMessage()">🔒 VERSCHLÜSSELN</button>
-                    <button class="btn" onclick="decryptMessage()">🔓 ENTSCHLÜSSELN</button>
+                    <button class="btn" id="encryptBtn">🔒 VERSCHLÜSSELN</button>
+                    <button class="btn" id="decryptBtn">🔓 ENTSCHLÜSSELN</button>
                 </div>
                 
                 <div class="form-group" id="outputGroup" style="display: none; margin-top: 25px;">
@@ -518,11 +518,11 @@
                         readonly
                         style="resize: vertical; background: rgba(0, 255, 65, 0.05);"
                     ></textarea>
-                    <button class="btn" onclick="copyToClipboard()" style="margin-top: 10px;">📋 KOPIEREN</button>
+                    <button class="btn" id="copyBtn" style="margin-top: 10px;">📋 KOPIEREN</button>
                 </div>
                 
                 <div style="text-align: center; margin-top: 30px;">
-                    <button class="delete-account-btn" onclick="confirmDeleteAccount()">
+                    <button class="delete-account-btn" id="deleteAccountBtn">
                         ⚠️ Zugang unwiderruflich löschen
                     </button>
                 </div>
@@ -829,32 +829,49 @@
             alert('In Zwischenablage kopiert!');
         }
         
-        // Auto-format inputs
-        document.getElementById('licenseKey').addEventListener('input', function(e) {
-            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            let formatted = '';
-            
-            for (let i = 0; i < value.length && i < 15; i++) {
-                if (i > 0 && i % 5 === 0) {
-                    formatted += '-';
-                }
-                formatted += value[i];
-            }
-            
-            e.target.value = formatted;
-        });
-        
-        document.getElementById('accessCode').addEventListener('input', function(e) {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '');
-        });
-        
-        document.getElementById('newAccessCode').addEventListener('input', function(e) {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '');
-        });
-        
         // Check for existing session
         window.addEventListener('load', function() {
             createMatrixRain();
+            
+            // Add event listeners
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('activationForm').addEventListener('submit', handleActivation);
+            document.getElementById('showActivationLink').addEventListener('click', function(e) {
+                e.preventDefault();
+                showActivationSection();
+            });
+            document.getElementById('showLoginLink').addEventListener('click', function(e) {
+                e.preventDefault();
+                showLoginSection();
+            });
+            document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+            document.getElementById('encryptBtn').addEventListener('click', encryptMessage);
+            document.getElementById('decryptBtn').addEventListener('click', decryptMessage);
+            document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+            document.getElementById('deleteAccountBtn').addEventListener('click', confirmDeleteAccount);
+            
+            // Auto-format inputs
+            document.getElementById('licenseKey').addEventListener('input', function(e) {
+                let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                let formatted = '';
+                
+                for (let i = 0; i < value.length && i < 15; i++) {
+                    if (i > 0 && i % 5 === 0) {
+                        formatted += '-';
+                    }
+                    formatted += value[i];
+                }
+                
+                e.target.value = formatted;
+            });
+            
+            document.getElementById('accessCode').addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+            
+            document.getElementById('newAccessCode').addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
             
             const savedToken = localStorage.getItem('secretMessages_token');
             const savedUser = localStorage.getItem('secretMessages_user');
