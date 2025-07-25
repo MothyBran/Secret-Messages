@@ -1,6 +1,6 @@
 // ================================================================
-// SECRET MESSAGES - VOLLSTÄNDIGE SERVER.JS MIT AUTO-LOGIN
-// Alle Endpoints für Frontend, Admin und Auto-Login System
+// SECRET MESSAGES - SERVER.JS MIT KORRIGIERTER CSP
+// Behebt CSP-Probleme für inline Event Handler
 // ================================================================
 
 require('dotenv').config();
@@ -8,7 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const bcrypt = require('bcrypt');
+const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const path = require('path');
@@ -23,104 +23,64 @@ const DATABASE_URL = process.env.DATABASE_URL || './secret_messages.db';
 
 // Database setup
 let db;
-let isPostgreSQL = false;
-
 if (DATABASE_URL.startsWith('postgresql') || DATABASE_URL.startsWith('postgres')) {
-    // PostgreSQL
     const { Pool } = require('pg');
     db = new Pool({
         connectionString: DATABASE_URL,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
-    isPostgreSQL = true;
     console.log('📊 Using PostgreSQL database');
 } else {
-    // SQLite
-    const sqlite3 = require('sqlite3').verbose();
-    db = new sqlite3.Database(DATABASE_URL);
-    console.log('📊 Using SQLite database');
+    console.error('❌ Only PostgreSQL supported in Railway');
+    process.exit(1);
 }
 
 // ================================================================
-// MIDDLEWARE
+// MIDDLEWARE MIT KORRIGIERTER CSP
 // ================================================================
 
-// Security headers
+// KORRIGIERTE Security headers - erlaubt inline event handlers
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"], // Erlaubt inline CSS
+            scriptSrc: ["'self'", "'unsafe-inline'"], // Erlaubt inline JS
+            scriptSrcAttr: ["'unsafe-inline'"], // WICHTIG: Erlaubt onclick="" etc.
             imgSrc: ["'self'", "data:", "https:"],
+            fontSrc: ["'self'", "https:", "data:"],
+            connectSrc: ["'self'"],
+            mediaSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            childSrc: ["'self'"],
+            frameAncestors: ["'none'"],
+            formAction: ["'self'"],
+            baseUri: ["'self'"]
         },
     },
+    crossOriginEmbedderPolicy: false, // Für bessere Kompatibilität
 }));
 
-// CORS
 app.use(cors({
     origin: process.env.FRONTEND_URL || '*',
     credentials: true
 }));
 
-// Rate limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 100
 });
 app.use('/api/', limiter);
 
-// Stricter rate limiting for auth endpoints
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10 // limit each IP to 10 auth requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 10
 });
 app.use('/api/auth/', authLimiter);
 
-// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Static files
 app.use(express.static('public'));
-
-// ================================================================
-// DATABASE HELPER FUNCTIONS
-// ================================================================
-
-const dbQuery = async (query, params = []) => {
-    if (isPostgreSQL) {
-        return await db.query(query, params);
-    } else {
-        return new Promise((resolve, reject) => {
-            const queryLower = query.toLowerCase().trim();
-            
-            if (queryLower.startsWith('select')) {
-                // For SELECT queries: use db.all() to get multiple rows
-                db.all(query, params, (err, rows) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({ rows: rows || [] });
-                    }
-                });
-            } else {
-                // For INSERT/UPDATE/DELETE: use db.run()
-                db.run(query, params, function(err) {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({ 
-                            lastID: this.lastID, 
-                            changes: this.changes,
-                            rows: []
-                        });
-                    }
-                });
-            }
-        });
-    }
-};
 
 // ================================================================
 // UTILITY FUNCTIONS
@@ -136,7 +96,7 @@ function generateLicenseKey() {
 }
 
 function hashKey(key) {
-    return bcrypt.hashSync(key, 10);
+    return bcryptjs.hashSync(key, 10);
 }
 
 function generateDeviceFingerprint(req) {
@@ -159,7 +119,6 @@ function getClientIP(req) {
            '0.0.0.0';
 }
 
-// Activity logging helper
 async function logActivity(keyId, action, metadata = {}) {
     try {
         const timestamp = new Date().toISOString();
@@ -168,28 +127,10 @@ async function logActivity(keyId, action, metadata = {}) {
             timestamp: timestamp
         });
         
-        if (isPostgreSQL) {
-            await db.query(
-                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES ($1, $2, $3, $4)',
-                [keyId, action, metadataString, timestamp]
-            );
-        } else {
-            // For SQLite - create table if not exists
-            await dbQuery(`
-                CREATE TABLE IF NOT EXISTS activity_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key_id INTEGER,
-                    action TEXT,
-                    metadata TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            
-            await dbQuery(
-                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES (?, ?, ?, ?)',
-                [keyId, action, metadataString, timestamp]
-            );
-        }
+        await db.query(
+            'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES ($1, $2, $3, $4)',
+            [keyId, action, metadataString, timestamp]
+        );
     } catch (error) {
         console.warn('Activity logging failed:', error.message);
     }
@@ -228,19 +169,15 @@ function authenticateAdmin(req, res, next) {
 // API ENDPOINTS
 // ================================================================
 
-// Health Check
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        database: isPostgreSQL ? 'PostgreSQL' : 'SQLite'
+        database: 'PostgreSQL',
+        node_version: process.version
     });
 });
-
-// ================================================================
-// AUTHENTICATION ENDPOINTS
-// ================================================================
 
 // License Key Activation
 app.post('/api/auth/activate', async (req, res) => {
@@ -255,31 +192,21 @@ app.post('/api/auth/activate', async (req, res) => {
     }
 
     try {
-        // Find the key in database
-        let keyData;
-        if (isPostgreSQL) {
-            const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
-            keyData = result.rows[0];
-        } else {
-            const result = await dbQuery('SELECT * FROM license_keys WHERE key_code = ?', [licenseKey]);
-            keyData = result.rows && result.rows[0];
-        }
+        const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
+        const keyData = result.rows[0];
 
         if (!keyData) {
             console.log(`❌ License key not found: ${licenseKey}`);
             return res.status(404).json({ error: 'License key not found' });
         }
 
-        // Check if key is expired
         if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
             console.log(`❌ License key expired: ${licenseKey}`);
             return res.status(403).json({ error: 'License key has expired' });
         }
 
-        // Check device binding
         if (keyData.is_active) {
             if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
-                // Same device - generate new session token
                 const sessionToken = jwt.sign(
                     { 
                         keyId: keyData.id, 
@@ -291,7 +218,6 @@ app.post('/api/auth/activate', async (req, res) => {
                     { expiresIn: '30d' }
                 );
 
-                // Log activity
                 await logActivity(keyData.id, 'auto_login_success', {
                     ip: clientIP,
                     deviceFingerprint: deviceFingerprint
@@ -313,7 +239,6 @@ app.post('/api/auth/activate', async (req, res) => {
             }
         }
 
-        // New key activation
         const sessionToken = jwt.sign(
             { 
                 keyId: keyData.id, 
@@ -325,20 +250,11 @@ app.post('/api/auth/activate', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // Mark key as active
-        if (isPostgreSQL) {
-            await db.query(
-                'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
-                [clientIP, deviceFingerprint, keyData.id]
-            );
-        } else {
-            await dbQuery(
-                'UPDATE license_keys SET is_active = 1, activated_at = datetime("now"), activated_ip = ?, device_fingerprint = ?, usage_count = usage_count + 1 WHERE id = ?',
-                [clientIP, deviceFingerprint, keyData.id]
-            );
-        }
+        await db.query(
+            'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
+            [clientIP, deviceFingerprint, keyData.id]
+        );
 
-        // Log activity
         await logActivity(keyData.id, 'license_activated', {
             ip: clientIP,
             deviceFingerprint: deviceFingerprint,
@@ -360,7 +276,7 @@ app.post('/api/auth/activate', async (req, res) => {
     }
 });
 
-// Token Validation (KRITISCH FÜR AUTO-LOGIN)
+// Token Validation
 app.post('/api/auth/validate', async (req, res) => {
     const { token } = req.body;
     
@@ -375,25 +291,14 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 
     try {
-        // Verify JWT token
         const decoded = jwt.verify(token, JWT_SECRET);
         console.log(`🔍 JWT decoded successfully for keyId: ${decoded.keyId}`);
 
-        // Check if the key is still active in database
-        let keyData;
-        if (isPostgreSQL) {
-            const result = await db.query(
-                'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
-                [decoded.keyId]
-            );
-            keyData = result.rows[0];
-        } else {
-            const result = await dbQuery(
-                'SELECT * FROM license_keys WHERE id = ? AND is_active = 1',
-                [decoded.keyId]
-            );
-            keyData = result.rows && result.rows[0];
-        }
+        const result = await db.query(
+            'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
+            [decoded.keyId]
+        );
+        const keyData = result.rows[0];
 
         if (!keyData) {
             console.log(`❌ Key no longer active for keyId: ${decoded.keyId}`);
@@ -404,7 +309,6 @@ app.post('/api/auth/validate', async (req, res) => {
             });
         }
 
-        // Check if key has expired
         if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
             console.log(`❌ Key expired for keyId: ${decoded.keyId}`);
             return res.status(403).json({ 
@@ -414,7 +318,6 @@ app.post('/api/auth/validate', async (req, res) => {
             });
         }
 
-        // Log successful validation
         await logActivity(decoded.keyId, 'session_validated', {
             ip: getClientIP(req),
             timestamp: new Date().toISOString()
@@ -455,55 +358,16 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 });
 
-// Logout endpoint
-app.post('/api/auth/logout', async (req, res) => {
-    const { token } = req.body;
-    
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            await logActivity(decoded.keyId, 'user_logout', {
-                ip: getClientIP(req),
-                timestamp: new Date().toISOString()
-            });
-            console.log(`👋 User logout: keyId ${decoded.keyId}`);
-        } catch (error) {
-            // Token invalid, but logout anyway
-        }
-    }
-    
-    res.json({
-        success: true,
-        message: 'Logged out successfully'
-    });
-});
-
-// ================================================================
-// ADMIN ENDPOINTS
-// ================================================================
-
 // Admin stats
 app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
     try {
-        let totalKeys, activeKeys, activeSessions;
+        const totalResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
+        const activeResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true');
+        const sessionsResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true AND (expires_at IS NULL OR expires_at > NOW())');
         
-        if (isPostgreSQL) {
-            const totalResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            const activeResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true');
-            const sessionsResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true AND (expires_at IS NULL OR expires_at > NOW())');
-            
-            totalKeys = totalResult.rows[0].count;
-            activeKeys = activeResult.rows[0].count;
-            activeSessions = sessionsResult.rows[0].count;
-        } else {
-            const totalResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            const activeResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1');
-            const sessionsResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > datetime("now"))');
-            
-            totalKeys = totalResult.rows?.[0]?.count || 0;
-            activeKeys = activeResult.rows?.[0]?.count || 0;
-            activeSessions = sessionsResult.rows?.[0]?.count || 0;
-        }
+        const totalKeys = totalResult.rows[0].count;
+        const activeKeys = activeResult.rows[0].count;
+        const activeSessions = sessionsResult.rows[0].count;
 
         res.json({
             success: true,
@@ -511,7 +375,7 @@ app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
                 totalKeys: parseInt(totalKeys),
                 activeKeys: parseInt(activeKeys),
                 activeSessions: parseInt(activeSessions),
-                dailyUsage: 0 // Placeholder for future implementation
+                dailyUsage: 0
             }
         });
     } catch (error) {
@@ -536,27 +400,16 @@ app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
             const keyHash = hashKey(keyCode);
             const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000) : null;
 
-            if (isPostgreSQL) {
-                const result = await db.query(
-                    'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
-                    [keyCode, keyHash, expiresAt, 'admin']
-                );
-                keys.push({
-                    id: result.rows[0].id,
-                    key: keyCode,
-                    expires_at: expiresAt
-                });
-            } else {
-                const result = await dbQuery(
-                    'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES (?, ?, ?, ?)',
-                    [keyCode, keyHash, expiresAt, 'admin']
-                );
-                keys.push({
-                    id: result.lastID,
-                    key: keyCode,
-                    expires_at: expiresAt
-                });
-            }
+            const result = await db.query(
+                'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
+                [keyCode, keyHash, expiresAt, 'admin']
+            );
+            
+            keys.push({
+                id: result.rows[0].id,
+                key: keyCode,
+                expires_at: expiresAt
+            });
         }
         
         console.log(`✅ Generated ${quantity} new license keys`);
@@ -580,65 +433,39 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
     
     try {
-        let keys, totalCount;
+        const keysResult = await db.query(`
+            SELECT id, key_code, created_at, activated_at, activated_ip,
+                   device_fingerprint, is_active, usage_count, expires_at,
+                   created_by, updated_at
+            FROM license_keys 
+            ORDER BY created_at DESC 
+            LIMIT $1 OFFSET $2
+        `, [limitNum, offset]);
         
-        if (isPostgreSQL) {
-            const keysResult = await db.query(`
-                SELECT id, key_code, created_at, activated_at, activated_ip,
-                       device_fingerprint, is_active, usage_count, expires_at,
-                       created_by, updated_at
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT $1 OFFSET $2
-            `, [limitNum, offset]);
-            
-            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows;
-            totalCount = parseInt(countResult.rows[0].count);
-            
-        } else {
-            const keysResult = await dbQuery(`
-                SELECT id, key_code, created_at, activated_at, activated_ip,
-                       device_fingerprint, is_active, usage_count, expires_at
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
-            `, [limitNum, offset]);
-            
-            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows || [];
-            totalCount = parseInt(countResult.rows?.[0]?.count || 0);
-        }
+        const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
         
-        // Ensure keys is always an array
-        if (!Array.isArray(keys)) {
-            keys = [];
-        }
-        
-        // Add default values for missing columns
-        keys = keys.map(key => ({
-            id: key.id,
-            key_code: key.key_code,
-            created_at: key.created_at,
-            activated_at: key.activated_at || null,
-            activated_ip: key.activated_ip || null,
-            device_fingerprint: key.device_fingerprint || null,
-            is_active: key.is_active ? true : false,
-            usage_count: key.usage_count || 0,
-            expires_at: key.expires_at || null,
-            created_by: key.created_by || 'system',
-            updated_at: key.updated_at || key.created_at,
-            metadata: null,
-            max_usage: null
-        }));
+        const keys = keysResult.rows;
+        const totalCount = parseInt(countResult.rows[0].count);
         
         const totalPages = Math.ceil(totalCount / limitNum);
         
         res.json({
             success: true,
-            keys: keys,
+            keys: keys.map(key => ({
+                id: key.id,
+                key_code: key.key_code,
+                created_at: key.created_at,
+                activated_at: key.activated_at || null,
+                activated_ip: key.activated_ip || null,
+                device_fingerprint: key.device_fingerprint || null,
+                is_active: key.is_active ? true : false,
+                usage_count: key.usage_count || 0,
+                expires_at: key.expires_at || null,
+                created_by: key.created_by || 'system',
+                updated_at: key.updated_at || key.created_at,
+                metadata: null,
+                max_usage: null
+            })),
             pagination: {
                 page: pageNum,
                 limit: limitNum,
@@ -658,10 +485,7 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     }
 });
 
-// ================================================================
-// ACTIVITY LOGGING ENDPOINT
-// ================================================================
-
+// Activity logging endpoint
 app.post('/api/activity/log', authenticateToken, async (req, res) => {
     const { action, metadata = {} } = req.body;
     const keyId = req.user.keyId;
@@ -683,79 +507,30 @@ app.post('/api/activity/log', authenticateToken, async (req, res) => {
     }
 });
 
-// ================================================================
-// STATIC FILE SERVING
-// ================================================================
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
-});
-
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// ================================================================
-// DATABASE INITIALIZATION
-// ================================================================
-
-async function initializeDatabase() {
-    console.log('🔧 Initializing database...');
+// Logout endpoint
+app.post('/api/auth/logout', async (req, res) => {
+    const { token } = req.body;
     
-    if (isPostgreSQL) {
-        // PostgreSQL initialization
+    if (token) {
         try {
-            await db.query(`
-                CREATE TABLE IF NOT EXISTS license_keys (
-                    id SERIAL PRIMARY KEY,
-                    key_code VARCHAR(17) UNIQUE NOT NULL,
-                    key_hash VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    activated_at TIMESTAMP NULL,
-                    activated_ip VARCHAR(45) NULL,
-                    device_fingerprint TEXT NULL,
-                    is_active BOOLEAN DEFAULT FALSE,
-                    usage_count INTEGER DEFAULT 0,
-                    expires_at TIMESTAMP NULL,
-                    created_by VARCHAR(50) DEFAULT 'system',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            console.log('✅ PostgreSQL license_keys table ready');
+            const decoded = jwt.verify(token, JWT_SECRET);
+            await logActivity(decoded.keyId, 'user_logout', {
+                ip: getClientIP(req),
+                timestamp: new Date().toISOString()
+            });
+            console.log(`👋 User logout: keyId ${decoded.keyId}`);
         } catch (error) {
-            console.error('❌ PostgreSQL initialization failed:', error);
-        }
-    } else {
-        // SQLite initialization
-        try {
-            await dbQuery(`
-                CREATE TABLE IF NOT EXISTS license_keys (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key_code TEXT UNIQUE NOT NULL,
-                    key_hash TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    activated_at DATETIME NULL,
-                    activated_ip TEXT NULL,
-                    device_fingerprint TEXT NULL,
-                    is_active BOOLEAN DEFAULT 0,
-                    usage_count INTEGER DEFAULT 0,
-                    expires_at DATETIME NULL,
-                    created_by TEXT DEFAULT 'system',
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `);
-            console.log('✅ SQLite license_keys table ready');
-        } catch (error) {
-            console.error('❌ SQLite initialization failed:', error);
+            // Token invalid, but logout anyway
         }
     }
-}
+    
+    res.json({
+        success: true,
+        message: 'Logged out successfully'
+    });
+});
 
-// ================================================================
-// ERROR HANDLING
-// ================================================================
-
-// Global error handler
+// Error handling
 app.use((err, req, res, next) => {
     console.error('Global error:', err);
     res.status(500).json({ 
@@ -764,35 +539,74 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 404 handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// ================================================================
-// SERVER STARTUP
-// ================================================================
+// Static file serving
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
+});
 
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Database initialization
+async function initializeDatabase() {
+    console.log('🔧 Initializing PostgreSQL database...');
+    
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS license_keys (
+                id SERIAL PRIMARY KEY,
+                key_code VARCHAR(17) UNIQUE NOT NULL,
+                key_hash VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                activated_at TIMESTAMP NULL,
+                activated_ip VARCHAR(45) NULL,
+                device_fingerprint TEXT NULL,
+                is_active BOOLEAN DEFAULT FALSE,
+                usage_count INTEGER DEFAULT 0,
+                expires_at TIMESTAMP NULL,
+                created_by VARCHAR(50) DEFAULT 'system',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id SERIAL PRIMARY KEY,
+                key_id INTEGER REFERENCES license_keys(id),
+                action VARCHAR(100) NOT NULL,
+                metadata JSONB,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        console.log('✅ PostgreSQL tables ready');
+    } catch (error) {
+        console.error('❌ PostgreSQL initialization failed:', error);
+    }
+}
+
+// Server startup
 async function startServer() {
     try {
         await initializeDatabase();
         
         const server = app.listen(PORT, () => {
             console.log('🚀 Secret Messages Server running on port ' + PORT);
-            console.log('📱 Frontend: http://localhost:' + PORT);
-            console.log('🔧 Admin Panel: http://localhost:' + PORT + '/admin');
-            console.log('🔑 JWT Secret configured: ' + (JWT_SECRET.length > 20 ? 'Yes' : 'No'));
-            console.log('🛡️ Admin password configured: ' + (ADMIN_PASSWORD.length > 8 ? 'Yes' : 'No'));
+            console.log('📊 Using PostgreSQL database');
+            console.log('🔧 CSP configured for inline event handlers');
+            console.log('📱 Frontend: https://' + (process.env.DOMAIN || 'localhost:' + PORT));
+            console.log('🔧 Admin Panel: https://' + (process.env.DOMAIN || 'localhost:' + PORT) + '/admin');
         });
 
-        // Graceful shutdown
         process.on('SIGTERM', () => {
             console.log('🛑 SIGTERM received, shutting down gracefully');
             server.close(() => {
                 console.log('💤 Process terminated');
-                if (!isPostgreSQL) {
-                    db.close();
-                }
             });
         });
 
@@ -803,7 +617,6 @@ async function startServer() {
     }
 }
 
-// Start the server
 startServer();
 
 module.exports = { app };
