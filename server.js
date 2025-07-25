@@ -1,170 +1,131 @@
-// server.js - Secret Messages Backend (Complete Clean Version)
+// ================================================================
+// SECRET MESSAGES - VOLLSTÄNDIGE SERVER.JS MIT AUTO-LOGIN
+// Alle Endpoints für Frontend, Admin und Auto-Login System
+// ================================================================
+
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
-app.set('trust proxy', 1); // Trust first proxy (Railway)
+// Environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-min-32-characters';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'SecureAdmin123!';
+const DATABASE_URL = process.env.DATABASE_URL || './secret_messages.db';
 
-// Middleware
-app.use(helmet());
+// Database setup
+let db;
+let isPostgreSQL = false;
+
+if (DATABASE_URL.startsWith('postgresql') || DATABASE_URL.startsWith('postgres')) {
+    // PostgreSQL
+    const { Pool } = require('pg');
+    db = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    isPostgreSQL = true;
+    console.log('📊 Using PostgreSQL database');
+} else {
+    // SQLite
+    const sqlite3 = require('sqlite3').verbose();
+    db = new sqlite3.Database(DATABASE_URL);
+    console.log('📊 Using SQLite database');
+}
+
+// ================================================================
+// MIDDLEWARE
+// ================================================================
+
+// Security headers
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+}));
+
+// CORS
 app.use(cors({
     origin: process.env.FRONTEND_URL || '*',
     credentials: true
 }));
-app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10 // limit each IP to 10 auth requests per windowMs
+});
+app.use('/api/auth/', authLimiter);
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Static files
 app.use(express.static('public'));
 
-// Database Setup - RAILWAY POSTGRESQL FIX
-let db;
-let isPostgreSQL = false;
+// ================================================================
+// DATABASE HELPER FUNCTIONS
+// ================================================================
 
-const initializeDatabase = async () => {
-    console.log('🔧 Initializing Database...');
-    
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql')) {
-        console.log('📡 Railway PostgreSQL detected');
-        isPostgreSQL = true;
-        
-        try {
-            const { Pool } = require('pg');
-            db = new Pool({
-                connectionString: process.env.DATABASE_URL,
-                ssl: { rejectUnauthorized: false }
-            });
-            
-            await db.query('SELECT NOW()');
-            console.log('✅ PostgreSQL connection successful!');
-            
-            await createPostgreSQLTables();
-            await insertDemoKeys();
-            
-            console.log('🎉 PostgreSQL setup completed!');
-            
-        } catch (error) {
-            console.error('❌ PostgreSQL failed:', error.message);
-            setupSQLiteDatabase();
-        }
+const dbQuery = async (query, params = []) => {
+    if (isPostgreSQL) {
+        return await db.query(query, params);
     } else {
-        console.log('📁 Using SQLite (local)');
-        setupSQLiteDatabase();
-    }
-};
-
-const createPostgreSQLTables = async () => {
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS license_keys (
-            id SERIAL PRIMARY KEY,
-            key_code VARCHAR(17) UNIQUE NOT NULL,
-            key_hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            activated_at TIMESTAMP NULL,
-            activated_ip VARCHAR(45) NULL,
-            device_fingerprint VARCHAR(255) NULL,
-            is_active BOOLEAN DEFAULT FALSE,
-            usage_count INTEGER DEFAULT 0,
-            max_usage INTEGER DEFAULT NULL,
-            expires_at TIMESTAMP NULL,
-            created_by VARCHAR(100) DEFAULT 'system'
-        )
-    `);
-    
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS auth_sessions (
-            id SERIAL PRIMARY KEY,
-            session_token VARCHAR(500) UNIQUE NOT NULL,
-            key_id INTEGER REFERENCES license_keys(id),
-            ip_address VARCHAR(45) NOT NULL,
-            device_fingerprint VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP NOT NULL,
-            is_active BOOLEAN DEFAULT TRUE
-        )
-    `);
-    
-    await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
-    console.log('✅ PostgreSQL tables created');
-};
-
-const insertDemoKeys = async () => {
-    try {
-        const result = await db.query('SELECT COUNT(*) FROM license_keys');
-        if (result.rows[0].count == 0) {
-            const demoKeys = [
-                ['SM001-ALPHA-BETA1', '$2b$10$E1l7eU5lGGn6c6KJxL0pAeJQKqFhGjWKz8YvI0pUfBdMjFsU2xMzm'],
-                ['SM002-GAMMA-DELT2', '$2b$10$F2m8fV6mHHo7d7LKyM1qBfKRLrGiHkXLz9ZwJ1qVgCeNkGtV3yN0n'],
-                ['SM003-ECHO-FOXTR3', '$2b$10$G3n9gW7nIIp8e8MLzN2rCgLSMsHjIlYMz0AxK2rWhDfOlHuW4zO1o']
-            ];
+        return new Promise((resolve, reject) => {
+            const queryLower = query.toLowerCase().trim();
             
-            for (const [keyCode, keyHash] of demoKeys) {
-                await db.query(
-                    'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES ($1, $2, $3)',
-                    [keyCode, keyHash, 'demo']
-                );
+            if (queryLower.startsWith('select')) {
+                // For SELECT queries: use db.all() to get multiple rows
+                db.all(query, params, (err, rows) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve({ rows: rows || [] });
+                    }
+                });
+            } else {
+                // For INSERT/UPDATE/DELETE: use db.run()
+                db.run(query, params, function(err) {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve({ 
+                            lastID: this.lastID, 
+                            changes: this.changes,
+                            rows: []
+                        });
+                    }
+                });
             }
-            console.log('✅ Demo keys inserted');
-        }
-    } catch (error) {
-        console.log('Demo keys info:', error.message);
+        });
     }
 };
 
-const setupSQLiteDatabase = () => {
-    isPostgreSQL = false;
-    const sqlite3 = require('sqlite3').verbose();
-    db = new sqlite3.Database('./secret_messages.db');
-    
-    db.serialize(() => {
-        db.run(`CREATE TABLE IF NOT EXISTS license_keys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key_code TEXT UNIQUE NOT NULL,
-            key_hash TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            activated_at DATETIME NULL,
-            activated_ip TEXT NULL,
-            device_fingerprint TEXT NULL,
-            is_active BOOLEAN DEFAULT 0,
-            usage_count INTEGER DEFAULT 0,
-            max_usage INTEGER DEFAULT NULL,
-            expires_at DATETIME NULL
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS auth_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_token TEXT UNIQUE NOT NULL,
-            key_id INTEGER NOT NULL,
-            ip_address TEXT NOT NULL,
-            device_fingerprint TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            expires_at DATETIME NOT NULL,
-            is_active BOOLEAN DEFAULT 1,
-            FOREIGN KEY (key_id) REFERENCES license_keys (id)
-        )`);
-        
-        const demoKeys = ['SM001-ALPHA-BETA1', 'SM002-GAMMA-DELT2', 'SM003-ECHO-FOXTR3'];
-        demoKeys.forEach(key => {
-            const hash = bcrypt.hashSync(key.split('-')[2], 10);
-            db.run('INSERT OR IGNORE INTO license_keys (key_code, key_hash) VALUES (?, ?)', [key, hash]);
-        });
-        
-        console.log('✅ SQLite setup completed');
-    });
-};
+// ================================================================
+// UTILITY FUNCTIONS
+// ================================================================
 
-// Initialize database
-initializeDatabase();
-
-// Utility Functions
 function generateLicenseKey() {
     const parts = [];
     for (let i = 0; i < 3; i++) {
@@ -198,59 +159,46 @@ function getClientIP(req) {
            '0.0.0.0';
 }
 
-// Database query helper
-
-const dbQuery = async (query, params = []) => {
-    if (isPostgreSQL) {
-        return await db.query(query, params);
-    } else {
-        return new Promise((resolve, reject) => {
-            const queryLower = query.toLowerCase().trim();
-            
-            if (queryLower.startsWith('select')) {
-                // Für SELECT-Abfragen: db.all() für mehrere Zeilen
-                db.all(query, params, (err, rows) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        // Konsistente Struktur wie PostgreSQL
-                        resolve({ rows: rows || [] });
-                    }
-                });
-            } else if (queryLower.startsWith('insert') || 
-                      queryLower.startsWith('update') || 
-                      queryLower.startsWith('delete')) {
-                // Für INSERT/UPDATE/DELETE: db.run()
-                db.run(query, params, function(err) {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({ 
-                            lastID: this.lastID, 
-                            changes: this.changes,
-                            rows: []
-                        });
-                    }
-                });
-            } else {
-                // Für andere Abfragen (CREATE TABLE, etc.): db.run()
-                db.run(query, params, function(err) {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve({ 
-                            lastID: this.lastID, 
-                            changes: this.changes,
-                            rows: []
-                        });
-                    }
-                });
-            }
+// Activity logging helper
+async function logActivity(keyId, action, metadata = {}) {
+    try {
+        const timestamp = new Date().toISOString();
+        const metadataString = JSON.stringify({
+            ...metadata,
+            timestamp: timestamp
         });
+        
+        if (isPostgreSQL) {
+            await db.query(
+                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES ($1, $2, $3, $4)',
+                [keyId, action, metadataString, timestamp]
+            );
+        } else {
+            // For SQLite - create table if not exists
+            await dbQuery(`
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_id INTEGER,
+                    action TEXT,
+                    metadata TEXT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            await dbQuery(
+                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES (?, ?, ?, ?)',
+                [keyId, action, metadataString, timestamp]
+            );
+        }
+    } catch (error) {
+        console.warn('Activity logging failed:', error.message);
     }
-};
+}
 
-// Middleware for authentication
+// ================================================================
+// AUTHENTICATION MIDDLEWARE
+// ================================================================
+
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -268,7 +216,6 @@ function authenticateToken(req, res, next) {
     });
 }
 
-// Admin middleware
 function authenticateAdmin(req, res, next) {
     const { password } = req.body;
     if (password !== ADMIN_PASSWORD) {
@@ -277,7 +224,9 @@ function authenticateAdmin(req, res, next) {
     next();
 }
 
-// API Endpoints
+// ================================================================
+// API ENDPOINTS
+// ================================================================
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -289,7 +238,289 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Generate new license key (Admin only)
+// ================================================================
+// AUTHENTICATION ENDPOINTS
+// ================================================================
+
+// License Key Activation
+app.post('/api/auth/activate', async (req, res) => {
+    const { licenseKey } = req.body;
+    const clientIP = getClientIP(req);
+    const deviceFingerprint = generateDeviceFingerprint(req);
+
+    console.log(`🔑 License activation attempt: ${licenseKey} from IP: ${clientIP}`);
+
+    if (!licenseKey || !/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+        return res.status(400).json({ error: 'Invalid license key format' });
+    }
+
+    try {
+        // Find the key in database
+        let keyData;
+        if (isPostgreSQL) {
+            const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
+            keyData = result.rows[0];
+        } else {
+            const result = await dbQuery('SELECT * FROM license_keys WHERE key_code = ?', [licenseKey]);
+            keyData = result.rows && result.rows[0];
+        }
+
+        if (!keyData) {
+            console.log(`❌ License key not found: ${licenseKey}`);
+            return res.status(404).json({ error: 'License key not found' });
+        }
+
+        // Check if key is expired
+        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+            console.log(`❌ License key expired: ${licenseKey}`);
+            return res.status(403).json({ error: 'License key has expired' });
+        }
+
+        // Check device binding
+        if (keyData.is_active) {
+            if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
+                // Same device - generate new session token
+                const sessionToken = jwt.sign(
+                    { 
+                        keyId: keyData.id, 
+                        ip: clientIP, 
+                        fingerprint: deviceFingerprint,
+                        keyCode: licenseKey
+                    },
+                    JWT_SECRET,
+                    { expiresIn: '30d' }
+                );
+
+                // Log activity
+                await logActivity(keyData.id, 'auto_login_success', {
+                    ip: clientIP,
+                    deviceFingerprint: deviceFingerprint
+                });
+
+                console.log(`✅ Returning user auto-login: ${licenseKey}`);
+                return res.json({
+                    success: true,
+                    message: 'Welcome back! Automatic login successful.',
+                    token: sessionToken,
+                    keyId: keyData.id,
+                    autoLogin: true
+                });
+            } else {
+                console.log(`❌ Device binding violation: ${licenseKey} - IP: ${clientIP} vs ${keyData.activated_ip}`);
+                return res.status(403).json({ 
+                    error: 'This license key is already bound to another device.' 
+                });
+            }
+        }
+
+        // New key activation
+        const sessionToken = jwt.sign(
+            { 
+                keyId: keyData.id, 
+                ip: clientIP, 
+                fingerprint: deviceFingerprint,
+                keyCode: licenseKey
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+
+        // Mark key as active
+        if (isPostgreSQL) {
+            await db.query(
+                'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
+                [clientIP, deviceFingerprint, keyData.id]
+            );
+        } else {
+            await dbQuery(
+                'UPDATE license_keys SET is_active = 1, activated_at = datetime("now"), activated_ip = ?, device_fingerprint = ?, usage_count = usage_count + 1 WHERE id = ?',
+                [clientIP, deviceFingerprint, keyData.id]
+            );
+        }
+
+        // Log activity
+        await logActivity(keyData.id, 'license_activated', {
+            ip: clientIP,
+            deviceFingerprint: deviceFingerprint,
+            firstActivation: true
+        });
+
+        console.log(`✅ New license activation successful: ${licenseKey}`);
+        res.json({
+            success: true,
+            message: 'License key activated successfully! Device registered.',
+            token: sessionToken,
+            keyId: keyData.id,
+            autoLogin: false
+        });
+
+    } catch (error) {
+        console.error('❌ Activation error:', error);
+        res.status(500).json({ error: 'Internal server error during activation' });
+    }
+});
+
+// Token Validation (KRITISCH FÜR AUTO-LOGIN)
+app.post('/api/auth/validate', async (req, res) => {
+    const { token } = req.body;
+    
+    console.log(`🔍 Token validation request received`);
+
+    if (!token) {
+        return res.status(400).json({ 
+            success: false, 
+            valid: false, 
+            error: 'Token required' 
+        });
+    }
+
+    try {
+        // Verify JWT token
+        const decoded = jwt.verify(token, JWT_SECRET);
+        console.log(`🔍 JWT decoded successfully for keyId: ${decoded.keyId}`);
+
+        // Check if the key is still active in database
+        let keyData;
+        if (isPostgreSQL) {
+            const result = await db.query(
+                'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
+                [decoded.keyId]
+            );
+            keyData = result.rows[0];
+        } else {
+            const result = await dbQuery(
+                'SELECT * FROM license_keys WHERE id = ? AND is_active = 1',
+                [decoded.keyId]
+            );
+            keyData = result.rows && result.rows[0];
+        }
+
+        if (!keyData) {
+            console.log(`❌ Key no longer active for keyId: ${decoded.keyId}`);
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'License key no longer active' 
+            });
+        }
+
+        // Check if key has expired
+        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+            console.log(`❌ Key expired for keyId: ${decoded.keyId}`);
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'License key expired' 
+            });
+        }
+
+        // Log successful validation
+        await logActivity(decoded.keyId, 'session_validated', {
+            ip: getClientIP(req),
+            timestamp: new Date().toISOString()
+        });
+
+        console.log(`✅ Token validation successful for keyId: ${decoded.keyId}`);
+        res.json({
+            success: true,
+            valid: true,
+            keyId: decoded.keyId,
+            keyCode: keyData.key_code,
+            expiresAt: keyData.expires_at
+        });
+
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            console.log(`❌ Invalid JWT token: ${error.message}`);
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'Invalid token' 
+            });
+        } else if (error.name === 'TokenExpiredError') {
+            console.log(`❌ Expired JWT token: ${error.message}`);
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'Token expired' 
+            });
+        } else {
+            console.error(`❌ Token validation error:`, error);
+            return res.status(500).json({ 
+                success: false, 
+                valid: false, 
+                error: 'Internal server error' 
+            });
+        }
+    }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', async (req, res) => {
+    const { token } = req.body;
+    
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            await logActivity(decoded.keyId, 'user_logout', {
+                ip: getClientIP(req),
+                timestamp: new Date().toISOString()
+            });
+            console.log(`👋 User logout: keyId ${decoded.keyId}`);
+        } catch (error) {
+            // Token invalid, but logout anyway
+        }
+    }
+    
+    res.json({
+        success: true,
+        message: 'Logged out successfully'
+    });
+});
+
+// ================================================================
+// ADMIN ENDPOINTS
+// ================================================================
+
+// Admin stats
+app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
+    try {
+        let totalKeys, activeKeys, activeSessions;
+        
+        if (isPostgreSQL) {
+            const totalResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
+            const activeResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true');
+            const sessionsResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true AND (expires_at IS NULL OR expires_at > NOW())');
+            
+            totalKeys = totalResult.rows[0].count;
+            activeKeys = activeResult.rows[0].count;
+            activeSessions = sessionsResult.rows[0].count;
+        } else {
+            const totalResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
+            const activeResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1');
+            const sessionsResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > datetime("now"))');
+            
+            totalKeys = totalResult.rows?.[0]?.count || 0;
+            activeKeys = activeResult.rows?.[0]?.count || 0;
+            activeSessions = sessionsResult.rows?.[0]?.count || 0;
+        }
+
+        res.json({
+            success: true,
+            stats: {
+                totalKeys: parseInt(totalKeys),
+                activeKeys: parseInt(activeKeys),
+                activeSessions: parseInt(activeSessions),
+                dailyUsage: 0 // Placeholder for future implementation
+            }
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// Generate new license keys
 app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
     const { quantity = 1, expiresIn = null } = req.body;
     
@@ -307,8 +538,8 @@ app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
 
             if (isPostgreSQL) {
                 const result = await db.query(
-                    'INSERT INTO license_keys (key_code, key_hash, expires_at) VALUES ($1, $2, $3) RETURNING id',
-                    [keyCode, keyHash, expiresAt]
+                    'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
+                    [keyCode, keyHash, expiresAt, 'admin']
                 );
                 keys.push({
                     id: result.rows[0].id,
@@ -317,8 +548,8 @@ app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
                 });
             } else {
                 const result = await dbQuery(
-                    'INSERT INTO license_keys (key_code, key_hash, expires_at) VALUES (?, ?, ?)',
-                    [keyCode, keyHash, expiresAt]
+                    'INSERT INTO license_keys (key_code, key_hash, expires_at, created_by) VALUES (?, ?, ?, ?)',
+                    [keyCode, keyHash, expiresAt, 'admin']
                 );
                 keys.push({
                     id: result.lastID,
@@ -328,6 +559,7 @@ app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
             }
         }
         
+        console.log(`✅ Generated ${quantity} new license keys`);
         res.json({ 
             success: true, 
             keys: keys,
@@ -339,380 +571,7 @@ app.post('/api/admin/generate-key', authenticateAdmin, async (req, res) => {
     }
 });
 
-// Validate and activate license key
-app.post('/api/auth/activate', async (req, res) => {
-    const { licenseKey } = req.body;
-    const clientIP = getClientIP(req);
-    const deviceFingerprint = generateDeviceFingerprint(req);
-
-    if (!licenseKey || !/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
-        return res.status(400).json({ error: 'Invalid license key format' });
-    }
-
-    try {
-        // Find the key in database
-        let keyData;
-        if (isPostgreSQL) {
-            const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
-            keyData = result.rows[0];
-        } else {
-            const result = await dbQuery('SELECT * FROM license_keys WHERE key_code = ?', [licenseKey]);
-            keyData = result.rows[0];
-        }
-
-        if (!keyData) {
-            return res.status(404).json({ error: 'License key not found' });
-        }
-
-        // Check if key is already activated
-        if (keyData.is_active) {
-            // Check if same device/IP
-            if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
-                // Generate new session token
-                const sessionToken = jwt.sign(
-                    { 
-                        keyId: keyData.id, 
-                        ip: clientIP, 
-                        fingerprint: deviceFingerprint 
-                    },
-                    JWT_SECRET,
-                    { expiresIn: '30d' }
-                );
-
-                return res.json({
-                    success: true,
-                    message: 'Welcome back! Access granted.',
-                    token: sessionToken,
-                    keyId: keyData.id
-                });
-            } else {
-                return res.status(403).json({ 
-                    error: 'This license key is already bound to another device.' 
-                });
-            }
-        } else {
-            // Check if key has expired
-            if (keyData.expires_at && new Date() > new Date(keyData.expires_at)) {
-                return res.status(410).json({ error: 'License key has expired' });
-            }
-
-            // Activate the key
-            if (isPostgreSQL) {
-                await db.query(
-                    'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
-                    [clientIP, deviceFingerprint, keyData.id]
-                );
-            } else {
-                await dbQuery(
-                    'UPDATE license_keys SET is_active = 1, activated_at = CURRENT_TIMESTAMP, activated_ip = ?, device_fingerprint = ?, usage_count = usage_count + 1 WHERE id = ?',
-                    [clientIP, deviceFingerprint, keyData.id]
-                );
-            }
-
-            // Generate session token
-            const sessionToken = jwt.sign(
-                { 
-                    keyId: keyData.id, 
-                    ip: clientIP, 
-                    fingerprint: deviceFingerprint 
-                },
-                JWT_SECRET,
-                { expiresIn: '30d' }
-            );
-
-            // Create session record
-            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-            
-            if (isPostgreSQL) {
-                await db.query(
-                    'INSERT INTO auth_sessions (session_token, key_id, ip_address, device_fingerprint, expires_at) VALUES ($1, $2, $3, $4, $5)',
-                    [sessionToken, keyData.id, clientIP, deviceFingerprint, expiresAt]
-                );
-            } else {
-                await dbQuery(
-                    'INSERT INTO auth_sessions (session_token, key_id, ip_address, device_fingerprint, expires_at) VALUES (?, ?, ?, ?, ?)',
-                    [sessionToken, keyData.id, clientIP, deviceFingerprint, expiresAt.toISOString()]
-                );
-            }
-
-            res.json({
-                success: true,
-                message: 'License key activated successfully! Welcome to Secret Messages.',
-                token: sessionToken,
-                keyId: keyData.id
-            });
-        }
-    } catch (error) {
-        console.error('Activation error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Validate session token
-app.post('/api/auth/validate', async (req, res) => {
-    const { token } = req.body;
-    
-    if (!token) {
-        return res.status(400).json({ 
-            success: false, 
-            valid: false, 
-            error: 'Token required' 
-        });
-    }
-    
-    try {
-        // JWT Token verifizieren
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        // Zusätzlich prüfen, ob der Key noch aktiv ist
-        let keyData;
-        if (isPostgreSQL) {
-            const result = await db.query(
-                'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
-                [decoded.keyId]
-            );
-            keyData = result.rows[0];
-        } else {
-            const result = await dbQuery(
-                'SELECT * FROM license_keys WHERE id = ? AND is_active = 1',
-                [decoded.keyId]
-            );
-            keyData = result.rows && result.rows[0];
-        }
-        
-        if (!keyData) {
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'License key no longer active' 
-            });
-        }
-        
-        // Prüfen, ob Key abgelaufen ist
-        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-            return res.status(403).json({ 
-                success: false, 
-                valid: false, 
-                error: 'License key expired' 
-            });
-        }
-        
-        // Session-Aktivität loggen
-        logActivity(decoded.keyId, 'session_validated', {
-            ip: getClientIP(req),
-            timestamp: new Date().toISOString()
-        });
-        
-        res.json({
-            success: true,
-            valid: true,
-            keyId: decoded.keyId,
-            keyCode: keyData.key_code,
-            expiresAt: keyData.expires_at
-        });
-        
-    } catch (error) {
-        console.log('Token validation failed:', error.message);
-        res.status(403).json({ 
-            success: false, 
-            valid: false, 
-            error: 'Invalid or expired token' 
-        });
-    }
-});
-
-// Enhanced activation endpoint mit längerer Token-Gültigkeit
-app.post('/api/auth/activate', async (req, res) => {
-    const { licenseKey } = req.body;
-    const clientIP = getClientIP(req);
-    const deviceFingerprint = generateDeviceFingerprint(req);
-
-    if (!licenseKey || !/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
-        return res.status(400).json({ error: 'Invalid license key format' });
-    }
-
-    try {
-        // Key in Datenbank finden
-        let keyData;
-        if (isPostgreSQL) {
-            const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
-            keyData = result.rows[0];
-        } else {
-            const result = await dbQuery('SELECT * FROM license_keys WHERE key_code = ?', [licenseKey]);
-            keyData = result.rows && result.rows[0];
-        }
-
-        if (!keyData) {
-            return res.status(404).json({ error: 'License key not found' });
-        }
-
-        // Key-Ablauf prüfen
-        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-            return res.status(403).json({ error: 'License key has expired' });
-        }
-
-        // Gerätebindung prüfen
-        if (keyData.is_active) {
-            if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
-                // Gleiches Gerät - neuen Token generieren
-                const sessionToken = jwt.sign(
-                    { 
-                        keyId: keyData.id, 
-                        ip: clientIP, 
-                        fingerprint: deviceFingerprint 
-                    },
-                    JWT_SECRET,
-                    { expiresIn: '30d' } // 30 Tage für automatisches Login
-                );
-
-                // Activity loggen
-                logActivity(keyData.id, 'auto_login_success', {
-                    ip: clientIP,
-                    deviceFingerprint: deviceFingerprint
-                });
-
-                return res.json({
-                    success: true,
-                    message: 'Welcome back! Automatic login successful.',
-                    token: sessionToken,
-                    keyId: keyData.id,
-                    autoLogin: true
-                });
-            } else {
-                return res.status(403).json({ 
-                    error: 'This license key is already bound to another device. Contact support if this is your device.' 
-                });
-            }
-        }
-
-        // Neuer Key - aktivieren
-        const sessionToken = jwt.sign(
-            { 
-                keyId: keyData.id, 
-                ip: clientIP, 
-                fingerprint: deviceFingerprint 
-            },
-            JWT_SECRET,
-            { expiresIn: '30d' } // 30 Tage für automatisches Login
-        );
-
-        // Key als aktiv markieren
-        if (isPostgreSQL) {
-            await db.query(
-                'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
-                [clientIP, deviceFingerprint, keyData.id]
-            );
-        } else {
-            await dbQuery(
-                'UPDATE license_keys SET is_active = 1, activated_at = datetime("now"), activated_ip = ?, device_fingerprint = ?, usage_count = usage_count + 1 WHERE id = ?',
-                [clientIP, deviceFingerprint, keyData.id]
-            );
-        }
-
-        // Activity loggen
-        logActivity(keyData.id, 'license_activated', {
-            ip: clientIP,
-            deviceFingerprint: deviceFingerprint,
-            firstActivation: true
-        });
-
-        res.json({
-            success: true,
-            message: 'License key activated successfully! Device registered.',
-            token: sessionToken,
-            keyId: keyData.id,
-            autoLogin: false
-        });
-
-    } catch (error) {
-        console.error('Activation error:', error);
-        res.status(500).json({ error: 'Internal server error during activation' });
-    }
-});
-
-// Logout endpoint (optional)
-app.post('/api/auth/logout', async (req, res) => {
-    const { token } = req.body;
-    
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            logActivity(decoded.keyId, 'user_logout', {
-                ip: getClientIP(req),
-                timestamp: new Date().toISOString()
-            });
-        } catch (error) {
-            // Token ungültig, aber Logout trotzdem bestätigen
-        }
-    }
-    
-    res.json({
-        success: true,
-        message: 'Logged out successfully'
-    });
-});
-
-// Activity logging helper function
-async function logActivity(keyId, action, metadata = {}) {
-    try {
-        if (isPostgreSQL) {
-            await db.query(
-                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES ($1, $2, $3, NOW())',
-                [keyId, action, JSON.stringify(metadata)]
-            );
-        } else {
-            // Für SQLite - falls activity_logs Tabelle existiert
-            await dbQuery(
-                'INSERT OR IGNORE INTO activity_logs (key_id, action, metadata, timestamp) VALUES (?, ?, ?, datetime("now"))',
-                [keyId, action, JSON.stringify(metadata)]
-            );
-        }
-    } catch (error) {
-        // Activity logging errors sollten die Hauptfunktion nicht blockieren
-        console.warn('Activity logging failed:', error.message);
-    }
-}
-
-// Admin stats
-app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
-    try {
-        let totalKeys, activeKeys, activeSessions;
-        
-        if (isPostgreSQL) {
-            const totalResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            const activeResult = await db.query('SELECT COUNT(*) as count FROM license_keys WHERE is_active = true');
-            const sessionsResult = await db.query('SELECT COUNT(*) as count FROM auth_sessions WHERE is_active = true AND expires_at > NOW()');
-            
-            totalKeys = totalResult.rows[0].count;
-            activeKeys = activeResult.rows[0].count;
-            activeSessions = sessionsResult.rows[0].count;
-        } else {
-            const totalResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            const activeResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1');
-            const sessionsResult = await dbQuery('SELECT COUNT(*) as count FROM auth_sessions WHERE is_active = 1 AND expires_at > datetime("now")');
-            
-            totalKeys = totalResult.rows[0].count;
-            activeKeys = activeResult.rows[0].count;
-            activeSessions = sessionsResult.rows[0].count;
-        }
-
-        res.json({
-            success: true,
-            stats: {
-                totalKeys: parseInt(totalKeys),
-                activeKeys: parseInt(activeKeys),
-                activeSessions: parseInt(activeSessions),
-                dailyUsage: 0 // Placeholder
-            }
-        });
-    } catch (error) {
-        console.error('Stats error:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
-    }
-});
-
-// ULTRA-SICHERE VERSION: Falls die andere Version immer noch Probleme macht
-
+// List license keys with pagination
 app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     const { page = 1, limit = 50 } = req.body;
     
@@ -724,105 +583,6 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
         let keys, totalCount;
         
         if (isPostgreSQL) {
-            // PostgreSQL - nur absolut sichere Spalten
-            const keysResult = await db.query(`
-                SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       is_active, usage_count, expires_at
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT $1 OFFSET $2
-            `, [limitNum, offset]);
-            
-            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows;
-            totalCount = parseInt(countResult.rows[0].count);
-            
-        } else {
-            // SQLite - nur absolut sichere Spalten (die definitiv existieren)
-            const keysResult = await dbQuery(`
-                SELECT id, key_code, created_at, activated_at, activated_ip, 
-                       is_active, usage_count, expires_at
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
-            `, [limitNum, offset]);
-            
-            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            
-            // Handle SQLite return format
-            if (keysResult && keysResult.rows) {
-                keys = Array.isArray(keysResult.rows) ? keysResult.rows : [keysResult.rows];
-            } else {
-                keys = [];
-            }
-            
-            totalCount = parseInt(countResult.rows?.[0]?.count || 0);
-        }
-        
-        // Ensure keys is always an array
-        if (!Array.isArray(keys)) {
-            keys = [];
-        }
-        
-        // Add mock values for missing columns that the frontend expects
-        keys = keys.map(key => ({
-            id: key.id,
-            key_code: key.key_code,
-            created_at: key.created_at,
-            activated_at: key.activated_at,
-            activated_ip: key.activated_ip,
-            is_active: key.is_active,
-            usage_count: key.usage_count || 0,
-            expires_at: key.expires_at,
-            // Add mock values for columns that might not exist
-            device_fingerprint: null,
-            metadata: null,
-            created_by: 'system',
-            updated_at: key.created_at,
-            max_usage: null
-        }));
-        
-        const totalPages = Math.ceil(totalCount / limitNum);
-        
-        console.log(`✅ Keys loaded successfully: ${keys.length}/${totalCount} total`);
-        
-        res.json({
-            success: true,
-            keys: keys,
-            pagination: {
-                page: pageNum,
-                limit: limitNum,
-                total: totalCount,
-                pages: totalPages,
-                hasNext: pageNum < totalPages,
-                hasPrev: pageNum > 1
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Keys listing error:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch keys',
-            message: error.message
-        });
-    }
-});
-
-// FINALE KORREKTE VERSION des /api/admin/keys Endpoints
-
-app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
-    const { page = 1, limit = 50 } = req.body;
-    
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-    const offset = (pageNum - 1) * limitNum;
-    
-    try {
-        let keys, totalCount;
-        
-        if (isPostgreSQL) {
-            // PostgreSQL
             const keysResult = await db.query(`
                 SELECT id, key_code, created_at, activated_at, activated_ip,
                        device_fingerprint, is_active, usage_count, expires_at,
@@ -838,7 +598,6 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             totalCount = parseInt(countResult.rows[0].count);
             
         } else {
-            // SQLite mit korrigierter dbQuery Funktion
             const keysResult = await dbQuery(`
                 SELECT id, key_code, created_at, activated_at, activated_ip,
                        device_fingerprint, is_active, usage_count, expires_at
@@ -871,13 +630,11 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             expires_at: key.expires_at || null,
             created_by: key.created_by || 'system',
             updated_at: key.updated_at || key.created_at,
-            metadata: null, // Spalte existiert nicht
-            max_usage: null // Spalte existiert nicht oder ist leer
+            metadata: null,
+            max_usage: null
         }));
         
         const totalPages = Math.ceil(totalCount / limitNum);
-        
-        console.log(`✅ Keys loaded: ${keys.length} of ${totalCount} total (page ${pageNum}/${totalPages})`);
         
         res.json({
             success: true,
@@ -901,161 +658,35 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     }
 });
 
+// ================================================================
+// ACTIVITY LOGGING ENDPOINT
+// ================================================================
 
-// DEBUG-VERSION: Verwenden Sie diese Version temporär, um das Problem zu identifizieren
-
-app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
-    console.log('=== ADMIN KEYS DEBUG START ===');
-    console.log('Request body:', req.body);
-    
-    const { page = 1, limit = 50 } = req.body;
-    const pageNum = Math.max(1, parseInt(page));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-    const offset = (pageNum - 1) * limitNum;
-    
-    console.log('Pagination params:', { pageNum, limitNum, offset });
-    console.log('Database type:', isPostgreSQL ? 'PostgreSQL' : 'SQLite');
+app.post('/api/activity/log', authenticateToken, async (req, res) => {
+    const { action, metadata = {} } = req.body;
+    const keyId = req.user.keyId;
     
     try {
-        // Erst eine einfache Test-Query
-        console.log('Testing basic query...');
-        
-        let testResult;
-        if (isPostgreSQL) {
-            testResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            console.log('PostgreSQL test result:', testResult.rows);
-        } else {
-            testResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            console.log('SQLite test result:', testResult);
-        }
-        
-        // Dann die Haupt-Query
-        console.log('Executing main query...');
-        
-        let keys, totalCount;
-        
-        if (isPostgreSQL) {
-            console.log('Using PostgreSQL queries...');
-            
-            // Einfachere Query zuerst
-            const keysResult = await db.query(`
-                SELECT id, key_code, created_at, is_active, usage_count
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT $1 OFFSET $2
-            `, [limitNum, offset]);
-            
-            const countResult = await db.query('SELECT COUNT(*) as count FROM license_keys');
-            
-            keys = keysResult.rows;
-            totalCount = parseInt(countResult.rows[0].count);
-            
-            console.log('PostgreSQL results:', { keysCount: keys.length, totalCount });
-            
-        } else {
-            console.log('Using SQLite queries...');
-            
-            // Einfachere Query zuerst  
-            const keysResult = await dbQuery(`
-                SELECT id, key_code, created_at, is_active, usage_count
-                FROM license_keys 
-                ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
-            `, [limitNum, offset]);
-            
-            console.log('SQLite keys result structure:', typeof keysResult, Object.keys(keysResult || {}));
-            
-            const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-            
-            console.log('SQLite count result structure:', typeof countResult, Object.keys(countResult || {}));
-            
-            // Handle different SQLite return formats
-            if (keysResult && keysResult.rows) {
-                if (Array.isArray(keysResult.rows)) {
-                    keys = keysResult.rows;
-                } else {
-                    keys = [keysResult.rows];
-                }
-            } else if (Array.isArray(keysResult)) {
-                keys = keysResult;
-            } else {
-                keys = [];
-            }
-            
-            if (countResult && countResult.rows) {
-                if (Array.isArray(countResult.rows)) {
-                    totalCount = parseInt(countResult.rows[0]?.count || 0);
-                } else {
-                    totalCount = parseInt(countResult.rows.count || 0);
-                }
-            } else {
-                totalCount = 0;
-            }
-            
-            console.log('SQLite processed results:', { keysCount: keys.length, totalCount });
-        }
-        
-        // Ensure keys is array
-        if (!Array.isArray(keys)) {
-            console.log('Converting keys to array, current type:', typeof keys);
-            keys = [];
-        }
-        
-        const totalPages = Math.ceil(totalCount / limitNum);
-        
-        console.log('Final results:', { 
-            keysLength: keys.length, 
-            totalCount, 
-            totalPages,
-            sampleKey: keys[0] ? Object.keys(keys[0]) : 'no keys'
+        await logActivity(keyId, action, {
+            ...metadata,
+            ip: getClientIP(req),
+            userAgent: req.headers['user-agent']
         });
         
-        const response = {
+        res.json({
             success: true,
-            keys: keys,
-            pagination: {
-                page: pageNum,
-                limit: limitNum,
-                total: totalCount,
-                pages: totalPages,
-                hasNext: pageNum < totalPages,
-                hasPrev: pageNum > 1
-            },
-            debug: {
-                dbType: isPostgreSQL ? 'PostgreSQL' : 'SQLite',
-                queryParams: { pageNum, limitNum, offset }
-            }
-        };
-        
-        console.log('Sending response:', JSON.stringify(response, null, 2));
-        console.log('=== ADMIN KEYS DEBUG END ===');
-        
-        res.json(response);
-        
+            logged: true
+        });
     } catch (error) {
-        console.error('=== ADMIN KEYS ERROR ===');
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('Error details:', {
-            name: error.name,
-            code: error.code,
-            errno: error.errno,
-            sqlState: error.sqlState
-        });
-        console.log('=== ERROR END ===');
-        
-        res.status(500).json({ 
-            error: 'Failed to fetch keys',
-            debug: {
-                message: error.message,
-                type: error.name,
-                dbType: isPostgreSQL ? 'PostgreSQL' : 'SQLite'
-            }
-        });
+        console.error('Activity logging error:', error);
+        res.status(500).json({ error: 'Failed to log activity' });
     }
 });
 
-// Serve static files
+// ================================================================
+// STATIC FILE SERVING
+// ================================================================
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
 });
@@ -1064,20 +695,115 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-    console.log(`🚀 Secret Messages Server running on port ${PORT}`);
-    console.log(`📱 Frontend: http://localhost:${PORT}`);
-    console.log(`🔧 Admin Panel: http://localhost:${PORT}/admin`);
-    console.log(`🔑 Test Key: SM001-ALPHA-BETA1`);
-});
+// ================================================================
+// DATABASE INITIALIZATION
+// ================================================================
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('🛑 SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        console.log('💤 Process terminated');
+async function initializeDatabase() {
+    console.log('🔧 Initializing database...');
+    
+    if (isPostgreSQL) {
+        // PostgreSQL initialization
+        try {
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS license_keys (
+                    id SERIAL PRIMARY KEY,
+                    key_code VARCHAR(17) UNIQUE NOT NULL,
+                    key_hash VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    activated_at TIMESTAMP NULL,
+                    activated_ip VARCHAR(45) NULL,
+                    device_fingerprint TEXT NULL,
+                    is_active BOOLEAN DEFAULT FALSE,
+                    usage_count INTEGER DEFAULT 0,
+                    expires_at TIMESTAMP NULL,
+                    created_by VARCHAR(50) DEFAULT 'system',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            console.log('✅ PostgreSQL license_keys table ready');
+        } catch (error) {
+            console.error('❌ PostgreSQL initialization failed:', error);
+        }
+    } else {
+        // SQLite initialization
+        try {
+            await dbQuery(`
+                CREATE TABLE IF NOT EXISTS license_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_code TEXT UNIQUE NOT NULL,
+                    key_hash TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    activated_at DATETIME NULL,
+                    activated_ip TEXT NULL,
+                    device_fingerprint TEXT NULL,
+                    is_active BOOLEAN DEFAULT 0,
+                    usage_count INTEGER DEFAULT 0,
+                    expires_at DATETIME NULL,
+                    created_by TEXT DEFAULT 'system',
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            console.log('✅ SQLite license_keys table ready');
+        } catch (error) {
+            console.error('❌ SQLite initialization failed:', error);
+        }
+    }
+}
+
+// ================================================================
+// ERROR HANDLING
+// ================================================================
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Global error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
     });
 });
 
-module.exports = { app, server };
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// ================================================================
+// SERVER STARTUP
+// ================================================================
+
+async function startServer() {
+    try {
+        await initializeDatabase();
+        
+        const server = app.listen(PORT, () => {
+            console.log('🚀 Secret Messages Server running on port ' + PORT);
+            console.log('📱 Frontend: http://localhost:' + PORT);
+            console.log('🔧 Admin Panel: http://localhost:' + PORT + '/admin');
+            console.log('🔑 JWT Secret configured: ' + (JWT_SECRET.length > 20 ? 'Yes' : 'No'));
+            console.log('🛡️ Admin password configured: ' + (ADMIN_PASSWORD.length > 8 ? 'Yes' : 'No'));
+        });
+
+        // Graceful shutdown
+        process.on('SIGTERM', () => {
+            console.log('🛑 SIGTERM received, shutting down gracefully');
+            server.close(() => {
+                console.log('💤 Process terminated');
+                if (!isPostgreSQL) {
+                    db.close();
+                }
+            });
+        });
+
+        return server;
+    } catch (error) {
+        console.error('❌ Server startup failed:', error);
+        process.exit(1);
+    }
+}
+
+// Start the server
+startServer();
+
+module.exports = { app };
