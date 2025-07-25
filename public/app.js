@@ -1,3 +1,378 @@
+// AUTO-LOGIN SYSTEM - Fügen Sie diesen Code in Ihre app.js ein
+
+// Globale Variablen
+let userToken = null;
+let isAuthenticated = false;
+
+// ==================================================
+// AUTO-LOGIN SYSTEM
+// ==================================================
+
+// Beim Laden der Seite prüfen, ob Benutzer bereits authentifiziert ist
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🔍 Checking authentication status...');
+    
+    // Prüfen, ob bereits ein Token vorhanden ist
+    const savedToken = getStoredToken();
+    
+    if (savedToken) {
+        console.log('🔑 Found saved token, validating...');
+        
+        // Token validieren
+        const isValid = await validateToken(savedToken);
+        
+        if (isValid) {
+            console.log('✅ Token is valid, auto-login successful');
+            userToken = savedToken;
+            isAuthenticated = true;
+            
+            // Direkt zur Hauptseite weiterleiten
+            showMainApplication();
+            return;
+        } else {
+            console.log('❌ Token is invalid, removing...');
+            removeStoredToken();
+        }
+    }
+    
+    console.log('📝 No valid token found, showing license key screen');
+    // Kein gültiger Token -> License Key Screen anzeigen
+    showLicenseKeyScreen();
+});
+
+// ==================================================
+// TOKEN MANAGEMENT
+// ==================================================
+
+// Token sicher speichern
+function storeToken(token) {
+    try {
+        // In production verwenden Sie localStorage
+        // WARNUNG: localStorage funktioniert nicht in Claude.ai Artifacts!
+        localStorage.setItem('secret_messages_token', token);
+        
+        // Backup: Als Cookie speichern (funktioniert in Claude.ai)
+        document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
+        
+        console.log('💾 Token stored successfully');
+    } catch (error) {
+        console.warn('⚠️ Could not store token in localStorage, using cookie only');
+        document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
+    }
+}
+
+// Gespeicherten Token abrufen
+function getStoredToken() {
+    try {
+        // Zuerst localStorage prüfen
+        const token = localStorage.getItem('secret_messages_token');
+        if (token) return token;
+    } catch (error) {
+        console.warn('⚠️ localStorage not available, checking cookies');
+    }
+    
+    // Fallback: Cookie prüfen
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'sm_token') {
+            return value;
+        }
+    }
+    
+    return null;
+}
+
+// Token entfernen
+function removeStoredToken() {
+    try {
+        localStorage.removeItem('secret_messages_token');
+    } catch (error) {
+        console.warn('⚠️ localStorage not available for removal');
+    }
+    
+    // Cookie entfernen
+    document.cookie = 'sm_token=; max-age=0; secure; samesite=strict';
+    
+    userToken = null;
+    isAuthenticated = false;
+    
+    console.log('🗑️ Token removed successfully');
+}
+
+// ==================================================
+// TOKEN VALIDATION
+// ==================================================
+
+// Token beim Server validieren
+async function validateToken(token) {
+    try {
+        const response = await fetch('/api/auth/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token })
+        });
+        
+        const result = await response.json();
+        return result.success && result.valid;
+        
+    } catch (error) {
+        console.error('❌ Token validation failed:', error);
+        return false;
+    }
+}
+
+// ==================================================
+// UI MANAGEMENT
+// ==================================================
+
+// License Key Screen anzeigen
+function showLicenseKeyScreen() {
+    // Alle Sections verstecken
+    hideAllSections();
+    
+    // License Section anzeigen
+    const licenseSection = document.getElementById('licenseSection');
+    if (licenseSection) {
+        licenseSection.style.display = 'block';
+        licenseSection.classList.add('fade-in');
+    }
+    
+    // Titel und Design für Authentifizierung
+    updatePageForAuth();
+    
+    console.log('📝 License key screen displayed');
+}
+
+// Hauptanwendung anzeigen
+function showMainApplication() {
+    // Alle Sections verstecken
+    hideAllSections();
+    
+    // Hauptanwendung anzeigen
+    const encryptionSection = document.getElementById('encryptionSection');
+    if (encryptionSection) {
+        encryptionSection.style.display = 'block';
+        encryptionSection.classList.add('fade-in');
+    }
+    
+    // Titel und Design für Hauptanwendung
+    updatePageForApp();
+    
+    console.log('🎉 Main application displayed');
+}
+
+// Alle Sections verstecken
+function hideAllSections() {
+    const sections = ['licenseSection', 'encryptionSection'];
+    sections.forEach(sectionId => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.style.display = 'none';
+            section.classList.remove('fade-in');
+        }
+    });
+}
+
+// Page-Design für Authentifizierung anpassen
+function updatePageForAuth() {
+    // Titel ändern
+    document.title = 'Secret Messages - Secure Backend Authentication';
+    
+    // Header-Text ändern falls vorhanden
+    const headerTitle = document.querySelector('h1');
+    if (headerTitle) {
+        headerTitle.textContent = '🔐 SECURE BACKEND-AUTHENTIFIZIERUNG';
+    }
+    
+    // Beschreibung hinzufügen
+    const licenseSection = document.getElementById('licenseSection');
+    if (licenseSection && !licenseSection.querySelector('.auth-description')) {
+        const description = document.createElement('div');
+        description.className = 'auth-description';
+        description.innerHTML = `
+            <p style="margin-bottom: 20px; color: #666; text-align: center;">
+                🛡️ Sichere Backend-Authentifizierung erforderlich<br>
+                <small>Geben Sie Ihren License Key ein, um fortzufahren</small>
+            </p>
+        `;
+        licenseSection.insertBefore(description, licenseSection.firstChild);
+    }
+}
+
+// Page-Design für Hauptanwendung anpassen
+function updatePageForApp() {
+    // Titel ändern
+    document.title = 'Secret Messages - Encryption Tool';
+    
+    // Header-Text ändern falls vorhanden
+    const headerTitle = document.querySelector('h1');
+    if (headerTitle) {
+        headerTitle.textContent = '🔐 Secret Messages';
+    }
+    
+    // Logout-Button hinzufügen falls nicht vorhanden
+    addLogoutButton();
+}
+
+// Logout-Button hinzufügen
+function addLogoutButton() {
+    const encryptionSection = document.getElementById('encryptionSection');
+    if (encryptionSection && !encryptionSection.querySelector('.logout-btn')) {
+        const logoutBtn = document.createElement('button');
+        logoutBtn.className = 'logout-btn';
+        logoutBtn.innerHTML = '🚪 Abmelden';
+        logoutBtn.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 1000;
+        `;
+        
+        logoutBtn.addEventListener('click', logout);
+        document.body.appendChild(logoutBtn);
+    }
+}
+
+// ==================================================
+// MODIFIED LICENSE ACTIVATION
+// ==================================================
+
+// Modifizierte activateLicenseKey Funktion
+async function activateLicenseKey() {
+    const licenseInput = document.getElementById('licenseKey');
+    const activateBtn = document.getElementById('activateBtn');
+    
+    if (!licenseInput || !activateBtn) return;
+    
+    const licenseKey = licenseInput.value.trim();
+    const originalText = activateBtn.textContent;
+    
+    if (!licenseKey) {
+        showError('Bitte geben Sie einen License Key ein');
+        return;
+    }
+    
+    // Loading state
+    activateBtn.textContent = 'AUTHENTIFIZIERE...';
+    activateBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/auth/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            userToken = result.token;
+            isAuthenticated = true;
+            
+            // Token speichern für automatisches Login
+            storeToken(result.token);
+            
+            showSuccess('✅ Authentifizierung erfolgreich! Weiterleitung...');
+            
+            // Log activity
+            logActivity('license_activated', { keyId: result.keyId });
+            
+            // Nach kurzer Verzögerung zur Hauptanwendung wechseln
+            setTimeout(() => {
+                showMainApplication();
+            }, 1500);
+            
+        } else {
+            showError('❌ ' + result.error);
+        }
+        
+    } catch (error) {
+        showError('Verbindungsfehler: ' + error.message);
+    } finally {
+        activateBtn.textContent = originalText;
+        activateBtn.disabled = false;
+    }
+}
+
+// ==================================================
+// LOGOUT FUNCTION
+// ==================================================
+
+// Logout-Funktion
+function logout() {
+    if (confirm('Möchten Sie sich wirklich abmelden?')) {
+        console.log('👋 User logging out...');
+        
+        // Token entfernen
+        removeStoredToken();
+        
+        // Zurück zum License Key Screen
+        showLicenseKeyScreen();
+        
+        // Eingabefelder leeren
+        const licenseInput = document.getElementById('licenseKey');
+        if (licenseInput) licenseInput.value = '';
+        
+        const messageInput = document.getElementById('messageInput');
+        if (messageInput) messageInput.value = '';
+        
+        const codeInput = document.getElementById('codeInput');
+        if (codeInput) codeInput.value = '';
+        
+        // Outputs leeren
+        const outputs = ['encryptedOutput', 'decryptedOutput'];
+        outputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.value = '';
+        });
+        
+        // Success-Message anzeigen
+        showSuccess('✅ Erfolgreich abgemeldet');
+        
+        console.log('✅ Logout completed');
+    }
+}
+
+// ==================================================
+// UTILITY FUNCTIONS
+// ==================================================
+
+// CSS für Fade-In Animation hinzufügen
+if (!document.querySelector('#fade-in-styles')) {
+    const style = document.createElement('style');
+    style.id = 'fade-in-styles';
+    style.textContent = `
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .auth-description {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+console.log('🚀 Auto-login system initialized');
+
 // app.js - Secret Messages Frontend JavaScript
 let userToken = null;
 let isConnected = false;
