@@ -453,41 +453,225 @@ app.post('/api/auth/validate', async (req, res) => {
     const { token } = req.body;
     
     if (!token) {
-        return res.status(400).json({ error: 'Token required' });
+        return res.status(400).json({ 
+            success: false, 
+            valid: false, 
+            error: 'Token required' 
+        });
     }
-
+    
     try {
+        // JWT Token verifizieren
         const decoded = jwt.verify(token, JWT_SECRET);
         
-        // Check if session exists and is active
-        let sessionData;
+        // Zusätzlich prüfen, ob der Key noch aktiv ist
+        let keyData;
         if (isPostgreSQL) {
             const result = await db.query(
-                'SELECT * FROM auth_sessions WHERE session_token = $1 AND is_active = true AND expires_at > NOW()',
-                [token]
+                'SELECT * FROM license_keys WHERE id = $1 AND is_active = true',
+                [decoded.keyId]
             );
-            sessionData = result.rows[0];
+            keyData = result.rows[0];
         } else {
             const result = await dbQuery(
-                'SELECT * FROM auth_sessions WHERE session_token = ? AND is_active = 1 AND expires_at > datetime("now")',
-                [token]
+                'SELECT * FROM license_keys WHERE id = ? AND is_active = 1',
+                [decoded.keyId]
             );
-            sessionData = result.rows[0];
+            keyData = result.rows && result.rows[0];
         }
-
-        if (!sessionData) {
-            return res.status(403).json({ error: 'Invalid or expired session' });
+        
+        if (!keyData) {
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'License key no longer active' 
+            });
         }
-
+        
+        // Prüfen, ob Key abgelaufen ist
+        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+            return res.status(403).json({ 
+                success: false, 
+                valid: false, 
+                error: 'License key expired' 
+            });
+        }
+        
+        // Session-Aktivität loggen
+        logActivity(decoded.keyId, 'session_validated', {
+            ip: getClientIP(req),
+            timestamp: new Date().toISOString()
+        });
+        
         res.json({
             success: true,
             valid: true,
-            keyId: decoded.keyId
+            keyId: decoded.keyId,
+            keyCode: keyData.key_code,
+            expiresAt: keyData.expires_at
         });
+        
     } catch (error) {
-        res.status(403).json({ error: 'Invalid token' });
+        console.log('Token validation failed:', error.message);
+        res.status(403).json({ 
+            success: false, 
+            valid: false, 
+            error: 'Invalid or expired token' 
+        });
     }
 });
+
+// Enhanced activation endpoint mit längerer Token-Gültigkeit
+app.post('/api/auth/activate', async (req, res) => {
+    const { licenseKey } = req.body;
+    const clientIP = getClientIP(req);
+    const deviceFingerprint = generateDeviceFingerprint(req);
+
+    if (!licenseKey || !/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+        return res.status(400).json({ error: 'Invalid license key format' });
+    }
+
+    try {
+        // Key in Datenbank finden
+        let keyData;
+        if (isPostgreSQL) {
+            const result = await db.query('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
+            keyData = result.rows[0];
+        } else {
+            const result = await dbQuery('SELECT * FROM license_keys WHERE key_code = ?', [licenseKey]);
+            keyData = result.rows && result.rows[0];
+        }
+
+        if (!keyData) {
+            return res.status(404).json({ error: 'License key not found' });
+        }
+
+        // Key-Ablauf prüfen
+        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+            return res.status(403).json({ error: 'License key has expired' });
+        }
+
+        // Gerätebindung prüfen
+        if (keyData.is_active) {
+            if (keyData.activated_ip === clientIP && keyData.device_fingerprint === deviceFingerprint) {
+                // Gleiches Gerät - neuen Token generieren
+                const sessionToken = jwt.sign(
+                    { 
+                        keyId: keyData.id, 
+                        ip: clientIP, 
+                        fingerprint: deviceFingerprint 
+                    },
+                    JWT_SECRET,
+                    { expiresIn: '30d' } // 30 Tage für automatisches Login
+                );
+
+                // Activity loggen
+                logActivity(keyData.id, 'auto_login_success', {
+                    ip: clientIP,
+                    deviceFingerprint: deviceFingerprint
+                });
+
+                return res.json({
+                    success: true,
+                    message: 'Welcome back! Automatic login successful.',
+                    token: sessionToken,
+                    keyId: keyData.id,
+                    autoLogin: true
+                });
+            } else {
+                return res.status(403).json({ 
+                    error: 'This license key is already bound to another device. Contact support if this is your device.' 
+                });
+            }
+        }
+
+        // Neuer Key - aktivieren
+        const sessionToken = jwt.sign(
+            { 
+                keyId: keyData.id, 
+                ip: clientIP, 
+                fingerprint: deviceFingerprint 
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' } // 30 Tage für automatisches Login
+        );
+
+        // Key als aktiv markieren
+        if (isPostgreSQL) {
+            await db.query(
+                'UPDATE license_keys SET is_active = true, activated_at = NOW(), activated_ip = $1, device_fingerprint = $2, usage_count = usage_count + 1 WHERE id = $3',
+                [clientIP, deviceFingerprint, keyData.id]
+            );
+        } else {
+            await dbQuery(
+                'UPDATE license_keys SET is_active = 1, activated_at = datetime("now"), activated_ip = ?, device_fingerprint = ?, usage_count = usage_count + 1 WHERE id = ?',
+                [clientIP, deviceFingerprint, keyData.id]
+            );
+        }
+
+        // Activity loggen
+        logActivity(keyData.id, 'license_activated', {
+            ip: clientIP,
+            deviceFingerprint: deviceFingerprint,
+            firstActivation: true
+        });
+
+        res.json({
+            success: true,
+            message: 'License key activated successfully! Device registered.',
+            token: sessionToken,
+            keyId: keyData.id,
+            autoLogin: false
+        });
+
+    } catch (error) {
+        console.error('Activation error:', error);
+        res.status(500).json({ error: 'Internal server error during activation' });
+    }
+});
+
+// Logout endpoint (optional)
+app.post('/api/auth/logout', async (req, res) => {
+    const { token } = req.body;
+    
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            logActivity(decoded.keyId, 'user_logout', {
+                ip: getClientIP(req),
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            // Token ungültig, aber Logout trotzdem bestätigen
+        }
+    }
+    
+    res.json({
+        success: true,
+        message: 'Logged out successfully'
+    });
+});
+
+// Activity logging helper function
+async function logActivity(keyId, action, metadata = {}) {
+    try {
+        if (isPostgreSQL) {
+            await db.query(
+                'INSERT INTO activity_logs (key_id, action, metadata, timestamp) VALUES ($1, $2, $3, NOW())',
+                [keyId, action, JSON.stringify(metadata)]
+            );
+        } else {
+            // Für SQLite - falls activity_logs Tabelle existiert
+            await dbQuery(
+                'INSERT OR IGNORE INTO activity_logs (key_id, action, metadata, timestamp) VALUES (?, ?, ?, datetime("now"))',
+                [keyId, action, JSON.stringify(metadata)]
+            );
+        }
+    } catch (error) {
+        // Activity logging errors sollten die Hauptfunktion nicht blockieren
+        console.warn('Activity logging failed:', error.message);
+    }
+}
 
 // Admin stats
 app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
