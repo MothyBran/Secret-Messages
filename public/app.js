@@ -86,11 +86,11 @@ function hideLoadingScreen() {
 function storeToken(token) {
     try {
         localStorage.setItem('secret_messages_token', token);
-        document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
+        document.cookie = `sm_token=${token}; max-age=2592000; path=/`;
         console.log('💾 Token stored successfully');
     } catch (error) {
         console.warn('⚠️ localStorage not available, using cookie only');
-        document.cookie = `sm_token=${token}; max-age=2592000; secure; samesite=strict`;
+        document.cookie = `sm_token=${token}; max-age=2592000; path=/`;
     }
 }
 
