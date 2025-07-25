@@ -199,20 +199,51 @@ function getClientIP(req) {
 }
 
 // Database query helper
+
 const dbQuery = async (query, params = []) => {
     if (isPostgreSQL) {
         return await db.query(query, params);
     } else {
         return new Promise((resolve, reject) => {
-            if (query.toLowerCase().includes('select')) {
-                db.get(query, params, (err, row) => {
-                    if (err) reject(err);
-                    else resolve({ rows: row ? [row] : [] });
+            const queryLower = query.toLowerCase().trim();
+            
+            if (queryLower.startsWith('select')) {
+                // Für SELECT-Abfragen: db.all() für mehrere Zeilen
+                db.all(query, params, (err, rows) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        // Konsistente Struktur wie PostgreSQL
+                        resolve({ rows: rows || [] });
+                    }
+                });
+            } else if (queryLower.startsWith('insert') || 
+                      queryLower.startsWith('update') || 
+                      queryLower.startsWith('delete')) {
+                // Für INSERT/UPDATE/DELETE: db.run()
+                db.run(query, params, function(err) {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve({ 
+                            lastID: this.lastID, 
+                            changes: this.changes,
+                            rows: []
+                        });
+                    }
                 });
             } else {
+                // Für andere Abfragen (CREATE TABLE, etc.): db.run()
                 db.run(query, params, function(err) {
-                    if (err) reject(err);
-                    else resolve({ lastID: this.lastID, changes: this.changes });
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve({ 
+                            lastID: this.lastID, 
+                            changes: this.changes,
+                            rows: []
+                        });
+                    }
                 });
             }
         });
@@ -594,7 +625,7 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     }
 });
 
-// DYNAMISCHE VERSION: Erkennt automatisch existierende Spalten
+// FINALE KORREKTE VERSION des /api/admin/keys Endpoints
 
 app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     const { page = 1, limit = 50 } = req.body;
@@ -604,51 +635,14 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
     
     try {
-        // First, detect which columns exist
-        let availableColumns = [];
-        
-        if (isPostgreSQL) {
-            const columnsResult = await db.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'license_keys'
-                ORDER BY ordinal_position
-            `);
-            availableColumns = columnsResult.rows.map(row => row.column_name);
-        } else {
-            const pragmaResult = await dbQuery('PRAGMA table_info(license_keys)');
-            if (pragmaResult && pragmaResult.rows) {
-                const columns = Array.isArray(pragmaResult.rows) ? pragmaResult.rows : [pragmaResult.rows];
-                availableColumns = columns.map(col => col.name);
-            }
-        }
-        
-        console.log('Available columns:', availableColumns);
-        
-        // Define all possible columns we want, in order of preference
-        const desiredColumns = [
-            'id', 'key_code', 'created_at', 'activated_at', 'activated_ip',
-            'device_fingerprint', 'is_active', 'usage_count', 'max_usage',
-            'expires_at', 'metadata', 'created_by', 'updated_at'
-        ];
-        
-        // Only select columns that actually exist
-        const selectColumns = desiredColumns.filter(col => availableColumns.includes(col));
-        
-        if (selectColumns.length === 0) {
-            throw new Error('No valid columns found in license_keys table');
-        }
-        
-        console.log('Selecting columns:', selectColumns);
-        
-        // Build the SELECT query dynamically
-        const columnsString = selectColumns.join(', ');
-        
         let keys, totalCount;
         
         if (isPostgreSQL) {
+            // PostgreSQL
             const keysResult = await db.query(`
-                SELECT ${columnsString}
+                SELECT id, key_code, created_at, activated_at, activated_ip,
+                       device_fingerprint, is_active, usage_count, expires_at,
+                       created_by, updated_at
                 FROM license_keys 
                 ORDER BY created_at DESC 
                 LIMIT $1 OFFSET $2
@@ -660,8 +654,10 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             totalCount = parseInt(countResult.rows[0].count);
             
         } else {
+            // SQLite mit korrigierter dbQuery Funktion
             const keysResult = await dbQuery(`
-                SELECT ${columnsString}
+                SELECT id, key_code, created_at, activated_at, activated_ip,
+                       device_fingerprint, is_active, usage_count, expires_at
                 FROM license_keys 
                 ORDER BY created_at DESC 
                 LIMIT ? OFFSET ?
@@ -669,12 +665,7 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             
             const countResult = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
             
-            if (keysResult && keysResult.rows) {
-                keys = Array.isArray(keysResult.rows) ? keysResult.rows : [keysResult.rows];
-            } else {
-                keys = [];
-            }
-            
+            keys = keysResult.rows || [];
             totalCount = parseInt(countResult.rows?.[0]?.count || 0);
         }
         
@@ -683,30 +674,26 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
             keys = [];
         }
         
-        // Add default values for missing columns that the frontend expects
-        keys = keys.map(key => {
-            const fullKey = {
-                id: key.id || null,
-                key_code: key.key_code || '',
-                created_at: key.created_at || null,
-                activated_at: key.activated_at || null,
-                activated_ip: key.activated_ip || null,
-                device_fingerprint: key.device_fingerprint || null,
-                is_active: key.is_active || false,
-                usage_count: key.usage_count || 0,
-                max_usage: key.max_usage || null,
-                expires_at: key.expires_at || null,
-                metadata: key.metadata || null,
-                created_by: key.created_by || 'system',
-                updated_at: key.updated_at || key.created_at || null
-            };
-            return fullKey;
-        });
+        // Add default values for missing columns
+        keys = keys.map(key => ({
+            id: key.id,
+            key_code: key.key_code,
+            created_at: key.created_at,
+            activated_at: key.activated_at || null,
+            activated_ip: key.activated_ip || null,
+            device_fingerprint: key.device_fingerprint || null,
+            is_active: key.is_active ? true : false,
+            usage_count: key.usage_count || 0,
+            expires_at: key.expires_at || null,
+            created_by: key.created_by || 'system',
+            updated_at: key.updated_at || key.created_at,
+            metadata: null, // Spalte existiert nicht
+            max_usage: null // Spalte existiert nicht oder ist leer
+        }));
         
         const totalPages = Math.ceil(totalCount / limitNum);
         
-        console.log(`✅ Keys loaded successfully: ${keys.length}/${totalCount} total`);
-        console.log(`📊 Used columns: ${selectColumns.join(', ')}`);
+        console.log(`✅ Keys loaded: ${keys.length} of ${totalCount} total (page ${pageNum}/${totalPages})`);
         
         res.json({
             success: true,
@@ -718,10 +705,6 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
                 pages: totalPages,
                 hasNext: pageNum < totalPages,
                 hasPrev: pageNum > 1
-            },
-            debug: {
-                available_columns: availableColumns,
-                selected_columns: selectColumns
             }
         });
         
@@ -729,11 +712,11 @@ app.post('/api/admin/keys', authenticateAdmin, async (req, res) => {
         console.error('❌ Keys listing error:', error);
         res.status(500).json({ 
             error: 'Failed to fetch keys',
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            message: error.message
         });
     }
 });
+
 
 // DEBUG-VERSION: Verwenden Sie diese Version temporär, um das Problem zu identifizieren
 
