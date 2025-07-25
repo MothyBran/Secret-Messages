@@ -1,6 +1,6 @@
 // ================================================================
-// SECRET MESSAGES - SERVER.JS MIT KORRIGIERTER CSP
-// Behebt CSP-Probleme für inline Event Handler
+// ALTERNATIVE SERVER.JS - MIT BCRYPT STATT BCRYPTJS
+// Falls bcryptjs Probleme macht, verwenden Sie diese Version
 // ================================================================
 
 require('dotenv').config();
@@ -8,7 +8,22 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const bcryptjs = require('bcryptjs');
+
+// FLEXIBLES BCRYPT - Versucht bcryptjs, dann bcrypt
+let bcrypt;
+try {
+    bcrypt = require('bcryptjs');
+    console.log('✅ Using bcryptjs');
+} catch (error) {
+    try {
+        bcrypt = require('bcrypt');
+        console.log('✅ Using bcrypt');
+    } catch (error2) {
+        console.error('❌ Neither bcryptjs nor bcrypt available');
+        process.exit(1);
+    }
+}
+
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const path = require('path');
@@ -39,14 +54,13 @@ if (DATABASE_URL.startsWith('postgresql') || DATABASE_URL.startsWith('postgres')
 // MIDDLEWARE MIT KORRIGIERTER CSP
 // ================================================================
 
-// KORRIGIERTE Security headers - erlaubt inline event handlers
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"], // Erlaubt inline CSS
-            scriptSrc: ["'self'", "'unsafe-inline'"], // Erlaubt inline JS
-            scriptSrcAttr: ["'unsafe-inline'"], // WICHTIG: Erlaubt onclick="" etc.
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrcAttr: ["'unsafe-inline'"], // WICHTIG für onclick
             imgSrc: ["'self'", "data:", "https:"],
             fontSrc: ["'self'", "https:", "data:"],
             connectSrc: ["'self'"],
@@ -58,7 +72,7 @@ app.use(helmet({
             baseUri: ["'self'"]
         },
     },
-    crossOriginEmbedderPolicy: false, // Für bessere Kompatibilität
+    crossOriginEmbedderPolicy: false,
 }));
 
 app.use(cors({
@@ -96,7 +110,7 @@ function generateLicenseKey() {
 }
 
 function hashKey(key) {
-    return bcryptjs.hashSync(key, 10);
+    return bcrypt.hashSync(key, 10); // Funktioniert mit bcrypt oder bcryptjs
 }
 
 function generateDeviceFingerprint(req) {
@@ -175,6 +189,7 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         version: '1.0.0',
         database: 'PostgreSQL',
+        bcrypt_library: bcrypt.name || 'bcrypt',
         node_version: process.version
     });
 });
@@ -358,6 +373,29 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 });
 
+// Logout endpoint
+app.post('/api/auth/logout', async (req, res) => {
+    const { token } = req.body;
+    
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            await logActivity(decoded.keyId, 'user_logout', {
+                ip: getClientIP(req),
+                timestamp: new Date().toISOString()
+            });
+            console.log(`👋 User logout: keyId ${decoded.keyId}`);
+        } catch (error) {
+            // Token invalid, but logout anyway
+        }
+    }
+    
+    res.json({
+        success: true,
+        message: 'Logged out successfully'
+    });
+});
+
 // Admin stats
 app.post('/api/admin/stats', authenticateAdmin, async (req, res) => {
     try {
@@ -507,42 +545,6 @@ app.post('/api/activity/log', authenticateToken, async (req, res) => {
     }
 });
 
-// Logout endpoint
-app.post('/api/auth/logout', async (req, res) => {
-    const { token } = req.body;
-    
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, JWT_SECRET);
-            await logActivity(decoded.keyId, 'user_logout', {
-                ip: getClientIP(req),
-                timestamp: new Date().toISOString()
-            });
-            console.log(`👋 User logout: keyId ${decoded.keyId}`);
-        } catch (error) {
-            // Token invalid, but logout anyway
-        }
-    }
-    
-    res.json({
-        success: true,
-        message: 'Logged out successfully'
-    });
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-    console.error('Global error:', err);
-    res.status(500).json({ 
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-    });
-});
-
-app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
-});
-
 // Static file serving
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'Frontend.html'));
@@ -590,6 +592,19 @@ async function initializeDatabase() {
     }
 }
 
+// Error handling
+app.use((err, req, res, next) => {
+    console.error('Global error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+});
+
 // Server startup
 async function startServer() {
     try {
@@ -598,6 +613,7 @@ async function startServer() {
         const server = app.listen(PORT, () => {
             console.log('🚀 Secret Messages Server running on port ' + PORT);
             console.log('📊 Using PostgreSQL database');
+            console.log('🔐 Using bcrypt library:', bcrypt.name || 'bcrypt');
             console.log('🔧 CSP configured for inline event handlers');
             console.log('📱 Frontend: https://' + (process.env.DOMAIN || 'localhost:' + PORT));
             console.log('🔧 Admin Panel: https://' + (process.env.DOMAIN || 'localhost:' + PORT) + '/admin');
