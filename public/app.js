@@ -421,10 +421,6 @@ if (!document.querySelector('#fade-in-styles')) {
 
 console.log('🚀 Auto-login system initialized');
 
-// app.js - Secret Messages Frontend JavaScript
-let userToken = null;
-let isConnected = false;
-
 // Event Listeners für CSP-Kompatibilität
 document.addEventListener('DOMContentLoaded', function() {
     // License Key Activation Button
