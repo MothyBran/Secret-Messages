@@ -85,7 +85,21 @@ const dbQuery = (query, params = []) => {
 };
 
 // ====================================
-// NEW USER AUTHENTICATION ENDPOINTS
+// HEALTH CHECK ENDPOINT
+// ====================================
+
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        version: '2.0.0',
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// ====================================
+// USER AUTHENTICATION ENDPOINTS
 // ====================================
 
 // User Login Endpoint
