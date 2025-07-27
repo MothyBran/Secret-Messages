@@ -1,4 +1,3 @@
-
 // Sonderzeichen-Tabelle: Kompakter Binärcode (1–5, 7–8), 9 = Start, 6 = Ende
 const specialCharToBinary = {
     '!': '9816', '?': '9716', '@': '9116', '#': '9216', '$': '9316',
