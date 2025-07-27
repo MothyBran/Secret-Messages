@@ -89,7 +89,7 @@ const createPostgreSQLTables = async () => {
     console.log('📊 Creating PostgreSQL tables...');
     
     try {
-        await db.query(
+        await db.query(`
             CREATE TABLE IF NOT EXISTS license_keys (
                 id SERIAL PRIMARY KEY,
                 key_code VARCHAR(17) UNIQUE NOT NULL,
@@ -109,9 +109,9 @@ const createPostgreSQLTables = async () => {
                 last_used_at TIMESTAMP,
                 last_used_ip VARCHAR(45)
             )
-        );
+        `);
         
-        await db.query(
+        await db.query(`
             CREATE TABLE IF NOT EXISTS user_sessions (
                 id SERIAL PRIMARY KEY,
                 session_token VARCHAR(500) UNIQUE NOT NULL,
@@ -124,9 +124,9 @@ const createPostgreSQLTables = async () => {
                 expires_at TIMESTAMP NOT NULL,
                 is_active BOOLEAN DEFAULT TRUE
             )
-        );
+        `);
         
-        await db.query(
+        await db.query(`
             CREATE TABLE IF NOT EXISTS account_deletions (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) NOT NULL,
@@ -135,7 +135,7 @@ const createPostgreSQLTables = async () => {
                 deletion_ip VARCHAR(45),
                 reason VARCHAR(255) DEFAULT 'user_requested'
             )
-        );
+        `);
         
         await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
         await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_username ON license_keys(username)');
@@ -153,7 +153,7 @@ const setupSQLiteDatabase = () => {
     db = new sqlite3.Database('./secret_messages.db');
     
     db.serialize(() => {
-        db.run(
+        db.run(`
             CREATE TABLE IF NOT EXISTS license_keys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 key_code VARCHAR(17) UNIQUE NOT NULL,
@@ -173,9 +173,9 @@ const setupSQLiteDatabase = () => {
                 last_used_at DATETIME,
                 last_used_ip VARCHAR(45)
             )
-        );
+        `);
         
-        db.run(
+        db.run(`
             CREATE TABLE IF NOT EXISTS user_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_token VARCHAR(500) UNIQUE NOT NULL,
@@ -188,9 +188,9 @@ const setupSQLiteDatabase = () => {
                 expires_at DATETIME NOT NULL,
                 is_active BOOLEAN DEFAULT 1
             )
-        );
+        `);
         
-        db.run(
+        db.run(`
             CREATE TABLE IF NOT EXISTS account_deletions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username VARCHAR(50) NOT NULL,
@@ -199,7 +199,7 @@ const setupSQLiteDatabase = () => {
                 deletion_ip VARCHAR(45),
                 reason VARCHAR(255) DEFAULT 'user_requested'
             )
-        );
+        `);
         
         console.log('✅ SQLite tables created');
     });
