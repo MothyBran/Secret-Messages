@@ -76,17 +76,17 @@ function base64Decode(str) {
 
 // Hauptfunktionen
 function encryptFull(message, code) {
-    let step1 = encodeSpecialChars(message);
-    let step2 = customMapEncode(step1);
-    let step3 = securityCodeTransform(step2, code, true);
-    let step4 = base64Encode(step3);
-    let step5 = simpleAES(step4, code);
-    let step6 = caesarEncrypt(step5);
-    let step7 = reverseText(step6);
-    let step8 = caesarEncrypt(step7);
-    let step9 = simpleAES(step8, code);
-    let step10 = base64Encode(securityCodeTransform(step9, code, true));
-    return step10;
+    let step0 = convertSpecialCharsToBinary(message); 
+    let step1 = customMapEncode(step0);
+    let step2 = securityCodeTransform(step1, code, true);
+    let step3 = base64Encode(step2);
+    let step4 = simpleAES(step3, code);
+    let step5 = caesarEncrypt(step4);
+    let step6 = reverseText(step5);
+    let step7 = caesarEncrypt(step6);
+    let step8 = simpleAES(step7, code);
+    let step9 = base64Encode(securityCodeTransform(step8, code, true));
+    return step9;
 }
 
 function decryptFull(encrypted, code) {
@@ -100,7 +100,7 @@ function decryptFull(encrypted, code) {
         let step7 = base64Decode(step6);
         let step8 = securityCodeTransform(step7, code, false);
         let step9 = customMapDecode(step8);
-        let step10 = decodeSpecialChars(step9);
+        let step10 = convertBinaryToSpecialChars(step9); 
         return step10;
     } catch (e) {
         return '[Fehler beim Entschlüsseln]';
