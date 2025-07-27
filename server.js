@@ -22,6 +22,118 @@ let db, isPostgreSQL = false;
 if (DATABASE_URL && DATABASE_URL.startsWith('postgresql')) {
     const { Pool } = require('pg');
     db = new Pool({ connectionString: DATABASE_URL });
+
+// ====================================
+// ADMIN ENDPOINTS
+// ====================================
+
+// Admin Stats with User Info
+app.post('/api/admin/stats', async (req, res) => {
+    const { password } = req.body;
+    
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ 
+            success: false, 
+            error: 'Ungültiges Admin-Passwort' 
+        });
+    }
+    
+    try {
+        const stats = {};
+        
+        // Total keys
+        const totalKeys = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
+        stats.totalKeys = parseInt(totalKeys.rows[0].count);
+        
+        // Active users (keys with username)
+        const activeUsers = await dbQuery(
+            isPostgreSQL
+                ? 'SELECT COUNT(*) as count FROM license_keys WHERE is_active = true AND username IS NOT NULL'
+                : 'SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1 AND username IS NOT NULL'
+        );
+        stats.activeUsers = parseInt(activeUsers.rows[0].count);
+        
+        // Active sessions
+        const activeSessions = await dbQuery(
+            isPostgreSQL
+                ? 'SELECT COUNT(*) as count FROM user_sessions WHERE is_active = true AND expires_at > NOW()'
+                : 'SELECT COUNT(*) as count FROM user_sessions WHERE is_active = 1 AND expires_at > datetime("now")'
+        );
+        stats.activeSessions = parseInt(activeSessions.rows[0].count || 0);
+        
+        // Recent registrations (last 7 days)
+        const recentRegs = await dbQuery(
+            isPostgreSQL
+                ? "SELECT COUNT(*) as count FROM license_keys WHERE user_created_at > NOW() - INTERVAL '7 days'"
+                : "SELECT COUNT(*) as count FROM license_keys WHERE user_created_at > datetime('now', '-7 days')"
+        );
+        stats.recentRegistrations = parseInt(recentRegs.rows[0].count || 0);
+        
+        res.json({ success: true, stats });
+        
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Fehler beim Abrufen der Statistiken' 
+        });
+    }
+});
+
+// List Users (for Admin)
+app.post('/api/admin/users', async (req, res) => {
+    const { password, page = 1, limit = 20 } = req.body;
+    
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ 
+            success: false, 
+            error: 'Ungültiges Admin-Passwort' 
+        });
+    }
+    
+    try {
+        const offset = (page - 1) * limit;
+        
+        const query = isPostgreSQL
+            ? `SELECT 
+                   key_code,
+                   username,
+                   is_active,
+                   created_at,
+                   activated_at,
+                   last_used_at,
+                   activated_ip
+               FROM license_keys 
+               ORDER BY created_at DESC 
+               LIMIT $1 OFFSET $2`
+            : `SELECT 
+                   key_code,
+                   username,
+                   is_active,
+                   created_at,
+                   activated_at,
+                   last_used_at,
+                   activated_ip
+               FROM license_keys 
+               ORDER BY created_at DESC 
+               LIMIT ? OFFSET ?`;
+               
+        const result = await dbQuery(query, [limit, offset]);
+        
+        res.json({
+            success: true,
+            users: result.rows || [],
+            page,
+            limit
+        });
+        
+    } catch (error) {
+        console.error('List users error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Fehler beim Abrufen der Benutzerliste' 
+        });
+    }
     isPostgreSQL = true;
     console.log('📦 Using PostgreSQL database');
 } else {
