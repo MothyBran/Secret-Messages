@@ -1,0 +1,44 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Panel - Secret Messages</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #000; color: #00ff41; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #00ff41; padding: 8px; text-align: left; }
+    th { background-color: #003300; }
+    button { background-color: #00ff41; border: none; padding: 6px 12px; cursor: pointer; }
+    button:hover { background-color: #00cc33; }
+  </style>
+</head>
+<body>
+
+  <h1>Admin Panel</h1>
+
+  <h2>Statistiken</h2>
+  <div>
+    <p>Aktive Sessions: <strong id="activeSessions">0</strong></p>
+    <p>Neue Registrierungen (7 Tage): <strong id="recentRegistrations">0</strong></p>
+  </div>
+
+  <h2>Benutzerliste</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Benutzername</th>
+        <th>Erstellt</th>
+        <th>Letzte Nutzung</th>
+        <th>Status</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody id="userTableBody">
+      <!-- Dynamisch generiert -->
+    </tbody>
+  </table>
+
+  <script src="admin.js"></script>
+</body>
+</html>
