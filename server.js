@@ -180,6 +180,332 @@ app.post('/api/auth/login', async (req, res) => {
             expiresAt.toISOString()
         ]);
         
+        res.json({
+            success: true,
+            message: 'Anmeldung erfolgreich',
+            token,
+            username: user.username
+        });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Interner Serverfehler' 
+        });
+    }
+});
+
+// License Key Activation with User Creation
+app.post('/api/auth/activate', async (req, res) => {
+    const { licenseKey, username, accessCode } = req.body;
+    const clientIP = req.ip;
+    
+    // Validation
+    if (!licenseKey || !username || !accessCode) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Alle Felder sind erforderlich' 
+        });
+    }
+    
+    if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Ungültiges License-Key Format' 
+        });
+    }
+    
+    if (!/^[a-zA-Z0-9_-]+$/.test(username) || username.length < 3 || username.length > 20) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Benutzername muss 3-20 Zeichen lang sein (nur Buchstaben, Zahlen, _, -)' 
+        });
+    }
+    
+    if (!/^\d{5}$/.test(accessCode)) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Zugangscode muss genau 5 Ziffern enthalten' 
+        });
+    }
+    
+    try {
+        // Check if username already exists
+        const usernameCheck = await dbQuery(
+            isPostgreSQL
+                ? 'SELECT id FROM license_keys WHERE username = $1'
+                : 'SELECT id FROM license_keys WHERE username = ?',
+            [username]
+        );
+        
+        if (usernameCheck.rows && usernameCheck.rows.length > 0) {
+            return res.status(409).json({ 
+                success: false, 
+                error: 'Benutzername bereits vergeben' 
+            });
+        }
+        
+        // Find license key
+        const keyQuery = isPostgreSQL
+            ? 'SELECT * FROM license_keys WHERE key_code = $1'
+            : 'SELECT * FROM license_keys WHERE key_code = ?';
+            
+        const result = await dbQuery(keyQuery, [licenseKey]);
+        const keyData = result.rows[0];
+        
+        if (!keyData) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'License-Key nicht gefunden' 
+            });
+        }
+        
+        // Check if key is already activated
+        if (keyData.is_active || keyData.username) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'License-Key wurde bereits aktiviert' 
+            });
+        }
+        
+        // Hash access code
+        const accessCodeHash = await bcrypt.hash(accessCode, 10);
+        
+        // Activate key with user data
+        const activateQuery = isPostgreSQL
+            ? `UPDATE license_keys 
+               SET username = $1, 
+                   access_code_hash = $2, 
+                   is_active = true, 
+                   activated_at = CURRENT_TIMESTAMP,
+                   activated_ip = $3,
+                   user_created_at = CURRENT_TIMESTAMP
+               WHERE id = $4`
+            : `UPDATE license_keys 
+               SET username = ?, 
+                   access_code_hash = ?, 
+                   is_active = 1, 
+                   activated_at = CURRENT_TIMESTAMP,
+                   activated_ip = ?,
+                   user_created_at = CURRENT_TIMESTAMP
+               WHERE id = ?`;
+               
+        await dbQuery(activateQuery, [username, accessCodeHash, clientIP, keyData.id]);
+        
+        res.json({
+            success: true,
+            message: 'Zugang erfolgreich erstellt! Sie können sich jetzt anmelden.',
+            username
+        });
+        
+    } catch (error) {
+        console.error('Activation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Interner Serverfehler' 
+        });
+    }
+});
+
+// Validate Token
+app.post('/api/auth/validate', async (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.body.token;
+    
+    if (!token) {
+        return res.status(401).json({ 
+            success: false, 
+            valid: false, 
+            error: 'Token erforderlich' 
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // Check if session exists and is active
+        const sessionQuery = isPostgreSQL
+            ? 'SELECT * FROM user_sessions WHERE session_token = $1 AND is_active = true'
+            : 'SELECT * FROM user_sessions WHERE session_token = ? AND is_active = 1';
+            
+        const result = await dbQuery(sessionQuery, [token]);
+        
+        if (!result.rows || result.rows.length === 0) {
+            return res.json({ 
+                success: false, 
+                valid: false, 
+                error: 'Session abgelaufen' 
+            });
+        }
+        
+        res.json({
+            success: true,
+            valid: true,
+            username: decoded.username
+        });
+        
+    } catch (error) {
+        res.json({ 
+            success: false, 
+            valid: false, 
+            error: 'Ungültiger Token' 
+        });
+    }
+});
+
+// Logout
+app.post('/api/auth/logout', async (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.body.token;
+    
+    if (token) {
+        try {
+            const updateQuery = isPostgreSQL
+                ? 'UPDATE user_sessions SET is_active = false WHERE session_token = $1'
+                : 'UPDATE user_sessions SET is_active = 0 WHERE session_token = ?';
+                
+            await dbQuery(updateQuery, [token]);
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+    
+    res.json({ success: true, message: 'Erfolgreich abgemeldet' });
+});
+
+// Delete Account
+app.delete('/api/auth/delete-account', async (req, res) => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+        return res.status(401).json({ 
+            success: false, 
+            error: 'Nicht autorisiert' 
+        });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const { username, keyId } = decoded;
+        
+        // Log account deletion
+        const logQuery = isPostgreSQL
+            ? `INSERT INTO account_deletions 
+               (username, license_key_code, deletion_ip) 
+               SELECT username, key_code, $1 
+               FROM license_keys WHERE id = $2`
+            : `INSERT INTO account_deletions 
+               (username, license_key_code, deletion_ip) 
+               SELECT username, key_code, ? 
+               FROM license_keys WHERE id = ?`;
+               
+        await dbQuery(logQuery, [req.ip, keyId]);
+        
+        // Deactivate all sessions
+        const sessionsQuery = isPostgreSQL
+            ? 'UPDATE user_sessions SET is_active = false WHERE license_key_id = $1'
+            : 'UPDATE user_sessions SET is_active = 0 WHERE license_key_id = ?';
+            
+        await dbQuery(sessionsQuery, [keyId]);
+        
+        // Delete the license key
+        const deleteQuery = isPostgreSQL
+            ? 'DELETE FROM license_keys WHERE id = $1'
+            : 'DELETE FROM license_keys WHERE id = ?';
+            
+        await dbQuery(deleteQuery, [keyId]);
+        
+        res.json({
+            success: true,
+            message: 'Account erfolgreich gelöscht'
+        });
+        
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Fehler beim Löschen des Accounts' 
+        });
+    }
+});
+
+// User Login Endpoint
+app.post('/api/auth/login', async (req, res) => {
+    const { username, accessCode } = req.body;
+    const clientIP = req.ip;
+    
+    // Validation
+    if (!username || !accessCode) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Benutzername und Zugangscode erforderlich' 
+        });
+    }
+    
+    if (!/^\d{5}$/.test(accessCode)) {
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Zugangscode muss 5 Ziffern enthalten' 
+        });
+    }
+    
+    try {
+        // Find user by username
+        const userQuery = isPostgreSQL
+            ? 'SELECT * FROM license_keys WHERE username = $1 AND is_active = true'
+            : 'SELECT * FROM license_keys WHERE username = ? AND is_active = 1';
+            
+        const result = await dbQuery(userQuery, [username]);
+        const user = result.rows[0];
+        
+        if (!user) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Ungültiger Benutzername oder Zugangscode' 
+            });
+        }
+        
+        // Verify access code
+        const isValidCode = await bcrypt.compare(accessCode, user.access_code_hash);
+        
+        if (!isValidCode) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Ungültiger Benutzername oder Zugangscode' 
+            });
+        }
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                username: user.username,
+                keyId: user.id,
+                licenseKey: user.key_code
+            },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        // Create session
+        const sessionQuery = isPostgreSQL
+            ? `INSERT INTO user_sessions 
+               (session_token, username, license_key_id, ip_address, user_agent, expires_at) 
+               VALUES ($1, $2, $3, $4, $5, $6)`
+            : `INSERT INTO user_sessions 
+               (session_token, username, license_key_id, ip_address, user_agent, expires_at) 
+               VALUES (?, ?, ?, ?, ?, ?)`;
+               
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        
+        await dbQuery(sessionQuery, [
+            token,
+            username,
+            user.id,
+            clientIP,
+            req.headers['user-agent'] || 'Unknown',
+            expiresAt.toISOString()
+        ]);
+        
         // Update last login
         const updateQuery = isPostgreSQL
             ? 'UPDATE license_keys SET last_used_at = CURRENT_TIMESTAMP, last_used_ip = $1 WHERE id = $2'
