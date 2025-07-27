@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <title>Secret Messages - Secure Login</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --matrix-green: #00ff41;
+            --matrix-dark-green: #008f11;
+            --bg-black: #0a0a0a;
+            --bg-dark: #0d0d0d;
+            --error-red: #ff0033;
+        }
+        
+        body {
+            background: var(--bg-black);
+            color: var(--matrix-green);
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+        
+        /* Matrix Rain Effect */
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+            opacity: 0.1;
+        }
+        
+        .matrix-column {
+            position: absolute;
+            top: -100%;
+            font-size: 20px;
+            line-height: 20px;
+            animation: matrix-fall linear infinite;
+        }
+        
+        @keyframes matrix-fall {
+            to {
+                top: 100%;
+            }
+        }
+        
+        /* Container */
+        .container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        /* Login Box */
+        .login-box {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid var(--matrix-green);
+            border-radius: 0;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 0 40px rgba(0, 255, 65, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-box::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, var(--matrix-green), transparent, var(--matrix-green));
+            z-index: -1;
+            animation: glitch 3s ease-in-out infinite;
+        }
+        
+        @keyframes glitch {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.8; }
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 20px var(--matrix-green);
+            margin-bottom: 10px;
+            letter-spacing: 3px;
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--matrix-dark-green);
+            letter-spacing: 1px;
+        }
+        
+        /* Form */
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid var(--matrix-green);
+            color: var(--matrix-green);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            background: rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            border-color: var(--matrix-green);
+        }
+        
+        .form-input::placeholder {
+            color: var(--matrix-dark-green);
+            opacity: 0.7;
+        }
+        
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(45deg, var(--matrix-dark-green), var(--matrix-green));
+            border: none;
+            color: var(--bg-black);
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            transition: left 0.5s ease;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 65, 0.5);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Links */
+        .link {
+            color: var(--matrix-green);
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--matrix-green);
+            transition: width 0.3s ease;
+        }
+        
+        .link:hover::after {
+            width: 100%;
+        }
+        
+        /* Status Messages */
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 0;
+            text-align: center;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .status.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .status.success {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid var(--matrix-green);
+            color: var(--matrix-green);
+        }
+        
+        .status.error {
+            background: rgba(255, 0, 51, 0.1);
+            border: 1px solid var(--error-red);
+            color: var(--error-red);
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 255, 65, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--matrix-green);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Sections */
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        /* Encryption Section Styles */
+        .app-header {
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid var(--matrix-green);
+            padding: 20px;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .app-title {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px var(--matrix-green);
+        }
+        
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 8px 15px;
+            background: transparent;
+            border: 1px solid var(--matrix-green);
+            color: var(--matrix-green);
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .logout-btn:hover {
+            background: var(--matrix-green);
+            color: var(--bg-black);
+        }
+        
+        .delete-account-btn {
+            padding: 8px 15px;
+            background: transparent;
+            border: 1px solid var(--error-red);
+            color: var(--error-red);
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        .delete-account-btn:hover {
+            background: var(--error-red);
+            color: white;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .login-box {
+                padding: 30px 20px;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+            
+            .form-input, .btn {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Matrix Background -->
+    <div class="matrix-bg" id="matrixBg"></div>
+    
+    <!-- Container -->
+    <div class="container">
+        <!-- Login Section -->
+        <div id="loginSection" class="section active">
+            <div class="login-box">
+                <div class="header">
+                    <img src="/Logo_SM.png" alt="Secret Messages Logo" style="width: 250px; margin-bottom: 15px; filter: drop-shadow(0 0 10px #00ff41);">
+                    <p class="subtitle">MILITARY GRADE ENCRYPTION</p>
+                </div>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="username">Benutzername</label>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            class="form-input" 
+                            placeholder="Ihr Benutzername"
+                            required
+                            autocomplete="username"
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="accessCode">Zugangscode (5-stellig)</label>
+                        <input 
+                            type="text" 
+                            id="accessCode" 
+                            class="form-input" 
+                            placeholder="12345"
+                            maxlength="5"
+                            pattern="[0-9]{5}"
+                            required
+                            autocomplete="current-password"
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn" id="loginBtn">
+                        <span id="loginBtnText">ANMELDEN</span>
+                    </button> -->
+                </form>
+                
+                <div id="loginStatus" class="status"></div>
+                
+                <div style="text-align: center;">
+                    <a href="#" class="link" id="showActivationLink">License-Key aktivieren</a>
+                    <br>
+                    <a href="#" class="link" id="showDemoKeysLink" style="font-size: 0.8rem; opacity: 0.7;">Demo-Keys anzeigen</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- License Key Activation Section -->
+        <div id="activationSection" class="section">
+            <div class="login-box">
+                <div class="header">
+                    <h1 class="logo">KEY AKTIVIERUNG</h1>
+                    <p class="subtitle">Erstellen Sie Ihren Zugang</p>
+                </div>
+                
+                <form id="activationForm">
+                    <div class="form-group">
+                        <label class="form-label" for="licenseKey">License-Key</label>
+                        <input 
+                            type="text" 
+                            id="licenseKey" 
+                            class="form-input" 
+                            placeholder="XXXXX-XXXXX-XXXXX"
+                            maxlength="17"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="newUsername">Gewünschter Benutzername</label>
+                        <input 
+                            type="text" 
+                            id="newUsername" 
+                            class="form-input" 
+                            placeholder="Wählen Sie einen Benutzernamen"
+                            required
+                            minlength="3"
+                            maxlength="20"
+                            pattern="[a-zA-Z0-9_-]+"
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="newAccessCode">Zugangscode (5 Ziffern)</label>
+                        <input 
+                            type="text" 
+                            id="newAccessCode" 
+                            class="form-input" 
+                            placeholder="Wählen Sie einen 5-stelligen Code"
+                            maxlength="5"
+                            pattern="[0-9]{5}"
+                            required
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn" id="activateBtn">
+                        <span id="activateBtnText">ZUGANG ERSTELLEN</span>
+                    </button>
+                </form>
+                
+                <div id="activationStatus" class="status"></div>
+                
+                <div style="text-align: center;">
+                    <a href="#" class="link" id="showLoginLink">Zurück zum Login</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Application Section -->
+        <div id="mainSection" class="section">
+            <div class="app-header">
+                <button class="logout-btn" id="logoutBtn">Abmelden</button>
+                <div class="user-info" id="userInfo"></div>
+                <div style="text-align: center;">
+                    <img src="/Logo_SM.png" alt="Secret Messages Logo" style="width: 250px; margin-bottom: 15px; filter: drop-shadow(0 0 10px #00ff41);">
+                </div>
+                <p class="subtitle" style="text-align: center;">AES-256 HYBRID ENCRYPTION</p>
+            </div>
+            
+            <!-- Encryption/Decryption Interface -->
+            <div class="login-box" style="max-width: 800px;">
+                <div class="form-group">
+                    <label class="form-label" for="messageCode">Sicherheitscode (5 Zeichen)</label>
+                    <input 
+                        type="text" 
+                        id="messageCode" 
+                        class="form-input" 
+                        placeholder="12345"
+                        maxlength="5"
+                        style="max-width: 200px; text-align: center; font-size: 1.2rem; letter-spacing: 3px;"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Nachricht</label>
+                    <textarea 
+                        id="messageInput" 
+                        class="form-input" 
+                        rows="6" 
+                        placeholder="Geben Sie Ihre Nachricht ein..."
+                        style="resize: vertical;"
+                    ></textarea>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <button class="btn" id="encryptBtn">🔒 VERSCHLÜSSELN</button>
+                    <button class="btn" id="decryptBtn">🔓 ENTSCHLÜSSELN</button>
+                    <button class="btn" id="clearFieldsBtn">🧹 ALLE FELDER LEEREN</button>
+                </div>
+                
+                <div class="form-group" id="outputGroup" style="display: none; margin-top: 25px;">
+                    <label class="form-label">Ergebnis</label>
+                    <textarea 
+                        id="messageOutput" 
+                        class="form-input" 
+                        rows="6" 
+                        readonly
+                        style="resize: vertical; background: rgba(0, 255, 65, 0.05);"
+                    ></textarea>
+                    <button class="btn" id="copyBtn" style="margin-top: 10px;">📋 KOPIEREN</button>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                    <button class="delete-account-btn" id="deleteAccountBtn">
+                        ⚠️ Zugang unwiderruflich löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- External JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
