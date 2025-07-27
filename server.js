@@ -10,6 +10,10 @@ require('dotenv').config();
 
 const app = express();
 app.set('trust proxy', 1);
+app.use((req, res, next) => {
+    console.log("Client-IP:", req.ip);
+    next();
+});
 
 // Environment Variables
 const PORT = process.env.PORT || 3000;
@@ -42,11 +46,13 @@ const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
     message: 'Zu viele Login-Versuche. Bitte versuchen Sie es später erneut.'
+    keyGenerator: (req) => req.ip
 });
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100
+    keyGenerator: (req) => req.ip
 });
 
 app.use('/api/', apiLimiter);
