@@ -56,14 +56,6 @@ function setupEventListeners() {
         });
     }
     
-    const showDemoKeysLink = document.getElementById('showDemoKeysLink');
-    if (showDemoKeysLink) {
-        showDemoKeysLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            showDemoKeys();
-        });
-    }
-    
     // Main App Buttons
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
