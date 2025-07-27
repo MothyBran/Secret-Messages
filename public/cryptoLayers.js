@@ -121,3 +121,5 @@ export async function decryptFull(encryptedText, code) {
     text = customUnmap(text);
     return text;
 }
+
+export { encryptFull, decryptFull, base64Encode, base64Decode };
