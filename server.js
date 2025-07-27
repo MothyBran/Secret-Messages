@@ -497,6 +497,13 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 });
 
+// Aktivitäts-Logging
+app.post('/api/activity/log', (req, res) => {
+    const { user, action } = req.body;
+    console.log(`[Aktivität] ${user || 'Unbekannt'} hat Aktion ausgeführt: ${action}`);
+    res.status(200).json({ message: 'Aktivität protokolliert.' });
+});
+
 // Logout
 app.post('/api/auth/logout', async (req, res) => {
     res.json({ success: true, message: 'Erfolgreich abgemeldet' });
