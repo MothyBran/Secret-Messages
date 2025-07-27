@@ -454,16 +454,21 @@ async function confirmDeleteAccount() {
 function encryptMessage() {
     const code = document.getElementById('messageCode').value;
     const message = document.getElementById('messageInput').value;
-    
+
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie einen 5-stelligen Sicherheitscode ein');
         return;
     }
-    
+
     if (!message) {
         alert('Bitte geben Sie eine Nachricht ein');
         return;
     }
+
+    const encrypted = encryptFull(message, code); // ✅ RICHTIGER VERSCHLÜSSELUNGS-ALGORITHMUS
+    document.getElementById('messageOutput').value = encrypted;
+    document.getElementById('outputGroup').style.display = 'block';
+}
     
     // Log activity
     logActivity('encrypt_message', { 
@@ -481,16 +486,25 @@ function encryptMessage() {
 function decryptMessage() {
     const code = document.getElementById('messageCode').value;
     const encrypted = document.getElementById('messageInput').value;
-    
+
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie einen 5-stelligen Sicherheitscode ein');
         return;
     }
-    
+
     if (!encrypted) {
         alert('Bitte geben Sie den verschlüsselten Text ein');
         return;
     }
+
+    try {
+        const decrypted = decryptFull(encrypted, code); // ✅ RICHTIGE ENTSCHLÜSSELUNG
+        document.getElementById('messageOutput').value = decrypted;
+        document.getElementById('outputGroup').style.display = 'block';
+    } catch (error) {
+        alert('Fehler beim Entschlüsseln');
+    }
+}
     
     // Log activity
     logActivity('decrypt_message', { 
