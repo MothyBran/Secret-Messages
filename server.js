@@ -23,6 +23,60 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgresql')) {
     const { Pool } = require('pg');
     db = new Pool({ connectionString: DATABASE_URL });
 
+// Generate new license keys (Admin)
+app.post('/api/admin/generate-key', async (req, res) => {
+    const { password, quantity = 1, expiresIn = null } = req.body;
+    
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ 
+            success: false, 
+            error: 'Ungültiges Admin-Passwort' 
+        });
+    }
+    
+    if (quantity > 100) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Maximum 100 Keys pro Anfrage' 
+        });
+    }
+    
+    const keys = [];
+    
+    try {
+        for (let i = 0; i < quantity; i++) {
+            // Generate random key
+            const keyPart = () => Math.random().toString(36).substring(2, 7).toUpperCase();
+            const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
+            const keyHash = await bcrypt.hash(keyCode, 10);
+            
+            const insertQuery = isPostgreSQL
+                ? 'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES ($1, $2, $3) RETURNING id'
+                : 'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES (?, ?, ?)';
+                
+            const result = await dbQuery(insertQuery, [keyCode, keyHash, 'admin']);
+            
+            keys.push({
+                id: result.rows?.[0]?.id || result.rows?.[0]?.lastID,
+                key: keyCode
+            });
+        }
+        
+        res.json({
+            success: true,
+            keys: keys.map(k => k.key),
+            count: keys.length
+        });
+        
+    } catch (error) {
+        console.error('Key generation error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Fehler beim Generieren der Keys' 
+        });
+    }
+});
+
 // ====================================
 // ADMIN ENDPOINTS
 // ====================================
@@ -1006,4 +1060,5 @@ app.listen(PORT, () => {
     console.log(`🚀 Server läuft auf Port ${PORT}`);
     console.log(`🔐 Admin Panel: http://localhost:${PORT}/admin`);
     console.log(`🏠 Hauptseite: http://localhost:${PORT}`);
+    console.log(`📊 Database: ${isPostgreSQL ? 'PostgreSQL' : 'SQLite'}`);
 });
