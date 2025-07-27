@@ -476,13 +476,6 @@ function encryptMessage() {
         codeLength: code.length 
     });
     
-    // Simple encryption for demo (replace with real encryption)
-    const encrypted = base64Encode(code + '|' + message);
-    
-    document.getElementById('messageOutput').value = encrypted;
-    document.getElementById('outputGroup').style.display = 'block';
-}
-
 function decryptMessage() {
     const code = document.getElementById('messageCode').value;
     const encrypted = document.getElementById('messageInput').value;
@@ -511,22 +504,6 @@ function decryptMessage() {
         encryptedLength: encrypted.length,
         codeLength: code.length 
     });
-    
-    try {
-        // Simple decryption for demo (replace with real decryption)
-        const decrypted = atob(encrypted);
-        const [storedCode, message] = decrypted.split('|');
-        
-        if (storedCode === code) {
-            document.getElementById('messageOutput').value = message;
-            document.getElementById('outputGroup').style.display = 'block';
-        } else {
-            alert('Falscher Sicherheitscode!');
-        }
-    } catch (error) {
-        alert('Ungültiger verschlüsselter Text');
-    }
-}
 
 function copyToClipboard() {
     const output = document.getElementById('messageOutput');
