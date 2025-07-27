@@ -1,5 +1,7 @@
 // app.js - Frontend JavaScript für Secret Messages mit Benutzer-Login
 
+import { encryptFull, decryptFull, base64Encode, base64Decode } from './cryptoLayers.js';
+
 // Configuration
 const API_BASE = '/api';
 let currentUser = null;
