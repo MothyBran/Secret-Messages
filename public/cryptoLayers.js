@@ -122,4 +122,4 @@ export async function decryptFull(encryptedText, code) {
     return text;
 }
 
-export { encryptFull, decryptFull, base64Encode, base64Decode };
+export { base64Encode, base64Decode };
