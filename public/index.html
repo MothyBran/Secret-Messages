@@ -103,11 +103,13 @@
         }
         
         .logo {
+            position: absolute;
             font-size: 2.5rem;
             font-weight: bold;
             text-shadow: 0 0 20px var(--matrix-green);
             margin-bottom: 10px;
             letter-spacing: 3px;
+            z-index: 1;
         }
         
         .subtitle {
@@ -318,6 +320,7 @@
             font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.3s ease;
+            z-index: 10;
         }
         
         .logout-btn:hover {
