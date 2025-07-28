@@ -1,17 +1,33 @@
-// Sonderzeichen-Tabelle: Kompakter Binärcode (1–5, 7–8), 9 = Start, 6 = Ende
+// Sonderzeichen-Tabelle: Kompakter Binärcode (1–5, 7–8), Ѫ = Start, Ѭ = Ende
 const specialCharToBinary = {
-    '!': '9816', '?': '9716', '@': '9116', '#': '9216', '$': '9316',
-    '%': '9416', '^': '9516', '&': '9217', '*': '9317', '(': '9417',
-    ')': '9517', '-': '9117', '_': '9817', '+': '9717', '=': '9617',
-    '{': '9218', '}': '9318', '[': '9418', ']': '9518', ':': '9118',
-    ';': '9818', '"': '9718', "'": '9618', '<': '9219', '>': '9319',
-    ',': '9419', '.': '9519', '/': '9119', '\\': '9819', '|': '9719',
-    '€': '9216'
+    '!': '81',  '?': '71',  '@': '11',  '#': '21',  '$': '31',
+    '%': '41',  '^': '51',  '&': '27',  '*': '37',  '(': '47',
+    ')': '57',  '-': '17',  '_': '87',  '+': '77',  '=': '67',
+    '{': '28',  '}': '38',  '[': '48',  ']': '58',  ':': '18',
+    ';': '88',  '"': '78',  "'": '68',  '<': '29',  '>': '39',
+    ',': '49',  '.': '59',  '/': '19',  '\\': '89', '|': '79',
+    '€': '26'
 };
 
+// Funktion zum Kodieren eines Textes mit Sonderzeichen
+function encodeSpecialChars(text) {
+    return text.replace(/[^a-zA-Z0-9\s]/g, char => {
+        const code = specialCharToBinary[char];
+        return code ? `Ѫ${code}Ѭ` : char;
+    });
+}
+
+// Umgekehrte Tabelle für das Dekodieren
 const binaryToSpecialChar = Object.fromEntries(
-    Object.entries(specialCharToBinary).map(([k, v]) => [v, k])
+    Object.entries(specialCharToBinary).map(([char, code]) => [code, char])
 );
+
+// Funktion zum Dekodieren von kodierten Sonderzeichen
+function decodeSpecialChars(text) {
+    return text.replace(/Ѫ(\d{2})Ѭ/g, (_, code) => {
+        return binaryToSpecialChar[code] || '?';
+    });
+}
 
 // Custom-Mapping: A-Z → Griechisch, 0–9 → Kyrillisch
 const charMap = {
@@ -24,18 +40,6 @@ const charMap = {
 const reverseCharMap = Object.fromEntries(
     Object.entries(charMap).map(([k, v]) => [v, k])
 );
-
-// Sonderzeichen-Kodierung
-function encodeSpecialChars(text) {
-    return text.split('').map(ch => {
-        if (specialCharToBinary[ch]) return specialCharToBinary[ch];
-        return ch;
-    }).join('');
-}
-
-function decodeSpecialChars(text) {
-    return text.replace(/9[1-5|7-8][1-9]6/g, match => binaryToSpecialChar[match] || match);
-}
 
 // Custom-Mapping
 function customMapEncode(text) {
