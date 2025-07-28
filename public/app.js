@@ -451,85 +451,80 @@ async function confirmDeleteAccount() {
 // ENCRYPTION/DECRYPTION (Simplified Demo)
 // ================================================================
 
+// ENCRYPTION (mit echter Verschlüsselung)
 function encryptMessage() {
     const code = document.getElementById('messageCode').value;
     const message = document.getElementById('messageInput').value;
-    
+
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie einen 5-stelligen Sicherheitscode ein');
         return;
     }
-    
+
     if (!message) {
         alert('Bitte geben Sie eine Nachricht ein');
         return;
     }
-    
+
     // Log activity
-    logActivity('encrypt_message', { 
+    logActivity('encrypt_message', {
         messageLength: message.length,
-        codeLength: code.length 
+        codeLength: code.length
     });
-    
-    // Simple encryption for demo (replace with real encryption)
-    const encrypted = base64Encode(code + '|' + message);
-    
+
+    // ✅ ECHTE Verschlüsselung
+    const encrypted = encryptFull(message, code);
+
     document.getElementById('messageOutput').value = encrypted;
     document.getElementById('outputGroup').style.display = 'block';
 }
 
+// DECRYPTION (mit echter Entschlüsselung)
 function decryptMessage() {
     const code = document.getElementById('messageCode').value;
     const encrypted = document.getElementById('messageInput').value;
-    
+
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie einen 5-stelligen Sicherheitscode ein');
         return;
     }
-    
+
     if (!encrypted) {
         alert('Bitte geben Sie den verschlüsselten Text ein');
         return;
     }
-    
+
     // Log activity
-    logActivity('decrypt_message', { 
+    logActivity('decrypt_message', {
         encryptedLength: encrypted.length,
-        codeLength: code.length 
+        codeLength: code.length
     });
-    
+
     try {
-        // Simple decryption for demo (replace with real decryption)
-        const decrypted = atob(encrypted);
-        const [storedCode, message] = decrypted.split('|');
-        
-        if (storedCode === code) {
-            document.getElementById('messageOutput').value = message;
-            document.getElementById('outputGroup').style.display = 'block';
-        } else {
-            alert('Falscher Sicherheitscode!');
-        }
+        const decrypted = decryptFull(encrypted, code);
+        document.getElementById('messageOutput').value = decrypted;
+        document.getElementById('outputGroup').style.display = 'block';
     } catch (error) {
-        alert('Ungültiger verschlüsselter Text');
+        alert('Fehler beim Entschlüsseln');
     }
 }
 
 function copyToClipboard() {
     const output = document.getElementById('messageOutput');
     if (!output || !output.value) return;
-    
+
     output.select();
     document.execCommand('copy');
-    
+
     // Visual feedback
     const copyBtn = document.getElementById('copyBtn');
     const originalText = copyBtn.textContent;
     copyBtn.textContent = '✓ KOPIERT!';
-    
+
     setTimeout(() => {
         copyBtn.textContent = originalText;
     }, 2000);
-    
+
     // Log activity
     logActivity('copy_to_clipboard', { contentLength: output.value.length });
 }
