@@ -7,6 +7,14 @@
     <title>Secret Messages - Secure Login</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        @media (max-width: 600px) {
+            .logout-btn {
+                font-size: 0.75rem;
+                padding: 6px 10px;
+                top: 10px;
+                left: 10px;
+            }
+         }
         
         * {
             margin: 0;
@@ -476,6 +484,7 @@
         <div id="mainSection" class="section">
             <div class="app-header">
                 <button class="logout-btn" id="logoutBtn">Abmelden</button>
+                
                 <div class="user-info" id="userInfo"></div>
                 <div style="text-align: center;">
                     <img src="/Logo_SM.png" alt="Secret Messages Logo" style="width: 250px; margin-bottom: 15px; filter: drop-shadow(0 0 10px #00ff41);">
@@ -508,12 +517,9 @@
                     ></textarea>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
                     <button class="btn" id="encryptBtn">🔒 VERSCHLÜSSELN</button>
                     <button class="btn" id="decryptBtn">🔓 ENTSCHLÜSSELN</button>
-                </div>
-                
-                <div style="Center: display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <button class="btn" id="clearFieldsBtn">🧹 ALLE FELDER LEEREN</button>
                 </div>
                 
