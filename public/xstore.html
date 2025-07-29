@@ -183,9 +183,19 @@
     <p><strong>E-Mail:</strong> <a href="mailto:support@secret-messages.com">support@secret-messages.com</a></p>
   </section>  <footer class="matrix-footer">
     <p>© 2025 – Secret Messages | <a href="#">Impressum</a> | <a href="#">Datenschutz</a></p>
-  </footer>  <script>
-    function buyLicense(plan) {
-      alert('Ausgewählte Lizenz: ' + plan + '\nHier würde die Weiterleitung zum Zahlungssystem erfolgen.');
-    }
-  </script></body>
+  </footer>  
+  
+  <!-- MODALES FENSTER -->
+<div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; backdrop-filter: blur(4px);">
+  <div id="modalBox" style="max-width:400px; margin:100px auto; background:black; border:1px solid var(--matrix-green); box-shadow:0 0 20px var(--matrix-green); padding:20px; border-radius:10px; text-align:center; color:var(--matrix-green); font-family:'Share Tech Mono', monospace;">
+    <h2 style="margin-bottom: 15px; text-shadow: 0 0 10px var(--matrix-green);">🛒 Lizenz kaufen</h2>
+    <p id="modalPlan" style="margin-bottom: 10px; font-size: 1.1rem;"></p>
+    <p id="modalPrice" style="margin-bottom: 20px; font-weight: bold;"></p>
+    <button onclick="confirmPurchase()" style="margin-right: 10px; padding: 10px 15px; border: 1px solid var(--matrix-green); background: transparent; color: var(--matrix-green); cursor: pointer;">✅ Kauf bestätigen</button>
+    <button onclick="closeModal()" style="padding: 10px 15px; border: 1px solid var(--matrix-green); background: transparent; color: var(--matrix-green); cursor: pointer;">❌ Abbrechen</button>
+  </div>
+</div>
+
+<script src="store.js"></script>
+  </body>
 </html>
