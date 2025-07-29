@@ -582,6 +582,23 @@ app.post('/api/admin/stats', async (req, res) => {
     }
 });
 
+// Admin purchases
+app.post('/api/admin/purchases', async (req, res) => {
+  const { password } = req.body;
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: "Zugriff verweigert" });
+  }
+
+  try {
+    const result = await dbQuery("SELECT buyer, license, price, date FROM purchases ORDER BY date DESC LIMIT 100");
+    res.json({ success: true, purchases: result.rows });
+  } catch (err) {
+    console.error("Fehler bei /purchases:", err);
+    res.status(500).json({ success: false, error: "Datenbankfehler" });
+  }
+});
+
 // List Users
 app.post('/api/admin/users', async (req, res) => {
     const { password } = req.body;
