@@ -479,6 +479,29 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Purchase Management -->
+            <div class="section">
+              <h3 class="section-title">🧾 Lizenz-Käufe</h3>
+              <button class="btn" id="loadPurchasesBtn"><span id="loadPurchasesBtnText">KÄUFE LADEN</span></button>
+            
+              <div id="purchaseTableContainer" style="margin-top: 20px; display: none;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Käufer</th>
+                      <th>Lizenz</th>
+                      <th>Preis</th>
+                      <th>Kaufdatum</th>
+                    </tr>
+                  </thead>
+                  <tbody id="purchaseTableBody">
+                    <!-- Dynamisch durch admin.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
         </div>
     </div>
 
