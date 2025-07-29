@@ -313,5 +313,56 @@ function updateStatistics() {
     }
   }
 
+// Load Purchases
+async function loadPurchases() {
+  const btn = document.getElementById("loadPurchasesBtn");
+  const btnText = document.getElementById("loadPurchasesBtnText");
+  const tableBody = document.getElementById("purchaseTableBody");
+  const tableContainer = document.getElementById("purchaseTableContainer");
+
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span>Lade...';
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/purchases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      tableBody.innerHTML = "";
+
+      if (data.purchases.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Keine Käufe gefunden</td></tr>`;
+      } else {
+        data.purchases.forEach(purchase => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${purchase.buyer || '-'}</td>
+            <td>${purchase.license}</td>
+            <td>${purchase.price}</td>
+            <td>${new Date(purchase.date).toLocaleDateString("de-DE")} ${new Date(purchase.date).toLocaleTimeString("de-DE")}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      tableContainer.style.display = "block";
+    } else {
+      alert(data.error || "Fehler beim Laden der Käufe.");
+    }
+  } catch (error) {
+    alert("Verbindungsfehler zum Server.");
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = "KÄUFE LADEN";
+  }
+}
+
+document.getElementById("loadPurchasesBtn")?.addEventListener("click", loadPurchases);
+
   // Aufruf beim Laden
   updateStatistics();
