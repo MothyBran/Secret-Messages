@@ -1,157 +1,226 @@
-<!DOCTYPE html><html lang="de">
+<!DOCTYPE html>
+<html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Secret Messages Store</title>
   <style>
     :root {
       --matrix-green: #00ff41;
       --matrix-dark: #0f0f0f;
-    }body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Share Tech Mono', monospace;
-  background-color: #000;
-  color: var(--matrix-green);
-}
+    }
 
-.store-container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  text-align: center;
-}
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Share Tech Mono', monospace;
+      background-color: #000;
+      color: var(--matrix-green);
+    }
 
-h1 {
-  font-size: 2.2rem;
-  margin-bottom: 10px;
-  text-shadow: 0 0 10px var(--matrix-green);
-}
+    .store-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      text-align: center;
+    }
 
-p.subtitle {
-  font-size: 1rem;
-  color: #b2ffb2;
-  margin-bottom: 30px;
-}
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+      text-shadow: 0 0 10px var(--matrix-green);
+    }
 
-.license-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 25px;
-  margin-top: 20px;
-}
+    p.subtitle {
+      font-size: 1rem;
+      color: #b2ffb2;
+      margin-bottom: 30px;
+    }
 
-.license-card {
-  background: rgba(0, 0, 0, 0.85);
-  border: 1px solid var(--matrix-green);
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 0 15px var(--matrix-green);
-  transition: transform 0.3s ease;
-}
+    .license-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 25px;
+      margin-top: 20px;
+    }
 
-.license-card:hover {
-  transform: scale(1.03);
-}
+    .license-card {
+      background: rgba(0, 0, 0, 0.85);
+      border: 1px solid var(--matrix-green);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px var(--matrix-green);
+      transition: transform 0.3s ease;
+    }
 
-.license-title {
-  font-size: 1.1rem;
-  margin-bottom: 10px;
-}
+    .license-card:hover {
+      transform: scale(1.03);
+    }
 
-.license-price {
-  font-size: 1.4rem;
-  font-weight: bold;
-  margin-bottom: 10px;
-}
+    .license-title {
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+    }
 
-.license-card small {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 0.75rem;
-  color: #b2ffb2;
-}
+    .license-price {
+      font-size: 1.4rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
 
-.license-btn {
-  background-color: transparent;
-  color: var(--matrix-green);
-  border: 1px solid var(--matrix-green);
-  padding: 10px 20px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
+    .license-card small {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 0.75rem;
+      color: #b2ffb2;
+    }
 
-.license-btn:hover {
-  background-color: var(--matrix-green);
-  color: black;
-}
+    .license-btn {
+      background-color: transparent;
+      color: var(--matrix-green);
+      border: 1px solid var(--matrix-green);
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+    }
 
+    .license-btn:hover {
+      background-color: var(--matrix-green);
+      color: black;
+    }
+
+    .info-box, details {
+      background: rgba(0, 0, 0, 0.85);
+      border: 1px solid var(--matrix-green);
+      padding: 20px;
+      margin: 40px auto;
+      border-radius: 8px;
+      box-shadow: 0 0 15px var(--matrix-green);
+      max-width: 800px;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1rem;
+      color: var(--matrix-green);
+      text-shadow: 0 0 5px var(--matrix-green);
+    }
+
+    details[open] summary {
+      margin-bottom: 10px;
+    }
+
+    ul, ol {
+      padding-left: 20px;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
   <div class="store-container">
     <h1>🛍️ Lizenz-Shop</h1>
-    <p class="subtitle">Wähle dein passendes Lizenzmodell – fair, flexibel & sicher</p><div class="license-grid">
-  <!-- Einzelangebote -->
-  <div class="license-card">
-    <div class="license-title">🔓 1 Monat Zugang</div>
-    <div class="license-price">1,99 €</div>
-    <button class="license-btn" onclick="buyLicense('1m')">Lizenz kaufen</button>
+    <p class="subtitle">Wähle dein passendes Lizenzmodell – fair, flexibel & sicher</p>
+
+    <div class="license-grid">
+      <!-- Einzelangebote -->
+      <div class="license-card">
+        <div class="license-title">🔓 1 Monat Zugang</div>
+        <div class="license-price">1,99 €</div>
+        <button class="license-btn" onclick="buyLicense('1m')">Lizenz kaufen</button>
+      </div>
+
+      <div class="license-card">
+        <div class="license-title">🔓 3 Monate Zugang</div>
+        <div class="license-price">4,49 €</div>
+        <button class="license-btn" onclick="buyLicense('3m')">Lizenz kaufen</button>
+      </div>
+
+      <div class="license-card">
+        <div class="license-title">🔓 12 Monate Zugang</div>
+        <div class="license-price">14,99 €</div>
+        <button class="license-btn" onclick="buyLicense('12m')">Lizenz kaufen</button>
+      </div>
+
+      <div class="license-card">
+        <div class="license-title">♾️ Unbegrenzter Zugang</div>
+        <div class="license-price">49,99 €</div>
+        <button class="license-btn" onclick="buyLicense('unlimited')">Lizenz kaufen</button>
+      </div>
+
+      <!-- Bundles -->
+      <div class="license-card">
+        <div class="license-title">🎁 2× 1 Monat Zugang</div>
+        <div class="license-price">3,79 €</div>
+        <small>💸 Du sparst 0,19 €</small>
+        <button class="license-btn" onclick="buyLicense('bundle_1m_2')">Bundle kaufen</button>
+      </div>
+          
+      <div class="license-card">
+        <div class="license-title">🎁 2× 3 Monate Zugang</div>
+        <div class="license-price">7,99 €</div>
+        <small>💸 Du sparst 0,99 €</small>
+        <button class="license-btn" onclick="buyLicense('bundle_3m_2')">Bundle kaufen</button>
+      </div>
+    
+      <div class="license-card">
+        <div class="license-title">🎁 5× 3 Monate Zugang</div>
+        <div class="license-price">19,99 €</div>
+        <small>💸 Du sparst 2,46 €</small>
+        <button class="license-btn" onclick="buyLicense('bundle_3m_5')">Bundle kaufen</button>
+      </div>
+
+      <div class="license-card">
+        <div class="license-title">🎁 10× 12 Monate Zugang</div>
+        <div class="license-price">129,99 €</div>
+        <small>💸 Du sparst 19,91 €</small>
+        <button class="license-btn" onclick="buyLicense('bundle_1y_10')">Bundle kaufen</button>
+      </div>
+    </div>
+
+    <!-- Infos -->
+    <div class="info-box">
+      <h3>ℹ️ Hinweise zur Lizenz</h3>
+      <ul>
+        <li>🔑 Mit einem Lizenz-Key aktivierst du deinen persönlichen Zugang zum Tool.</li>
+        <li>📅 Laufzeit beginnt ab Aktivierung (nicht Kaufzeitpunkt).</li>
+        <li>❌ Kein Abo, keine automatische Verlängerung.</li>
+        <li>🧾 Lizenzschlüssel kann nur <strong>einmal</strong> aktiviert werden.</li>
+        <li>✅ Nach Aktivierung wird der Key nicht mehr benötigt.</li>
+      </ul>
+    </div>
+
+    <!-- FAQ -->
+    <details>
+      <summary>❓ Was passiert nach dem Kauf?</summary>
+      <div>
+        <p>Du erhältst per E-Mail deinen persönlichen Lizenzschlüssel (Key). Diesen gibst du auf der Login-Seite unter „License Key aktivieren“ ein – ab dann beginnt dein Zugang.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🧠 Warum kein Abo-Modell?</summary>
+      <div>
+        <p>Datensparsamkeit, Privatsphäre und volle Kostenkontrolle stehen im Fokus. Keine automatische Abbuchung – du entscheidest, wann du neu kaufst.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>📦 Kann ich mehrere Keys kaufen?</summary>
+      <div>
+        <p>Ja! Du kannst Bundles für Freunde, Familie oder dein Team kaufen. Jeder Key ist einzeln einlösbar.</p>
+      </div>
+    </details>
   </div>
 
-  <div class="license-card">
-    <div class="license-title">🔓 3 Monate Zugang</div>
-    <div class="license-price">4,49 €</div>
-    <button class="license-btn" onclick="buyLicense('3m')">Lizenz kaufen</button>
-  </div>
-
-  <div class="license-card">
-    <div class="license-title">🔓 12 Monate Zugang</div>
-    <div class="license-price">14,99 €</div>
-    <button class="license-btn" onclick="buyLicense('12m')">Lizenz kaufen</button>
-  </div>
-
-  <div class="license-card">
-    <div class="license-title">♾️ Unbegrenzter Zugang</div>
-    <div class="license-price">49,99 €</div>
-    <button class="license-btn" onclick="buyLicense('unlimited')">Lizenz kaufen</button>
-  </div>
-
-  <!-- Bundles -->
-  <div class="license-card">
-    <div class="license-title">🎁 2× 1 Monat Zugang</div>
-    <div class="license-price">3,79 €</div>
-    <small>💸 Du sparst 0,19 €</small>
-    <button class="license-btn" onclick="buyLicense('bundle_1m_2')">Bundle kaufen</button>
-  </div>
-      
-  <div class="license-card">
-    <div class="license-title">🎁 2× 3 Monate Zugang</div>
-    <div class="license-price">7,99 €</div>
-    <small>💸 Du sparst 0,99 €</small>
-    <button class="license-btn" onclick="buyLicense('bundle_3m_2')">Bundle kaufen</button>
-  </div>
- 
-  <div class="license-card">
-    <div class="license-title">🎁 5× 3 Monate Zugang</div>
-    <div class="license-price">19,99 €</div>
-    <small>💸 Du sparst 2,46 €</small>
-    <button class="license-btn" onclick="buyLicense('bundle_3m_5')">Bundle kaufen</button>
-  </div>
-
-  <div class="license-card">
-    <div class="license-title">🎁 10× 12 Monate Zugang</div>
-    <div class="license-price">129,99 €</div>
-    <small>💸 Du sparst 19,91 €</small>
-    <button class="license-btn" onclick="buyLicense('bundle_1y_10')">Bundle kaufen</button>
-  </div>
-</div>
-
-  </div>  <script>
+  <script>
     function buyLicense(plan) {
-      alert('Ausgewählte Lizenz: ' + plan + '\nHier würde die Weiterleitung zum Zahlungssystem erfolgen.');
+      alert('Ausgewählte Lizenz: ' + plan + '\n→ Hier würde die Weiterleitung zur Zahlung folgen.');
     }
-  </script></body>
+  </script>
+</body>
 </html>
