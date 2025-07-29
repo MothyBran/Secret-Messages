@@ -39,7 +39,7 @@ function showModal(plan) {
 }
 
 function closeModal() {
-  document.getElementById("modalOverlay").style.display = "none";
+  document.getElementById("modal").style.display = "none";
 }
 
 function confirmPurchase() {
