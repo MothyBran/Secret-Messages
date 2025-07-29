@@ -1,154 +1,70 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>🔐 Secret Store – Lizenz kaufen</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --matrix-green: #00ff41;
-      --background-dark: #000;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Share Tech Mono', monospace;
-      background-color: var(--background-dark);
-      color: var(--matrix-green);
-      background-image: radial-gradient(circle, rgba(0,255,65,0.05) 1px, transparent 1px);
-      background-size: 20px 20px;
-    }
-
-    .store-container {
-      max-width: 960px;
-      margin: 60px auto;
-      padding: 30px;
-      background: rgba(0,0,0,0.85);
-      border: 1px solid var(--matrix-green);
-      box-shadow: 0 0 20px var(--matrix-green);
-      border-radius: 8px;
-      text-align: center;
-    }
-
-    h1 {
-      font-size: 2rem;
-      color: var(--matrix-green);
-      text-shadow: 0 0 12px var(--matrix-green);
-      margin-bottom: 30px;
-    }
-
-    .license-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-      margin-top: 20px;
-    }
-
-    .license-card {
-      background-color: rgba(0, 0, 0, 0.95);
-      border: 1px solid var(--matrix-green);
-      border-radius: 6px;
-      padding: 20px;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    .license-card:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 25px var(--matrix-green);
-    }
-
-    .license-title {
-      font-size: 1.2rem;
-      margin-bottom: 10px;
-      color: var(--matrix-green);
-    }
-
-    .license-price {
-      font-size: 1.5rem;
-      font-weight: bold;
-      margin-bottom: 10px;
-      color: #bfffcc;
-    }
-
-    .license-btn {
-      background-color: var(--matrix-green);
-      border: none;
-      padding: 10px 16px;
-      font-size: 0.95rem;
-      border-radius: 4px;
-      cursor: pointer;
-      color: black;
-      font-weight: bold;
-      transition: background 0.2s ease;
-    }
-
-    .license-btn:hover {
-      background-color: #66ff99;
-    }
-
-    footer {
-      text-align: center;
-      padding: 20px;
-      font-size: 0.8rem;
-      opacity: 0.5;
-    }
-  </style>
-</head>
-<body>
-  <div class="store-container">
-    <h1>🛒 SECRET STORE</h1>
-    <p>Wähle dein gewünschtes Lizenzpaket aus und sichere dir sofortigen Zugriff auf <strong>Secret Messages</strong>.</p>
-
-    <div class="license-grid">
-      <div class="license-card">
-        <div class="license-title">🔓 1 Monat Zugang</div>
-        <div class="license-price">1,99 €</div>
-        <button class="license-btn" onclick="buyLicense('1m')">Lizenz kaufen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">🔓 3 Monate Zugang</div>
-        <div class="license-price">4,49 €</div>
-        <button class="license-btn" onclick="buyLicense('3m')">Lizenz kaufen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">🔓 12 Monate Zugang</div>
-        <div class="license-price">14,99 €</div>
-        <button class="license-btn" onclick="buyLicense('12m')">Lizenz kaufen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">♾️ Unbegrenzter Zugang</div>
-        <div class="license-price">49,99 €</div>
-        <button class="license-btn" onclick="buyLicense('unlimited')">Lizenz kaufen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">🎁 Bundle: 2 Keys (1M)</div>
-        <div class="license-price">3,49 €</div>
-        <button class="license-btn" onclick="buyLicense('bundle_1m_2')">Jetzt holen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">🎁 Bundle: 5 Keys (3M)</div>
-        <div class="license-price">9,99 €</div>
-        <button class="license-btn" onclick="buyLicense('bundle_3m_5')">Jetzt holen</button>
-      </div>
-
-      <div class="license-card">
-        <div class="license-title">🎁 Bundle: 10 Keys (1Y)</div>
-        <div class="license-price">29,99 €</div>
-        <button class="license-btn" onclick="buyLicense('bundle_1y_10')">Jetzt holen</button>
-      </div>
-    </div>
+<section id="bundleSection" style="margin-top: 50px;">
+  <h2 style="text-align: center; color: var(--matrix-green); text-shadow: 0 0 10px var(--matrix-green); margin-bottom: 25px;">
+    🎁 Mehrfachlizenzen (Bundles) mit Mengenrabatt
+  </h2>
+  
+  <div style="overflow-x: auto;">
+    <table style="width: 100%; max-width: 900px; margin: 0 auto; border-collapse: collapse; color: var(--matrix-green); box-shadow: 0 0 15px var(--matrix-green); background: rgba(0, 0, 0, 0.85); border: 1px solid var(--matrix-green); border-radius: 6px;">
+      <thead>
+        <tr style="background: rgba(0, 255, 65, 0.1); font-weight: bold;">
+          <th style="padding: 12px; border-bottom: 1px solid var(--matrix-green);">🧾 Paket</th>
+          <th style="padding: 12px; border-bottom: 1px solid var(--matrix-green);">👥 Inhalt</th>
+          <th style="padding: 12px; border-bottom: 1px solid var(--matrix-green);">💸 Preis</th>
+          <th style="padding: 12px; border-bottom: 1px solid var(--matrix-green);">💰 Ersparnis</th>
+          <th style="padding: 12px; border-bottom: 1px solid var(--matrix-green);">🏷️ Rabatt</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding: 12px;">2× 3 Monate</td>
+          <td style="padding: 12px;">2 Keys á 3 Monate</td>
+          <td style="padding: 12px;"><strong>7,99 €</strong></td>
+          <td style="padding: 12px;">–0,99 €</td>
+          <td style="padding: 12px;">11 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">5× 3 Monate</td>
+          <td style="padding: 12px;">5 Keys á 3 Monate</td>
+          <td style="padding: 12px;"><strong>18,99 €</strong></td>
+          <td style="padding: 12px;">–3,46 €</td>
+          <td style="padding: 12px;">15 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">10× 3 Monate</td>
+          <td style="padding: 12px;">10 Keys á 3 Monate</td>
+          <td style="padding: 12px;"><strong>35,99 €</strong></td>
+          <td style="padding: 12px;">–8,91 €</td>
+          <td style="padding: 12px;">20 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">2× 12 Monate</td>
+          <td style="padding: 12px;">2 Keys á 12 Monate</td>
+          <td style="padding: 12px;"><strong>27,99 €</strong></td>
+          <td style="padding: 12px;">–1,99 €</td>
+          <td style="padding: 12px;">7 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">5× 12 Monate</td>
+          <td style="padding: 12px;">5 Keys á 12 Monate</td>
+          <td style="padding: 12px;"><strong>64,99 €</strong></td>
+          <td style="padding: 12px;">–9,96 €</td>
+          <td style="padding: 12px;">13 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">10× 12 Monate</td>
+          <td style="padding: 12px;">10 Keys á 12 Monate</td>
+          <td style="padding: 12px;"><strong>119,99 €</strong></td>
+          <td style="padding: 12px;">–29,91 €</td>
+          <td style="padding: 12px;">20 %</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px;">3× Unlimited</td>
+          <td style="padding: 12px;">3 Keys (unbegrenzter Zugang)</td>
+          <td style="padding: 12px;"><strong>129,99 €</strong></td>
+          <td style="padding: 12px;">–19,98 €</td>
+          <td style="padding: 12px;">13 %</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-
-  <footer>&copy; 2025 Secret Messages – All rights reserved.</footer>
-
-  <script src="store.js"></script>
-</body>
-</html>
+</section>
