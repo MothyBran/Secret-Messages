@@ -900,7 +900,6 @@ app.post('/api/admin/keys/:id/enable', async (req, res) => {
   } catch (e) {
     console.error('/api/admin/keys/:id/enable error', e);
     res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
 });
 
 app.post('/api/admin/keys/:id/activate', async (req, res) => {
@@ -908,7 +907,6 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
     const { password, product_code } = req.body || {};
     if (password !== ADMIN_PASSWORD) {
       return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-    }
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
 
@@ -923,7 +921,6 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
       const d = new Date(now);
       d.setUTCDate(d.getUTCDate() + map[code]);
       expiresAt = d.toISOString();
-    }
 
     const sql = isPostgreSQL
       ? `UPDATE license_keys
@@ -944,7 +941,6 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
   } catch (e) {
     console.error('/api/admin/keys/:id/activate error', e);
     res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
 });
 
 // ===== Admin: Stats korrekt =====
@@ -952,7 +948,6 @@ app.post('/api/admin/stats', async (req, res) => {
   const { password } = req.body || {};
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-  }
   try {
     const stats = {};
 
@@ -984,7 +979,6 @@ app.post('/api/admin/stats', async (req, res) => {
   } catch (err) {
     console.error('stats error:', err);
     res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
 });
 
 app.get('/admin', (req, res) => {
