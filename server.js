@@ -620,6 +620,7 @@ app.get('/', (req, res) => {
 
 // ===== Admin: USERS (only registered) =====
 
+
 app.post('/api/admin/users', async (req, res) => {
   const { password, page = 1, limit = 50 } = req.body || {};
   if (password !== ADMIN_PASSWORD) {
@@ -630,7 +631,6 @@ app.post('/api/admin/users', async (req, res) => {
     const limitNum = Math.max(1, Number(limit));
     const offset = (pageNum - 1) * limitNum;
 
-    // Robust query: LEFT JOIN user_sessions, aggregate last_login with MAX()
     const sql = isPostgreSQL
       ? `SELECT lk.id,
                  lk.key_code,
@@ -673,7 +673,6 @@ app.post('/api/admin/users', async (req, res) => {
   }
 });
 
-// ===== Admin: LICENSE KEYS (status + filter + product_code) =====
 app.post('/api/admin/license-keys', async (req, res) => {
   try {
     const { password, page = 1, limit = 100, status = 'all' } = req.body || {};
