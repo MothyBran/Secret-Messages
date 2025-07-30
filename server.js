@@ -650,33 +650,6 @@ app.post('/api/admin/users', async (req, res) => {
         res.status(500).json({ success: false, error: 'Serverfehler' });
     }
 });
-}
-  try {
-    const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.max(1, Number(limit));
-    const offset = (pageNum - 1) * limitNum;
-
-    const sql = isPostgreSQL
-      ? `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.user_created_at, lk.activated_at, lk.last_used_at,
-                 (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = TRUE) AS last_login
-          FROM license_keys lk
-          WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
-          ORDER BY lk.user_created_at DESC NULLS LAST, lk.activated_at DESC NULLS LAST, lk.created_at DESC
-          LIMIT $1 OFFSET $2`
-      : `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.user_created_at, lk.activated_at, lk.last_used_at,
-                 (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = 1) AS last_login
-          FROM license_keys lk
-          WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
-          ORDER BY datetime(lk.user_created_at) DESC, datetime(lk.activated_at) DESC, datetime(lk.created_at) DESC
-          LIMIT ? OFFSET ?`;
-
-    const result = await dbQuery(sql, [limitNum, offset]);
-    res.json({ success: true, users: result.rows || [] });
-  } catch (error) {
-    console.error('List users error:', error);
-    res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
-});
 
 // ===== Admin: LICENSE KEYS (status + filter + product_code) =====
 app.post('/api/admin/license-keys', async (req, res) => {
