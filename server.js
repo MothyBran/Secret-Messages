@@ -546,14 +546,46 @@ app.delete('/api/auth/delete-account', async (req, res) => {
 });
 
 // Admin Stats
+
 app.post('/api/admin/stats', async (req, res) => {
-    const { password } = req.body;
-    
+    const { password } = req.body || {};
     if (password !== ADMIN_PASSWORD) {
-        return res.status(403).json({ 
-            success: false, 
-            error: 'Ungültiges Admin-Passwort' 
-        });
+        return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    try {
+        const stats = {};
+
+        const totalKeys = await dbQuery('SELECT COUNT(*) AS count FROM license_keys');
+        stats.totalKeys = parseInt(totalKeys.rows[0].count || 0);
+
+        const activeUsers = await dbQuery(
+            isPostgreSQL
+                ? "SELECT COUNT(*) AS count FROM license_keys WHERE is_active = true"
+                : "SELECT COUNT(*) AS count FROM license_keys WHERE is_active = 1"
+        );
+        stats.activeUsers = parseInt(activeUsers.rows[0].count || 0);
+
+        const activeSessions = await dbQuery(
+            isPostgreSQL
+                ? "SELECT COUNT(*) AS count FROM user_sessions WHERE is_active = true AND expires_at > NOW()"
+                : "SELECT COUNT(*) AS count FROM user_sessions WHERE is_active = 1 AND datetime(expires_at) > datetime('now')"
+        );
+        stats.activeSessions = parseInt(activeSessions.rows[0].count || 0);
+
+        const recentRegs = await dbQuery(
+            isPostgreSQL
+                ? "SELECT COUNT(*) AS count FROM license_keys WHERE username IS NOT NULL AND user_created_at >= NOW() - INTERVAL '7 days'"
+                : "SELECT COUNT(*) AS count FROM license_keys WHERE username IS NOT NULL AND datetime(user_created_at) >= datetime('now', '-7 days')"
+        );
+        stats.recentRegistrations = parseInt(recentRegs.rows[0].count || 0);
+
+        res.json({ success: true, stats });
+    } catch (err) {
+        console.error('stats error:', err);
+        res.status(500).json({ success: false, error: 'Serverfehler' });
+    }
+});
+
     }
     
     try {
@@ -601,14 +633,39 @@ app.post('/api/admin/purchases', async (req, res) => {
 });
 
 // List Users
+
 app.post('/api/admin/users', async (req, res) => {
-    const { password } = req.body;
-    
+    const { password, page = 1, limit = 50 } = req.body || {};
     if (password !== ADMIN_PASSWORD) {
-        return res.status(403).json({ 
-            success: false, 
-            error: 'Ungültiges Admin-Passwort' 
-        });
+        return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    try {
+        const pageNum = Math.max(1, Number(page));
+        const limitNum = Math.max(1, Number(limit));
+        const offset = (pageNum - 1) * limitNum;
+
+        const sql = isPostgreSQL
+            ? `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.user_created_at, lk.activated_at, lk.last_used_at,
+                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = TRUE) AS last_login
+               FROM license_keys lk
+               WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
+               ORDER BY lk.user_created_at DESC NULLS LAST, lk.activated_at DESC NULLS LAST, lk.created_at DESC
+               LIMIT $1 OFFSET $2`
+            : `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.user_created_at, lk.activated_at, lk.last_used_at,
+                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = 1) AS last_login
+               FROM license_keys lk
+               WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
+               ORDER BY datetime(lk.user_created_at) DESC, datetime(lk.activated_at) DESC, datetime(lk.created_at) DESC
+               LIMIT ? OFFSET ?`;
+
+        const result = await dbQuery(sql, [limitNum, offset]);
+        res.json({ success: true, users: result.rows || [] });
+    } catch (error) {
+        console.error('List users error:', error);
+        res.status(500).json({ success: false, error: 'Serverfehler' });
+    }
+});
+
     }
     
     try {
@@ -634,7 +691,176 @@ app.post('/api/admin/users', async (req, res) => {
 
 // Generate Keys
 app.post('/api/admin/generate-key', async (req, res) => {
-    const { password, quantity = 1 } = req.body;
+    const { pass
+// Admin: Key manuell aktivieren (+Laufzeit setzen und Produktcode)
+app.post('/api/admin/keys/:id/activate', async (req, res) => {
+  try {
+    const { password, product_code } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+    const code = String(product_code || '').toLowerCase();
+    const map = { '1m':30, '3m':90, '6m':180, '12m':360, '1y':360, 'unl':null, 'unlimited':null };
+    if (!(code in map)) return res.status(400).json({ success: false, error: 'Ungültiger Produkt-Code' });
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    let expiresAt = null;
+    if (map[code] !== null) {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() + map[code]);
+      expiresAt = d.toISOString();
+    }
+
+    const sql = isPostgreSQL
+      ? `UPDATE license_keys
+           SET is_active = true,
+               activated_at = COALESCE(activated_at, $1),
+               expires_at = $2,
+               product_code = $3
+         WHERE id = $4`
+      : `UPDATE license_keys
+           SET is_active = 1,
+               activated_at = COALESCE(activated_at, ?),
+               expires_at = ?,
+               product_code = ?
+         WHERE id = ?`;
+
+    await dbQuery(sql, [nowIso, expiresAt, code, id]);
+    res.json({ success: true, expires_at: expiresAt, product_code: code });
+  } catch (e) {
+    console.error('/api/admin/keys/:id/activate error', e);
+    res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
+});
+
+// Admin: Key aktivieren (nur Flag)
+app.post('/api/admin/keys/:id/enable', async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+    const sql = isPostgreSQL
+      ? 'UPDATE license_keys SET is_active = true WHERE id = $1'
+      : 'UPDATE license_keys SET is_active = 1 WHERE id = ?';
+
+    await dbQuery(sql, [id]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('/api/admin/keys/:id/enable error', e);
+    res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
+});
+
+// Admin: Key sperren
+app.post('/api/admin/keys/:id/disable', async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+    const sql = isPostgreSQL
+      ? 'UPDATE license_keys SET is_active = false WHERE id = $1'
+      : 'UPDATE license_keys SET is_active = 0 WHERE id = ?';
+
+    await dbQuery(sql, [id]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('/api/admin/keys/:id/disable error', e);
+    res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
+});
+
+// Admin: Lizenz-Keys auflisten (Status, Laufzeit, Produktcode) + Filter (all|active|expired|inactive|blocked)
+app.post('/api/admin/license-keys', async (req, res) => {
+    try {
+        const { password, page = 1, limit = 100, status = 'all' } = req.body || {};
+        if (password !== ADMIN_PASSWORD) {
+            return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+        }
+
+        const pageNum = Math.max(1, Number(page));
+        const limitNum = Math.max(1, Number(limit));
+        const offset = (pageNum - 1) * limitNum;
+
+        const selectSql = isPostgreSQL
+            ? `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+               FROM license_keys
+               ORDER BY created_at DESC
+               LIMIT $1 OFFSET $2`
+            : `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+               FROM license_keys
+               ORDER BY datetime(created_at) DESC
+               LIMIT ? OFFSET ?`;
+
+        const result = await dbQuery(selectSql, [limitNum, offset]);
+        const rows = result.rows || [];
+
+        const toIso = (v) => {
+            if (!v) return null;
+            const d = (v instanceof Date) ? v : new Date(v);
+            return isNaN(d.getTime()) ? null : d.toISOString();
+        };
+        const nowMs = Date.now();
+
+        let keys = rows.map(r => {
+            const createdAt = toIso(r.created_at);
+            const expiresAt = toIso(r.expires_at);
+            const activatedAt = toIso(r.activated_at);
+            const isActive = !!(isPostgreSQL ? r.is_active : Number(r.is_active) === 1);
+
+            let st = 'active';
+            if (expiresAt && new Date(expiresAt).getTime() <= nowMs) st = 'expired';
+            else if (!isActive && activatedAt) st = 'blocked';
+            else if (!activatedAt) st = 'inactive';
+
+            let remaining_days = '—';
+            if (expiresAt) {
+                const diffDays = Math.ceil((new Date(expiresAt).getTime() - nowMs) / (1000 * 60 * 60 * 24));
+                remaining_days = (diffDays >= 0) ? `${diffDays} Tage` : '0 Tage';
+            }
+
+            return {
+                id: r.id,
+                key_code: r.key_code,
+                created_at: createdAt,
+                expires_at: expiresAt,
+                activated_at: activatedAt,
+                is_active: isActive,
+                username: r.username || null,
+                product_code: r.product_code || null,
+                status: st,
+                remaining_days
+            };
+        });
+
+        // Apply filter
+        keys = keys.filter(k => {
+            if (status === 'active') return k.status === 'active';
+            if (status === 'expired') return k.status === 'expired';
+            if (status === 'inactive') return k.status === 'inactive';
+            if (status === 'blocked') return k.status === 'blocked';
+            return true;
+        });
+
+        res.json({ success: true, keys });
+    } catch (err) {
+        console.error('/api/admin/license-keys error:', err);
+        res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Lizenz-Keys' });
+    }
+});
+
+word, quantity = 1 } = req.body;
     
     if (password !== ADMIN_PASSWORD) {
         return res.status(403).json({ 
@@ -684,125 +910,6 @@ app.post('/api/admin/generate-key', async (req, res) => {
 // Static file serving
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-
-// Admin: Lizenz-Keys auflisten (Status & Laufzeit)
-app.post('/api/admin/license-keys', async (req, res) => {
-    try {
-        const { password, page = 1, limit = 100 } = req.body || {};
-        if (password !== ADMIN_PASSWORD) {
-            return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-        }
-
-        const pageNum = Math.max(1, Number(page));
-        const limitNum = Math.max(1, Number(limit));
-        const offset = (pageNum - 1) * limitNum;
-
-        const selectSql = isPostgreSQL
-            ? `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username
-               FROM license_keys
-               ORDER BY created_at DESC
-               LIMIT $1 OFFSET $2`
-            : `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username
-               FROM license_keys
-               ORDER BY datetime(created_at) DESC
-               LIMIT ? OFFSET ?`;
-
-        const result = await dbQuery(selectSql, [limitNum, offset]);
-        const rows = result.rows || [];
-
-        const toIso = (v) => {
-            if (!v) return null;
-            const d = (v instanceof Date) ? v : new Date(v);
-            return isNaN(d.getTime()) ? null : d.toISOString();
-        };
-        const nowMs = Date.now();
-
-        const keys = rows.map(r => {
-            const createdAt = toIso(r.created_at);
-            const expiresAt = toIso(r.expires_at);
-            let status = 'active';
-            if (expiresAt) {
-                const expMs = new Date(expiresAt).getTime();
-                if (!isNaN(expMs) && expMs <= nowMs) status = 'expired';
-            }
-            const metadata = {
-                created_at: createdAt,
-                expires_at: expiresAt,
-                status
-            };
-            let remaining_days = '—';
-            if (expiresAt) {
-                const diffDays = Math.ceil((new Date(expiresAt).getTime() - nowMs) / (1000 * 60 * 60 * 24));
-                remaining_days = (diffDays >= 0) ? `${diffDays} Tage` : '0 Tage';
-            }
-
-            return {
-            id: r.id,
-            key_code: r.key_code,
-            created_at: createdAt,
-            expires_at: expiresAt,
-            activated_at: toIso(r.activated_at),
-            is_active: !!(isPostgreSQL ? r.is_active : Number(r.is_active) === 1),
-            username: r.username || null,
-            product_code: r.product_code || null,
-            metadata,
-            status,
-            remaining_days
-        };
-    });
-res.json({ success: true, keys });
-    } catch (err) {
-        console.error('/api/admin/license-keys error:', err);
-        res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Lizenz-Keys' });
-    }
-});
-
-
-// Admin: Key manuell aktivieren (+Laufzeit wählen)
-app.post('/api/admin/keys/:id/activate', async (req, res) => {
-  try {
-    const { password, product_code } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
-      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-    }
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
-
-    // Map product_code to duration days
-    const code = (product_code || '').toLowerCase();
-    const map = { '1m':30, '3m':90, '6m':180, '12m':360, '1y':360, 'unl':null, 'unlimited':null };
-    if (!(code in map)) return res.status(400).json({ success: false, error: 'Ungültiger Produkt-Code' });
-    const days = map[code];
-    const nowIso = new Date().toISOString();
-    let expiresAt = null;
-    if (days !== null) {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() + days);
-      expiresAt = d.toISOString();
-    }
-
-    const sql = isPostgreSQL
-      ? `UPDATE license_keys
-         SET is_active = true,
-             activated_at = COALESCE(activated_at, $1),
-             expires_at = $2,
-             product_code = $3
-         WHERE id = $4`
-      : `UPDATE license_keys
-         SET is_active = 1,
-             activated_at = COALESCE(activated_at, ?),
-             expires_at = ?,
-             product_code = ?
-         WHERE id = ?`;
-
-    await dbQuery(sql, [nowIso, expiresAt, code, id]);
-    res.json({ success: true, expires_at: expiresAt, product_code: code });
-  } catch (e) {
-    console.error('/api/admin/keys/:id/activate error', e);
-    res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
 });
 
 app.get('/admin', (req, res) => {
