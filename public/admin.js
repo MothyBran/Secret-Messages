@@ -194,17 +194,17 @@ async function loadUsers() {
         if (data.success) {
             tableBody.innerHTML = '';
             
-            if (data.users && data.users.length > 0) {
-                data.users.forEach(user => {
+            if (data.users && data.users.length > 0) {const users = (data.users || []).filter(u => u.username && String(u.username).trim() !== ''); 
+      users.forEach(user => {
                     const row = tableBody.insertRow();
                     row.innerHTML = `
-                        <td><span class="key-code">${user.key_code}</span></td>
-                        <td>${user.username || '-'}</td>
-                        <td>${user.is_active ? '✅ Aktiv' : '❌ Inaktiv'}</td>
-                        <td>${user.activated_at ? new Date(user.activated_at).toLocaleDateString('de-DE') : '-'}</td>
-                        <td>${user.last_used_at ? new Date(user.last_used_at).toLocaleDateString('de-DE') : '-'}</td>
-                    `;
-                });
+            <td><span class="key-code">${user.key_code || '-'}</span></td>
+            <td>${user.username || '-'}</td>
+            <td>${user.is_active ? '✅ Aktiv' : (user.activated_at ? '⛔ Gesperrt' : '⏳ Inaktiv')}</td>
+            <td>${user.user_created_at ? new Date(user.user_created_at).toLocaleString('de-DE') : (user.activated_at ? new Date(user.activated_at).toLocaleString('de-DE') : '-')}</td>
+            <td>${user.last_login ? new Date(user.last_login).toLocaleString('de-DE') : (user.last_used_at ? new Date(user.last_used_at).toLocaleString('de-DE') : '-')}</td>
+        `;
+    });
             } else {
                 const row = tableBody.insertRow();
                 row.innerHTML = '<td colspan="5" style="text-align: center;">Keine Benutzer gefunden</td>';
@@ -483,3 +483,6 @@ async function adminBlockKey(id) {
   await loadKeys();
 }
 
+
+window.adminActivateKey = adminActivateKey;
+window.adminBlockKey = adminBlockKey;
