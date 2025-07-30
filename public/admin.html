@@ -506,7 +506,15 @@
               <h3 class="section-title">🔑 Lizenz-Keys Übersicht</h3>
               <button class="btn" id="loadKeysBtn"><span id="loadKeysBtnText">KEYS LADEN</span></button>
 
-              <div id="keysTableContainer" style="margin-top: 20px; display: none;">
+              <div id="keysFilters" style="margin-top: 16px; display: none;">
+                  <label for="keysStatusFilter" style="margin-right:8px;">Filter:</label>
+                  <select id="keysStatusFilter" class="input">
+                    <option value="all">Alle</option>
+                    <option value="active">Aktiv</option>
+                    <option value="expired">Abgelaufen</option>
+                  </select>
+                </div>
+                <div id="keysTableContainer" style="margin-top: 12px; display: none;">
                 <table class="data-table">
                   <thead>
                     <tr>
@@ -516,6 +524,7 @@
                       <th>Erstellt</th>
                       <th>Läuft ab</th>
                       <th>Verbleibend</th>
+                      <th>Aktionen</th>
                     </tr>
                   </thead>
                   <tbody id="keysTableBody">
