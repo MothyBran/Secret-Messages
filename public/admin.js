@@ -198,19 +198,143 @@ async function loadUsers() {
       users.forEach(user => {
                     const row = tableBody.insertRow();
                     row.innerHTML = `
-        <td><span class="key-code">${k.key_code}</span></td>
-        <td>${productName || product || '-'}</td>
-        <td>${statusText}</td>
-        <td>${formatDateDE(created)}</td>
-        <td>${expires ? formatDateDE(expires) : '—'}</td>
-        <td>${remaining}</td>
-        <td>${
-            (st === 'active')
-            ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
-            : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
-        }</td>
-      `;
-      tableBody.appendChild(row);
+            <td><span class="key-code">${user.key_code || '-'}</span></td>
+            <td>${user.username || '-'}</td>
+            <td>${user.is_active ? '✅ Aktiv' : (user.activated_at ? '⛔ Gesperrt' : '⏳ Inaktiv')}</td>
+            <td>${user.user_created_at ? new Date(user.user_created_at).toLocaleString('de-DE') : (user.activated_at ? new Date(user.activated_at).toLocaleString('de-DE') : '-')}</td>
+            <td>${user.last_login ? new Date(user.last_login).toLocaleString('de-DE') : (user.last_used_at ? new Date(user.last_used_at).toLocaleString('de-DE') : '-')}</td>
+        `;
+    });
+            } else {
+                const row = tableBody.insertRow();
+                row.innerHTML = '<td colspan="5" style="text-align: center;">Keine Benutzer gefunden</td>';
+            }
+            
+            tableContainer.style.display = 'block';
+        } else {
+            alert(data.error || 'Fehler beim Laden der Benutzer');
+        }
+    } catch (error) {
+        alert('Verbindungsfehler zum Server');
+    } finally {
+        loadBtn.disabled = false;
+        loadBtnText.textContent = 'BENUTZER LADEN';
+    }
+}
+
+// Refresh statistics
+async function refreshStats() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/stats`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadStatistics(data.stats);
+        }
+    } catch (error) {
+        console.error('Error refreshing stats:', error);
+    }
+}
+
+// Logout
+function handleLogout() {
+    adminPassword = '';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'flex';
+    document.getElementById('loginError').style.display = 'none';
+}
+
+
+function sperreBenutzer(username) {
+  const users = JSON.parse(localStorage.getItem("users") || "{}");
+  if (users[username]) {
+    users[username].gesperrt = true;
+    localStorage.setItem("users", JSON.stringify(users));
+    alert(`Benutzer ${username} wurde gesperrt.`);
+    renderUserList();
+  }
+}
+
+function loescheBenutzer(username) {
+  const users = JSON.parse(localStorage.getItem("users") || "{}");
+  if (confirm(`Benutzer ${username} wirklich löschen?`)) {
+    delete users[username];
+    localStorage.setItem("users", JSON.stringify(users));
+    alert(`Benutzer ${username} gelöscht.`);
+    renderUserList();
+  }
+}
+
+
+  function sperreBenutzer(username) {
+    const users = JSON.parse(localStorage.getItem("users") || "{}");
+    if (users[username]) {
+      users[username].gesperrt = true;
+      localStorage.setItem("users", JSON.stringify(users));
+      alert(`Benutzer ${username} wurde gesperrt.`);
+      location.reload();
+    }
+  }
+
+  function loescheBenutzer(username) {
+    const users = JSON.parse(localStorage.getItem("users") || "{}");
+    if (confirm(`Benutzer ${username} wirklich löschen?`)) {
+      delete users[username];
+      localStorage.setItem("users", JSON.stringify(users));
+      alert(`Benutzer ${username} gelöscht.`);
+      location.reload();
+    }
+  }
+
+// Load Purchases
+async function loadPurchases() {
+  const btn = document.getElementById("loadPurchasesBtn");
+  const btnText = document.getElementById("loadPurchasesBtnText");
+  const tableBody = document.getElementById("purchaseTableBody");
+  const tableContainer = document.getElementById("purchaseTableContainer");
+
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span>Lade...';
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/purchases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      tableBody.innerHTML = "";
+
+      if (data.purchases.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Keine Käufe gefunden</td></tr>`;
+      } else {
+        data.purchases.forEach(purchase => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><span class="key-code">\${k.key_code}</span></td>
+            <td>\${product}</td>
+            <td>\${statusText}</td>
+            <td>\${formatDateDE(created)}</td>
+            <td>\${expires ? formatDateDE(expires) : '—'}</td>
+            <td>\${remaining}</td>
+            <td>${
+              (st === 'active')
+                ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
+                : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
+            }</td>
+          `;
+          tableBody.appendChild(row);
         });
       }
       // Show containers on first load
@@ -281,3 +405,39 @@ window.adminBlockKey = adminBlockKey;
 
 
 document.getElementById('keysStatusFilter')?.addEventListener('change', () => loadKeys());
+
+
+// --- Safe initializer placed at end (after all functions) ---
+(function () {
+  function attach() {
+    const loginBtn = document.getElementById('loginBtn');
+    const pw = document.getElementById('adminPassword');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const genBtn = document.getElementById('generateKeysBtn');
+    const usersBtn = document.getElementById('loadUsersBtn');
+    const keysBtn = document.getElementById('loadKeysBtn');
+
+    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    if (pw) pw.addEventListener('keypress', function(e){ if (e.key === 'Enter') handleLogin(); });
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (genBtn) genBtn.addEventListener('click', generateKeys);
+    if (usersBtn) usersBtn.addEventListener('click', loadUsers);
+    if (keysBtn) keysBtn.addEventListener('click', loadKeys);
+
+    if (pw) pw.focus();
+
+    // periodic refresh
+    setInterval(() => {
+      if (adminPassword) {
+        refreshStats();
+        checkSystemHealth();
+      }
+    }, 30000);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attach);
+  } else {
+    attach();
+  }
+})();
+
