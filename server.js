@@ -619,11 +619,60 @@ app.get('/', (req, res) => {
 
 
 // ===== Admin: USERS (only registered) =====
+
 app.post('/api/admin/users', async (req, res) => {
-    const { password, page = 1, limit = 50 } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-    }
+  const { password, page = 1, limit = 50 } = req.body || {};
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
+  try {
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Robust query: LEFT JOIN user_sessions, aggregate last_login with MAX()
+    const sql = isPostgreSQL
+      ? `SELECT lk.id,
+                 lk.key_code,
+                 lk.username,
+                 lk.is_active,
+                 lk.activated_at,
+                 lk.last_used_at,
+                 MAX(us.last_activity) AS last_login
+          FROM license_keys lk
+          LEFT JOIN user_sessions us
+            ON us.license_key_id = lk.id
+           AND us.is_active = TRUE
+          WHERE lk.username IS NOT NULL
+            AND COALESCE(TRIM(lk.username), '') <> ''
+          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
+          LIMIT $1 OFFSET $2`
+      : `SELECT lk.id,
+                 lk.key_code,
+                 lk.username,
+                 lk.is_active,
+                 lk.activated_at,
+                 lk.last_used_at,
+                 MAX(us.last_activity) AS last_login
+          FROM license_keys lk
+          LEFT JOIN user_sessions us
+            ON us.license_key_id = lk.id
+           AND us.is_active = 1
+          WHERE lk.username IS NOT NULL
+            AND TRIM(lk.username) <> ''
+          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          ORDER BY datetime(COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at)) DESC
+          LIMIT ? OFFSET ?`;
+
+    const result = await dbQuery(sql, [limitNum, offset]);
+    res.json({ success: true, users: result.rows || [] });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
+});
+}
     try {
         const pageNum = Math.max(1, Number(page));
         const limitNum = Math.max(1, Number(limit));
