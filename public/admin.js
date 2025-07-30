@@ -407,26 +407,25 @@ window.adminBlockKey = adminBlockKey;
 document.getElementById('keysStatusFilter')?.addEventListener('change', () => loadKeys());
 
 
-// --- Safe initializer placed at end (after all functions) ---
+// Safe initializer at end
 (function () {
   function attach() {
-    const loginBtn = document.getElementById('loginBtn');
-    const pw = document.getElementById('adminPassword');
+    const loginBtn  = document.getElementById('loginBtn');
+    const pw        = document.getElementById('adminPassword');
     const logoutBtn = document.getElementById('logoutBtn');
-    const genBtn = document.getElementById('generateKeysBtn');
-    const usersBtn = document.getElementById('loadUsersBtn');
-    const keysBtn = document.getElementById('loadKeysBtn');
+    const genBtn    = document.getElementById('generateKeysBtn');
+    const usersBtn  = document.getElementById('loadUsersBtn');
+    const keysBtn   = document.getElementById('loadKeysBtn');
 
-    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
-    if (pw) pw.addEventListener('keypress', function(e){ if (e.key === 'Enter') handleLogin(); });
+    if (loginBtn)  loginBtn.addEventListener('click', handleLogin);
+    if (pw)        pw.addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-    if (genBtn) genBtn.addEventListener('click', generateKeys);
-    if (usersBtn) usersBtn.addEventListener('click', loadUsers);
-    if (keysBtn) keysBtn.addEventListener('click', loadKeys);
+    if (genBtn)    genBtn.addEventListener('click', generateKeys);
+    if (usersBtn)  usersBtn.addEventListener('click', loadUsers);
+    if (keysBtn)   keysBtn.addEventListener('click', loadKeys);
 
     if (pw) pw.focus();
 
-    // periodic refresh
     setInterval(() => {
       if (adminPassword) {
         refreshStats();
