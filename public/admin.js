@@ -1,3 +1,32 @@
+
+// ---- Helpers ----
+function formatDateDE(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('de-DE');
+}
+
+function calcRemainingDays(iso) {
+  if (!iso) return '—';
+  const exp = new Date(iso).getTime();
+  if (isNaN(exp)) return '—';
+  const diff = Math.ceil((exp - Date.now()) / (1000*60*60*24));
+  return diff >= 0 ? `${diff} Tage` : '0 Tage';
+}
+
+function computeKeyStatus(k) {
+  const isActive = !!k.is_active;
+  const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
+  const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
+  const now = Date.now();
+
+  if (expires && expires <= now) return 'expired';
+  if (!isActive && activatedAt) return 'blocked';
+  if (!activatedAt) return 'inactive';
+  return 'active';
+}
+
 // admin.js - Admin Panel JavaScript
 
 // Global variables
@@ -407,14 +436,149 @@ window.adminBlockKey = adminBlockKey;
 document.getElementById('keysStatusFilter')?.addEventListener('change', () => loadKeys());
 
 
+
+
+
+// ---- Keys Loader ----
+async function loadKeys() {
+  const btn = document.getElementById("loadKeysBtn");
+  const btnText = document.getElementById("loadKeysBtnText") || btn;
+  const tableBody = document.getElementById("keysTableBody");
+  const tableContainer = document.getElementById("keysTableContainer");
+  const statusFilter = document.getElementById("keysStatusFilter");
+
+  if (!tableBody) return;
+
+  if (btn) { btn.disabled = true; }
+  if (btnText) { btnText.innerHTML = '<span class="spinner"></span>Lade...'; }
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/license-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100, status: statusFilter ? statusFilter.value : 'all' })
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      tableBody.innerHTML = "";
+      const arr = data.keys || [];
+      if (arr.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
+      } else {
+        arr.forEach(k => {
+          const st = k.status || computeKeyStatus(k);
+          let statusText = '✅ Aktiv';
+          if (st === 'inactive') statusText = '⏳ Inaktiv';
+          if (st === 'expired') statusText = '❌ Abgelaufen';
+          if (st === 'blocked') statusText = '⛔ Gesperrt';
+
+          const created = k.created_at || null;
+          const expires = k.expires_at || null;
+          const remaining = (st === 'expired') ? '0 Tage' : calcRemainingDays(expires);
+          const product = k.product_code || k.metadata?.product_type || '-';
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><span class="key-code">${k.key_code}</span></td>
+            <td>${product}</td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(created)}</td>
+            <td>${expires ? formatDateDE(expires) : '—'}</td>
+            <td>${remaining}</td>
+            <td>${
+              (st === 'active')
+                ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
+                : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
+            }</td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
+      if (tableContainer) tableContainer.style.display = "block";
+    } else {
+      alert(data.error || "Fehler beim Laden der Lizenz-Keys.");
+    }
+  } catch (error) {
+    alert("Verbindungsfehler zum Server.");
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = "KEYS LADEN";
+  }
+}
+
+
+// ---- Event delegation for key actions (CSP-safe) ----
+document.getElementById('keysTableContainer')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+  const id = btn.getAttribute('data-id');
+  if (!id) return;
+
+  if (btn.classList.contains('action-disable')) {
+    try {
+      const resp = await fetch(`${API_BASE}/admin/keys/${id}/disable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await resp.json();
+      if (!data.success) return alert(data.error || 'Sperren fehlgeschlagen');
+      await loadKeys();
+    } catch {
+      alert('Serverfehler beim Sperren.');
+    }
+  } else if (btn.classList.contains('action-activate')) {
+    const code = prompt("Laufzeit wählen: 1m, 3m, 6m, 12m, unl", "1m");
+    if (!code) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/keys/${id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword, product_code: code })
+      });
+      const data = await resp.json();
+      if (!data.success) return alert(data.error || 'Aktivierung fehlgeschlagen');
+      await loadKeys();
+    } catch {
+      alert('Serverfehler bei Aktivierung.');
+    }
+  }
+});
+
+
+// ---- Safe initializer at end ----
 (function () {
-  function attachPurchases() {
-    const btn = document.getElementById('loadPurchasesBtn');
-    if (btn) btn.addEventListener('click', loadPurchases);
+  function attach() {
+    const loginBtn  = document.getElementById('loginBtn');
+    const pw        = document.getElementById('adminPassword');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const genBtn    = document.getElementById('generateKeysBtn');
+    const usersBtn  = document.getElementById('loadUsersBtn');
+    const keysBtn   = document.getElementById('loadKeysBtn');
+    const statusFilter = document.getElementById('keysStatusFilter');
+
+    if (loginBtn)  loginBtn.addEventListener('click', handleLogin);
+    if (pw)        pw.addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (genBtn)    genBtn.addEventListener('click', generateKeys);
+    if (usersBtn)  usersBtn.addEventListener('click', loadUsers);
+    if (keysBtn)   keysBtn.addEventListener('click', loadKeys);
+    if (statusFilter) statusFilter.addEventListener('change', () => loadKeys());
+
+    if (pw) pw.focus();
+
+    setInterval(() => {
+      if (adminPassword) {
+        refreshStats();
+        checkSystemHealth();
+      }
+    }, 30000);
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', attachPurchases);
+    document.addEventListener('DOMContentLoaded', attach);
   } else {
-    attachPurchases();
+    attach();
   }
 })();
+
