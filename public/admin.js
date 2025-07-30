@@ -252,16 +252,6 @@ function handleLogout() {
     document.getElementById('loginError').style.display = 'none';
 }
 
-function updateStatistics() {
-  const users = JSON.parse(localStorage.getItem("users") || "{}");
-  const activeSessions = Object.values(users).filter(u => u.loggedIn).length;
-  const recentRegistrations = Object.values(users).filter(u =>
-    Date.now() - new Date(u.createdAt || 0).getTime() < 7 * 24 * 60 * 60 * 1000
-  ).length;
-
-  document.getElementById("activeSessions").innerText = activeSessions;
-  document.getElementById("recentRegistrations").innerText = recentRegistrations;
-}
 
 function sperreBenutzer(username) {
   const users = JSON.parse(localStorage.getItem("users") || "{}");
@@ -283,16 +273,6 @@ function loescheBenutzer(username) {
   }
 }
 
-function updateStatistics() {
-    const users = JSON.parse(localStorage.getItem("users") || "{}");
-    const activeSessions = Object.values(users).filter(u => u.loggedIn).length;
-    const recentRegistrations = Object.values(users).filter(u =>
-      Date.now() - new Date(u.createdAt || 0).getTime() < 7 * 24 * 60 * 60 * 1000
-    ).length;
-
-    document.getElementById("activeSessions").innerText = activeSessions;
-    document.getElementById("recentRegistrations").innerText = recentRegistrations;
-  }
 
   function sperreBenutzer(username) {
     const users = JSON.parse(localStorage.getItem("users") || "{}");
@@ -365,9 +345,6 @@ async function loadPurchases() {
 
 document.getElementById("loadPurchasesBtn")?.addEventListener("click", loadPurchases);
 
-  // Aufruf beim Laden
-  updateStatistics();
-
 
 // --- Helpers for keys table ---
 function formatDateDE(iso) {
@@ -413,26 +390,34 @@ async function loadKeys() {
         tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
         data.keys.forEach(k => {
-          const isExpired = (k.metadata?.status === 'expired') || k.status === 'expired';
-          const statusText = isExpired ? '❌ Abgelaufen' : '✅ Aktiv';
-          const created = k.metadata?.created_at || k.created_at || null;
-          const expires = k.metadata?.expires_at || k.expires_at || null;
-          const remaining = isExpired ? '0 Tage' : calcRemainingDays(expires);
-          const productName = k.metadata?.product_name || k.metadata?.product_type || '-';
+          data.keys.forEach(k => {
+          const st = computeKeyStatus(k);
+          let statusText = '✅ Aktiv';
+          if (st === 'inactive') statusText = '⏳ Inaktiv';
+          if (st === 'expired') statusText = '❌ Abgelaufen';
+          if (st === 'blocked') statusText = '⛔ Gesperrt';
 
-          const actionBtn = isExpired
-            ? '<button class="btn btn-small" disabled>Reaktivieren</button>'
-            : `<button class="btn btn-small btn-danger" onclick="setKeyActiveState(${k.id}, false)">Sperren</button>`;
+          const created = k.created_at || null;
+          const expires = k.expires_at || null;
+          const remaining = (st === 'expired') ? '0 Tage' : calcRemainingDays(expires);
+          const product = productLabel(k.product_code);
+
+          let actionHtml = '';
+          if (st === 'active') {
+            actionHtml = `<button class="btn btn-small btn-danger" onclick="adminBlockKey(${k.id})">Sperren</button>`;
+          } else if (st === 'blocked' || st === 'inactive' || st === 'expired') {
+            actionHtml = `<button class="btn btn-small" onclick="adminActivateKey(${k.id})">Aktivieren…</button>`;
+          }
 
           const row = document.createElement("tr");
           row.innerHTML = `
             <td><span class="key-code">${k.key_code}</span></td>
-            <td>${productName}</td>
+            <td>${product}</td>
             <td>${statusText}</td>
             <td>${formatDateDE(created)}</td>
             <td>${expires ? formatDateDE(expires) : '—'}</td>
             <td>${remaining}</td>
-            <td>${k.is_active ? actionBtn : `<button class="btn btn-small" onclick="setKeyActiveState(${k.id}, true)">Aktivieren</button>`}</td>
+            <td>${actionHtml}</td>
           `;
           tableBody.appendChild(row);
         });
@@ -449,5 +434,53 @@ async function loadKeys() {
     btn.disabled = false;
     btnText.textContent = "KEYS LADEN";
   }
+}
+
+
+
+// Determine key status
+function computeKeyStatus(k) {
+  const isActive = !!k.is_active;
+  const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
+  const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
+  const now = Date.now();
+
+  if (expires && expires <= now) return 'expired';         // abgelaufen
+  if (!isActive && activatedAt) return 'blocked';          // gesperrt (manuell)
+  if (!isActive && !activatedAt) return 'inactive';        // noch nicht aktiviert
+  return 'active';                                         // aktiv
+}
+
+// Product label helper
+function productLabel(code) {
+  if (!code) return '-';
+  const map = { '1m':'1m','3m':'3m','6m':'6m','12m':'1y','1y':'1y','unl':'unl','unlimited':'unl' };
+  return map[code] || code;
+}
+
+// Admin actions
+async function adminActivateKey(id) {
+  const code = prompt("Laufzeit wählen: 1m, 3m, 6m, 12m, unl", "1m");
+  if (!code) return;
+  const resp = await fetch(`${API_BASE}/admin/keys/${id}/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: adminPassword, product_code: code })
+  });
+  const data = await resp.json();
+  if (!data.success) return alert(data.error || 'Aktivierung fehlgeschlagen');
+  await loadKeys();
+}
+
+async function adminBlockKey(id) {
+  if (!confirm("Diesen Key sperren?")) return;
+  const resp = await fetch(`${API_BASE}/admin/keys/${id}/disable`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: adminPassword })
+  });
+  const data = await resp.json();
+  if (!data.success) return alert(data.error || 'Sperren fehlgeschlagen');
+  await loadKeys();
 }
 
