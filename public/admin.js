@@ -322,101 +322,17 @@ async function loadPurchases() {
         data.purchases.forEach(purchase => {
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td>${purchase.buyer || '-'}</td>
-            <td>${purchase.license}</td>
-            <td>${purchase.price}</td>
-            <td>${new Date(purchase.date).toLocaleDateString("de-DE")} ${new Date(purchase.date).toLocaleTimeString("de-DE")}</td>
-          `;
-          tableBody.appendChild(row);
-        });
-      }
-
-      tableContainer.style.display = "block";
-    } else {
-      alert(data.error || "Fehler beim Laden der Käufe.");
-    }
-  } catch (error) {
-    alert("Verbindungsfehler zum Server.");
-  } finally {
-    btn.disabled = false;
-    btnText.textContent = "KÄUFE LADEN";
-  }
-}
-
-document.getElementById("loadPurchasesBtn")?.addEventListener("click", loadPurchases);
-
-
-// --- Helpers for keys table ---
-function formatDateDE(iso) {
-    if (!iso) return '-';
-    try {
-        return new Date(iso).toLocaleString('de-DE');
-    } catch { return '-'; }
-}
-
-function calcRemainingDays(expiresAt) {
-    if (!expiresAt) return '—';
-    const exp = new Date(expiresAt).getTime();
-    const now = Date.now();
-    const diff = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-    return (diff >= 0) ? diff + ' Tage' : '0 Tage';
-}
-
-
-// Load License Keys
-async function loadKeys() {
-  const btn = document.getElementById("loadKeysBtn");
-  const btnText = document.getElementById("loadKeysBtnText");
-  const tableBody = document.getElementById("keysTableBody");
-  const tableContainer = document.getElementById("keysTableContainer");
-  const filterBox = document.getElementById("keysFilters");
-  const statusFilter = document.getElementById("keysStatusFilter");
-
-  btn.disabled = true;
-  btnText.innerHTML = '<span class="spinner"></span>Lade...';
-
-  try {
-    const response = await fetch(`${API_BASE}/admin/license-keys`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100, status: statusFilter ? statusFilter.value : 'all' })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      tableBody.innerHTML = "";
-      if (!data.keys || data.keys.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
-      } else {
-        data.keys.forEach(k => {
-          const st = computeKeyStatus(k);
-          let statusText = '✅ Aktiv';
-          if (st === 'inactive') statusText = '⏳ Inaktiv';
-          if (st === 'expired') statusText = '❌ Abgelaufen';
-          if (st === 'blocked') statusText = '⛔ Gesperrt';
-
-          const created = k.created_at || null;
-          const expires = k.expires_at || null;
-          const remaining = (st === 'expired') ? '0 Tage' : calcRemainingDays(expires);
-          const product = productLabel(k.product_code);
-
-          let actionHtml = '';
-          if (st === 'active') {
-            actionHtml = `<button class="btn btn-small btn-danger" onclick="adminBlockKey(${k.id})">Sperren</button>`;
-          } else if (st === 'blocked' || st === 'inactive' || st === 'expired') {
-            actionHtml = `<button class="btn btn-small" onclick="adminActivateKey(${k.id})">Aktivieren…</button>`;
-          }
-
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td><span class="key-code">${k.key_code}</span></td>
-            <td>${product}</td>
-            <td>${statusText}</td>
-            <td>${formatDateDE(created)}</td>
-            <td>${expires ? formatDateDE(expires) : '—'}</td>
-            <td>${remaining}</td>
-            <td>${actionHtml}</td>
+            <td><span class="key-code">\${k.key_code}</span></td>
+            <td>\${product}</td>
+            <td>\${statusText}</td>
+            <td>\${formatDateDE(created)}</td>
+            <td>\${expires ? formatDateDE(expires) : '—'}</td>
+            <td>\${remaining}</td>
+            <td>${
+              (st === 'active')
+                ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
+                : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
+            }</td>
           `;
           tableBody.appendChild(row);
         });
