@@ -377,7 +377,7 @@ app.post('/api/auth/activate', async (req, res) => {
         });
     }
     
-    if (!/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(licenseKey)) {
+    if (!/^[A-Z0-9_-]{5}-[A-Z0-9_-]{5}-[A-Z0-9_-]{5}$/.test(licenseKey)) {
         return res.status(400).json({ 
             success: false, 
             error: 'Ungültiges License-Key Format' 
@@ -585,8 +585,15 @@ app.post('/api/admin/generate-key', async (req, res) => {
     
     try {
         for (let i = 0; i < quantity; i++) {
-            const keyPart = () => Math.random().toString(36).substring(2, 7).toUpperCase();
-            const keyCode = `SM${i+100}-${keyPart()}-${keyPart()}`;
+            const keyPart = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
+    let part = '';
+    for (let j = 0; j < 5; j++) {
+        part += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return part;
+};
+const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
             const keyHash = await bcrypt.hash(keyCode, 10);
             
             const insertQuery = isPostgreSQL
