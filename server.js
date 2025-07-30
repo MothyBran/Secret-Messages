@@ -209,6 +209,7 @@ const setupSQLiteDatabase = () => {
             )
         `);
         
+        try { db.run(`ALTER TABLE license_keys ADD COLUMN product_code TEXT NULL`); } catch(_) {}
         console.log('✅ SQLite tables created');
     });
 };
@@ -545,37 +546,6 @@ app.delete('/api/auth/delete-account', async (req, res) => {
     }
 });
 
-// Admin Stats
-
-    }
-    
-    try {
-        const stats = {};
-        
-        const totalKeys = await dbQuery('SELECT COUNT(*) as count FROM license_keys');
-        stats.totalKeys = parseInt(totalKeys.rows[0].count);
-        
-        const activeUsers = await dbQuery(
-            isPostgreSQL
-                ? 'SELECT COUNT(*) as count FROM license_keys WHERE is_active = true'
-                : 'SELECT COUNT(*) as count FROM license_keys WHERE is_active = 1'
-        );
-        stats.activeUsers = parseInt(activeUsers.rows[0].count);
-        
-        stats.activeSessions = 0;
-        stats.recentRegistrations = 0;
-        
-        res.json({ success: true, stats });
-        
-    } catch (error) {
-        console.error('Stats error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Fehler beim Abrufen der Statistiken' 
-        });
-    }
-});
-
 // Admin purchases
 app.post('/api/admin/purchases', async (req, res) => {
   const { password } = req.body;
@@ -591,31 +561,6 @@ app.post('/api/admin/purchases', async (req, res) => {
     console.error("Fehler bei /purchases:", err);
     res.status(500).json({ success: false, error: "Datenbankfehler" });
   }
-});
-
-// List Users
-
-    }
-    
-    try {
-        const query = isPostgreSQL
-            ? 'SELECT key_code, username, is_active, created_at, activated_at FROM license_keys ORDER BY created_at DESC LIMIT 50'
-            : 'SELECT key_code, username, is_active, created_at, activated_at FROM license_keys ORDER BY created_at DESC LIMIT 50';
-               
-        const result = await dbQuery(query);
-        
-        res.json({
-            success: true,
-            users: result.rows || []
-        });
-        
-    } catch (error) {
-        console.error('List users error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Fehler beim Abrufen der Benutzerliste' 
-        });
-    }
 });
 
 // Generate Keys
