@@ -390,7 +390,6 @@ async function loadKeys() {
         tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
         data.keys.forEach(k => {
-          data.keys.forEach(k => {
           const st = computeKeyStatus(k);
           let statusText = '✅ Aktiv';
           if (st === 'inactive') statusText = '⏳ Inaktiv';
