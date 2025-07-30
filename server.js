@@ -384,7 +384,7 @@ app.post('/api/auth/activate', async (req, res) => {
         });
     }
     
-    if (!/^[a-zA-Z0-9_-]+$/.test(username) || username.length < 3 || username.length > 20) {
+    if (!/^[a-zA-Z0-9._-]{3,20}$/.test(username)) {
         return res.status(400).json({ 
             success: false, 
             error: 'Benutzername muss 3-20 Zeichen lang sein' 
