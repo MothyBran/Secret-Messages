@@ -57,12 +57,20 @@ function requireProduct(code) {
 // Utilities
 // -------------------------------
 function generateKeyCode() {
-    // Simple, readable key format: XXXX-XXXX-XXXX-XXXX (base32-ish)
-    return crypto.randomBytes(10).toString('hex').slice(0, 4).toUpperCase() + '-' +
-           crypto.randomBytes(10).toString('hex').slice(0, 4).toUpperCase() + '-' +
-           crypto.randomBytes(10).toString('hex').slice(0, 4).toUpperCase() + '-' +
-           crypto.randomBytes(10).toString('hex').slice(0, 4).toUpperCase();
+    // Format: XXXXX-XXXXX-XXXXX (A–Z + digits without ambiguous chars)
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1
+    const total = 15;
+    let out = '';
+    while (out.length < total) {
+        const byte = crypto.randomBytes(1)[0];
+        const max = 256 - (256 % alphabet.length); // unbiased selection
+        if (byte < max) {
+            out += alphabet[byte % alphabet.length];
+        }
+    }
+    return out.slice(0,5) + '-' + out.slice(5,10) + '-' + out.slice(10,15);
 }
+
 
 function hashKey(keyCode) {
     return crypto.createHash('sha256').update(keyCode).digest('hex');
