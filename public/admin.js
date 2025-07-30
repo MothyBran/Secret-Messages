@@ -392,6 +392,8 @@ async function loadKeys() {
   const btnText = document.getElementById("loadKeysBtnText");
   const tableBody = document.getElementById("keysTableBody");
   const tableContainer = document.getElementById("keysTableContainer");
+  const filterBox = document.getElementById("keysFilters");
+  const statusFilter = document.getElementById("keysStatusFilter");
 
   btn.disabled = true;
   btnText.innerHTML = '<span class="spinner"></span>Lade...';
@@ -400,7 +402,7 @@ async function loadKeys() {
     const response = await fetch(`${API_BASE}/admin/license-keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100 })
+      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100, status: statusFilter ? statusFilter.value : 'all' })
     });
 
     const data = await response.json();
@@ -408,14 +410,19 @@ async function loadKeys() {
     if (data.success) {
       tableBody.innerHTML = "";
       if (!data.keys || data.keys.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Keys gefunden</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
         data.keys.forEach(k => {
-          const statusText = (k.metadata?.status === 'expired') ? '❌ Abgelaufen' : '✅ Aktiv';
+          const isExpired = (k.metadata?.status === 'expired') || k.status === 'expired';
+          const statusText = isExpired ? '❌ Abgelaufen' : '✅ Aktiv';
           const created = k.metadata?.created_at || k.created_at || null;
-          const expires = k.metadata?.expires_at || null;
-          const remaining = (k.metadata?.status === 'expired') ? '0 Tage' : calcRemainingDays(expires);
+          const expires = k.metadata?.expires_at || k.expires_at || null;
+          const remaining = isExpired ? '0 Tage' : calcRemainingDays(expires);
           const productName = k.metadata?.product_name || k.metadata?.product_type || '-';
+
+          const actionBtn = isExpired
+            ? '<button class="btn btn-small" disabled>Reaktivieren</button>'
+            : `<button class="btn btn-small btn-danger" onclick="setKeyActiveState(${k.id}, false)">Sperren</button>`;
 
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -425,11 +432,14 @@ async function loadKeys() {
             <td>${formatDateDE(created)}</td>
             <td>${expires ? formatDateDE(expires) : '—'}</td>
             <td>${remaining}</td>
+            <td>${k.is_active ? actionBtn : `<button class="btn btn-small" onclick="setKeyActiveState(${k.id}, true)">Aktivieren</button>`}</td>
           `;
           tableBody.appendChild(row);
         });
       }
+      // Show containers on first load
       tableContainer.style.display = "block";
+      if (filterBox) filterBox.style.display = "block";
     } else {
       alert(data.error || "Fehler beim Laden der Lizenz-Keys.");
     }
