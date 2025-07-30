@@ -486,3 +486,6 @@ async function adminBlockKey(id) {
 
 window.adminActivateKey = adminActivateKey;
 window.adminBlockKey = adminBlockKey;
+
+
+document.getElementById('keysStatusFilter')?.addEventListener('change', () => loadKeys());
