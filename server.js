@@ -620,10 +620,37 @@ app.get('/', (req, res) => {
 
 // ===== Admin: USERS (only registered) =====
 app.post('/api/admin/users', async (req, res) => {
-  const { password, page = 1, limit = 50 } = req.body || {};
-  if (password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-  }
+    const { password, page = 1, limit = 50 } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
+    try {
+        const pageNum = Math.max(1, Number(page));
+        const limitNum = Math.max(1, Number(limit));
+        const offset = (pageNum - 1) * limitNum;
+
+        const sql = isPostgreSQL
+            ? `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at,
+                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = TRUE) AS last_login
+               FROM license_keys lk
+               WHERE lk.username IS NOT NULL AND COALESCE(TRIM(lk.username), '') <> ''
+               ORDER BY lk.activated_at DESC NULLS LAST, lk.created_at DESC
+               LIMIT $1 OFFSET $2`
+            : `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at,
+                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = 1) AS last_login
+               FROM license_keys lk
+               WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
+               ORDER BY datetime(lk.activated_at) DESC, datetime(lk.created_at) DESC
+               LIMIT ? OFFSET ?`;
+
+        const result = await dbQuery(sql, [limitNum, offset]);
+        res.json({ success: true, users: result.rows || [] });
+    } catch (error) {
+        console.error('List users error:', error);
+        res.status(500).json({ success: false, error: 'Serverfehler' });
+    }
+});
+}
   try {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.max(1, Number(limit));
