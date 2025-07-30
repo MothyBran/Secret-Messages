@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
     document.getElementById('generateKeysBtn').addEventListener('click', generateKeys);
     document.getElementById('loadUsersBtn').addEventListener('click', loadUsers);
+    document.getElementById('loadKeysBtn').addEventListener('click', loadKeys);
     
     // Initial focus
     document.getElementById('adminPassword').focus();
@@ -366,3 +367,77 @@ document.getElementById("loadPurchasesBtn")?.addEventListener("click", loadPurch
 
   // Aufruf beim Laden
   updateStatistics();
+
+
+// --- Helpers for keys table ---
+function formatDateDE(iso) {
+    if (!iso) return '-';
+    try {
+        return new Date(iso).toLocaleString('de-DE');
+    } catch { return '-'; }
+}
+
+function calcRemainingDays(expiresAt) {
+    if (!expiresAt) return '—';
+    const exp = new Date(expiresAt).getTime();
+    const now = Date.now();
+    const diff = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    return (diff >= 0) ? diff + ' Tage' : '0 Tage';
+}
+
+
+// Load License Keys
+async function loadKeys() {
+  const btn = document.getElementById("loadKeysBtn");
+  const btnText = document.getElementById("loadKeysBtnText");
+  const tableBody = document.getElementById("keysTableBody");
+  const tableContainer = document.getElementById("keysTableContainer");
+
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span>Lade...';
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/license-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100 })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      tableBody.innerHTML = "";
+      if (!data.keys || data.keys.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Keys gefunden</td></tr>';
+      } else {
+        data.keys.forEach(k => {
+          const statusText = (k.metadata?.status === 'expired') ? '❌ Abgelaufen' : '✅ Aktiv';
+          const created = k.metadata?.created_at || k.created_at || null;
+          const expires = k.metadata?.expires_at || null;
+          const remaining = (k.metadata?.status === 'expired') ? '0 Tage' : calcRemainingDays(expires);
+          const productName = k.metadata?.product_name || k.metadata?.product_type || '-';
+
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><span class="key-code">${k.key_code}</span></td>
+            <td>${productName}</td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(created)}</td>
+            <td>${expires ? formatDateDE(expires) : '—'}</td>
+            <td>${remaining}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
+      tableContainer.style.display = "block";
+    } else {
+      alert(data.error || "Fehler beim Laden der Lizenz-Keys.");
+    }
+  } catch (error) {
+    alert("Verbindungsfehler zum Server.");
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = "KEYS LADEN";
+  }
+}
+
