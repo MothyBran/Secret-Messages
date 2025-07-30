@@ -547,43 +547,11 @@ app.delete('/api/auth/delete-account', async (req, res) => {
 });
 
 // Admin purchases
-
-// Admin: Käufe/Purchases auflisten (robust, funktioniert auch wenn Tabelle (noch) fehlt)
 app.post('/api/admin/purchases', async (req, res) => {
-  const { password, page = 1, limit = 100 } = req.body || {};
+  const { password } = req.body;
+
   if (password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-  }
-  try {
-    const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.max(1, Number(limit));
-    const offset = (pageNum - 1) * limitNum;
-
-    const sql = isPostgreSQL
-      ? `SELECT id, created_at, product_code, amount, currency, email, payment_status, payment_intent_id
-         FROM purchases
-         ORDER BY created_at DESC
-         LIMIT $1 OFFSET $2`
-      : `SELECT id, created_at, product_code, amount, currency, email, payment_status, payment_intent_id
-         FROM purchases
-         ORDER BY datetime(created_at) DESC
-         LIMIT ? OFFSET ?`;
-
-    let result;
-    try {
-      result = await dbQuery(sql, [limitNum, offset]);
-    } catch (e) {
-      console.warn('Purchases table not found or query failed, returning empty list:', e.message || e);
-      return res.json({ success: true, purchases: [] });
-    }
-
-    res.json({ success: true, purchases: result.rows || [] });
-  } catch (err) {
-    console.error('Admin purchases error:', err);
-    res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Käufe' });
-  }
-});
-
+    return res.status(403).json({ success: false, error: "Zugriff verweigert" });
   }
 
   try {
@@ -652,59 +620,10 @@ app.get('/', (req, res) => {
 
 // ===== Admin: USERS (only registered) =====
 
-
 app.post('/api/admin/users', async (req, res) => {
   const { password, page = 1, limit = 50 } = req.body || {};
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-  }
-  try {
-    const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.max(1, Number(limit));
-    const offset = (pageNum - 1) * limitNum;
-
-    const sql = isPostgreSQL
-      ? `SELECT lk.id,
-                 lk.key_code,
-                 lk.username,
-                 lk.is_active,
-                 lk.activated_at,
-                 lk.last_used_at,
-                 MAX(us.last_activity) AS last_login
-          FROM license_keys lk
-          LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
-           AND us.is_active = TRUE
-          WHERE lk.username IS NOT NULL
-            AND COALESCE(TRIM(lk.username), '') <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
-          ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
-          LIMIT $1 OFFSET $2`
-      : `SELECT lk.id,
-                 lk.key_code,
-                 lk.username,
-                 lk.is_active,
-                 lk.activated_at,
-                 lk.last_used_at,
-                 MAX(us.last_activity) AS last_login
-          FROM license_keys lk
-          LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
-           AND us.is_active = 1
-          WHERE lk.username IS NOT NULL
-            AND TRIM(lk.username) <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
-          ORDER BY datetime(COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at)) DESC
-          LIMIT ? OFFSET ?`;
-
-    const result = await dbQuery(sql, [limitNum, offset]);
-    res.json({ success: true, users: result.rows || [] });
-  } catch (error) {
-    console.error('List users error:', error);
-    res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
-});
-
   }
   try {
     const pageNum = Math.max(1, Number(page));
@@ -752,33 +671,6 @@ app.post('/api/admin/users', async (req, res) => {
     console.error('List users error:', error);
     res.status(500).json({ success: false, error: 'Serverfehler' });
   }
-});
-}
-    try {
-        const pageNum = Math.max(1, Number(page));
-        const limitNum = Math.max(1, Number(limit));
-        const offset = (pageNum - 1) * limitNum;
-
-        const sql = isPostgreSQL
-            ? `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at,
-                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = TRUE) AS last_login
-               FROM license_keys lk
-               WHERE lk.username IS NOT NULL AND COALESCE(TRIM(lk.username), '') <> ''
-               ORDER BY lk.activated_at DESC NULLS LAST, lk.created_at DESC
-               LIMIT $1 OFFSET $2`
-            : `SELECT lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at,
-                       (SELECT MAX(us.last_activity) FROM user_sessions us WHERE us.license_key_id = lk.id AND us.is_active = 1) AS last_login
-               FROM license_keys lk
-               WHERE lk.username IS NOT NULL AND TRIM(lk.username) <> ''
-               ORDER BY datetime(lk.activated_at) DESC, datetime(lk.created_at) DESC
-               LIMIT ? OFFSET ?`;
-
-        const result = await dbQuery(sql, [limitNum, offset]);
-        res.json({ success: true, users: result.rows || [] });
-    } catch (error) {
-        console.error('List users error:', error);
-        res.status(500).json({ success: false, error: 'Serverfehler' });
-    }
 });
 
 // ===== Admin: LICENSE KEYS (status + filter + product_code) =====
@@ -900,6 +792,7 @@ app.post('/api/admin/keys/:id/enable', async (req, res) => {
   } catch (e) {
     console.error('/api/admin/keys/:id/enable error', e);
     res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
 });
 
 app.post('/api/admin/keys/:id/activate', async (req, res) => {
@@ -907,6 +800,7 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
     const { password, product_code } = req.body || {};
     if (password !== ADMIN_PASSWORD) {
       return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+    }
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
 
@@ -921,6 +815,7 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
       const d = new Date(now);
       d.setUTCDate(d.getUTCDate() + map[code]);
       expiresAt = d.toISOString();
+    }
 
     const sql = isPostgreSQL
       ? `UPDATE license_keys
@@ -941,6 +836,7 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
   } catch (e) {
     console.error('/api/admin/keys/:id/activate error', e);
     res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
 });
 
 // ===== Admin: Stats korrekt =====
@@ -948,6 +844,7 @@ app.post('/api/admin/stats', async (req, res) => {
   const { password } = req.body || {};
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
   try {
     const stats = {};
 
@@ -979,6 +876,7 @@ app.post('/api/admin/stats', async (req, res) => {
   } catch (err) {
     console.error('stats error:', err);
     res.status(500).json({ success: false, error: 'Serverfehler' });
+  }
 });
 
 app.get('/admin', (req, res) => {
