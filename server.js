@@ -145,7 +145,7 @@ const createPostgreSQLTables = async () => {
         `);
         
         await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
-        // entfernt: index auf nicht existierende Spalte license_keys.username
+        // entfernt: index auf nicht existierende Spalte users.username
         await db.query("ALTER TABLE license_keys ADD COLUMN IF NOT EXISTS product_code VARCHAR(16) NULL");
         
         console.log('✅ PostgreSQL tables created successfully');
@@ -639,32 +639,32 @@ app.post('/api/admin/users', async (req, res) => {
     const sql = isPostgreSQL
       ? `SELECT lk.id,
                  lk.key_code,
-                 lk.username,
+                 u.username,
                  lk.is_active,
                  lk.activated_at,
                  lk.last_used_at,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
+            ON u.license_key_id = lk.id
            AND us.is_active = TRUE
-          WHERE lk.username IS NOT NULL
-            AND COALESCE(TRIM(lk.username), '') <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          WHERE u.username IS NOT NULL
+            AND COALESCE(TRIM(u.username), '') <> ''
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
           ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
           LIMIT $1 OFFSET $2`
       : `SELECT lk.id,
                  lk.key_code,
-                 lk.username,
+                 u.username,
                  lk.is_active,
                  lk.activated_at,
                  lk.last_used_at,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
+            ON u.license_key_id = lk.id
            AND us.is_active = 1
-          WHERE lk.username IS NOT NULL
-            AND TRIM(lk.username) <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          WHERE u.username IS NOT NULL
+            AND TRIM(u.username) <> ''
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
           ORDER BY datetime(COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at)) DESC
           LIMIT ? OFFSET ?`;
 
