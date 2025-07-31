@@ -324,7 +324,7 @@ async function handleActivation(event) {
     }
     
     if (!/^[a-zA-Z0-9_-]+$/.test(newUsername) || newUsername.length < 3) {
-        showStatus('activationStatus', 'Benutzername muss mindestens 3 Zeichen lang sein (nur Buchstaben, Zahlen, _, -)', 'error');
+        showStatus('activationStatus', 'Gewünschter Benutzername muss mindestens 3 Zeichen lang sein (nur Buchstaben, Zahlen, _, -)', 'error');
         return;
     }
     
@@ -416,7 +416,7 @@ async function handleLogout() {
 // ================================================================
 
 async function confirmDeleteAccount() {
-    if (!confirm('WARNUNG: Diese Aktion ist unwiderruflich!\n\nMöchten Sie Ihren Zugang wirklich löschen?\n\nIhr Benutzername und License-Key werden permanent gelöscht.')) {
+    if (!confirm('WARNUNG: Diese Aktion ist unwiderruflich!\n\nMöchten Sie Ihren Zugang wirklich löschen?\n\nIhr Gewünschter Benutzername und License-Key werden permanent gelöscht.')) {
         return;
     }
     
@@ -611,7 +611,7 @@ function showDemoKeys() {
           '• SM003-ECHO-FOXTR3\n' +
           '• SM004-HOTEL-INDI4\n' +
           '• SM005-JULIET-KILO5\n\n' +
-          '📝 Erstellen Sie einen Benutzernamen\n' +
+          '📝 Erstellen Sie einen Gewünschter Benutzernamen\n' +
           '🔢 Wählen Sie einen 5-stelligen Code\n\n' +
           '🔧 Admin Panel: /admin');
 }
