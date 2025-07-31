@@ -642,14 +642,14 @@ app.post('/api/admin/users', async (req, res) => {
                  u.username,
                  lk.is_active,
                  lk.activated_at,
-                 lk.last_used_at,
+                 us.last_activity,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
             ON u.license_key_id = lk.id
            AND us.is_active = TRUE
           WHERE u.username IS NOT NULL
             AND COALESCE(TRIM(u.username), '') <> ''
-          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, us.last_activity
           ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
           LIMIT $1 OFFSET $2`
       : `SELECT lk.id,
@@ -657,14 +657,14 @@ app.post('/api/admin/users', async (req, res) => {
                  u.username,
                  lk.is_active,
                  lk.activated_at,
-                 lk.last_used_at,
+                 us.last_activity,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
             ON u.license_key_id = lk.id
            AND us.is_active = 1
           WHERE u.username IS NOT NULL
             AND TRIM(u.username) <> ''
-          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, us.last_activity
           ORDER BY datetime(COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at)) DESC
           LIMIT ? OFFSET ?`;
 
