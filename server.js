@@ -856,8 +856,8 @@ app.post('/api/admin/stats', async (req, res) => {
 
     const activeUsers = await dbQuery(
       isPostgreSQL
-        ? "SELECT COUNT(*) AS count FROM license_keys WHERE is_active = true"
-        : "SELECT COUNT(*) AS count FROM license_keys WHERE is_active = 1"
+        ? "SELECT COUNT(*) AS count FROM users WHERE is_blocked = false"
+        : "SELECT COUNT(*) AS count FROM users WHERE is_blocked = 0"
     );
     stats.activeUsers = parseInt(activeUsers.rows[0].count || 0);
 
@@ -869,11 +869,10 @@ app.post('/api/admin/stats', async (req, res) => {
     stats.activeSessions = parseInt(activeSessions.rows[0].count || 0);
 
     const recentRegs = await dbQuery(
-        isPostgreSQL
-            ? "SELECT COUNT(*) AS count FROM users WHERE registered_at >= NOW() - INTERVAL '7 days'"
-            : "SELECT COUNT(*) AS count FROM users WHERE datetime(registered_at) >= datetime('now', '-7 days')"
+      isPostgreSQL
+        ? "SELECT COUNT(*) AS count FROM users WHERE registered_at >= NOW() - INTERVAL '7 days'"
+        : "SELECT COUNT(*) AS count FROM users WHERE datetime(registered_at) >= datetime('now', '-7 days')"
     );
-
     stats.recentRegistrations = parseInt(recentRegs.rows[0].count || 0);
 
     res.json({ success: true, stats });
