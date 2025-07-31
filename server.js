@@ -145,7 +145,7 @@ const createPostgreSQLTables = async () => {
         `);
         
         await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
-        await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_username ON license_keys(username)');
+        // entfernt: index auf nicht existierende Spalte license_keys.username
         await db.query("ALTER TABLE license_keys ADD COLUMN IF NOT EXISTS product_code VARCHAR(16) NULL");
         
         console.log('✅ PostgreSQL tables created successfully');
