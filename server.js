@@ -145,7 +145,7 @@ const createPostgreSQLTables = async () => {
         `);
         
         await db.query('CREATE INDEX IF NOT EXISTS idx_license_keys_code ON license_keys(key_code)');
-        // entfernt: index auf nicht existierende Spalte license_keys.username
+        // entfernt: index auf nicht existierende Spalte users.username
         await db.query("ALTER TABLE license_keys ADD COLUMN IF NOT EXISTS product_code VARCHAR(16) NULL");
         
         console.log('✅ PostgreSQL tables created successfully');
@@ -297,8 +297,8 @@ app.post('/api/auth/login', async (req, res) => {
     
     try {
         const userQuery = isPostgreSQL
-            ? 'SELECT * FROM users WHERE username = $1 AND is_blocked = false'
-            : 'SELECT * FROM license_keys WHERE username = ? AND is_active = 1';
+            ? 'SELECT * FROM users WHERE -- username removed (no longer exists) AND is_blocked = false'
+            : 'SELECT * FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id WHERE username = ? AND is_active = 1';
             
         const result = await dbQuery(userQuery, [username]);
         const user = result.rows[0];
@@ -399,8 +399,8 @@ app.post('/api/auth/activate', async (req, res) => {
     try {
         const usernameCheck = await dbQuery(
             isPostgreSQL
-                ? 'SELECT id FROM license_keys WHERE username = $1'
-                : 'SELECT id FROM license_keys WHERE username = ?',
+                ? 'SELECT id FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id WHERE -- username removed (no longer exists)'
+                : 'SELECT id FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id WHERE username = ?',
             [username]
         );
         
@@ -412,8 +412,8 @@ app.post('/api/auth/activate', async (req, res) => {
         }
         
         const keyQuery = isPostgreSQL
-            ? 'SELECT * FROM license_keys WHERE key_code = $1'
-            : 'SELECT * FROM license_keys WHERE key_code = ?';
+            ? 'SELECT * FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id WHERE key_code = $1'
+            : 'SELECT * FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id WHERE key_code = ?';
             
         const result = await dbQuery(keyQuery, [licenseKey]);
         const keyData = result.rows[0];
@@ -436,7 +436,7 @@ app.post('/api/auth/activate', async (req, res) => {
         
         const activateQuery = isPostgreSQL
             ? `UPDATE license_keys 
-               SET username = $1, 
+               SET -- username removed (no longer exists), 
                    access_code_hash = $2, 
                    is_active = true, 
                    activated_at = CURRENT_TIMESTAMP,
@@ -639,32 +639,32 @@ app.post('/api/admin/users', async (req, res) => {
     const sql = isPostgreSQL
       ? `SELECT lk.id,
                  lk.key_code,
-                 lk.username,
+                 u.username,
                  lk.is_active,
                  lk.activated_at,
                  lk.last_used_at,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
+            ON u.license_key_id = lk.id
            AND us.is_active = TRUE
-          WHERE lk.username IS NOT NULL
-            AND COALESCE(TRIM(lk.username), '') <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          WHERE u.username IS NOT NULL
+            AND COALESCE(TRIM(u.username), '') <> ''
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
           ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
           LIMIT $1 OFFSET $2`
       : `SELECT lk.id,
                  lk.key_code,
-                 lk.username,
+                 u.username,
                  lk.is_active,
                  lk.activated_at,
                  lk.last_used_at,
                  MAX(us.last_activity) AS last_login
           FROM users u LEFT JOIN license_keys lk ON u.license_key_id = lk.id LEFT JOIN user_sessions us
-            ON us.license_key_id = lk.id
+            ON u.license_key_id = lk.id
            AND us.is_active = 1
-          WHERE lk.username IS NOT NULL
-            AND TRIM(lk.username) <> ''
-          GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, lk.last_used_at
+          WHERE u.username IS NOT NULL
+            AND TRIM(u.username) <> ''
+          GROUP BY lk.id, lk.key_code, u.username, lk.is_active, lk.activated_at, lk.last_used_at
           ORDER BY datetime(COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at)) DESC
           LIMIT ? OFFSET ?`;
 
@@ -689,10 +689,10 @@ app.post('/api/admin/license-keys', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     const selectSql = isPostgreSQL
-      ? `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, lk.is_active, u.username, lk.product_code FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id
+      ? `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, lk.is_active, u.username, lk.product_code FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id lk LEFT JOIN users u ON u.license_key_id = lk.id
          ORDER BY created_at DESC
          LIMIT $1 OFFSET $2`
-      : `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, lk.is_active, u.username, lk.product_code FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id
+      : `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, lk.is_active, u.username, lk.product_code FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id lk LEFT JOIN users u ON u.license_key_id = lk.id
          ORDER BY datetime(created_at) DESC
          LIMIT ? OFFSET ?`;
 
@@ -849,7 +849,7 @@ app.post('/api/admin/stats', async (req, res) => {
   try {
     const stats = {};
 
-    const totalKeys = await dbQuery('SELECT COUNT(*) AS count FROM license_keys');
+    const totalKeys = await dbQuery('SELECT COUNT(*) AS count FROM license_keys lk LEFT JOIN users u ON u.license_key_id = lk.id');
     stats.totalKeys = parseInt(totalKeys.rows[0].count || 0);
 
     const activeUsers = await dbQuery(
