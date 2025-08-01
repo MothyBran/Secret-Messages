@@ -626,85 +626,60 @@ app.get('/', (req, res) => {
 // ===== Admin: USERS (only registered) =====
 
 app.post('/api/admin/users', async (req, res) => {
-  const { password, page = 1, limit = 50, status } = req.body || {};
+  const { password, page = 1, limit = 50 } = req.body || {};
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
   }
+
   try {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.max(1, Number(limit));
     const offset = (pageNum - 1) * limitNum;
 
-    // SQL mit JOIN zu users, um username zu bekommen
     const selectSql = isPostgreSQL
-      ? `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, 
-                lk.is_active, u.username, lk.product_code
-         FROM license_keys lk
-         LEFT JOIN users u ON u.license_key_id = lk.id
-         ORDER BY lk.created_at DESC
+      ? `SELECT u.id, u.username, u.registered_at, u.last_login,
+                k.key_code, k.is_active, k.activated_at, k.expires_at
+         FROM users u
+         LEFT JOIN license_keys k ON k.id = u.license_key_id
+         ORDER BY u.registered_at DESC
          LIMIT $1 OFFSET $2`
-      : `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, 
-                lk.is_active, u.username, lk.product_code
-         FROM license_keys lk
-         LEFT JOIN users u ON u.license_key_id = lk.id
-         ORDER BY datetime(lk.created_at) DESC
+      : `SELECT u.id, u.username, u.registered_at, u.last_login,
+                k.key_code, k.is_active, k.activated_at, k.expires_at
+         FROM users u
+         LEFT JOIN license_keys k ON k.id = u.license_key_id
+         ORDER BY datetime(u.registered_at) DESC
          LIMIT ? OFFSET ?`;
 
     const result = await db.query(selectSql, [limitNum, offset]);
     const rows = result.rows;
 
-    const toIso = (v) => {
-      if (!v) return null;
-      const d = (v instanceof Date) ? v : new Date(v);
-      return isNaN(d.getTime()) ? null : d.toISOString();
-    };
-
     const nowMs = Date.now();
 
-    let keys = rows.map(r => {
-      const createdAt = toIso(r.created_at);
-      const expiresAt = toIso(r.expires_at);
-      const activatedAt = toIso(r.activated_at);
-      const isActive = !!(isPostgreSQL ? r.is_active : Number(r.is_active) === 1);
-
-      let st = 'active';
-      if (expiresAt && new Date(expiresAt).getTime() <= nowMs) st = 'expired';
-      else if (!isActive && activatedAt) st = 'blocked';
-      else if (!activatedAt) st = 'inactive';
-
-      let remaining_days = '—';
-      if (expiresAt) {
-        const diffDays = Math.ceil((new Date(expiresAt).getTime() - nowMs) / (1000 * 60 * 60 * 24));
-        remaining_days = (diffDays >= 0) ? `${diffDays} Tage` : '0 Tage';
+    const users = rows.map(row => {
+      let status = 'inactive';
+      if (row.expires_at && new Date(row.expires_at).getTime() <= nowMs) {
+        status = 'expired';
+      } else if (!row.is_active && row.activated_at) {
+        status = 'blocked';
+      } else if (row.is_active) {
+        status = 'active';
       }
 
       return {
-        id: r.id,
-        key_code: r.key_code,
-        created_at: createdAt,
-        expires_at: expiresAt,
-        activated_at: activatedAt,
-        is_active: isActive,
-        username: r.username || null,
-        product_code: r.product_code || null,
-        status: st,
-        remaining_days
+        id: row.id,
+        username: row.username,
+        key_code: row.key_code || null,
+        registered_at: row.registered_at,
+        last_login: row.last_login,
+        activated_at: row.activated_at,
+        status
       };
     });
 
-    // Filter
-    keys = keys.filter(k => {
-      if (status === 'active') return k.status === 'active';
-      if (status === 'expired') return k.status === 'expired';
-      if (status === 'inactive') return k.status === 'inactive';
-      if (status === 'blocked') return k.status === 'blocked';
-      return true;
-    });
-
-    res.json({ success: true, keys });
+    res.json({ success: true, keys: users });
   } catch (err) {
-    console.error('/api/admin/license-keys error:', err);
-    res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Lizenz-Keys' });
+    console.error('/api/admin/users error:', err);
+    res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Benutzer' });
   }
 });
 
