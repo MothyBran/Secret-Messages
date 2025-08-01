@@ -141,60 +141,62 @@ function loadStatistics(stats = {}) {
 
 // Generate keys
 async function generateKeys() {
-    const quantity = parseInt(document.getElementById('keyQuantity').value);
-    const generateBtn = document.getElementById('generateKeysBtn');
-    const generateBtnText = document.getElementById('generateBtnText');
-    const result = document.getElementById('generationResult');
-    
-    if (quantity < 1 || quantity > 100) {
-        result.className = 'alert error';
-        result.textContent = 'Anzahl muss zwischen 1 und 100 liegen';
-        result.style.display = 'block';
-        return;
+  const quantity = parseInt(document.getElementById('keyQuantity').value);
+  const generateBtn = document.getElementById('generateKeysBtn');
+  const generateBtnText = document.getElementById('generateBtnText');
+  const result = document.getElementById('generationResult');
+
+  if (quantity < 1 || quantity > 100 || isNaN(quantity)) {
+    result.className = 'alert error';
+    result.textContent = 'Anzahl muss zwischen 1 und 100 liegen';
+    result.style.display = 'block';
+    return;
+  }
+
+  generateBtn.disabled = true;
+  generateBtnText.innerHTML = '<span class="spinner"></span>Generiere...';
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/generate-key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        password: adminPassword,
+        quantity
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      result.className = 'alert success';
+      result.innerHTML = `<strong>✅ ${data.keys.length} Keys generiert!</strong><br><br>`;
+
+      data.keys.forEach(key => {
+        const keyCode = typeof key === 'string' ? key : key.key_code;
+        result.innerHTML += `<span class="key-code">${keyCode}</span><br>`;
+      });
+
+      result.style.display = 'block';
+
+      // Refresh stats
+      refreshStats();
+    } else {
+      result.className = 'alert error';
+      result.textContent = data.error || 'Fehler beim Generieren der Keys';
+      result.style.display = 'block';
     }
-    
-    generateBtn.disabled = true;
-    generateBtnText.innerHTML = '<span class="spinner"></span>Generiere...';
-    
-    try {
-        const response = await fetch(`${API_BASE}/admin/generate-key`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                password: adminPassword, 
-                quantity 
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            result.className = 'alert success';
-            result.innerHTML = `<strong>✅ ${data.keys.length} Keys generiert!</strong><br><br>`;
-            
-            data.keys.forEach(key => {
-                result.innerHTML += `<span class="key-code">${key}</span><br>`;
-            });
-            
-            result.style.display = 'block';
-            
-            // Refresh stats
-            refreshStats();
-        } else {
-            result.className = 'alert error';
-            result.textContent = data.error || 'Fehler beim Generieren der Keys';
-            result.style.display = 'block';
-        }
-    } catch (error) {
-        result.className = 'alert error';
-        result.textContent = 'Verbindungsfehler zum Server';
-        result.style.display = 'block';
-    } finally {
-        generateBtn.disabled = false;
-        generateBtnText.textContent = 'KEYS GENERIEREN';
-    }
+  } catch (error) {
+    console.error('Key generation error:', error);
+    result.className = 'alert error';
+    result.textContent = 'Verbindungsfehler zum Server';
+    result.style.display = 'block';
+  } finally {
+    generateBtn.disabled = false;
+    generateBtnText.textContent = 'KEYS GENERIEREN';
+  }
 }
 
 // Load users
