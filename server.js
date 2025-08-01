@@ -850,24 +850,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Rate Limiting
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: 'Zu viele Login-Versuche. Bitte versuchen Sie es später erneut.',
-    keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
-});
-
-const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
-});
-
-app.use('/api/', apiLimiter);
-app.use('/api/auth/login', loginLimiter);
-app.use('/api/auth/activate', loginLimiter);
-
 // Database initialization
 const initializeDatabase = async () => {
     console.log('🔧 Initializing Database...');
