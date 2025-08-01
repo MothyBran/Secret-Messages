@@ -631,8 +631,7 @@ app.post('/api/admin/users', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Robust query: LEFT JOIN user_sessions, aggregate last_login with MAX()
-    const sql = isPostgreSQL
-      : `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+    const sql = isPostgreSQLconst selectSql = `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
          FROM license_keys
          ORDER BY datetime(created_at) DESC
          LIMIT ? OFFSET ?`;
@@ -1472,8 +1471,7 @@ app.post('/api/admin/users', async (req, res) => {
             AND COALESCE(TRIM(lk.username), '') <> ''
           GROUP BY lk.id, lk.key_code, lk.username, lk.is_active, lk.activated_at, us.last_activity
           ORDER BY COALESCE(MAX(us.last_activity), lk.activated_at, lk.created_at) DESC
-          LIMIT $1 OFFSET $2`
-      : `SELECT lk.id,
+          LIMIT $1 OFFSET $2`const selectSql = `SELECT lk.id,
                  lk.key_code,
                  lk.username,
                  lk.is_active,
@@ -1513,8 +1511,7 @@ app.post('/api/admin/license-keys', async (req, res) => {
       ? `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
          FROM license_keys
          ORDER BY created_at DESC
-         LIMIT $1 OFFSET $2`
-      : `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+         LIMIT $1 OFFSET $2`const selectSql = `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
          FROM license_keys
          ORDER BY datetime(created_at) DESC
          LIMIT ? OFFSET ?`;
