@@ -600,58 +600,59 @@ app.post('/api/admin/purchases', async (req, res) => {
 
 // Generate Keys
 app.post('/api/admin/generate-key', async (req, res) => {
-    const { password, quantity = 1 } = req.body;
-    
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(403).json({ 
-            success: false, 
-            error: 'Ungültiges Admin-Passwort' 
-        });
-    }
-    
-    if (quantity > 100) {
-        return res.status(400).json({ 
-            success: false,
-            error: 'Maximum 100 Keys pro Anfrage' 
-        });
-    }
-    
-    const keys = [];
-    
-    try {
-        for (let i = 0; i < quantity; i++) {
-            const keyPart = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
-    let part = '';
-    for (let j = 0; j < 5; j++) {
-        part += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return part;
-};
-const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
-            const keyHash = await bcrypt.hash(keyCode, 10);
-            
-            const insertQuery = isPostgreSQL
-                ? 'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES ($1, $2, $3)'
-                : 'INSERT INTO license_keys (key_code, key_hash, created_by) VALUES (?, ?, ?)';
-                
-            await dbQuery(insertQuery, [keyCode, keyHash, 'admin']);
-            keys.push(keyCode);
+  const { password, quantity = 1 } = req.body;
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Ungültiges Admin-Passwort' 
+    });
+  }
+
+  if (quantity < 1 || quantity > 100) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Anzahl muss zwischen 1 und 100 liegen' 
+    });
+  }
+
+  const keys = [];
+
+  try {
+    for (let i = 0; i < quantity; i++) {
+      const keyPart = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
+        let part = '';
+        for (let j = 0; j < 5; j++) {
+          part += chars[Math.floor(Math.random() * chars.length)];
         }
-        
-        res.json({
-            success: true,
-            keys: keys,
-            count: keys.length
-        });
-        
-    } catch (error) {
-        console.error('Key generation error:', error);
-        res.status(500).json({ 
-            success: false,
-            error: 'Fehler beim Generieren der Keys' 
-        });
+        return part;
+      };
+
+      const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
+      const keyHash = await bcrypt.hash(keyCode, 10);
+
+      const insertQuery = isPostgreSQL
+        ? 'INSERT INTO license_keys (key_code, key_hash) VALUES ($1, $2)'
+        : 'INSERT INTO license_keys (key_code, key_hash) VALUES (?, ?)';
+
+      await dbQuery(insertQuery, [keyCode, keyHash]);
+      keys.push(keyCode);
     }
+
+    res.json({
+      success: true,
+      keys,
+      count: keys.length
+    });
+
+  } catch (error) {
+    console.error('Key generation error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Fehler beim Generieren der Keys' 
+    });
+  }
 });
 
 // Static file serving
