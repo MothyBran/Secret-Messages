@@ -273,89 +273,93 @@ app.get('/api/health', (req, res) => {
 
 // User Login
 app.post('/api/auth/login', async (req, res) => {
-    const { username, accessCode } = req.body;
-    const clientIP = req.ip;
-    
-    if (!username || !accessCode) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Benutzername und Zugangscode erforderlich' 
-        });
+  const { username, accessCode } = req.body;
+  const clientIP = req.ip;
+
+  if (!username || !accessCode) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Benutzername und Zugangscode erforderlich' 
+    });
+  }
+
+  if (!/^\d{5}$/.test(accessCode)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Zugangscode muss 5 Ziffern enthalten' 
+    });
+  }
+
+  try {
+    const userQuery = isPostgreSQL
+      ? `SELECT u.*, k.key_code
+         FROM users u
+         LEFT JOIN license_keys k ON k.id = u.license_key_id
+         WHERE u.username = $1 AND u.is_blocked = false`
+      : `SELECT u.*, k.key_code
+         FROM users u
+         LEFT JOIN license_keys k ON k.id = u.license_key_id
+         WHERE u.username = ? AND u.is_blocked = 0`;
+
+    const result = await dbQuery(userQuery, [username]);
+    const user = result.rows[0];
+
+    if (!user || !user.access_code_hash) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Ungültiger Benutzername oder Zugangscode' 
+      });
     }
-    
-    if (!/^\d{5}$/.test(accessCode)) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Zugangscode muss 5 Ziffern enthalten' 
-        });
+
+    const isValidCode = await bcrypt.compare(accessCode, user.access_code_hash);
+    if (!isValidCode) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Ungültiger Benutzername oder Zugangscode' 
+      });
     }
-    
-    try {
-        const userQuery = isPostgreSQL
-            ? 'SELECT * FROM users WHERE username = $1 AND is_blocked = false'
-            : 'SELECT * FROM license_keys WHERE username = ? AND is_active = 1';
-            
-        const result = await dbQuery(userQuery, [username]);
-        const user = result.rows[0];
-        
-        if (!user || !user.access_code_hash) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'Ungültiger Benutzername oder Zugangscode' 
-            });
-        }
-        
-        const isValidCode = await bcrypt.compare(accessCode, user.access_code_hash);
-        
-        if (!isValidCode) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'Ungültiger Benutzername oder Zugangscode' 
-            });
-        }
-        
-        const token = jwt.sign(
-            { 
-                username: user.username,
-                keyId: user.id,
-                licenseKey: user.key_code
-            },
-            JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-        
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
-        
-        const sessionQuery = isPostgreSQL
-            ? `INSERT INTO user_sessions (session_token, user_id, ip_address, user_agent, expires_at) 
-               VALUES ($1, $2, $3, $4, $5, $6)`
-            : `INSERT INTO user_sessions (session_token, user_id, ip_address, user_agent, expires_at) 
-               VALUES (?, ?, ?, ?, ?, ?)`;
-               
-        await dbQuery(sessionQuery, [
-            token,
-            username,
-            user.id,
-            clientIP,
-            req.headers['user-agent'] || 'Unknown',
-            expiresAt.toISOString()
-        ]);
-        
-        res.json({
-            success: true,
-            message: 'Anmeldung erfolgreich',
-            token,
-            username: user.username
-        });
-        
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Interner Serverfehler' 
-        });
-    }
+
+    const token = jwt.sign(
+      { 
+        username: user.username,
+        userId: user.id,
+        licenseKey: user.key_code || null
+      },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const sessionQuery = isPostgreSQL
+      ? `INSERT INTO user_sessions (session_token, user_id, ip_address, user_agent, expires_at) 
+         VALUES ($1, $2, $3, $4, $5)`
+      : `INSERT INTO user_sessions (session_token, user_id, ip_address, user_agent, expires_at) 
+         VALUES (?, ?, ?, ?, ?)`;
+
+    await dbQuery(sessionQuery, [
+      token,
+      user.id,
+      clientIP,
+      req.headers['user-agent'] || 'Unknown',
+      expiresAt.toISOString()
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Anmeldung erfolgreich',
+      token,
+      username: user.username
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Interner Serverfehler' 
+    });
+  }
 });
 
 // License Key Activation / Registrierung
