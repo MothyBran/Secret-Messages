@@ -130,11 +130,13 @@ async function handleLogin() {
 }
 
 // Load statistics
-function loadStatistics(stats) {
-    document.getElementById('totalKeys').textContent = stats.totalKeys || '0';
-    document.getElementById('activeUsers').textContent = stats.activeUsers || '0';
-    document.getElementById('activeSessions').textContent = stats.activeSessions || '0';
-    document.getElementById('recentRegistrations').textContent = stats.recentRegistrations || '0';
+function loadStatistics(stats = {}) {
+  const safe = (v) => (v !== undefined && v !== null) ? String(v) : '0';
+
+  document.getElementById('totalKeys').textContent = safe(stats.totalKeys);
+  document.getElementById('activeUsers').textContent = safe(stats.activeUsers);
+  document.getElementById('activeSessions').textContent = safe(stats.activeSessions);
+  document.getElementById('recentRegistrations').textContent = safe(stats.recentRegistrations);
 }
 
 // Generate keys
