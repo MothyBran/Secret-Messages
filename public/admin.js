@@ -197,59 +197,61 @@ async function generateKeys() {
 
 // Load users
 async function loadUsers() {
-    const loadBtn = document.getElementById('loadUsersBtn');
-    const loadBtnText = document.getElementById('loadUsersBtnText');
-    const tableContainer = document.getElementById('userTableContainer');
-    const tableBody = document.getElementById('userTableBody');
-    
-    loadBtn.disabled = true;
-    loadBtnText.innerHTML = '<span class="spinner"></span>Lade...';
-    
-    try {
-        const response = await fetch(`${API_BASE}/admin/users`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                password: adminPassword,
-                page: 1,
-                limit: 50
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            tableBody.innerHTML = '';
-            
-            if (data.users && data.users.length > 0) {const users = (data.users || []).filter(u => u.username && String(u.username).trim() !== ''); 
-      users.forEach(user => {
-                    const row = tableBody.insertRow();
-                    row.innerHTML = `
-            <td>${user.id}</td>
-            <td><span class="key-code">${user.license_key || '-'}</span></td>
-            <td>${user.name || '-'}</td>
-            <td>${user.is_active ? '✅ Aktiv' : (user.activated_at ? '⛔ Gesperrt' : '⏳ Inaktiv')}</td>
-            <td>${user.registered_at ? new Date(user.registered_at).toLocaleString('de-DE') : (user.activated_at ? new Date(user.activated_at).toLocaleString('de-DE') : '-')}</td>
-            <td>${user.last_login ? new Date(user.last_login).toLocaleString('de-DE') : (null ? new Date(null).toLocaleString('de-DE') : '-')}</td>
-        `;
+  const loadBtn = document.getElementById('loadUsersBtn');
+  const loadBtnText = document.getElementById('loadUsersBtnText');
+  const tableContainer = document.getElementById('userTableContainer');
+  const tableBody = document.getElementById('userTableBody');
+
+  loadBtn.disabled = true;
+  loadBtnText.innerHTML = '<span class="spinner"></span>Lade...';
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        password: adminPassword,
+        page: 1,
+        limit: 50
+      })
     });
-            } else {
-                const row = tableBody.insertRow();
-                row.innerHTML = '<td colspan="5" style="text-align: center;">Keine Benutzer gefunden</td>';
-            }
-            
-            tableContainer.style.display = 'block';
-        } else {
-            alert(data.error || 'Fehler beim Laden der Benutzer');
-        }
-    } catch (error) {
-        alert('Verbindungsfehler zum Server');
-    } finally {
-        loadBtn.disabled = false;
-        loadBtnText.textContent = 'BENUTZER LADEN';
+
+    const data = await response.json();
+
+    if (data.success) {
+      tableBody.innerHTML = '';
+
+      const users = data.keys || []; // keys = Ergebnis der JOIN-Abfrage im Backend
+
+      if (users.length > 0) {
+        users.forEach(user => {
+          const row = tableBody.insertRow();
+          row.innerHTML = `
+            <td>${user.id}</td>
+            <td><span class="key-code">${user.key_code || '-'}</span></td>
+            <td>${user.username || '-'}</td>
+            <td>${user.status === 'active' ? '✅ Aktiv' : (user.status === 'blocked' ? '⛔ Gesperrt' : '⏳ Inaktiv')}</td>
+            <td>${user.registered_at ? new Date(user.registered_at).toLocaleString('de-DE') : (user.activated_at ? new Date(user.activated_at).toLocaleString('de-DE') : '-')}</td>
+            <td>${user.last_login ? new Date(user.last_login).toLocaleString('de-DE') : '-'}</td>
+          `;
+        });
+      } else {
+        const row = tableBody.insertRow();
+        row.innerHTML = '<td colspan="6" style="text-align: center;">Keine Benutzer gefunden</td>';
+      }
+
+      tableContainer.style.display = 'block';
+    } else {
+      alert(data.error || 'Fehler beim Laden der Benutzer');
     }
+  } catch (error) {
+    alert('Verbindungsfehler zum Server');
+  } finally {
+    loadBtn.disabled = false;
+    loadBtnText.textContent = 'BENUTZER LADEN';
+  }
 }
 
 // Refresh statistics
