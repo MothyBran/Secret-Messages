@@ -631,7 +631,15 @@ app.post('/api/admin/users', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Robust query: LEFT JOIN user_sessions, aggregate last_login with MAX()
-    const sql = isPostgreSQLconst selectSql = `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+    const selectSql = isPostgreSQL
+        ? `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+           FROM license_keys
+           ORDER BY created_at DESC
+           LIMIT $1 OFFSET $2`
+        : `SELECT id, key_code, created_at, activated_at, expires_at, is_active, username, product_code
+           FROM license_keys
+           ORDER BY datetime(created_at) DESC
+           LIMIT ? OFFSET ?`;
          FROM license_keys
          ORDER BY datetime(created_at) DESC
          LIMIT ? OFFSET ?`;
