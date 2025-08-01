@@ -703,6 +703,88 @@ app.post('/api/admin/users', async (req, res) => {
   }
 });
 
+// Admin: Lizenz-Keys abrufen
+app.post('/api/admin/license-keys', async (req, res) => {
+  const { password, page = 1, limit = 50, status } = req.body || {};
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
+  try {
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    const selectSql = isPostgreSQL
+      ? `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, 
+                lk.is_active, u.username, lk.product_code
+         FROM license_keys lk
+         LEFT JOIN users u ON u.license_key_id = lk.id
+         ORDER BY lk.created_at DESC
+         LIMIT $1 OFFSET $2`
+      : `SELECT lk.id, lk.key_code, lk.created_at, lk.activated_at, lk.expires_at, 
+                lk.is_active, u.username, lk.product_code
+         FROM license_keys lk
+         LEFT JOIN users u ON u.license_key_id = lk.id
+         ORDER BY datetime(lk.created_at) DESC
+         LIMIT ? OFFSET ?`;
+
+    const result = await db.query(selectSql, [limitNum, offset]);
+    const rows = result.rows;
+
+    const toIso = (v) => {
+      if (!v) return null;
+      const d = (v instanceof Date) ? v : new Date(v);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    };
+
+    const nowMs = Date.now();
+
+    let keys = rows.map(r => {
+      const createdAt = toIso(r.created_at);
+      const expiresAt = toIso(r.expires_at);
+      const activatedAt = toIso(r.activated_at);
+      const isActive = !!(isPostgreSQL ? r.is_active : Number(r.is_active) === 1);
+
+      let st = 'active';
+      if (expiresAt && new Date(expiresAt).getTime() <= nowMs) st = 'expired';
+      else if (!isActive && activatedAt) st = 'blocked';
+      else if (!activatedAt) st = 'inactive';
+
+      let remaining_days = '—';
+      if (expiresAt) {
+        const diffDays = Math.ceil((new Date(expiresAt).getTime() - nowMs) / (1000 * 60 * 60 * 24));
+        remaining_days = (diffDays >= 0) ? `${diffDays} Tage` : '0 Tage';
+      }
+
+      return {
+        id: r.id,
+        key_code: r.key_code,
+        created_at: createdAt,
+        expires_at: expiresAt,
+        activated_at: activatedAt,
+        is_active: isActive,
+        username: r.username || null,
+        product_code: r.product_code || null,
+        status: st,
+        remaining_days
+      };
+    });
+
+    // Filter
+    keys = keys.filter(k => {
+      if (status === 'active') return k.status === 'active';
+      if (status === 'expired') return k.status === 'expired';
+      if (status === 'inactive') return k.status === 'inactive';
+      if (status === 'blocked') return k.status === 'blocked';
+      return true;
+    });
+
+    res.json({ success: true, keys });
+  } catch (err) {
+    console.error('/api/admin/license-keys error:', err);
+    res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Lizenz-Keys' });
+  }
+});
 
 // ===== Admin: Key sperren/aktivieren/aktivieren mit Laufzeit =====
 app.post('/api/admin/keys/:id/disable', async (req, res) => {
