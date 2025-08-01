@@ -640,13 +640,6 @@ app.post('/api/admin/users', async (req, res) => {
            FROM license_keys
            ORDER BY datetime(created_at) DESC
            LIMIT ? OFFSET ?`;
-         FROM license_keys
-         ORDER BY datetime(created_at) DESC
-         LIMIT ? OFFSET ?`;
-
-    const result = await dbQuery(selectSql, [limitNum, offset]);
-    const rows = result.rows || [];
-
     const toIso = (v) => {
       if (!v) return null;
       const d = (v instanceof Date) ? v : new Date(v);
