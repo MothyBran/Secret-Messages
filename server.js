@@ -358,111 +358,116 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// License Key Activation
+// License Key Activation / Registrierung
 app.post('/api/auth/activate', async (req, res) => {
-    const { licenseKey, username, accessCode } = req.body;
-    const clientIP = req.ip;
-    
-    if (!licenseKey || !username || !accessCode) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Alle Felder sind erforderlich' 
-        });
+  const { licenseKey, username, accessCode } = req.body;
+  const clientIP = req.ip;
+
+  if (!licenseKey || !username || !accessCode) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Alle Felder sind erforderlich' 
+    });
+  }
+
+  if (!/^[A-Z0-9_-]{5}-[A-Z0-9_-]{5}-[A-Z0-9_-]{5}$/.test(licenseKey)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Ungültiges License-Key Format' 
+    });
+  }
+
+  if (!/^[a-zA-Z0-9._-]{3,20}$/.test(username)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Benutzername muss 3-20 Zeichen lang sein' 
+    });
+  }
+
+  if (!/^\d{5}$/.test(accessCode)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Zugangscode muss genau 5 Ziffern enthalten' 
+    });
+  }
+
+  try {
+    // Prüfe ob Benutzername schon existiert
+    const userCheckQuery = isPostgreSQL
+      ? 'SELECT id FROM users WHERE username = $1'
+      : 'SELECT id FROM users WHERE username = ?';
+
+    const usernameCheck = await dbQuery(userCheckQuery, [username]);
+    if (usernameCheck.rows && usernameCheck.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'Benutzername bereits vergeben' 
+      });
     }
-    
-    if (!/^[A-Z0-9_-]{5}-[A-Z0-9_-]{5}-[A-Z0-9_-]{5}$/.test(licenseKey)) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Ungültiges License-Key Format' 
-        });
+
+    // Lade Lizenz-Key
+    const keyQuery = isPostgreSQL
+      ? 'SELECT * FROM license_keys WHERE key_code = $1'
+      : 'SELECT * FROM license_keys WHERE key_code = ?';
+
+    const result = await dbQuery(keyQuery, [licenseKey]);
+    const keyData = result.rows[0];
+
+    if (!keyData) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'License-Key nicht gefunden' 
+      });
     }
-    
-    if (!/^[a-zA-Z0-9._-]{3,20}$/.test(username)) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Benutzername muss 3-20 Zeichen lang sein' 
-        });
+
+    if (keyData.is_active) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'License-Key wurde bereits aktiviert' 
+      });
     }
-    
-    if (!/^\d{5}$/.test(accessCode)) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Zugangscode muss genau 5 Ziffern enthalten' 
-        });
-    }
-    
-    try {
-        const usernameCheck = await dbQuery(
-            isPostgreSQL
-                ? 'SELECT id FROM license_keys WHERE username = $1'
-                : 'SELECT id FROM license_keys WHERE username = ?',
-            [username]
-        );
-        
-        if (usernameCheck.rows && usernameCheck.rows.length > 0) {
-            return res.status(409).json({ 
-                success: false, 
-                error: 'Benutzername bereits vergeben' 
-            });
-        }
-        
-        const keyQuery = isPostgreSQL
-            ? 'SELECT * FROM license_keys WHERE key_code = $1'
-            : 'SELECT * FROM license_keys WHERE key_code = ?';
-            
-        const result = await dbQuery(keyQuery, [licenseKey]);
-        const keyData = result.rows[0];
-        
-        if (!keyData) {
-            return res.status(404).json({ 
-                success: false, 
-                error: 'License-Key nicht gefunden' 
-            });
-        }
-        
-        if (keyData.is_active || keyData.username) {
-            return res.status(403).json({ 
-                success: false, 
-                error: 'License-Key wurde bereits aktiviert' 
-            });
-        }
-        
-        const accessCodeHash = await bcrypt.hash(accessCode, 10);
-        
-        const activateQuery = isPostgreSQL
-            ? `UPDATE license_keys 
-               SET username = $1, 
-                   access_code_hash = $2, 
-                   is_active = true, 
-                   activated_at = CURRENT_TIMESTAMP,
-                   activated_ip = $3,
-                   user_created_at = CURRENT_TIMESTAMP
-               WHERE id = $4`
-            : `UPDATE license_keys 
-               SET username = ?, 
-                   access_code_hash = ?, 
-                   is_active = 1, 
-                   activated_at = CURRENT_TIMESTAMP,
-                   activated_ip = ?,
-                   user_created_at = CURRENT_TIMESTAMP
-               WHERE id = ?`;
-               
-        await dbQuery(activateQuery, [username, accessCodeHash, clientIP, keyData.id]);
-        
-        res.json({
-            success: true,
-            message: 'Zugang erfolgreich erstellt!',
-            username
-        });
-        
-    } catch (error) {
-        console.error('Activation error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Interner Serverfehler' 
-        });
-    }
+
+    const accessCodeHash = await bcrypt.hash(accessCode, 10);
+
+    // Benutzer in users eintragen
+    const insertUserQuery = isPostgreSQL
+      ? `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`
+      : `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`;
+
+    await dbQuery(insertUserQuery, [username, accessCodeHash, keyData.id]);
+
+    // Lizenz-Key als aktiviert markieren
+    const updateKeyQuery = isPostgreSQL
+      ? `UPDATE license_keys 
+         SET is_active = true,
+             activated_at = CURRENT_TIMESTAMP,
+             activated_ip = $1
+         WHERE id = $2`
+      : `UPDATE license_keys 
+         SET is_active = 1,
+             activated_at = CURRENT_TIMESTAMP,
+             activated_ip = ?
+         WHERE id = ?`;
+
+    await dbQuery(updateKeyQuery, [clientIP, keyData.id]);
+
+    res.json({
+      success: true,
+      message: 'Zugang erfolgreich erstellt!',
+      username
+    });
+
+  } catch (error) {
+    console.error('Activation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Interner Serverfehler' 
+    });
+  }
 });
+
 
 // Validate Token
 app.post('/api/auth/validate', async (req, res) => {
