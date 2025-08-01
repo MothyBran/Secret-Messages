@@ -243,65 +243,66 @@ function showStatus(statusId, message, type) {
 // ================================================================
 
 async function handleLogin(event) {
-    event.preventDefault();
-    
-    const username = document.getElementById('username').value;
-    const accessCode = document.getElementById('accessCode').value;
-    const loginBtn = document.getElementById('loginBtn');
-    const loginBtnText = document.getElementById('loginBtnText');
-    
-    // Validation
-    if (!username || !accessCode) {
-        showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
-        return;
+  event.preventDefault();
+
+  const usernameInput = document.getElementById('username').value;
+  const accessCode = document.getElementById('accessCode').value;
+  const loginBtn = document.getElementById('loginBtn');
+  const loginBtnText = document.getElementById('loginBtnText');
+
+  // Validation
+  if (!usernameInput || !accessCode) {
+    showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
+    return;
+  }
+
+  if (!/^\d{5}$/.test(accessCode)) {
+    showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
+    return;
+  }
+
+  // Disable button
+  loginBtn.disabled = true;
+  loginBtnText.innerHTML = '<span class="spinner"></span>Anmeldung läuft...';
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username: usernameInput, accessCode })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      const currentUserName = data.username || usernameInput;
+      currentUser = currentUserName;
+      authToken = data.token;
+
+      // Save to localStorage
+      localStorage.setItem('secretMessages_token', authToken);
+      localStorage.setItem('secretMessages_user', currentUserName);
+
+      showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
+
+      // Log activity
+      logActivity('login_success', { username: currentUserName });
+
+      setTimeout(() => {
+        showMainSection();
+      }, 1500);
+    } else {
+      showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
     }
-    
-    if (!/^\d{5}$/.test(accessCode)) {
-        showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
-        return;
-    }
-    
-    // Disable button
-    loginBtn.disabled = true;
-    loginBtnText.innerHTML = '<span class="spinner"></span>Anmeldung läuft...';
-    
-    try {
-        const response = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username, accessCode })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentUser = username;
-            authToken = data.token;
-            
-            // Save to localStorage
-            localStorage.setItem('secretMessages_token', authToken);
-            localStorage.setItem('secretMessages_user', username);
-            
-            showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
-            
-            // Log activity
-            logActivity('login_success', { username });
-            
-            setTimeout(() => {
-                showMainSection();
-            }, 1500);
-        } else {
-            showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
-        }
-    } catch (error) {
-        console.error('Login error:', error);
-        showStatus('loginStatus', 'Verbindungsfehler zum Server', 'error');
-    } finally {
-        loginBtn.disabled = false;
-        loginBtnText.textContent = 'ANMELDEN';
-    }
+  } catch (error) {
+    console.error('Login error:', error);
+    showStatus('loginStatus', 'Verbindungsfehler zum Server', 'error');
+  } finally {
+    loginBtn.disabled = false;
+    loginBtnText.textContent = 'ANMELDEN';
+  }
 }
 
 // ================================================================
