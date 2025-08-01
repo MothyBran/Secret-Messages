@@ -503,49 +503,82 @@ app.post('/api/auth/validate', async (req, res) => {
 
 // Aktivitäts-Logging
 app.post('/api/activity/log', (req, res) => {
-    const { user, action } = req.body;
-    console.log(`[Aktivität] ${user || 'Unbekannt'} hat Aktion ausgeführt: ${action}`);
-    res.status(200).json({ message: 'Aktivität protokolliert.' });
+  const { user, action } = req.body;
+  console.log(`[Aktivität] ${user || 'Unbekannt'} hat Aktion ausgeführt: ${action}`);
+  res.status(200).json({ message: 'Aktivität protokolliert.' });
 });
 
-// Logout
+// Logout (Clientseitig handled – keine echte Session-Invalidierung notwendig)
 app.post('/api/auth/logout', async (req, res) => {
-    res.json({ success: true, message: 'Erfolgreich abgemeldet' });
+  res.json({ success: true, message: 'Erfolgreich abgemeldet' });
 });
 
-// Delete Account
+// Account löschen
 app.delete('/api/auth/delete-account', async (req, res) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-        return res.status(401).json({ 
-            success: false, 
-            error: 'Nicht autorisiert' 
-        });
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Nicht autorisiert'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const { userId } = decoded;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültiges Token'
+      });
     }
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const { keyId } = decoded;
-        
-        const deleteQuery = isPostgreSQL
-            ? 'DELETE FROM license_keys WHERE id = $1'
-            : 'DELETE FROM license_keys WHERE id = ?';
-            
-        await dbQuery(deleteQuery, [keyId]);
-        
-        res.json({
-            success: true,
-            message: 'Account erfolgreich gelöscht'
-        });
-        
-    } catch (error) {
-        console.error('Delete account error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Fehler beim Löschen des Accounts' 
-        });
+
+    // 1. Lizenz-ID abrufen (zur Reaktivierung oder Sperrung, falls gewünscht)
+    const userQuery = isPostgreSQL
+      ? 'SELECT license_key_id FROM users WHERE id = $1'
+      : 'SELECT license_key_id FROM users WHERE id = ?';
+
+    const result = await dbQuery(userQuery, [userId]);
+    const licenseKeyId = result.rows?.[0]?.license_key_id;
+
+    // 2. Benutzer löschen
+    const deleteUserQuery = isPostgreSQL
+      ? 'DELETE FROM users WHERE id = $1'
+      : 'DELETE FROM users WHERE id = ?';
+    await dbQuery(deleteUserQuery, [userId]);
+
+    // 3. Optionale Session-Löschung
+    const deleteSessionsQuery = isPostgreSQL
+      ? 'DELETE FROM user_sessions WHERE user_id = $1'
+      : 'DELETE FROM user_sessions WHERE user_id = ?';
+    await dbQuery(deleteSessionsQuery, [userId]);
+
+    // 4. Lizenz ggf. deaktivieren oder freigeben
+    if (licenseKeyId) {
+      const updateKeyQuery = isPostgreSQL
+        ? `UPDATE license_keys 
+           SET is_active = false, activated_at = NULL, expires_at = NULL, product_code = NULL
+           WHERE id = $1`
+        : `UPDATE license_keys 
+           SET is_active = 0, activated_at = NULL, expires_at = NULL, product_code = NULL
+           WHERE id = ?`;
+      await dbQuery(updateKeyQuery, [licenseKeyId]);
     }
+
+    res.json({
+      success: true,
+      message: 'Account erfolgreich gelöscht'
+    });
+
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Löschen des Accounts'
+    });
+  }
 });
 
 // Admin purchases
