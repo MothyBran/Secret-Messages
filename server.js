@@ -834,26 +834,6 @@ app.listen(PORT, () => {
 
 require('dotenv').config();
 
-const app = express();
-app.set('trust proxy', 1);
-app.use((req, res, next) => {
-    console.log("Client-IP:", req.ip);
-    next();
-});
-
-// Environment Variables
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const DATABASE_URL = process.env.DATABASE_URL;
-
-// Database Setup
-let db, isPostgreSQL = false;
-
-// Middleware
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
