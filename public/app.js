@@ -177,8 +177,8 @@ function createMatrixRain() {
   const COLUMN_GAP   = 14;   // px: Abstand zwischen Strängen (kleiner = dichter)
   const MIN_DUR_S    = 7;    // minimale Fallzeit (s)
   const MAX_DUR_S    = 20;   // maximale Fallzeit (s)
-  const MUTATION_MIN = 70;   // min. Mutationsintervall pro Strang (ms)
-  const MUTATION_MAX = 160;  // max. Mutationsintervall pro Strang (ms)
+  const MUTATION_MIN = 100;   // min. Mutationsintervall pro Strang (ms)
+  const MUTATION_MAX = 220;  // max. Mutationsintervall pro Strang (ms)
   const TRAIL_LEN    = 2;    // wie viele Zeichen hinter dem Head als „trail“ markieren
 
   // Zeichensatz: Griechisch + Kyrillisch + Latein A–Z (+ Ziffern)
