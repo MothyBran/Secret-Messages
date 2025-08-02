@@ -32,11 +32,16 @@
         }
         
 /* Matrix Rain Effekt – Hintergrund */
+        <div id="matrixBg" 
+        class="matrix-bg" 
+        aria-hidden="true">
+    </div>
+        
 .matrix-bg {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  z-index: -1;
+  z-index: 1;
   opacity: 0.12;               /* Gesamte Transparenz des Effekts */
   pointer-events: none;
 }
