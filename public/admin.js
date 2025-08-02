@@ -540,6 +540,81 @@ document.getElementById('keysTableContainer')?.addEventListener('click', async (
   }
 });
 
+// Event Delegation für Benutzeraktionen
+document.addEventListener('click', async (e) => {
+  const btn = e.target;
+
+  // Sperren
+  if (btn.classList.contains('btn-block-user')) {
+    const userId = btn.dataset.id;
+    if (!confirm('Benutzer wirklich sperren?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/block-user/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Benutzer gesperrt.');
+        loadUsers(); // neu laden
+      } else {
+        alert(data.error || 'Fehler beim Sperren');
+      }
+    } catch (err) {
+      alert('Verbindungsfehler beim Sperren');
+    }
+  }
+
+  // Entsperren
+  if (btn.classList.contains('btn-unblock-user')) {
+    const userId = btn.dataset.id;
+    if (!confirm('Benutzer wirklich entsperren?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/unblock-user/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Benutzer entsperrt.');
+        loadUsers(); // neu laden
+      } else {
+        alert(data.error || 'Fehler beim Entsperren');
+      }
+    } catch (err) {
+      alert('Verbindungsfehler beim Entsperren');
+    }
+  }
+
+  // Löschen
+  if (btn.classList.contains('btn-delete-user')) {
+    const userId = btn.dataset.id;
+    if (!confirm('Benutzer wirklich löschen?')) return;
+    if (!confirm('Letzte Warnung: Dieser Vorgang ist unwiderruflich.')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/delete-user/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Benutzer gelöscht.');
+        loadUsers(); // neu laden
+      } else {
+        alert(data.error || 'Fehler beim Löschen');
+      }
+    } catch (err) {
+      alert('Verbindungsfehler beim Löschen');
+    }
+  }
+});
+
 // ---- Safe initializer at end ----
 (function () {
   function attach() {
