@@ -301,26 +301,6 @@ function handleLogout() {
     document.getElementById('loginError').style.display = 'none';
 }
 
-
-function sperreBenutzer(username) {
-  if (users[username]) {
-    users[username].gesperrt = true;
-    localStorage.setItem("users", JSON.stringify(users));
-    alert(`Benutzer ${username} wurde gesperrt.`);
-    
-  }
-}
-
-function loescheBenutzer(username) {
-  if (confirm(`Benutzer ${username} wirklich löschen?`)) {
-    delete users[username];
-    localStorage.setItem("users", JSON.stringify(users));
-    alert(`Benutzer ${username} gelöscht.`);
-    
-  }
-}
-
-
   function sperreBenutzer(username) {
     if (users[username]) {
       users[username].gesperrt = true;
@@ -515,7 +495,6 @@ async function loadKeys() {
   }
 }
 
-
 // ---- Event delegation for key actions (CSP-safe) ----
 document.getElementById('keysTableContainer')?.addEventListener('click', async (ev) => {
   const btn = ev.target.closest('button');
@@ -553,7 +532,6 @@ document.getElementById('keysTableContainer')?.addEventListener('click', async (
     }
   }
 });
-
 
 // ---- Safe initializer at end ----
 (function () {
