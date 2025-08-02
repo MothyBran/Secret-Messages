@@ -878,49 +878,6 @@ app.post('/api/admin/license-keys', async (req, res) => {
   }
 });
 
-// ===== Admin: Key sperren/aktivieren/aktivieren mit Laufzeit =====
-app.post('/api/admin/keys/:id/disable', async (req, res) => {
-  try {
-    const { password } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
-      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-    }
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
-
-    const sql = isPostgreSQL
-      ? 'UPDATE license_keys SET is_active = false WHERE id = $1'
-      : 'UPDATE license_keys SET is_active = 0 WHERE id = ?';
-
-    await dbQuery(sql, [id]);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('/api/admin/keys/:id/disable error', e);
-    res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
-});
-
-app.post('/api/admin/keys/:id/enable', async (req, res) => {
-  try {
-    const { password } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
-      return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
-    }
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
-
-    const sql = isPostgreSQL
-      ? 'UPDATE license_keys SET is_active = true WHERE id = $1'
-      : 'UPDATE license_keys SET is_active = 1 WHERE id = ?';
-
-    await dbQuery(sql, [id]);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('/api/admin/keys/:id/enable error', e);
-    res.status(500).json({ success: false, error: 'Serverfehler' });
-  }
-});
-
 app.post('/api/admin/keys/:id/activate', async (req, res) => {
   try {
     const { password, product_code } = req.body || {};
