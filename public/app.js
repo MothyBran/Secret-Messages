@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[MatrixRain] DOM ready. matrixBg =', document.getElementById('matrixBg'));
     
     // Matrix Rain Effect
-    createMatrixRain();
+    startMatrixCanvas();
     
     // Event Listeners hinzufügen
     setupEventListeners();
@@ -162,151 +162,145 @@ function setupKeyboardShortcuts() {
 }
 
 // ================================================================
-// MATRIX RAIN EFFECT – dichte Strings, Glow, Live-Mutationen
+// MATRIX RAIN EFFECT (Canvas) – flüssig & mobil-optimiert
 // ================================================================
-let _matrixState = null;
+function startMatrixCanvas() {
+  const cvs = document.getElementById('matrixCanvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d', { alpha: true });
 
-destroyMatrixRain(); // aufräumen, falls schon aktiv
+  // Device Pixel Ratio sanft begrenzen (Akkuschonung auf Mobilgeräten)
+  const DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
-function createMatrixRain() {
-  const matrixBg = document.getElementById('matrixBg');
-  if (!matrixBg) return;
+  // Zeichensatz (Griechisch + Kyrillisch + Latein A–Z + Ziffern)
+  const GUP='ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ', GLO='αβγδεζηθικλμνξοπρστυφχψω';
+  const CUP='АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ', CLO='абвгдежзийклмнопрстуфхцчшщьыъэюя';
+  const LUP='ABCDEFGHIJKLMNOPQRSTUVWXYZ', DIG='0123456789';
+  const CH = (GUP+GLO+CUP+CLO+LUP+DIG).split('');
+  const pick = () => CH[(Math.random()*CH.length)|0];
 
-  // --- Konfiguration ---
-  const FONT_PX      = 16;   // ↔ CSS font-size/line-height
-  const COLUMN_GAP   = 18;   // px: Abstand zwischen Strängen (kleiner = dichter)
-  const MIN_DUR_S    = 7;    // minimale Fallzeit (s)
-  const MAX_DUR_S    = 20;   // maximale Fallzeit (s)
-  const MUTATION_MIN = 100;   // min. Mutationsintervall pro Strang (ms)
-  const MUTATION_MAX = 220;  // max. Mutationsintervall pro Strang (ms)
-  const TRAIL_LEN    = 2;    // wie viele Zeichen hinter dem Head als „trail“ markieren
+  // Parameter (mobil freundlich)
+  const FONT  = isMobile ? 14 : 16;         // px
+  const GAP   = isMobile ? 18 : 16;         // Spaltenabstand
+  const MAXC  = isMobile ? 42 : 110;        // Max. Spaltenanzahl
+  const VMIN  = 70;                         // min px/s
+  const VMAX  = 180;                        // max px/s
+  const MUT_MIN = isMobile ? 0.12 : 0.09;   // s – Mutationsintervall
+  const MUT_MAX = isMobile ? 0.28 : 0.22;   // s
+  const FLIMMER = isMobile ? 0.08 : 0.16;   // zusätzliche Mutationschance
 
-  // Zeichensatz: Griechisch + Kyrillisch + Latein A–Z (+ Ziffern)
-  const GREEK_UP   = 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ';
-  const GREEK_LOW  = 'αβγδεζηθικλμνξοπρστυφχψω';
-  const CYRIL_UP   = 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
-  const CYRIL_LOW  = 'абвгдежзийклмнопрстуфхцчшщьыъэюя';
-  const LATIN_UP   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const DIGITS     = '0123456789';
+  let cols = [];
+  let running = false;
+  let last = 0;
 
-  // Du kannst DIGITS entfernen, wenn du rein alphabetisch willst:
-  const CHARSET = (GREEK_UP + CYRIL_UP + LATIN_UP + DIGITS).split('');
-  const pickChar = () => CHARSET[(Math.random() * CHARSET.length) | 0];
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    cvs.width  = Math.floor(w * DPR);
+    cvs.height = Math.floor(h * DPR);
+    cvs.style.width  = w + 'px';
+    cvs.style.height = h + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-  const width  = window.innerWidth;
-  const height = window.innerHeight;
+    // Spalten neu initialisieren
+    const count = Math.min(MAXC, Math.max(1, Math.floor(w / GAP)));
+    const rows  = Math.ceil(h / FONT) + 2;
 
-  // Spaltenanzahl: gesamte Breite dicht füllen
-  const columnsTotal = Math.max(1, Math.floor(width / COLUMN_GAP));
+    cols = new Array(count).fill(0).map((_, i) => ({
+      x: i * GAP + (Math.random()*2 - 1),     // leichter jitter
+      y: Math.random() * h,
+      v: VMIN + Math.random()*(VMAX - VMIN),  // px/s
+      head: (Math.random()*rows)|0,
+      rows,
+      chars: new Array(rows).fill(0).map(pick),
+      mutT: 0,
+      mutInt: MUT_MIN + Math.random()*(MUT_MAX - MUT_MIN)
+    }));
+  }
 
-  // Zeichenzeilen pro Spalte (mit Puffer)
-  const rows = Math.ceil(height / FONT_PX) + 6;
+  function tick(t) {
+    if (!running) return;
+    if (!last) last = t;
+    const dt = Math.min(0.05, (t - last) / 1000); // clamp 50ms
+    last = t;
 
-  // State-Container
-  const states = [];
-  const leftCount  = Math.floor(columnsTotal / 2);
-  const rightCount = columnsTotal - leftCount;
+    const w = cvs.clientWidth;
+    const h = cvs.clientHeight;
 
-  // Hilfsfunktion: DOM-Strang erstellen + State registrieren
-  function buildColumn(side, offsetPx) {
-    const col = document.createElement('div');
-    col.className = `matrix-column ${side}`;
-    col.style.setProperty('--x', `${offsetPx}px`);
+    // Halbtransparenter Überzug -> weicher Trail ohne teure Schatten auf jedem Glyphen
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.18)'; // passt zum Body-Hintergrund
+    ctx.fillRect(0, 0, w, h);
 
-    // Individuelle Fallgeschwindigkeit + Startversatz für Desynchronisierung
-    const dur = (Math.random() * (MAX_DUR_S - MIN_DUR_S) + MIN_DUR_S);
-    col.style.animationDuration = `${dur}s`;
-    col.style.animationDelay    = `${Math.random() * 5}s`;
+    ctx.font = `${FONT}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
 
-    // Inhalt vertikal aufbauen
-    for (let i = 0; i < rows; i++) {
-      const span = document.createElement('span');
-      span.className = 'matrix-char';
-      span.textContent = pickChar();
-      col.appendChild(span);
+    for (const c of cols) {
+      // Position
+      c.y += c.v * dt;
+      if (c.y > h + FONT*2) {
+        c.y = -FONT*2;
+        c.v = VMIN + Math.random()*(VMAX - VMIN);
+      }
+
+      // Mutationstakt / Head-Advance
+      c.mutT += dt;
+      if (c.mutT >= c.mutInt) {
+        c.mutT = 0;
+        c.mutInt = MUT_MIN + Math.random()*(MUT_MAX - MUT_MIN);
+
+        c.head = (c.head + 1) % c.rows;
+        c.chars[c.head] = pick();
+
+        if (Math.random() < FLIMMER) {
+          c.chars[(Math.random()*c.rows)|0] = pick();
+        }
+      }
+
+      // Zeichnen – Head heller, rest in Grundfarbe
+      let y = c.y;
+      for (let i = 0; i < c.rows; i++) {
+        const ch = c.chars[(c.head + i) % c.rows];
+
+        if (i === 0) {
+          ctx.fillStyle = '#b6ffe6';                    // Head
+          ctx.shadowColor = 'rgba(0, 255, 190, 0.65)';
+          ctx.shadowBlur = 8;
+        } else {
+          ctx.fillStyle = '#00f0a8';                    // Body
+          ctx.shadowColor = 'rgba(0, 240, 168, 0.35)';
+          ctx.shadowBlur = 3;
+        }
+
+        ctx.fillText(ch, c.x, y);
+        y += FONT;
+      }
     }
 
-    matrixBg.appendChild(col);
-
-    // Head-Startposition und Mutations-Takt
-    const ptrStart = (Math.random() * rows) | 0;
-    const mutInt   = MUTATION_MIN + Math.random() * (MUTATION_MAX - MUTATION_MIN);
-
-    states.push({
-      col,
-      rows,
-      ptr: ptrStart,
-      lastPtr: ptrStart,
-      nextMutTs: performance.now() + mutInt,
-      mutInt,
-    });
+    // Shadow-Reste zurücksetzen
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(tick);
   }
 
-  for (let i = 0; i < columnsTotal; i++) {
-  buildColumn('left', i * COLUMN_GAP);  // Alle Spalten linksbündig
-  }
+  function start() { running = true; last = 0; requestAnimationFrame(tick); }
+  function stop()  { running = false; }
 
-    // Animations-/Mutationsloop (einziger RAF-Loop für alles)
-        function loop(ts) {
-              for (let s of states) {
-                if (ts >= s.nextMutTs) {
-                  // Head eins nach unten
-                    const prev = s.ptr;
-                    s.ptr = (s.ptr + 1) % s.rows;
-                    
-                    const prevNode = s.col.children[prev];
-                    const node     = s.col.children[s.ptr];
-                    
-                    // Head/Trail aktualisieren (ohne Timer, mit rAF-„Klick“)
-                    if (prevNode) {
-                      prevNode.classList.remove('head');
-                      prevNode.classList.add('trail');
-                      // Im nächsten Frame Trail wieder entfernen -> CSS transition fadet zurück
-                      requestAnimationFrame(() => {
-                        // prevNode könnte in seltenen Fällen schon recycelt sein:
-                        if (prevNode) prevNode.classList.remove('trail');
-                      });
-                    }
-                    
-                    if (node) {
-                      node.classList.add('head');
-                      node.textContent = pickChar(); // Zeichen am Head austauschen
-                    }
-            
-                  // Weniger „Flimmern“ -> weniger Reflows
-                  if (Math.random() < 0.2) {
-                    const r  = (Math.random() * s.rows) | 0;
-                    const rx = s.col.children[r];
-                    if (rx) rx.textContent = pickChar();
-                  }
-            
-                  // nächster Zeitpunkt
-                  s.nextMutTs += s.mutInt; // mutInt etwas größer wählen, s.u.
-                }
-              }
-            
-              if (_matrixState) {
-                _matrixState.raf = requestAnimationFrame(loop);
-              }
-            }
-                
-          _matrixState = { states, raf: requestAnimationFrame(loop) };
-        }
+  // Resize/Visibility
+  let rto;
+  window.addEventListener('resize', () => {
+    clearTimeout(rto);
+    rto = setTimeout(() => { resize(); }, 150);
+  });
 
-    // Aufräumen
-        function destroyMatrixRain() {
-          if (_matrixState?.raf) cancelAnimationFrame(_matrixState.raf);
-          _matrixState = null;
-          const matrixBg = document.getElementById('matrixBg');
-          if (matrixBg) matrixBg.innerHTML = '';
-        }
-        
-        // Resize-Handling (leicht entprellt)
-        let _matrixResizeTimer;
-        window.addEventListener('resize', () => {
-          clearTimeout(_matrixResizeTimer);
-          _matrixResizeTimer = setTimeout(createMatrixRain, 180);
-        });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else { start(); }
+  });
+
+  // init
+  resize();
+  start();
+}
 
 // ================================================================
 // SECTION NAVIGATION
