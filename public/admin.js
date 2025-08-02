@@ -383,8 +383,6 @@ async function loadPurchases() {
   }
 }
 
-
-
 // Determine key status
 function computeKeyStatus(k) {
   const isActive = !!k.is_active;
@@ -431,16 +429,10 @@ async function adminBlockKey(id) {
   await loadKeys();
 }
 
-
 window.adminActivateKey = adminActivateKey;
 window.adminBlockKey = adminBlockKey;
 
-
 document.getElementById('keysStatusFilter')?.addEventListener('change', () => loadKeys());
-
-
-
-
 
 // ---- Keys Loader ----
 async function loadKeys() {
