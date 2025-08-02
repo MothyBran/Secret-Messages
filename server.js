@@ -669,13 +669,13 @@ app.post('/api/admin/users', async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     const selectSql = isPostgreSQL
-      ? `SELECT u.id, u.username, u.registered_at, u.last_login,
+      ? `SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login,
                 k.key_code, k.is_active, k.activated_at, k.expires_at
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
          ORDER BY u.registered_at DESC
          LIMIT $1 OFFSET $2`
-      : `SELECT u.id, u.username, u.registered_at, u.last_login,
+      : `SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login,
                 k.key_code, k.is_active, k.activated_at, k.expires_at
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
@@ -684,30 +684,35 @@ app.post('/api/admin/users', async (req, res) => {
 
     const result = await db.query(selectSql, [limitNum, offset]);
     const rows = result.rows;
-
     const nowMs = Date.now();
 
     const users = rows.map(row => {
       let status = 'inactive';
-      if (row.expires_at && new Date(row.expires_at).getTime() <= nowMs) {
+
+      if (row.is_blocked) {
+        status = 'blocked';
+      } else if (row.expires_at && new Date(row.expires_at).getTime() <= nowMs) {
         status = 'expired';
       } else if (!row.is_active && row.activated_at) {
-        status = 'blocked';
+        status = 'inactive';
       } else if (row.is_active) {
         status = 'active';
       }
 
       return {
         id: row.id,
-        key_code: row.key_code || null,
+        name: row.username,
+        key_code: row.key_code || '-',
         registered_at: row.registered_at,
         last_login: row.last_login,
         activated_at: row.activated_at,
+        is_active: row.is_active || false,
+        is_blocked: row.is_blocked || false,
         status
       };
     });
 
-    res.json({ success: true, keys: users });
+    res.json({ success: true, users }); 
   } catch (err) {
     console.error('/api/admin/users error:', err);
     res.status(500).json({ success: false, error: 'Serverfehler beim Laden der Benutzer' });
