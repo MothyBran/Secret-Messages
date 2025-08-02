@@ -277,24 +277,27 @@ function createMatrixRain() {
 
         // Zeichen am Head austauschen
         if (node) node.textContent = pickChar();
-
+        
         // Zusätzlich: zufällige einzelne Mutationen für Flimmern
         if (Math.random() < 0.35) {
-          const r = (Math.random() * s.rows) | 0;
+          const r  = (Math.random() * s.rows) | 0;
           const rx = s.col.children[r];
           if (rx) rx.textContent = pickChar();
         }
-
+        
         s.nextMutTs += s.mutInt;
-      }
-    }
-
-    _matrixState?.raf = requestAnimationFrame(loop);
-  }
-
-  _matrixState = { states, raf: requestAnimationFrame(loop) };
-}
-
+              }
+            }
+        
+            // ❌ _matrixState?.raf = requestAnimationFrame(loop);
+            // ✅ optional chaining darf nicht links einer Zuweisung stehen
+            if (_matrixState) {
+              _matrixState.raf = requestAnimationFrame(loop);
+            }
+          }
+        
+          _matrixState = { states, raf: requestAnimationFrame(loop) };
+        }
 // Aufräumen
 function destroyMatrixRain() {
   if (_matrixState?.raf) cancelAnimationFrame(_matrixState.raf);
