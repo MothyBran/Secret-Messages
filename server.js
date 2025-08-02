@@ -719,6 +719,82 @@ app.post('/api/admin/users', async (req, res) => {
   }
 });
 
+app.post('/api/admin/block-user/:id', async (req, res) => {
+  const { password } = req.body;
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+  const sql = isPostgreSQL
+    ? 'UPDATE users SET is_blocked = true WHERE id = $1'
+    : 'UPDATE users SET is_blocked = 1 WHERE id = ?';
+
+  try {
+    await dbQuery(sql, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('/api/admin/block-user error:', err);
+    res.status(500).json({ success: false, error: 'Fehler beim Sperren' });
+  }
+});
+
+app.post('/api/admin/unblock-user/:id', async (req, res) => {
+  const { password } = req.body;
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+  const sql = isPostgreSQL
+    ? 'UPDATE users SET is_blocked = false WHERE id = $1'
+    : 'UPDATE users SET is_blocked = 0 WHERE id = ?';
+
+  try {
+    await dbQuery(sql, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('/api/admin/unblock-user error:', err);
+    res.status(500).json({ success: false, error: 'Fehler beim Entsperren' });
+  }
+});
+
+app.delete('/api/admin/delete-user/:id', async (req, res) => {
+  const { password } = req.body;
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ success: false, error: 'Ungültiges Admin-Passwort' });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ success: false, error: 'Ungültige ID' });
+
+  try {
+    // Erst Lizenz-Key freigeben
+    const sql1 = isPostgreSQL
+      ? 'UPDATE license_keys SET is_active = false, activated_at = NULL, expires_at = NULL, product_code = NULL WHERE id = (SELECT license_key_id FROM users WHERE id = $1)'
+      : 'UPDATE license_keys SET is_active = 0, activated_at = NULL, expires_at = NULL, product_code = NULL WHERE id = (SELECT license_key_id FROM users WHERE id = ?)';
+
+    await dbQuery(sql1, [id]);
+
+    // Dann Benutzer löschen
+    const sql2 = isPostgreSQL
+      ? 'DELETE FROM users WHERE id = $1'
+      : 'DELETE FROM users WHERE id = ?';
+
+    await dbQuery(sql2, [id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('/api/admin/delete-user error:', err);
+    res.status(500).json({ success: false, error: 'Fehler beim Löschen' });
+  }
+});
+
+
 // Admin: Lizenz-Keys abrufen
 app.post('/api/admin/license-keys', async (req, res) => {
   const { password, page = 1, limit = 50, status } = req.body || {};
