@@ -166,11 +166,11 @@ function setupKeyboardShortcuts() {
 // ================================================================
 let _matrixState = null;
 
+destroyMatrixRain(); // aufräumen, falls schon aktiv
+
 function createMatrixRain() {
   const matrixBg = document.getElementById('matrixBg');
   if (!matrixBg) return;
-
-  destroyMatrixRain(); // aufräumen, falls schon aktiv
 
   // --- Konfiguration ---
   const FONT_PX      = 16;   // ↔ CSS font-size/line-height
