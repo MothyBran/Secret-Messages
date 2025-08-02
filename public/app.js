@@ -161,61 +161,160 @@ function setupKeyboardShortcuts() {
 }
 
 // ================================================================
-// MATRIX RAIN EFFECT
+// MATRIX RAIN EFFECT – dichte Strings, Glow, Live-Mutationen
 // ================================================================
+let _matrixState = null;
 
 function createMatrixRain() {
   const matrixBg = document.getElementById('matrixBg');
   if (!matrixBg) return;
 
-  // Vorhandene Spalten entfernen (z. B. nach Resize)
-  matrixBg.innerHTML = '';
+  destroyMatrixRain(); // aufräumen, falls schon aktiv
 
-  const COLUMN_WIDTH = 20;        // px – deine bisherige Spaltenbreite
-  const SIDE_RATIO   = 0.14;      // 14% der Bildschirmbreite je Seite als "Rand-Zone"
-  const columnsPerSide = Math.max(
-    1,
-    Math.floor((window.innerWidth * SIDE_RATIO) / COLUMN_WIDTH)
-  );
+  // --- Konfiguration ---
+  const FONT_PX      = 16;   // ↔ CSS font-size/line-height
+  const COLUMN_GAP   = 14;   // px: Abstand zwischen Strängen (kleiner = dichter)
+  const MIN_DUR_S    = 7;    // minimale Fallzeit (s)
+  const MAX_DUR_S    = 20;   // maximale Fallzeit (s)
+  const MUTATION_MIN = 70;   // min. Mutationsintervall pro Strang (ms)
+  const MUTATION_MAX = 160;  // max. Mutationsintervall pro Strang (ms)
+  const TRAIL_LEN    = 2;    // wie viele Zeichen hinter dem Head als „trail“ markieren
 
-  // Hilfsfunktion: eine Spalte bauen
-  const makeColumn = (side, offsetPx) => {
-    const column = document.createElement('div');
-    column.className = `matrix-column ${side}`;
-    column.style.setProperty('--x', `${offsetPx}px`);
-    column.style.animationDuration = (Math.random() * 15 + 10) + 's'; // 10–25s
-    column.style.animationDelay = (Math.random() * 5) + 's';          // 0–5s
+  // Zeichensatz: Griechisch + Kyrillisch + Latein A–Z (+ Ziffern)
+  const GREEK_UP   = 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ';
+  const GREEK_LOW  = 'αβγδεζηθικλμνξοπρστυφχψω';
+  const CYRIL_UP   = 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+  const CYRIL_LOW  = 'абвгдежзийклмнопрстуфхцчшщьыъэюя';
+  const LATIN_UP   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const DIGITS     = '0123456789';
 
-    // Binärtext erzeugen – Länge grob an die Höhe anpassen
-    const lines = Math.ceil(window.innerHeight / 20) + 20; // +Puffer
-    let text = '';
-    for (let j = 0; j < lines; j++) {
-      text += Math.random() > 0.5 ? '0' : '1';
+  // Du kannst DIGITS entfernen, wenn du rein alphabetisch willst:
+  const CHARSET = (GREEK_UP + GREEK_LOW + CYRIL_UP + CYRIL_LOW + LATIN_UP + DIGITS).split('');
+  const pickChar = () => CHARSET[(Math.random() * CHARSET.length) | 0];
+
+  const width  = window.innerWidth;
+  const height = window.innerHeight;
+
+  // Spaltenanzahl: gesamte Breite dicht füllen
+  const columnsTotal = Math.max(1, Math.floor(width / COLUMN_GAP));
+
+  // Zeichenzeilen pro Spalte (mit Puffer)
+  const rows = Math.ceil(height / FONT_PX) + 12;
+
+  // State-Container
+  const states = [];
+  const leftCount  = Math.floor(columnsTotal / 2);
+  const rightCount = columnsTotal - leftCount;
+
+  // Hilfsfunktion: DOM-Strang erstellen + State registrieren
+  function buildColumn(side, offsetPx) {
+    const col = document.createElement('div');
+    col.className = `matrix-column ${side}`;
+    col.style.setProperty('--x', `${offsetPx}px`);
+
+    // Individuelle Fallgeschwindigkeit + Startversatz für Desynchronisierung
+    const dur = (Math.random() * (MAX_DUR_S - MIN_DUR_S) + MIN_DUR_S);
+    col.style.animationDuration = `${dur}s`;
+    col.style.animationDelay    = `${Math.random() * 5}s`;
+
+    // Inhalt vertikal aufbauen
+    for (let i = 0; i < rows; i++) {
+      const span = document.createElement('span');
+      span.className = 'matrix-char';
+      span.textContent = pickChar();
+      col.appendChild(span);
     }
-    column.textContent = text;
 
-    matrixBg.appendChild(column);
-  };
+    matrixBg.appendChild(col);
 
-  // LINKE Seite
-  for (let i = 0; i < columnsPerSide; i++) {
-    makeColumn('left', i * COLUMN_WIDTH);
+    // Head-Startposition und Mutations-Takt
+    const ptrStart = (Math.random() * rows) | 0;
+    const mutInt   = MUTATION_MIN + Math.random() * (MUTATION_MAX - MUTATION_MIN);
+
+    states.push({
+      col,
+      rows,
+      ptr: ptrStart,
+      lastPtr: ptrStart,
+      nextMutTs: performance.now() + mutInt,
+      mutInt,
+    });
   }
 
-  // RECHTE Seite
-  for (let i = 0; i < columnsPerSide; i++) {
-    makeColumn('right', i * COLUMN_WIDTH);
+  // Linke Hälfte
+  for (let i = 0; i < leftCount; i++) {
+    buildColumn('left', i * COLUMN_GAP);
   }
+  // Rechte Hälfte (vom rechten Rand aus gemessen)
+  for (let i = 0; i < rightCount; i++) {
+    buildColumn('right', i * COLUMN_GAP);
+  }
+
+  // Animations-/Mutationsloop (einziger RAF-Loop für alles)
+  let running = true;
+  function loop(ts) {
+    if (!running) return;
+
+    for (let s of states) {
+      if (ts >= s.nextMutTs) {
+        // Head eins nach unten
+        const prev = s.ptr;
+        s.ptr = (s.ptr + 1) % s.rows;
+
+        const prevNode = s.col.children[prev];
+        const node     = s.col.children[s.ptr];
+
+        // Head-Markierung aktualisieren
+        if (prevNode) prevNode.classList.remove('head');
+        if (node)     node.classList.add('head');
+
+        // Optional: kurzer Trail
+        for (let k = 1; k <= TRAIL_LEN; k++) {
+          const idx = (s.ptr - k + s.rows) % s.rows;
+          const tnode = s.col.children[idx];
+          if (tnode) {
+            tnode.classList.add('trail');
+            // Trail nach kurzer Zeit ausblenden
+            setTimeout(() => tnode.classList.remove('trail'), 250);
+          }
+        }
+
+        // Zeichen am Head austauschen
+        if (node) node.textContent = pickChar();
+
+        // Zusätzlich: zufällige einzelne Mutationen für Flimmern
+        if (Math.random() < 0.35) {
+          const r = (Math.random() * s.rows) | 0;
+          const rx = s.col.children[r];
+          if (rx) rx.textContent = pickChar();
+        }
+
+        s.nextMutTs += s.mutInt;
+      }
+    }
+
+    _matrixState?.raf = requestAnimationFrame(loop);
+  }
+
+  _matrixState = { states, raf: requestAnimationFrame(loop) };
 }
 
-// Optional: bei Resize neu aufbauen (mit leichter Entprellung)
+// Aufräumen
+function destroyMatrixRain() {
+  if (_matrixState?.raf) cancelAnimationFrame(_matrixState.raf);
+  _matrixState = null;
+  const matrixBg = document.getElementById('matrixBg');
+  if (matrixBg) matrixBg.innerHTML = '';
+}
+
+// Resize-Handling (leicht entprellt)
 let _matrixResizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(_matrixResizeTimer);
-  _matrixResizeTimer = setTimeout(createMatrixRain, 200);
+  _matrixResizeTimer = setTimeout(createMatrixRain, 180);
 });
 
-// Einmal beim Laden starten
+// Start beim Laden
 createMatrixRain();
 
 // ================================================================
