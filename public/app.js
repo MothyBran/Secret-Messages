@@ -251,24 +251,27 @@ function createMatrixRain() {
               for (let s of states) {
                 if (ts >= s.nextMutTs) {
                   // Head eins nach unten
-                  const prev = s.ptr;
-                  s.ptr = (s.ptr + 1) % s.rows;
-            
-                  const prevNode = s.col.children[prev];
-                  const node     = s.col.children[s.ptr];
-            
-                  // Head-Markierung aktualisieren (nur 2 DOM-Änderungen)
-                 if (prevNode) {
+                    const prev = s.ptr;
+                    s.ptr = (s.ptr + 1) % s.rows;
+                    
+                    const prevNode = s.col.children[prev];
+                    const node     = s.col.children[s.ptr];
+                    
+                    // Head/Trail aktualisieren (ohne Timer, mit rAF-„Klick“)
+                    if (prevNode) {
                       prevNode.classList.remove('head');
                       prevNode.classList.add('trail');
+                      // Im nächsten Frame Trail wieder entfernen -> CSS transition fadet zurück
+                      requestAnimationFrame(() => {
+                        // prevNode könnte in seltenen Fällen schon recycelt sein:
+                        if (prevNode) prevNode.classList.remove('trail');
+                      });
                     }
+                    
                     if (node) {
                       node.classList.add('head');
-                      node.classList.remove('trail');
+                      node.textContent = pickChar(); // Zeichen am Head austauschen
                     }
-            
-                  // Zeichen am Head austauschen
-                  if (node) node.textContent = pickChar();
             
                   // Weniger „Flimmern“ -> weniger Reflows
                   if (Math.random() < 0.2) {
