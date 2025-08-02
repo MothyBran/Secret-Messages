@@ -190,7 +190,7 @@ function createMatrixRain() {
   const DIGITS     = '0123456789';
 
   // Du kannst DIGITS entfernen, wenn du rein alphabetisch willst:
-  const CHARSET = (GREEK_UP + GREEK_LOW + CYRIL_UP + CYRIL_LOW + LATIN_UP + DIGITS).split('');
+  const CHARSET = (GREEK_UP + CYRIL_UP + LATIN_UP + DIGITS).split('');
   const pickChar = () => CHARSET[(Math.random() * CHARSET.length) | 0];
 
   const width  = window.innerWidth;
@@ -246,72 +246,58 @@ function createMatrixRain() {
   buildColumn('left', i * COLUMN_GAP);  // Alle Spalten linksbündig
   }
 
-  // Animations-/Mutationsloop (einziger RAF-Loop für alles)
-  let running = true;
-  function loop(ts) {
-    if (!running) return;
-
-    for (let s of states) {
-      if (ts >= s.nextMutTs) {
-        // Head eins nach unten
-        const prev = s.ptr;
-        s.ptr = (s.ptr + 1) % s.rows;
-
-        const prevNode = s.col.children[prev];
-        const node     = s.col.children[s.ptr];
-
-        // Head-Markierung aktualisieren
-        if (prevNode) prevNode.classList.remove('head');
-        if (node)     node.classList.add('head');
-
-        // Optional: kurzer Trail
-        for (let k = 1; k <= TRAIL_LEN; k++) {
-          const idx = (s.ptr - k + s.rows) % s.rows;
-          const tnode = s.col.children[idx];
-          if (tnode) {
-            tnode.classList.add('trail');
-            // Trail nach kurzer Zeit ausblenden
-            setTimeout(() => tnode.classList.remove('trail'), 250);
-          }
-        }
-
-        // Zeichen am Head austauschen
-        if (node) node.textContent = pickChar();
-        
-        // Zusätzlich: zufällige einzelne Mutationen für Flimmern
-        if (Math.random() < 0.35) {
-          const r  = (Math.random() * s.rows) | 0;
-          const rx = s.col.children[r];
-          if (rx) rx.textContent = pickChar();
-        }
-        
-        s.nextMutTs += s.mutInt;
+    // Animations-/Mutationsloop (einziger RAF-Loop für alles)
+        function loop(ts) {
+              for (let s of states) {
+                if (ts >= s.nextMutTs) {
+                  // Head eins nach unten
+                  const prev = s.ptr;
+                  s.ptr = (s.ptr + 1) % s.rows;
+            
+                  const prevNode = s.col.children[prev];
+                  const node     = s.col.children[s.ptr];
+            
+                  // Head-Markierung aktualisieren (nur 2 DOM-Änderungen)
+                  if (prevNode) prevNode.classList.remove('head');
+                  if (node)     node.classList.add('head');
+            
+                  // Zeichen am Head austauschen
+                  if (node) node.textContent = pickChar();
+            
+                  // Weniger „Flimmern“ -> weniger Reflows
+                  if (Math.random() < 0.2) {
+                    const r  = (Math.random() * s.rows) | 0;
+                    const rx = s.col.children[r];
+                    if (rx) rx.textContent = pickChar();
+                  }
+            
+                  // nächster Zeitpunkt
+                  s.nextMutTs += s.mutInt; // mutInt etwas größer wählen, s.u.
+                }
+              }
+            
+              if (_matrixState) {
+                _matrixState.raf = requestAnimationFrame(loop);
               }
             }
-        
-            // ❌ _matrixState?.raf = requestAnimationFrame(loop);
-            // ✅ optional chaining darf nicht links einer Zuweisung stehen
-            if (_matrixState) {
-              _matrixState.raf = requestAnimationFrame(loop);
-            }
-          }
-        
+                
           _matrixState = { states, raf: requestAnimationFrame(loop) };
         }
-// Aufräumen
-function destroyMatrixRain() {
-  if (_matrixState?.raf) cancelAnimationFrame(_matrixState.raf);
-  _matrixState = null;
-  const matrixBg = document.getElementById('matrixBg');
-  if (matrixBg) matrixBg.innerHTML = '';
-}
 
-// Resize-Handling (leicht entprellt)
-let _matrixResizeTimer;
-window.addEventListener('resize', () => {
-  clearTimeout(_matrixResizeTimer);
-  _matrixResizeTimer = setTimeout(createMatrixRain, 180);
-});
+    // Aufräumen
+        function destroyMatrixRain() {
+          if (_matrixState?.raf) cancelAnimationFrame(_matrixState.raf);
+          _matrixState = null;
+          const matrixBg = document.getElementById('matrixBg');
+          if (matrixBg) matrixBg.innerHTML = '';
+        }
+        
+        // Resize-Handling (leicht entprellt)
+        let _matrixResizeTimer;
+        window.addEventListener('resize', () => {
+          clearTimeout(_matrixResizeTimer);
+          _matrixResizeTimer = setTimeout(createMatrixRain, 180);
+        });
 
 // ================================================================
 // SECTION NAVIGATION
