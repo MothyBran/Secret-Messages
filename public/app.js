@@ -165,28 +165,58 @@ function setupKeyboardShortcuts() {
 // ================================================================
 
 function createMatrixRain() {
-    const matrixBg = document.getElementById('matrixBg');
-    if (!matrixBg) return;
-    
-    const columns = Math.floor(window.innerWidth / 20);
-    
-    for (let i = 0; i < columns; i++) {
-        const column = document.createElement('div');
-        column.className = 'matrix-column';
-        column.style.left = i * 20 + 'px';
-        column.style.animationDuration = Math.random() * 15 + 10 + 's';
-        column.style.animationDelay = Math.random() * 5 + 's';
-        
-        // Random binary characters
-        let text = '';
-        for (let j = 0; j < 100; j++) {
-            text += Math.random() > 0.5 ? '0' : '1';
-        }
-        column.textContent = text;
-        
-        matrixBg.appendChild(column);
+  const matrixBg = document.getElementById('matrixBg');
+  if (!matrixBg) return;
+
+  // Vorhandene Spalten entfernen (z. B. nach Resize)
+  matrixBg.innerHTML = '';
+
+  const COLUMN_WIDTH = 20;        // px – deine bisherige Spaltenbreite
+  const SIDE_RATIO   = 0.14;      // 14% der Bildschirmbreite je Seite als "Rand-Zone"
+  const columnsPerSide = Math.max(
+    1,
+    Math.floor((window.innerWidth * SIDE_RATIO) / COLUMN_WIDTH)
+  );
+
+  // Hilfsfunktion: eine Spalte bauen
+  const makeColumn = (side, offsetPx) => {
+    const column = document.createElement('div');
+    column.className = `matrix-column ${side}`;
+    column.style.setProperty('--x', `${offsetPx}px`);
+    column.style.animationDuration = (Math.random() * 15 + 10) + 's'; // 10–25s
+    column.style.animationDelay = (Math.random() * 5) + 's';          // 0–5s
+
+    // Binärtext erzeugen – Länge grob an die Höhe anpassen
+    const lines = Math.ceil(window.innerHeight / 20) + 20; // +Puffer
+    let text = '';
+    for (let j = 0; j < lines; j++) {
+      text += Math.random() > 0.5 ? '0' : '1';
     }
+    column.textContent = text;
+
+    matrixBg.appendChild(column);
+  };
+
+  // LINKE Seite
+  for (let i = 0; i < columnsPerSide; i++) {
+    makeColumn('left', i * COLUMN_WIDTH);
+  }
+
+  // RECHTE Seite
+  for (let i = 0; i < columnsPerSide; i++) {
+    makeColumn('right', i * COLUMN_WIDTH);
+  }
 }
+
+// Optional: bei Resize neu aufbauen (mit leichter Entprellung)
+let _matrixResizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(_matrixResizeTimer);
+  _matrixResizeTimer = setTimeout(createMatrixRain, 200);
+});
+
+// Einmal beim Laden starten
+createMatrixRain();
 
 // ================================================================
 // SECTION NAVIGATION
