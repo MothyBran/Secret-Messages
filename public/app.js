@@ -177,18 +177,18 @@ function startMatrixCanvas() {
   const GUP='ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ', GLO='αβγδεζηθικλμνξοπρστυφχψω';
   const CUP='АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ', CLO='абвгдежзийклмнопрстуфхцчшщьыъэюя';
   const LUP='ABCDEFGHIJKLMNOPQRSTUVWXYZ', DIG='0123456789';
-  const CH = (GUP+GLO+CUP+CLO+LUP+DIG).split('');
+  const CH = (GUP+CUP+LUP+DIG).split('');
   const pick = () => CH[(Math.random()*CH.length)|0];
 
   // Parameter (mobil freundlich)
-  const FONT  = isMobile ? 14 : 16;         // px
+  const FONT  = isMobile ? 18 : 22;         // px
   const GAP   = isMobile ? 18 : 16;         // Spaltenabstand
-  const MAXC  = isMobile ? 42 : 110;        // Max. Spaltenanzahl
-  const VMIN  = 70;                         // min px/s
-  const VMAX  = 180;                        // max px/s
-  const MUT_MIN = isMobile ? 0.12 : 0.09;   // s – Mutationsintervall
-  const MUT_MAX = isMobile ? 0.28 : 0.22;   // s
-  const FLIMMER = isMobile ? 0.08 : 0.16;   // zusätzliche Mutationschance
+  const MAXC  = isMobile ? 40 : 90;        // Max. Spaltenanzahl
+  const VMIN  = 50;                         // min px/s
+  const VMAX  = 130;                        // max px/s
+  const MUT_MIN = isMobile ? 0.14 : 0.12;   // s – Mutationsintervall
+  const MUT_MAX = isMobile ? 0.32 : 0.26;   // s
+  const FLIMMER = isMobile ? 0.07 : 0.14;   // zusätzliche Mutationschance
 
   let cols = [];
   let running = false;
@@ -229,7 +229,7 @@ function startMatrixCanvas() {
     const h = cvs.clientHeight;
 
     // Halbtransparenter Überzug -> weicher Trail ohne teure Schatten auf jedem Glyphen
-    ctx.fillStyle = 'rgba(10, 10, 10, 0.18)'; // passt zum Body-Hintergrund
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.14)'; // passt zum Body-Hintergrund
     ctx.fillRect(0, 0, w, h);
 
     ctx.font = `${FONT}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
