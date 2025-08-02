@@ -503,28 +503,18 @@ async function loadKeys() {
 }
 
 // ---- Event delegation for key actions (CSP-safe) ----
+// Nur Laufzeit (Produktcode) ändern
 document.getElementById('keysTableContainer')?.addEventListener('click', async (ev) => {
   const btn = ev.target.closest('button');
   if (!btn) return;
-  const id = btn.getAttribute('data-id');
+
+  const id = btn.dataset.id;
   if (!id) return;
 
-  if (btn.classList.contains('action-disable')) {
-    try {
-      const resp = await fetch(`${API_BASE}/admin/keys/${id}/disable`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPassword })
-      });
-      const data = await resp.json();
-      if (!data.success) return alert(data.error || 'Sperren fehlgeschlagen');
-      await loadKeys();
-    } catch {
-      alert('Serverfehler beim Sperren.');
-    }
-  } else if (btn.classList.contains('action-activate')) {
+  if (btn.classList.contains('action-activate')) {
     const code = prompt("Laufzeit wählen: 1m, 3m, 6m, 12m, unl", "1m");
     if (!code) return;
+
     try {
       const resp = await fetch(`${API_BASE}/admin/keys/${id}/activate`, {
         method: 'POST',
