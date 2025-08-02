@@ -37,7 +37,7 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
-  z-index: 10;
+  z-index: 1;
   opacity: 0.4;               /* Gesamte Transparenz des Effekts */
   pointer-events: none;
 }
@@ -45,7 +45,7 @@
 /* Ein Strang (Spalte) */
 .matrix-column {
   position: absolute;
-  top: -100%;
+  top: 0;
   display: flex;
   flex-direction: column;      /* Zeichen untereinander */
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -56,7 +56,7 @@
   animation-name: matrix-fall;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-  will-change: top;
+  will-change: transform;
   color: #00f0a8;              /* Matrix‑Grün */
   text-align: center;          /* Standard; links/rechts s. Klassen unten */
   /* sanft pulsierendes Leuchten der ganzen Spalte */
@@ -101,7 +101,8 @@
 
 /* Fallanimation (Rain) */
 @keyframes matrix-fall {
-  to { top: 100%; }
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(100%); }
 }
 
 /* Spalten‑Puls (sehr subtil, überlagert die Zeichen) */
