@@ -233,12 +233,19 @@ async function loadUsers() {
         users.forEach(user => {
           const row = tableBody.insertRow();
           row.innerHTML = `
-            <td>${user.id}</td>
-            <td><span class="key-code">${user.key_code || '-'}</span></td>
-            <td>${user.username || '-'}</td>
-            <td>${user.status === 'active' ? '✅ Aktiv' : (user.status === 'blocked' ? '⛔ Gesperrt' : '⏳ Inaktiv')}</td>
-            <td>${user.registered_at ? new Date(user.registered_at).toLocaleString('de-DE') : (user.activated_at ? new Date(user.activated_at).toLocaleString('de-DE') : '-')}</td>
-            <td>${user.last_login ? new Date(user.last_login).toLocaleString('de-DE') : '-'}</td>
+            <td><span class="key-code">${k.key_code}</span></td>
+            <td>${k.product_code || '-'}</td>
+            <td>${k.status === 'active' ? '✅ Aktiv' :
+                  k.status === 'inactive' ? '⏳ Inaktiv' :
+                  k.status === 'expired' ? '❌ Abgelaufen' :
+                  k.status === 'blocked' ? '⛔ Gesperrt' : '-'}</td>
+            <td>${k.created_at ? formatDateDE(k.created_at) : '—'}</td>
+            <td>${k.expires_at ? formatDateDE(k.expires_at) : '—'}</td>
+            <td>${k.remaining_days || '—'}</td>
+            <td>${k.status === 'active'
+                ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
+                : `<button class="btn btn-small action-activate" data-id="${k.id}">Aktivieren…</button>`
+            }</td>
           `;
         });
       } else {
