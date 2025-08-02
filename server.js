@@ -699,7 +699,6 @@ app.post('/api/admin/users', async (req, res) => {
 
       return {
         id: row.id,
-        username: row.username,
         key_code: row.key_code || null,
         registered_at: row.registered_at,
         last_login: row.last_login,
