@@ -13,6 +13,7 @@ let authToken = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Secret Messages App initialisiert');
+    console.log('[MatrixRain] DOM ready. matrixBg =', document.getElementById('matrixBg'));
     
     // Matrix Rain Effect
     createMatrixRain();
@@ -241,13 +242,8 @@ function createMatrixRain() {
     });
   }
 
-  // Linke Hälfte
-  for (let i = 0; i < leftCount; i++) {
-    buildColumn('left', i * COLUMN_GAP);
-  }
-  // Rechte Hälfte (vom rechten Rand aus gemessen)
-  for (let i = 0; i < rightCount; i++) {
-    buildColumn('right', i * COLUMN_GAP);
+  for (let i = 0; i < columnsTotal; i++) {
+  buildColumn('left', i * COLUMN_GAP);  // Alle Spalten linksbündig
   }
 
   // Animations-/Mutationsloop (einziger RAF-Loop für alles)
