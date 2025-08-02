@@ -754,3 +754,25 @@ document.getElementById("clearFieldsBtn")?.addEventListener("click", () => {
     document.getElementById("messageInput").value = "";
     document.getElementById("messageOutput").value = "";
 });
+
+(function init() {
+  function start() {
+    const bg = document.getElementById('matrixBg');
+    console.log('[MatrixRain] DOM ready. matrixBg =', bg);
+    if (!bg) { console.warn('[MatrixRain] #matrixBg fehlt'); return; }
+
+    try {
+      createMatrixRain();
+      const count = document.querySelectorAll('.matrix-column').length;
+      console.log('[MatrixRain] columns:', count);
+    } catch (e) {
+      console.error('[MatrixRain] start() error:', e);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
