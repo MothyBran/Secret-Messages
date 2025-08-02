@@ -206,11 +206,14 @@ function startMatrixCanvas() {
     // Spalten neu initialisieren
     const count = Math.min(MAXC, Math.max(1, Math.floor(w / GAP)));
     const rows  = Math.ceil(h / FONT) + 2;
-
+    const totalHeight = rows * FONT;
+    
     cols = new Array(count).fill(0).map((_, i) => ({
-      x: i * GAP + (Math.random()*2 - 1),     // leichter jitter
-      y: Math.random() * h,
-      v: VMIN + Math.random()*(VMAX - VMIN),  // px/s
+      x: i * GAP + (Math.random()*2 - 1),              // leichter jitter
+      // Start Y: immer oberhalb des sichtbaren Bereichs
+      // zufällig zwischen -totalHeight und -FONT:
+      y: - (Math.random() * (totalHeight - FONT) + FONT),
+      v: VMIN + Math.random()*(VMAX - VMIN),           // px/s
       head: (Math.random()*rows)|0,
       rows,
       chars: new Array(rows).fill(0).map(pick),
@@ -238,11 +241,12 @@ function startMatrixCanvas() {
 
     for (const c of cols) {
       // Position
-      c.y += c.v * dt;
-      if (c.y > h + FONT*2) {
-        c.y = -FONT*2;
-        c.v = VMIN + Math.random()*(VMAX - VMIN);
-      }
+        c.y += c.v * dt;
+        if (c.y > h) {
+          const totalHeight = c.rows * FONT;
+          c.y = -totalHeight - Math.random() * (0.3 * h); // etwas Streuung
+          c.v = VMIN + Math.random()*(VMAX - VMIN);
+        }
 
       // Mutationstakt / Head-Advance
       c.mutT += dt;
