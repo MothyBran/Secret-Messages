@@ -454,33 +454,30 @@
 
             <!-- User List -->
             <div class="section">
-                <h3 class="section-title">👥 Benutzer-Verwaltung</h3>
-                
-                <button class="btn" id="loadUsersBtn">
-                    <span id="loadUsersBtnText">BENUTZER LADEN</span>
-                </button>
-                
-                <div id="userTableContainer" style="margin-top: 20px; display: none;">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Key</th>
-                                <th>Produkt</th>
-                                <th>Status</th>
-                                <th>Erstellt</th>
-                                <th>Läuft ab</th>
-                                <th>Verbleibend</th>
-                                <th>Aktion</th>
-                            </tr>
-                        </thead>
-                        <tbody id="userTableBody">
-    <!-- Benutzerzeilen werden durch admin.js gerendert -->
-
-                            <!-- Dynamically populated -->
-                        </tbody>
-                    </table>
-                </div>
+              <h3 class="section-title">👥 Benutzer-Verwaltung</h3>
+              
+              <button class="btn" id="loadUsersBtn">
+                <span id="loadUsersBtnText">BENUTZER LADEN</span>
+              </button>
+              
+              <div id="userTableContainer" style="margin-top: 20px; display: none;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Benutzername</th>
+                      <th>Lizenz-Key</th>
+                      <th>Status</th>
+                      <th>Registriert</th>
+                      <th>Letzter Login</th>
+                      <th>Aktion</th>
+                    </tr>
+                  </thead>
+                  <tbody id="userTableBody"></tbody>
+                </table>
+              </div>
             </div>
+
 
             <!-- Purchase Management -->
             <div class="section">
