@@ -224,7 +224,7 @@ async function loadUsers() {
       body: JSON.stringify({ 
         password: adminPassword,
         page: 1,
-        limit: 50
+        limit: 100
       })
     });
 
@@ -233,30 +233,35 @@ async function loadUsers() {
     if (data.success) {
       tableBody.innerHTML = '';
 
-      const users = data.keys || []; // keys = Ergebnis der JOIN-Abfrage im Backend
+      const users = data.users || [];
 
       if (users.length > 0) {
         users.forEach(user => {
           const row = tableBody.insertRow();
+
+          let statusText = '⏳ Inaktiv';
+          if (user.status === 'active') statusText = '✅ Aktiv';
+          else if (user.status === 'expired') statusText = '❌ Abgelaufen';
+          else if (user.status === 'blocked') statusText = '⛔ Gesperrt';
+
           row.innerHTML = `
-            <td><span class="key-code">${k.key_code}</span></td>
-            <td>${k.product_code || '-'}</td>
-            <td>${k.status === 'active' ? '✅ Aktiv' :
-                  k.status === 'inactive' ? '⏳ Inaktiv' :
-                  k.status === 'expired' ? '❌ Abgelaufen' :
-                  k.status === 'blocked' ? '⛔ Gesperrt' : '-'}</td>
-            <td>${k.created_at ? formatDateDE(k.created_at) : '—'}</td>
-            <td>${k.expires_at ? formatDateDE(k.expires_at) : '—'}</td>
-            <td>${k.remaining_days || '—'}</td>
-            <td>${k.status === 'active'
-                ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
-                : `<button class="btn btn-small action-activate" data-id="${k.id}">Aktivieren…</button>`
-            }</td>
+            <td>${user.id}</td>
+            <td>${user.name}</td>
+            <td><span class="key-code">${user.key_code || '-'}</span></td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(user.registered_at)}</td>
+            <td>${user.last_login ? formatDateDE(user.last_login) : '—'}</td>
+            <td>
+              ${user.status === 'blocked'
+                ? `<button class="btn btn-small btn-success btn-unblock-user" data-id="${user.id}">Entsperren</button>`
+                : `<button class="btn btn-small btn-danger btn-block-user" data-id="${user.id}">Sperren</button>`}
+              <button class="btn btn-small btn-secondary btn-delete-user" data-id="${user.id}">Löschen</button>
+            </td>
           `;
         });
       } else {
         const row = tableBody.insertRow();
-        row.innerHTML = '<td colspan="6" style="text-align: center;">Keine Benutzer gefunden</td>';
+        row.innerHTML = '<td colspan="7" style="text-align: center;">Keine Benutzer gefunden</td>';
       }
 
       tableContainer.style.display = 'block';
@@ -264,12 +269,14 @@ async function loadUsers() {
       alert(data.error || 'Fehler beim Laden der Benutzer');
     }
   } catch (error) {
+    console.error('Fehler beim Benutzerladen:', error);
     alert('Verbindungsfehler zum Server');
   } finally {
     loadBtn.disabled = false;
     loadBtnText.textContent = 'BENUTZER LADEN';
   }
 }
+
 
 // Refresh statistics
 async function refreshStats() {
