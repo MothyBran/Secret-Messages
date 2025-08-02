@@ -483,8 +483,7 @@ async function loadKeys() {
             <td>${remaining}</td>
             <td>${
               (st === 'active')
-                ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
-                : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
+                <button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>
             }</td>
           `;
           tableBody.appendChild(row);
