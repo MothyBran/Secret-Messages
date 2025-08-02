@@ -174,7 +174,7 @@ function createMatrixRain() {
 
   // --- Konfiguration ---
   const FONT_PX      = 16;   // ↔ CSS font-size/line-height
-  const COLUMN_GAP   = 14;   // px: Abstand zwischen Strängen (kleiner = dichter)
+  const COLUMN_GAP   = 18;   // px: Abstand zwischen Strängen (kleiner = dichter)
   const MIN_DUR_S    = 7;    // minimale Fallzeit (s)
   const MAX_DUR_S    = 20;   // maximale Fallzeit (s)
   const MUTATION_MIN = 100;   // min. Mutationsintervall pro Strang (ms)
@@ -200,7 +200,7 @@ function createMatrixRain() {
   const columnsTotal = Math.max(1, Math.floor(width / COLUMN_GAP));
 
   // Zeichenzeilen pro Spalte (mit Puffer)
-  const rows = Math.ceil(height / FONT_PX) + 12;
+  const rows = Math.ceil(height / FONT_PX) + 6;
 
   // State-Container
   const states = [];
@@ -258,8 +258,14 @@ function createMatrixRain() {
                   const node     = s.col.children[s.ptr];
             
                   // Head-Markierung aktualisieren (nur 2 DOM-Änderungen)
-                  if (prevNode) prevNode.classList.remove('head');
-                  if (node)     node.classList.add('head');
+                 if (prevNode) {
+                      prevNode.classList.remove('head');
+                      prevNode.classList.add('trail');
+                    }
+                    if (node) {
+                      node.classList.add('head');
+                      node.classList.remove('trail');
+                    }
             
                   // Zeichen am Head austauschen
                   if (node) node.textContent = pickChar();
