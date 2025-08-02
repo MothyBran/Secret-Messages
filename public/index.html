@@ -41,75 +41,6 @@
   opacity: 0.12;               /* Gesamte Transparenz des Effekts */
   pointer-events: none;
 }
-
-/* Ein Strang (Spalte) */
-.matrix-column {
-  position: absolute;
-  top: 0;
-  display: flex;
-  flex-direction: column;      /* Zeichen untereinander */
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 16px;             /* ↔ JS: FONT_PX */
-  line-height: 16px;           /* ↔ JS: FONT_PX */
-  width: 1.05em;               /* schmale Spalte für „eng“ */
-  user-select: none;
-  animation-name: matrix-fall;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  will-change: transform;
-  color: #00f0a8;              /* Matrix‑Grün */
-  text-align: center;          /* Standard; links/rechts s. Klassen unten */
-  /* sanft pulsierendes Leuchten der ganzen Spalte */
-  animation-play-state: running;
-}
-
-/* Linke / rechte Hälfte: bündig am jeweiligen Rand ausrichten */
-.matrix-column.left  { left:  var(--x, 0);  right: auto;  text-align: left;  }
-.matrix-column.right { right: var(--x, 0);  left:  auto;  text-align: right; }
-
-/* Einzelnes Zeichen */
-.matrix-char {
-  display: block;
-  height: 1em;
-  line-height: 1em;
-  /* Grundglow (pulsierend) */
-  animation: pulse 2.6s ease-in-out infinite;
-  text-shadow:
-    0 0 2px rgba(0, 240, 168, .35),
-    0 0 6px rgba(0, 240, 168, .25);
-  opacity: 0.8;
-}
-
-/* Kopfzeichen (heller, „führend“) */
-.matrix-char.head {
-  color: #b6ffe6;
-  opacity: 1;
-  text-shadow:
-    0 0 2px rgba(182, 255, 230, 0.9),
-    0 0 10px rgba(0, 255, 190, 0.9),
-    0 0 18px rgba(0, 255, 190, 0.7);
-}
-
-/* Optional: kurzer „Trail“ hinter dem Head */
-.matrix-char.trail {
-  opacity: 0.9;
-  text-shadow:
-    0 0 2px rgba(0, 240, 168, .6),
-    0 0 8px rgba(0, 240, 168, .45);
-  transition: opacity .6s linear;
-}
-
-/* Fallanimation (Rain) */
-@keyframes matrix-fall {
-  from { transform: translateY(-100%); }
-  to   { transform: translateY(100%); }
-}
-
-/* Spalten‑Puls (sehr subtil, überlagert die Zeichen) */
-@keyframes pulse {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.08); }
-}
         
         /* Container */
         .container {
@@ -427,10 +358,7 @@
 </head>
 <body>
     <!-- Matrix Background -->
-    <div id="matrixBg" 
-        class="matrix-bg" 
-        aria-hidden="true">
-    </div>
+    <canvas id="matrixCanvas" class="matrix-bg" aria-hidden="true"></canvas>
     
     <!-- Container -->
     <div class="container">
