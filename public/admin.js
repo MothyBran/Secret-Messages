@@ -348,12 +348,13 @@ async function loadPurchases() {
     if (data.success) {
       tableBody.innerHTML = "";
 
-      if (data.purchases.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Keine Käufe gefunden</td></tr>`;
+      if (!data.purchases || data.purchases.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Keine Käufe gefunden</td></tr>`;
       } else {
         data.purchases.forEach(purchase => {
           const row = document.createElement("tr");
           row.innerHTML = `
+            <td>${purchase.id}</td>
             <td>${purchase.buyer || '-'}</td>
             <td>${purchase.license || '-'}</td>
             <td>${purchase.price || '-'}</td>
