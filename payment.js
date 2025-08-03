@@ -214,6 +214,7 @@ router.post('/create-payment-intent', async (req, res) => {
  */
 // -------------------------------
 router.post('/confirm-payment', async (req, res) => {
+    console.log("💰 Payment intent requested:", req.body);
     try {
         const { payment_intent_id } = req.body || {};
         if (!payment_intent_id) {
