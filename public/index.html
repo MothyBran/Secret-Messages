@@ -342,18 +342,23 @@
         }
         
         /* Responsive */
-        @media (max-width: 600px) {
-            .login-box {
-                padding: 25px 15px;
-            }
-            
-            .logo {
-                font-size: 2rem;
-            }
-            
-            .form-input, .btn {
-                font-size: 0.9rem;
-            }
+
+@media (max-width: 600px) {
+  .login-box {
+    width: 100%;
+    max-width: none;
+    padding: 25px 15px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  .logo {
+    font-size: 2rem;
+  }
+    
+  .form-input, .btn {
+    font-size: 0.9rem;
+  }
 
   .box-title {
     font-size: 1.5rem;
@@ -376,21 +381,9 @@
     font-size: 0.8rem;
   }
 
-  textarea.form-input {
-    font-size: 0.9rem;
-  }
-
   .delete-account-btn {
     font-size: 0.75rem;
     padding: 6px 12px;
-  }
-
-  details summary {
-    font-size: 1rem !important;
-  }
-
-  .subtitle {
-    font-size: 0.8rem;
   }
 
   .section {
@@ -400,7 +393,19 @@
   .container {
     padding: 15px;
   }
-        }
+
+  textarea.form-input {
+    font-size: 0.9rem;
+  }
+
+  details summary {
+    font-size: 1rem !important;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
+  }
+}
     </style>
 </head>
 <body>
