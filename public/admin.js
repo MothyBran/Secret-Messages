@@ -475,16 +475,10 @@ async function loadKeys() {
 
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td><span class="key-code">${k.key_code}</span></td>
-            <td>${product}</td>
-            <td>${statusText}</td>
-            <td>${formatDateDE(created)}</td>
-            <td>${expires ? formatDateDE(expires) : '—'}</td>
-            <td>${remaining}</td>
-            <td>${
-              (st === 'active')
-                <button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>
-            }</td>
+          <td>${purchase.buyer || '-'}</td>
+          <td>${purchase.license || '-'}</td>
+          <td>${purchase.price || '-'}</td>
+          <td>${formatDateDE(purchase.date)}</td>
           `;
           tableBody.appendChild(row);
         });
