@@ -21,6 +21,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const intentId = urlParams.get("payment_intent");
+
+  if (intentId) {
+    showLoadingOverlay("🔐 Zahlung wird bestätigt...");
+
+    fetch("/api/confirm-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payment_intent_id: intentId })
+    })
+      .then(res => res.json())
+      .then(data => {
+        hideLoadingOverlay();
+        if (data.success && data.keys?.length) {
+          showKeyResult(data.keys, data.expires_at);
+        } else {
+          alert("Zahlung konnte nicht bestätigt werden.");
+        }
+      })
+      .catch(err => {
+        hideLoadingOverlay();
+        console.error("Zahlungsbestätigung fehlgeschlagen:", err);
+        alert("Fehler bei der Zahlungsbestätigung.");
+      });
+  }
+
   // Modal-Buttons
   document.getElementById("closeModalBtn")?.addEventListener("click", closeModal);
   document.getElementById("confirmPurchaseBtn")?.addEventListener("click", confirmPurchase);
@@ -89,4 +116,37 @@ async function confirmPurchase() {
     console.error("Zahlungsfehler:", err);
     alert("Fehler beim Start der Zahlung.");
   }
+}
+
+
+function showLoadingOverlay(text = "Bitte warten...") {
+  const overlay = document.createElement("div");
+  overlay.id = "paymentOverlay";
+  overlay.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;display:flex;align-items:center;justify-content:center;color:lime;font-size:1.2rem;z-index:2000;font-family:'Courier New', monospace;";
+  overlay.innerHTML = `<div><span class="spinner"></span><br>${text}</div>`;
+  document.body.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById("paymentOverlay");
+  if (overlay) overlay.remove();
+}
+
+function showKeyResult(keys = [], expiresAt = null) {
+  const box = document.createElement("div");
+  box.style = "max-width:600px;margin:80px auto;background:#000;padding:30px;border:1px solid lime;color:lime;text-align:center;box-shadow:0 0 15px lime;font-family:'Courier New', monospace;";
+
+  box.innerHTML = `
+    <h2>✅ Zahlung erfolgreich!</h2>
+    <p>Hier ist dein Lizenz-Key${keys.length > 1 ? 's' : ''}:</p>
+    <div style="margin:20px 0;">
+      ${keys.map(k => `<code style="display:block;margin-bottom:10px;font-size:1.2rem;">${k}</code>`).join('')}
+    </div>
+    <p><strong>⚠️ Wichtig:</strong> Bitte kopiere den Key${keys.length > 1 ? 's' : ''} jetzt und bewahre ihn sicher auf. Nach der Aktivierung ist er mit deinem Benutzerkonto verbunden und kann <u>nicht erneut verwendet</u> werden.</p>
+    ${expiresAt ? `<p>⏳ Gültig bis: <strong>${new Date(expiresAt).toLocaleDateString("de-DE")}</strong></p>` : `<p>♾️ Unbegrenzte Gültigkeit</p>`}
+    <button onclick="window.location.href='store.html'" style="margin-top:20px;padding:10px 20px;border:1px solid lime;background:black;color:lime;cursor:pointer;">Zurück zum Shop</button>
+  `;
+
+  document.body.innerHTML = ""; // alles andere entfernen
+  document.body.appendChild(box);
 }
