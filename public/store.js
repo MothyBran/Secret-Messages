@@ -47,11 +47,46 @@ function closeModal() {
   document.getElementById("modalOverlay").style.display = "none";
 }
 
-function confirmPurchase() {
+async function confirmPurchase() {
   const modal = document.getElementById("modalOverlay");
   const plan = modal?.dataset.selectedPlan;
   closeModal();
 
-  alert(`💳 Weiterleitung zur Bezahlung für Plan: ${plan}\n(Funktion noch nicht angebunden)`);
-}
+  const email = prompt("Bitte gib deine E-Mail-Adresse ein:");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("Ungültige E-Mail-Adresse.");
+    return;
+  }
 
+  try {
+    const response = await fetch("/api/create-payment-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_type: plan,
+        customer_email: email
+      })
+    });
+
+    const data = await response.json();
+    if (!data.success || !data.client_secret) {
+      alert("Fehler bei der Zahlungsinitialisierung.");
+      return;
+    }
+
+    const stripe = Stripe("pk_test_1234567890"); // Ersetze durch deinen echten Publishable Key
+    const { error } = await stripe.confirmPayment({
+      clientSecret: data.client_secret,
+      confirmParams: {
+        return_url: window.location.origin + "/store.html"
+      }
+    });
+
+    if (error) {
+      alert("Zahlung fehlgeschlagen: " + error.message);
+    }
+  } catch (err) {
+    console.error("Zahlungsfehler:", err);
+    alert("Fehler beim Start der Zahlung.");
+  }
+}
