@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
+const paymentRoutes = require('./payment.js');
 require('dotenv').config();
 
 const app = express();
@@ -40,6 +41,7 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+app.use('/api', paymentRoutes);
 
 // Rate Limiting
 const loginLimiter = rateLimit({
