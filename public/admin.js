@@ -81,7 +81,7 @@ async function checkSystemHealth() {
             document.getElementById('systemStatus').style.borderColor = '#ff0033';
         }
     } catch (error) {
-        document.getElementById('systemStatus').textContent = 'System Status: Verbindungsfehler ❌';
+        document.getElementById('systemStatus').textContent = 'System Status: Verbindungsfehler ⚠️';
         document.getElementById('systemStatus').style.borderColor = '#ff0033';
     }
 }
