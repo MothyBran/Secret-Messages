@@ -436,6 +436,7 @@ document.getElementById('keysStatusFilter')?.addEventListener('change', () => lo
 
 // ---- Keys Loader ----
 async function loadKeys() {
+async function loadKeys() {
   const btn = document.getElementById("loadKeysBtn");
   const btnText = document.getElementById("loadKeysBtnText") || btn;
   const tableBody = document.getElementById("keysTableBody");
@@ -444,25 +445,32 @@ async function loadKeys() {
 
   if (!tableBody) return;
 
-  if (btn) { btn.disabled = true; }
-  if (btnText) { btnText.innerHTML = '<span class="spinner"></span>Lade...'; }
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.innerHTML = '<span class="spinner"></span>Lade...';
 
   try {
     const response = await fetch(`${API_BASE}/admin/license-keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminPassword, page: 1, limit: 100, status: statusFilter ? statusFilter.value : 'all' })
+      body: JSON.stringify({
+        password: adminPassword,
+        page: 1,
+        limit: 100,
+        status: statusFilter ? statusFilter.value : 'all'
+      })
     });
+
     const data = await response.json();
 
     if (data.success) {
       tableBody.innerHTML = "";
-      const arr = data.keys || [];
-      if (arr.length === 0) {
+      const keys = data.keys || [];
+
+      if (keys.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
-        arr.forEach(k => {
-          const st = k.status || computeKeyStatus(k);
+        keys.forEach(k => {
+          const st = computeKeyStatus(k);
           let statusText = '✅ Aktiv';
           if (st === 'inactive') statusText = '⏳ Inaktiv';
           if (st === 'expired') statusText = '❌ Abgelaufen';
@@ -471,23 +479,32 @@ async function loadKeys() {
           const created = k.created_at || null;
           const expires = k.expires_at || null;
           const remaining = (st === 'expired') ? '0 Tage' : calcRemainingDays(expires);
-          const product = k.product_code || k.metadata?.product_type || '-';
+          const product = k.product_code || '-';
 
           const row = document.createElement("tr");
           row.innerHTML = `
-          <td>${purchase.buyer || '-'}</td>
-          <td>${purchase.license || '-'}</td>
-          <td>${purchase.price || '-'}</td>
-          <td>${formatDateDE(purchase.date)}</td>
+            <td><span class="key-code">${k.key_code}</span></td>
+            <td>${product}</td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(created)}</td>
+            <td>${expires ? formatDateDE(expires) : '—'}</td>
+            <td>${remaining}</td>
+            <td>
+              ${st === 'active'
+                ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
+                : `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`}
+            </td>
           `;
           tableBody.appendChild(row);
         });
       }
+
       if (tableContainer) tableContainer.style.display = "block";
     } else {
       alert(data.error || "Fehler beim Laden der Lizenz-Keys.");
     }
   } catch (error) {
+    console.error("Fehler beim Laden der Lizenz-Keys:", error);
     alert("Verbindungsfehler zum Server.");
   } finally {
     if (btn) btn.disabled = false;
