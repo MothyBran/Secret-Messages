@@ -354,32 +354,25 @@ async function loadPurchases() {
         data.purchases.forEach(purchase => {
           const row = document.createElement("tr");
           row.innerHTML = `
-  <td><span class="key-code">${k.key_code}</span></td>
-  <td>${product}</td>
-  <td>${statusText}</td>
-  <td>${formatDateDE(created)}</td>
-  <td>${expires ? formatDateDE(expires) : '—'}</td>
-  <td>${remaining}</td>
-  <td>
-    ${st === 'active'
-      ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
-      : `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`}
-  </td>
-`;
+            <td>${purchase.buyer || '-'}</td>
+            <td>${purchase.license || '-'}</td>
+            <td>${purchase.price || '-'}</td>
+            <td>${formatDateDE(purchase.date)}</td>
+          `;
           tableBody.appendChild(row);
         });
       }
-      // Show containers on first load
+
       tableContainer.style.display = "block";
-      if (filterBox) filterBox.style.display = "block";
     } else {
-      alert(data.error || "Fehler beim Laden der Lizenz-Keys.");
+      alert(data.error || "Fehler beim Laden der Käufe.");
     }
   } catch (error) {
+    console.error("Fehler beim Laden der Käufe:", error);
     alert("Verbindungsfehler zum Server.");
   } finally {
     btn.disabled = false;
-    btnText.textContent = "KEYS LADEN";
+    btnText.textContent = "KÄUFE LADEN";
   }
 }
 
