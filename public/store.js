@@ -74,7 +74,7 @@ async function confirmPurchase() {
       return;
     }
 
-    const stripe = Stripe("pk_test_1234567890"); // Ersetze durch deinen echten Publishable Key
+    const stripe = Stripe("pk_test_51RqMSWINkidrktwy8v7ijV1jqpPV9d1Xm5wKBnQF0eil70ZwNreuipq4zhSpiFLcBV3JgrFWvy1lQAs5bcTrp5yT00thncRvKf");
     const { error } = await stripe.confirmPayment({
       clientSecret: data.client_secret,
       confirmParams: {
