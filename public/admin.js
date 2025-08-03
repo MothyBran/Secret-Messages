@@ -354,18 +354,18 @@ async function loadPurchases() {
         data.purchases.forEach(purchase => {
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td><span class="key-code">\${k.key_code}</span></td>
-            <td>\${product}</td>
-            <td>\${statusText}</td>
-            <td>\${formatDateDE(created)}</td>
-            <td>\${expires ? formatDateDE(expires) : '—'}</td>
-            <td>\${remaining}</td>
-            <td>${
-              (st === 'active')
-                ? '<button class="btn btn-small btn-danger action-disable" data-id="'+k.id+'">Sperren</button>'
-                : '<button class="btn btn-small action-activate" data-id="'+k.id+'">Aktivieren…</button>'
-            }</td>
-          `;
+  <td><span class="key-code">${k.key_code}</span></td>
+  <td>${product}</td>
+  <td>${statusText}</td>
+  <td>${formatDateDE(created)}</td>
+  <td>${expires ? formatDateDE(expires) : '—'}</td>
+  <td>${remaining}</td>
+  <td>
+    ${st === 'active'
+      ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
+      : `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`}
+  </td>
+`;
           tableBody.appendChild(row);
         });
       }
