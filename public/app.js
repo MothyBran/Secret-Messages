@@ -197,8 +197,10 @@ function startMatrixCanvas() {
   function resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    cvs.width  = Math.floor(w * DPR);
-    cvs.height = Math.floor(h * DPR);
+    const scaledW = Math.min(Math.floor(w * DPR), 1920);
+    const scaledH = Math.min(Math.floor(h * DPR), 1080);
+    cvs.width  = scaledW;
+    cvs.height = scaledH;
     cvs.style.width  = w + 'px';
     cvs.style.height = h + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
