@@ -436,7 +436,6 @@ document.getElementById('keysStatusFilter')?.addEventListener('change', () => lo
 
 // ---- Keys Loader ----
 async function loadKeys() {
-async function loadKeys() {
   const btn = document.getElementById("loadKeysBtn");
   const btnText = document.getElementById("loadKeysBtnText") || btn;
   const tableBody = document.getElementById("keysTableBody");
@@ -470,7 +469,7 @@ async function loadKeys() {
         tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
         keys.forEach(k => {
-          const st = computeKeyStatus(k);
+          const st = computeKeyStatus(k);  // ← Diese Funktion muss EINDEUTIG definiert sein
           let statusText = '✅ Aktiv';
           if (st === 'inactive') statusText = '⏳ Inaktiv';
           if (st === 'expired') statusText = '❌ Abgelaufen';
