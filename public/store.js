@@ -149,3 +149,21 @@ function showKeyResult(keys = [], expiresAt = null) {
   document.body.innerHTML = ""; // Seite leeren
   document.body.appendChild(box);
 }
+
+// KEY KOPIEREN Button
+document.getElementById("copyKeyBtn")?.addEventListener("click", () => {
+  const keyText = document.querySelector(".key-box .key-item")?.textContent;
+  if (keyText) {
+    navigator.clipboard.writeText(keyText).then(() => {
+      alert("🔑 Lizenz-Key wurde in die Zwischenablage kopiert.");
+    }).catch(err => {
+      console.error("Fehler beim Kopieren:", err);
+      alert("Kopieren fehlgeschlagen.");
+    });
+  }
+});
+
+// ZURÜCK ZUM SHOP Button
+document.getElementById("backToShopBtn")?.addEventListener("click", () => {
+  window.location.href = "/store.html";
+});
