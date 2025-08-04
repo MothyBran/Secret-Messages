@@ -5,7 +5,7 @@ const path = require('path');
 
 class EmailTemplateService {
     constructor() {
-        this.transporter = nodemailer.createTransporter({
+        this.transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
             port: process.env.SMTP_PORT,
             secure: false,
