@@ -34,6 +34,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'", "https://js.stripe.com"],
       scriptSrcElem: ["'self'", "https://js.stripe.com"],
+      frameSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
     }
