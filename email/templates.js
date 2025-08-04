@@ -787,5 +787,25 @@ Website: ${process.env.FRONTEND_URL}
         }
     }
 }
+// Optional: Wenn kein SMTP_HOST definiert ist, Test-Mail-Account verwenden (z. B. in Dev)
+if (!process.env.SMTP_HOST) {
+    (async () => {
+        const testAccount = await nodemailer.createTestAccount();
+        const ethereal = new EmailTemplateService();
+        ethereal.transporter = nodemailer.createTransport({
+            host: testAccount.smtp.host,
+            port: testAccount.smtp.port,
+            secure: testAccount.smtp.secure,
+            auth: {
+                user: testAccount.user,
+                pass: testAccount.pass
+            }
+        });
+        console.log("📧 Ethereal Test-Mail aktiv:", testAccount.user);
+        module.exports = ethereal;
+    })();
+} else {
+    module.exports = new EmailTemplateService();
+}
 
 module.exports = EmailTemplateService;
