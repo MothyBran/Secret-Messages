@@ -99,9 +99,11 @@ router.post("/create-checkout-session", async (req, res) => {
 // Nach erfolgreicher Zahlung Lizenz-Keys generieren
 router.post("/confirm-session", async (req, res) => {
   try {
+    console.log("📥 Session ID:", req.body?.session_id);
     const { session_id } = req.body;
     const session = await stripe.checkout.sessions.retrieve(session_id);
     const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
+    console.log("📦 Stripe Metadata:", intent.metadata);
     if (intent.status !== 'succeeded') return res.status(400).json({ error: 'Payment not completed' });
 
     const { product_type, duration_days, key_count } = intent.metadata;
