@@ -78,45 +78,24 @@ async function confirmPurchase() {
   }
 
   try {
-    const response = await fetch("/api/create-payment-intent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product_type: plan,
-        customer_email: email
-      })
-    });
-
-    const data = await response.json();
-    if (!data.success || !data.client_secret) {
-      alert("Fehler bei der Zahlungsinitialisierung.");
-      return;
-    }
-
-    const stripe = Stripe("pk_test_51RqMSWINkidrktwy8v7ijV1jqpPV9d1Xm5wKBnQF0eil70ZwNreuipq4zhSpiFLcBV3JgrFWvy1lQAs5bcTrp5yT00thncRvKf");
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ product_type: plan, customer_email: email })
     });
+
     const data = await response.json();
-    
     if (!data.success || !data.checkout_url) {
       alert("Fehler beim Erstellen der Checkout-Sitzung.");
       return;
     }
-    
+
     window.location.href = data.checkout_url;
-    
-    if (error) {
-      alert("Zahlung fehlgeschlagen: " + error.message);
-    }
   } catch (err) {
     console.error("Zahlungsfehler:", err);
     alert("Fehler beim Start der Zahlung.");
   }
 }
-
 
 function showLoadingOverlay(text = "Bitte warten...") {
   const overlay = document.createElement("div");
