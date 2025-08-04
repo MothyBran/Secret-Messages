@@ -69,6 +69,9 @@ function closeModal() {
 async function confirmPurchase() {
   const modal = document.getElementById("modalOverlay");
   const plan = modal?.dataset.selectedPlan;
+
+  console.log("🧪 Plan gewählt:", plan);
+  
   closeModal();
 
   const email = document.getElementById("emailInput")?.value?.trim();
