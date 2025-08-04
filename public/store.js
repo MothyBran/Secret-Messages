@@ -102,13 +102,19 @@ async function confirmPurchase() {
     }
 
     const stripe = Stripe("pk_test_51RqMSWINkidrktwy8v7ijV1jqpPV9d1Xm5wKBnQF0eil70ZwNreuipq4zhSpiFLcBV3JgrFWvy1lQAs5bcTrp5yT00thncRvKf");
-    const { error } = await stripe.confirmPayment({
-      clientSecret: data.client_secret,
-      confirmParams: {
-        return_url: window.location.origin + "/store.html"
-      },
-      redirect: "if_required" // oder "always"
+    const response = await fetch("/api/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_type: plan, customer_email: email })
     });
+    const data = await response.json();
+    
+    if (!data.success || !data.checkout_url) {
+      alert("Fehler beim Erstellen der Checkout-Sitzung.");
+      return;
+    }
+    
+    window.location.href = data.checkout_url;
     
     if (error) {
       alert("Zahlung fehlgeschlagen: " + error.message);
