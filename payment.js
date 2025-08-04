@@ -64,9 +64,18 @@ function addDays(iso, days) {
 router.post("/create-checkout-session", async (req, res) => {
   try {
     const { product_type, customer_email } = req.body;
-    console.log("🚀 create-checkout-session:", product_type); // Optionales Logging
 
-    const product = requireProduct(product_type); // Wichtig: vor stripe.create
+    console.log("📨 Request Body:", req.body);
+
+    const product = requireProduct(product_type); // Muss vor Stripe-Aufruf passieren
+
+    console.log("🚀 creating session with:", {
+      product_type,
+      customer_email,
+      key_count: product.keyCount,
+      duration_days: product.durationDays
+    });
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -74,7 +83,9 @@ router.post("/create-checkout-session", async (req, res) => {
         price_data: {
           currency: product.currency,
           unit_amount: product.amount,
-          product_data: { name: product.name }
+          product_data: {
+            name: `${product.name} (${product_type})` // Optional: zur Rückverfolgung
+          }
         },
         quantity: 1
       }],
@@ -88,14 +99,13 @@ router.post("/create-checkout-session", async (req, res) => {
       cancel_url: `${process.env.FRONTEND_URL}/store.html`
     });
 
-
     res.json({ success: true, checkout_url: session.url });
+
   } catch (err) {
     console.error("create-checkout-session error:", err);
     res.status(500).json({ error: "Checkout-Session konnte nicht erstellt werden." });
   }
 });
-
 
 // Nach erfolgreicher Zahlung Lizenz-Keys generieren
 router.post("/confirm-session", async (req, res) => {
