@@ -149,7 +149,7 @@ router.post("/confirm-session", async (req, res) => {
     ]);
 
     if (session.customer_email) {
-      const emailService = require('./email/templates');
+      const emailService = await require('./email/templates').ready;
 
       await emailService.sendKeyDeliveryEmail(
         session.customer_email,
