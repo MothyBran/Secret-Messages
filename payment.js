@@ -64,8 +64,9 @@ function addDays(iso, days) {
 router.post("/create-checkout-session", async (req, res) => {
   try {
     const { product_type, customer_email } = req.body;
-    const product = requireProduct(product_type);
+    console.log("🚀 create-checkout-session:", product_type); // Optionales Logging
 
+    const product = requireProduct(product_type); // Wichtig: vor stripe.create
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -79,7 +80,7 @@ router.post("/create-checkout-session", async (req, res) => {
       }],
       customer_email,
       metadata: {
-        product_type,
+        product_type, // Muss gesetzt sein
         key_count: String(product.keyCount),
         duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
       },
@@ -93,6 +94,7 @@ router.post("/create-checkout-session", async (req, res) => {
     res.status(500).json({ error: "Checkout-Session konnte nicht erstellt werden." });
   }
 });
+
 
 // Nach erfolgreicher Zahlung Lizenz-Keys generieren
 router.post("/confirm-session", async (req, res) => {
