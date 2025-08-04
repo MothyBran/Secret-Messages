@@ -80,13 +80,14 @@ router.post("/create-checkout-session", async (req, res) => {
       }],
       customer_email,
       metadata: {
-        product_type, // Muss gesetzt sein
+        product_type,
         key_count: String(product.keyCount),
         duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
       },
       success_url: `${process.env.FRONTEND_URL}/store.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/store.html`
     });
+
 
     res.json({ success: true, checkout_url: session.url });
   } catch (err) {
