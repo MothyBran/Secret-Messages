@@ -22,30 +22,22 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const urlParams = new URLSearchParams(window.location.search);
-  const intentId = urlParams.get("payment_intent");
-
-  if (intentId) {
-    showLoadingOverlay("🔐 Zahlung wird bestätigt...");
-
-    fetch("/api/confirm-payment", {
+  const sessionId = urlParams.get("session_id");
+  
+  if (sessionId) {
+    showLoadingOverlay("🔐 Zahlung wird geprüft...");
+    fetch("/api/confirm-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payment_intent_id: intentId })
-    })
-      .then(res => res.json())
-      .then(data => {
-        hideLoadingOverlay();
-        if (data.success && data.keys?.length) {
-          showKeyResult(data.keys, data.expires_at);
-        } else {
-          alert("Zahlung konnte nicht bestätigt werden.");
-        }
-      })
-      .catch(err => {
-        hideLoadingOverlay();
-        console.error("Zahlungsbestätigung fehlgeschlagen:", err);
-        alert("Fehler bei der Zahlungsbestätigung.");
-      });
+      body: JSON.stringify({ session_id: sessionId })
+    }).then(res => res.json()).then(data => {
+      hideLoadingOverlay();
+      if (data.success && data.keys?.length) {
+        showKeyResult(data.keys, data.expires_at);
+      } else {
+        alert("Zahlung nicht bestätigt.");
+      }
+    });
   }
 
   // Modal-Buttons
