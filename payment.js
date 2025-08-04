@@ -1,4 +1,4 @@
-// payment.js - Stripe Payment Integration (PostgreSQL version)
+// payment.js – Stripe Checkout Integration (PostgreSQL)
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const crypto = require('crypto');
@@ -22,7 +22,6 @@ const emailTransporter = nodemailer.createTransport({
   }
 });
 
-// Pricing table
 const PRICES = {
   "1m":        { amount: 199,  currency: "eur", name: "1 Monat Zugang",            durationDays: 30,  keyCount: 1 },
   "3m":        { amount: 449,  currency: "eur", name: "3 Monate Zugang",           durationDays: 90,  keyCount: 1 },
@@ -55,106 +54,18 @@ function hashKey(code) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 function addDays(iso, days) {
   const d = new Date(iso);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString();
 }
 
-router.post('/create-payment-intent', async (req, res) => {
-  try {
-    const { product_type, customer_email } = req.body;
-    if (!customer_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) {
-      return res.status(400).json({ error: 'Valid email required' });
-    }
-    const product = requireProduct(product_type);
-
-    const intent = await stripe.paymentIntents.create({
-      amount: product.amount,
-      currency: product.currency,
-      automatic_payment_methods: { enabled: true },
-      receipt_email: customer_email,
-      metadata: {
-        product_type,
-        key_count: String(product.keyCount),
-        duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
-      }
-    });
-
-    await pool.query(`INSERT INTO payments (payment_id, amount, currency, status, payment_method, metadata)
-      VALUES ($1, $2, $3, 'created', 'stripe', $4)`, [
-      intent.id, product.amount, product.currency,
-      JSON.stringify({ product_type, key_count: product.keyCount, duration_days: product.durationDays, customer_email })
-    ]);
-
-    res.json({ success: true, client_secret: intent.client_secret });
-  } catch (err) {
-    console.error('Stripe intent error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/confirm-payment', async (req, res) => {
-  try {
-    const { payment_intent_id } = req.body;
-    const intent = await stripe.paymentIntents.retrieve(payment_intent_id);
-    if (intent.status !== 'succeeded') return res.status(400).json({ error: 'Payment not completed' });
-
-    const { product_type, duration_days, key_count } = intent.metadata;
-    const durationDays = duration_days === 'null' ? null : Number(duration_days);
-    const keyCount = Number(key_count) || 1;
-    const product = requireProduct(product_type);
-    const createdAt = nowIso();
-    const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
-    const keys = [];
-
-    for (let i = 0; i < keyCount; i++) {
-      const code = generateKeyCode();
-      const hash = hashKey(code);
-      const metadata = {
-        product_type,
-        product_name: product.name,
-        duration_days: durationDays,
-        created_at: createdAt,
-        expires_at: expiresAt,
-        status: 'active',
-        revoked: false
-      };
-      await pool.query(`INSERT INTO license_keys (key_code, key_hash, metadata) VALUES ($1, $2, $3)`, [
-        code, hash, JSON.stringify(metadata)
-      ]);
-      keys.push(code);
-    }
-
-    await pool.query(`UPDATE payments SET status = 'completed', completed_at = NOW(), metadata = $1 WHERE payment_id = $2`, [
-      JSON.stringify({ ...intent.metadata, keys_generated: keys.length }), payment_intent_id
-    ]);
-
-    const email = intent.receipt_email || intent.charges?.data?.[0]?.billing_details?.email;
-    if (email) {
-      await emailTransporter.sendMail({
-        from: `${process.env.MAIL_FROM_NAME || 'Secret Messages'} <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
-        to: email,
-        subject: `Ihre Lizenz-Keys (${product.name})`,
-        html: `<p>Ihre Keys:</p><ul>${keys.map(k => `<li>${k}</li>`).join('')}</ul>`
-      });
-    }
-
-    res.json({ success: true, keys, expires_at: expiresAt });
-  } catch (err) {
-    console.error('Confirm payment error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
+// Stripe Checkout Session erstellen
 router.post("/create-checkout-session", async (req, res) => {
   try {
     const { product_type, customer_email } = req.body;
     const product = requireProduct(product_type);
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -162,11 +73,9 @@ router.post("/create-checkout-session", async (req, res) => {
         price_data: {
           currency: product.currency,
           unit_amount: product.amount,
-          product_data: {
-            name: product.name,
-          },
+          product_data: { name: product.name }
         },
-        quantity: 1,
+        quantity: 1
       }],
       customer_email,
       metadata: {
@@ -182,6 +91,59 @@ router.post("/create-checkout-session", async (req, res) => {
   } catch (err) {
     console.error("create-checkout-session error:", err);
     res.status(500).json({ error: "Checkout-Session konnte nicht erstellt werden." });
+  }
+});
+
+// Nach erfolgreicher Zahlung Lizenz-Keys generieren
+router.post("/confirm-session", async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    const intent = await stripe.paymentIntents.retrieve(session.payment_intent);
+    if (intent.status !== 'succeeded') return res.status(400).json({ error: 'Payment not completed' });
+
+    const { product_type, duration_days, key_count } = intent.metadata;
+    const durationDays = duration_days === 'null' ? null : Number(duration_days);
+    const keyCount = Number(key_count) || 1;
+    const product = requireProduct(product_type);
+    const createdAt = new Date().toISOString();
+    const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
+    const keys = [];
+
+    for (let i = 0; i < keyCount; i++) {
+      const code = generateKeyCode();
+      const hash = hashKey(code);
+      await pool.query(
+        `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [code, hash, createdAt, expiresAt, true, product_type]
+      );
+      keys.push(code);
+    }
+
+    await pool.query(`INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
+      VALUES ($1, $2, $3, $4, $5, NOW(), $6)`, [
+      intent.id,
+      intent.amount,
+      intent.currency,
+      'completed',
+      'stripe',
+      JSON.stringify({ ...intent.metadata, keys_generated: keys.length, email: session.customer_email })
+    ]);
+
+    if (session.customer_email) {
+      await emailTransporter.sendMail({
+        from: `${process.env.MAIL_FROM_NAME || 'Secret Messages'} <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
+        to: session.customer_email,
+        subject: `Ihre Lizenz-Keys (${product.name})`,
+        html: `<p>Ihre Keys:</p><ul>${keys.map(k => `<li>${k}</li>`).join('')}</ul>`
+      });
+    }
+
+    res.json({ success: true, keys, expires_at: expiresAt });
+  } catch (err) {
+    console.error("confirm-session error:", err);
+    res.status(500).json({ error: "Zahlung konnte nicht bestätigt werden." });
   }
 });
 
