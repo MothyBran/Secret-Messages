@@ -6,7 +6,10 @@ const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
 
 const router = express.Router();
-const pool = new Pool();
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 // Email configuration
 const emailTransporter = nodemailer.createTransport({
