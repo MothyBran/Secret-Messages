@@ -114,56 +114,45 @@ function hideLoadingOverlay() {
 }
 
 function showKeyResult(keys = [], expiresAt = null) {
+  // Vorherige Inhalte entfernen
+  document.body.innerHTML = "";
+
+  // Copy-Funktion zentral definieren
+  function copyKey(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const msg = document.getElementById('copy-msg');
+      msg.innerText = '✔️ Lizenz-Key kopiert!';
+      msg.style.opacity = 1;
+      setTimeout(() => msg.style.opacity = 0, 2000);
+    }).catch(() => {
+      alert("❌ Kopieren fehlgeschlagen");
+    });
+  }
+
   const box = document.createElement("div");
   box.style = "max-width:600px;margin:80px auto;background:#000;padding:30px;border:1px solid lime;color:lime;text-align:center;box-shadow:0 0 15px lime;font-family:'Courier New', monospace;";
 
-  const copyScript = `
-    function copyKey(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        const msg = document.getElementById('copy-msg');
-        msg.innerText = '✔️ Lizenz-Key kopiert!';
-        msg.style.opacity = 1;
-        setTimeout(() => msg.style.opacity = 0, 2000);
-      });
-    }
-  `;
-
-  const keysHTML = keys.map(k => `
+  const keysHTML = keys.map((k, i) => `
     <div style="margin: 10px 0;">
-      <code style="font-size:1.4rem;">${k}</code><br>
-      <button onclick="copyKey('${k}')" style="margin-top:5px;padding:5px 10px;border:1px solid lime;background:black;color:lime;cursor:pointer;">🔗 Key kopieren</button>
+      <code style="font-size:1.4rem;" id="key-${i}">${k}</code><br>
+      <button style="margin-top:5px;padding:5px 10px;border:1px solid lime;background:black;color:lime;cursor:pointer;" onclick="document.getElementById('key-${i}') && copyKey('${k}')">🔗 Key kopieren</button>
     </div>
   `).join("");
 
   box.innerHTML = `
-    <script>${copyScript}</script>
     <h2>✅ Zahlung erfolgreich!</h2>
     <p>Hier ist dein Lizenz-Key${keys.length > 1 ? 's' : ''}:</p>
     ${keysHTML}
     <div id="copy-msg" style="margin-top:10px;opacity:0;transition:opacity 0.5s ease;color:#9f9;">✔️ Lizenz-Key kopiert!</div>
     <p style="margin-top:20px;"><strong>⚠️ Wichtig:</strong> Bitte kopiere den Key jetzt und bewahre ihn sicher auf. Nach der Aktivierung ist er mit deinem Benutzerkonto verknüpft und kann <u>nicht erneut angezeigt</u> werden.</p>
     ${expiresAt ? `<p>⏳ Gültig bis: <strong>${new Date(expiresAt).toLocaleDateString("de-DE")}</strong></p>` : `<p>♾️ Unbegrenzte Gültigkeit</p>`}
-    <button onclick="window.location.href='store.html'" style="margin-top:30px;padding:10px 20px;border:1px solid lime;background:black;color:lime;cursor:pointer;">⬅️ Zurück zum Shop</button>
+    <button id="backBtn" style="margin-top:30px;padding:10px 20px;border:1px solid lime;background:black;color:lime;cursor:pointer;">⬅️ Zurück zum Shop</button>
   `;
 
-  document.body.innerHTML = ""; // Seite leeren
   document.body.appendChild(box);
+
+  // Zurück-zum-Shop-Button aktivieren
+  document.getElementById("backBtn")?.addEventListener("click", () => {
+    window.location.href = "store.html";
+  });
 }
-
-// KEY KOPIEREN Button
-document.getElementById("copyKeyBtn")?.addEventListener("click", () => {
-  const keyText = document.querySelector(".key-box .key-item")?.textContent;
-  if (keyText) {
-    navigator.clipboard.writeText(keyText).then(() => {
-      alert("🔑 Lizenz-Key wurde in die Zwischenablage kopiert.");
-    }).catch(err => {
-      console.error("Fehler beim Kopieren:", err);
-      alert("Kopieren fehlgeschlagen.");
-    });
-  }
-});
-
-// ZURÜCK ZUM SHOP Button
-document.getElementById("backToShopBtn")?.addEventListener("click", () => {
-  window.location.href = "/store.html";
-});
