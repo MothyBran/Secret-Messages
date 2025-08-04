@@ -117,25 +117,13 @@ function showKeyResult(keys = [], expiresAt = null) {
   // Vorherige Inhalte entfernen
   document.body.innerHTML = "";
 
-  // Copy-Funktion zentral definieren
-  function copyKey(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      const msg = document.getElementById('copy-msg');
-      msg.innerText = '✔️ Lizenz-Key kopiert!';
-      msg.style.opacity = 1;
-      setTimeout(() => msg.style.opacity = 0, 2000);
-    }).catch(() => {
-      alert("❌ Kopieren fehlgeschlagen");
-    });
-  }
-
   const box = document.createElement("div");
   box.style = "max-width:600px;margin:80px auto;background:#000;padding:30px;border:1px solid lime;color:lime;text-align:center;box-shadow:0 0 15px lime;font-family:'Courier New', monospace;";
 
   const keysHTML = keys.map((k, i) => `
     <div style="margin: 10px 0;">
-      <code style="font-size:1.4rem;" id="key-${i}">${k}</code><br>
-      <button style="margin-top:5px;padding:5px 10px;border:1px solid lime;background:black;color:lime;cursor:pointer;" onclick="document.getElementById('key-${i}') && copyKey('${k}')">🔗 Key kopieren</button>
+      <code style="font-size:1.4rem;">${k}</code><br>
+      <button class="copy-button" data-key="${k}" style="margin-top:5px;padding:5px 10px;border:1px solid lime;background:black;color:lime;cursor:pointer;">🔗 Key kopieren</button>
     </div>
   `).join("");
 
@@ -151,7 +139,20 @@ function showKeyResult(keys = [], expiresAt = null) {
 
   document.body.appendChild(box);
 
-  // Zurück-zum-Shop-Button aktivieren
+  // Copy-Buttons aktivieren
+  document.querySelectorAll(".copy-button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-key");
+      navigator.clipboard.writeText(key).then(() => {
+        const msg = document.getElementById("copy-msg");
+        msg.innerText = "✔️ Lizenz-Key kopiert!";
+        msg.style.opacity = 1;
+        setTimeout(() => msg.style.opacity = 0, 2000);
+      });
+    });
+  });
+
+  // Zurück-zum-Shop-Button
   document.getElementById("backBtn")?.addEventListener("click", () => {
     window.location.href = "store.html";
   });
