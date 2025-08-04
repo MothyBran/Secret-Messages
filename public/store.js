@@ -106,9 +106,10 @@ async function confirmPurchase() {
       clientSecret: data.client_secret,
       confirmParams: {
         return_url: window.location.origin + "/store.html"
-      }
+      },
+      redirect: "if_required" // oder "always"
     });
-
+    
     if (error) {
       alert("Zahlung fehlgeschlagen: " + error.message);
     }
