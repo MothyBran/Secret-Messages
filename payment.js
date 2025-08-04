@@ -151,4 +151,38 @@ router.post('/confirm-payment', async (req, res) => {
   }
 });
 
+router.post("/create-checkout-session", async (req, res) => {
+  try {
+    const { product_type, customer_email } = req.body;
+    const product = requireProduct(product_type);
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: product.currency,
+          unit_amount: product.amount,
+          product_data: {
+            name: product.name,
+          },
+        },
+        quantity: 1,
+      }],
+      customer_email,
+      metadata: {
+        product_type,
+        key_count: String(product.keyCount),
+        duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
+      },
+      success_url: `${process.env.FRONTEND_URL}/store.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL}/store.html`
+    });
+
+    res.json({ success: true, checkout_url: session.url });
+  } catch (err) {
+    console.error("create-checkout-session error:", err);
+    res.status(500).json({ error: "Checkout-Session konnte nicht erstellt werden." });
+  }
+});
+
 module.exports = router;
