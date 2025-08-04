@@ -245,11 +245,19 @@ async function loadUsers() {
           else if (user.status === 'blocked') statusText = '⛔ Gesperrt';
 
           row.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.name}</td>
+            <td><span class="key-code">${user.key_code || '-'}</span></td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(user.registered_at)}</td>
+            <td>${user.last_login ? formatDateDE(user.last_login) : '—'}</td>
             <td>
-  ${k.user_id
-    ? `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`
-    : `<button class="btn btn-small btn-danger action-delete-key" data-id="${k.id}">Löschen</button>`}
-</td>`;
+              ${user.status === 'blocked'
+                ? `<button class="btn btn-small btn-success btn-unblock-user" data-id="${user.id}">Entsperren</button>`
+                : `<button class="btn btn-small btn-danger btn-block-user" data-id="${user.id}">Sperren</button>`}
+              <button class="btn btn-small btn-secondary btn-delete-user" data-id="${user.id}">Löschen</button>
+            </td>
+          `;
         });
       } else {
         const row = tableBody.insertRow();
@@ -346,11 +354,12 @@ async function loadPurchases() {
         data.purchases.forEach(purchase => {
           const row = document.createElement("tr");
           row.innerHTML = `
-            <td>
-  ${k.user_id
-    ? `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`
-    : `<button class="btn btn-small btn-danger action-delete-key" data-id="${k.id}">Löschen</button>`}
-</td>`;
+            <td>${purchase.id}</td>
+            <td>${purchase.buyer || '-'}</td>
+            <td>${purchase.license || '-'}</td>
+            <td>${purchase.price || '-'}</td>
+            <td>${formatDateDE(purchase.date)}</td>
+          `;
           tableBody.appendChild(row);
         });
       }
@@ -455,7 +464,8 @@ async function loadKeys() {
       } else {
         keys.forEach(k => {
           const st = computeKeyStatus(k);  // ← Diese Funktion muss EINDEUTIG definiert sein
-          let statusText = k.user_id ? '✅ Aktiv' : '⏳ Inaktiv';
+          let statusText = '✅ Aktiv';
+          if (st === 'inactive') statusText = '⏳ Inaktiv';
           if (st === 'expired') statusText = '❌ Abgelaufen';
           if (st === 'blocked') statusText = '⛔ Gesperrt';
 
@@ -466,11 +476,18 @@ async function loadKeys() {
 
           const row = document.createElement("tr");
           row.innerHTML = `
+            <td><span class="key-code">${k.key_code}</span></td>
+            <td>${product}</td>
+            <td>${statusText}</td>
+            <td>${formatDateDE(created)}</td>
+            <td>${expires ? formatDateDE(expires) : '—'}</td>
+            <td>${remaining}</td>
             <td>
-  ${k.user_id
-    ? `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`
-    : `<button class="btn btn-small btn-danger action-delete-key" data-id="${k.id}">Löschen</button>`}
-</td>`;
+              ${st === 'active'
+                ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
+                : `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`}
+            </td>
+          `;
           tableBody.appendChild(row);
         });
       }
@@ -628,13 +645,7 @@ document.addEventListener('click', async (e) => {
 
 
 
-// Load purchases button
-
-document.getElementById('loadPurchasesBtn')?.addEventListener('click', loadPurchases);
-
-
-// --- Lizenz-Key löschen ---
-
+// Lizenz-Key löschen
 async function deleteLicenseKey(keyCode) {
   if (!confirm('Diesen Key wirklich löschen?')) return;
 
@@ -658,3 +669,16 @@ async function deleteLicenseKey(keyCode) {
     alert('Verbindungsfehler beim Löschen des Keys.');
   }
 }
+
+
+// Event delegation for Lizenz-Key löschen
+document.getElementById('keysTableContainer')?.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn || !btn.classList.contains('action-delete-key')) return;
+
+  const keyCodeEl = btn.closest('tr')?.querySelector('.key-code');
+  const keyCode = keyCodeEl?.textContent?.trim();
+  if (!keyCode) return;
+
+  await deleteLicenseKey(keyCode);
+});
