@@ -71,8 +71,8 @@ async function confirmPurchase() {
   const plan = modal?.dataset.selectedPlan;
   closeModal();
 
-  const email = prompt("Bitte gib deine E-Mail-Adresse ein:");
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const email = document.getElementById("emailInput")?.value?.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("Ungültige E-Mail-Adresse.");
     return;
   }
