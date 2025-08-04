@@ -788,9 +788,11 @@ Website: ${process.env.FRONTEND_URL}
     }
 }
 // Optional: Wenn kein SMTP_HOST definiert ist, Test-Mail-Account verwenden (z. B. in Dev)
-const instance = new EmailTemplateService();
+let emailService;
 
 (async () => {
+  const instance = new EmailTemplateService();
+
   if (!process.env.SMTP_HOST) {
     const testAccount = await nodemailer.createTestAccount();
     instance.transporter = nodemailer.createTransport({
@@ -804,6 +806,13 @@ const instance = new EmailTemplateService();
     });
     console.log("📧 Ethereal Test-Mail aktiv:", testAccount.user);
   }
+
+  emailService = instance;
 })();
 
-module.exports = instance;
+module.exports = new Proxy({}, {
+  get(_, prop) {
+    if (!emailService) throw new Error("✉️ Email-Service noch nicht initialisiert.");
+    return emailService[prop];
+  }
+});
