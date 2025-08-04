@@ -67,7 +67,7 @@ router.post("/create-checkout-session", async (req, res) => {
 
     console.log("📨 Request Body:", req.body);
 
-    const product = requireProduct(product_type); // Muss vor Stripe-Aufruf passieren
+    const product = requireProduct(product_type);
 
     console.log("🚀 creating session with:", {
       product_type,
@@ -84,16 +84,18 @@ router.post("/create-checkout-session", async (req, res) => {
           currency: product.currency,
           unit_amount: product.amount,
           product_data: {
-            name: `${product.name} (${product_type})` // Optional: zur Rückverfolgung
+            name: `${product.name} (${product_type})`
           }
         },
         quantity: 1
       }],
       customer_email,
-      metadata: {
-        product_type,
-        key_count: String(product.keyCount),
-        duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
+      payment_intent_data: {
+        metadata: {
+          product_type,
+          key_count: String(product.keyCount),
+          duration_days: product.durationDays === null ? 'null' : String(product.durationDays)
+        }
       },
       success_url: `${process.env.FRONTEND_URL}/store.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/store.html`
