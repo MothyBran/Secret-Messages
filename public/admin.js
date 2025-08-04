@@ -463,7 +463,7 @@ async function loadKeys() {
         tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Keine Keys gefunden</td></tr>';
       } else {
         keys.forEach(k => {
-          const st = computeKeyStatus(k);  // ← Diese Funktion muss EINDEUTIG definiert sein
+          const st = computeKeyStatus(k);
           let statusText = '✅ Aktiv';
           if (st === 'inactive') statusText = '⏳ Inaktiv';
           if (st === 'expired') statusText = '❌ Abgelaufen';
@@ -483,9 +483,12 @@ async function loadKeys() {
             <td>${expires ? formatDateDE(expires) : '—'}</td>
             <td>${remaining}</td>
             <td>
-              ${st === 'active'
-                ? `<button class="btn btn-small btn-danger action-disable" data-id="${k.id}">Sperren</button>`
-                : `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`}
+              ${st === 'inactive'
+                ? `<button class="btn btn-small btn-danger action-delete" data-id="${k.id}">Löschen</button>`
+                : st === 'active'
+                  ? `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`
+                  : ''
+              }
             </td>
           `;
           tableBody.appendChild(row);
@@ -529,6 +532,27 @@ document.getElementById('keysTableContainer')?.addEventListener('click', async (
       await loadKeys();
     } catch {
       alert('Serverfehler bei Aktivierung.');
+    }
+  }
+
+  if (btn.classList.contains('action-delete')) {
+    if (!confirm("Diesen Lizenz-Key wirklich löschen?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Key gelöscht.');
+        await loadKeys();
+      } else {
+        alert(data.error || 'Fehler beim Löschen');
+      }
+    } catch {
+      alert('Verbindungsfehler beim Löschen');
     }
   }
 });
