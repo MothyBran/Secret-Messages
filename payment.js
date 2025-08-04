@@ -149,12 +149,19 @@ router.post("/confirm-session", async (req, res) => {
     ]);
 
     if (session.customer_email) {
-      await emailTransporter.sendMail({
-        from: `${process.env.MAIL_FROM_NAME || 'Secret Messages'} <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
-        to: session.customer_email,
-        subject: `Ihre Lizenz-Keys (${product.name})`,
-        html: `<p>Ihre Keys:</p><ul>${keys.map(k => `<li>${k}</li>`).join('')}</ul>`
-      });
+      const emailService = require('./email/templates');
+
+      await emailService.sendKeyDeliveryEmail(
+        session.customer_email,
+        keys,
+        {
+          payment_id: intent.id,
+          amount: intent.amount,
+          product_type,
+          keyCount,
+          date: new Date().toISOString()
+        }
+      );
     }
 
     res.json({ success: true, keys, expires_at: expiresAt });
