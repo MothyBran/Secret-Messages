@@ -200,4 +200,27 @@ router.post("/admin/purchases", async (req, res) => {
   }
 });
 
+// Lizenz-Key anhand der ID löschen (Admin)
+router.delete("/admin/keys/:id", async (req, res) => {
+  try {
+    const { password } = req.body;
+    const keyId = req.params.id;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+      return res.status(403).json({ success: false, error: "Zugriff verweigert" });
+    }
+
+    const result = await pool.query(`DELETE FROM license_keys WHERE id = $1`, [keyId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Key nicht gefunden" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Fehler beim Löschen eines Lizenz-Keys:", err);
+    res.status(500).json({ success: false, error: "Serverfehler beim Löschen" });
+  }
+});
+
 module.exports = router;
