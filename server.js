@@ -428,13 +428,13 @@ app.post('/api/auth/activate', async (req, res) => {
       });
     }
 
-    if (keyData.is_active) {
+    if (keyData.activated_at) {
       return res.status(403).json({ 
         success: false, 
-        error: 'License-Key wurde bereits aktiviert' 
+        error: 'License-Key wurde bereits verwendet' 
       });
     }
-
+      
     const accessCodeHash = await bcrypt.hash(accessCode, 10);
 
     // Benutzer in users eintragen
