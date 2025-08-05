@@ -451,7 +451,7 @@ app.post('/api/auth/activate', async (req, res) => {
      ? `UPDATE license_keys 
         SET activated_at = CURRENT_TIMESTAMP,
             activated_ip = $1
-        WHERE id = $2
+        WHERE id = $2`
       
       : `UPDATE license_keys 
          SET is_active = 1,
