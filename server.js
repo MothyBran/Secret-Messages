@@ -909,7 +909,7 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
             SET activated_at = COALESCE(activated_at, $1),
                 expires_at = $2,
                 product_code = $3
-            WHERE id = $4
+            WHERE id = $4`
             
       : `UPDATE license_keys
            SET is_active = 1,
