@@ -21,18 +21,6 @@ function calcRemainingDays(iso) {
   return diff >= 0 ? `${diff} Tage` : '0 Tage';
 }
 
-function computeKeyStatus(k) {
-  const isActive = !!k.is_active;
-  const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
-  const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
-  const now = Date.now();
-
-  if (expires && expires <= now) return 'expired';
-  if (!isActive && activatedAt) return 'blocked';
-  if (!activatedAt) return 'inactive';
-  return 'active';
-}
-
 // admin.js - Admin Panel JavaScript
 
 // Global variables
@@ -383,11 +371,13 @@ function computeKeyStatus(k) {
   const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
   const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
   const now = Date.now();
+  const hasUser = !!k.user_id; // ← Muss vom Backend mitgeliefert werden
 
-  if (expires && expires <= now) return 'expired';         // abgelaufen
-  if (!isActive && activatedAt) return 'blocked';          // gesperrt (manuell)
-  if (!isActive && !activatedAt) return 'inactive';        // noch nicht aktiviert
-  return 'active';                                         // aktiv
+  if (!activatedAt) return 'inactive';            // noch nicht gekoppelt
+  if (expires && expires <= now) return 'expired'; // abgelaufen
+  if (!isActive && activatedAt) return 'blocked';  // manuell gesperrt
+  if (isActive && activatedAt && hasUser) return 'active'; // korrekt aktiv
+  return 'inactive';
 }
 
 // Product label helper
