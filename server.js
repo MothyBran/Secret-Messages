@@ -372,31 +372,19 @@ app.post('/api/auth/activate', async (req, res) => {
   const clientIP = req.ip;
 
   if (!licenseKey || !username || !accessCode) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Alle Felder sind erforderlich' 
-    });
+    return res.status(400).json({ success: false, error: 'Alle Felder sind erforderlich' });
   }
 
   if (!/^[A-Z0-9_-]{5}-[A-Z0-9_-]{5}-[A-Z0-9_-]{5}$/.test(licenseKey)) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Ungültiges License-Key Format' 
-    });
+    return res.status(400).json({ success: false, error: 'Ungültiges License-Key Format' });
   }
 
   if (!/^[a-zA-Z0-9._-]{3,20}$/.test(username)) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Benutzername muss 3-20 Zeichen lang sein' 
-    });
+    return res.status(400).json({ success: false, error: 'Benutzername muss 3-20 Zeichen lang sein' });
   }
 
   if (!/^\d{5}$/.test(accessCode)) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Zugangscode muss genau 5 Ziffern enthalten' 
-    });
+    return res.status(400).json({ success: false, error: 'Zugangscode muss genau 5 Ziffern enthalten' });
   }
 
   try {
@@ -407,10 +395,7 @@ app.post('/api/auth/activate', async (req, res) => {
 
     const usernameCheck = await dbQuery(userCheckQuery, [username]);
     if (usernameCheck.rows && usernameCheck.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        error: 'Benutzername bereits vergeben' 
-      });
+      return res.status(409).json({ success: false, error: 'Benutzername bereits vergeben' });
     }
 
     // Lade Lizenz-Key
@@ -422,60 +407,80 @@ app.post('/api/auth/activate', async (req, res) => {
     const keyData = result.rows[0];
 
     if (!keyData) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'License-Key nicht gefunden' 
-      });
+      return res.status(404).json({ success: false, error: 'License-Key nicht gefunden' });
     }
 
     if (keyData.activated_at) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'License-Key wurde bereits verwendet' 
-      });
+      return res.status(403).json({ success: false, error: 'License-Key wurde bereits verwendet' });
     }
-      
+
     const accessCodeHash = await bcrypt.hash(accessCode, 10);
 
-    // Benutzer in users eintragen
-    const insertUserQuery = isPostgreSQL
-      ? `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
-         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`
-      : `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`;
+    if (isPostgreSQL) {
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
 
-    await dbQuery(insertUserQuery, [username, accessCodeHash, keyData.id]);
+        await client.query(
+          `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
+           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
+          [username, accessCodeHash, keyData.id]
+        );
 
-    // Lizenz-Key als aktiviert markieren
-    const updateKeyQuery = isPostgreSQL
-     ? `UPDATE license_keys 
-        SET activated_at = CURRENT_TIMESTAMP,
-            activated_ip = $1
-        WHERE id = $2`
-      
-      : `UPDATE license_keys 
-         SET is_active = 1,
-             activated_at = CURRENT_TIMESTAMP,
-             activated_ip = ?
-         WHERE id = ?`;
+        await client.query(
+          `UPDATE license_keys 
+           SET activated_at = CURRENT_TIMESTAMP,
+               activated_ip = $1
+           WHERE id = $2`,
+          [clientIP, keyData.id]
+        );
 
-    await dbQuery(updateKeyQuery, [clientIP, keyData.id]);
+        await client.query('COMMIT');
+        client.release();
 
-    res.json({
-      success: true,
-      message: 'Zugang erfolgreich erstellt!',
-      username
-    });
+        return res.json({
+          success: true,
+          message: 'Zugang erfolgreich erstellt!',
+          username
+        });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        client.release();
+        console.error('Activation DB-Fehler (PG):', err);
+        return res.status(500).json({ success: false, error: 'Datenbankfehler während der Registrierung' });
+      }
+    } else {
+      // SQLite (einfacher – ohne echte Transaktion hier)
+      try {
+        await dbQuery(
+          `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
+           VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+          [username, accessCodeHash, keyData.id]
+        );
 
+        await dbQuery(
+          `UPDATE license_keys 
+           SET activated_at = CURRENT_TIMESTAMP,
+               activated_ip = ?
+           WHERE id = ?`,
+          [clientIP, keyData.id]
+        );
+
+        return res.json({
+          success: true,
+          message: 'Zugang erfolgreich erstellt!',
+          username
+        });
+      } catch (err) {
+        console.error('Activation DB-Fehler (SQLite):', err);
+        return res.status(500).json({ success: false, error: 'Datenbankfehler bei Registrierung (SQLite)' });
+      }
+    }
   } catch (error) {
     console.error('Activation error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Interner Serverfehler' 
-    });
+    res.status(500).json({ success: false, error: 'Interner Serverfehler bei Registrierung' });
   }
 });
-
 
 // Validate Token
 app.post('/api/auth/validate', async (req, res) => {
