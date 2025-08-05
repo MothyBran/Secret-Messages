@@ -388,46 +388,49 @@ app.post('/api/auth/activate', async (req, res) => {
   }
 
   try {
-    // Prüfe ob Benutzername schon existiert
-    const userCheckQuery = isPostgreSQL
-      ? 'SELECT id FROM users WHERE username = $1'
-      : 'SELECT id FROM users WHERE username = ?';
-
-    const client = await db.connect(); // schon vorhanden
-    const usernameCheck = await client.query(userCheckQuery, [username]);
-    if (usernameCheck.rows && usernameCheck.rows.length > 0) {
-      return res.status(409).json({ success: false, error: 'Benutzername bereits vergeben' });
-    }
-
-    // Lade Lizenz-Key
-    const keyQuery = isPostgreSQL
-      ? 'SELECT * FROM license_keys WHERE key_code = $1'
-      : 'SELECT * FROM license_keys WHERE key_code = ?';
-
-    const result = await dbQuery(keyQuery, [licenseKey]);
-    const keyData = result.rows[0];
-
-    if (!keyData) {
-      return res.status(404).json({ success: false, error: 'License-Key nicht gefunden' });
-    }
-
-    if (keyData.activated_at) {
-      return res.status(403).json({ success: false, error: 'License-Key wurde bereits verwendet' });
-    }
-
-    const accessCodeHash = await bcrypt.hash(accessCode, 10);
-
     if (isPostgreSQL) {
       const client = await db.connect();
+
       try {
         await client.query('BEGIN');
 
+        // Benutzername prüfen
+        const userCheckQuery = 'SELECT id FROM users WHERE username = $1';
+        const usernameCheck = await client.query(userCheckQuery, [username]);
+
+        if (usernameCheck.rows && usernameCheck.rows.length > 0) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(409).json({ success: false, error: 'Benutzername bereits vergeben' });
+        }
+
+        // Lizenz-Key prüfen
+        const keyQuery = 'SELECT * FROM license_keys WHERE key_code = $1';
+        const keyResult = await client.query(keyQuery, [licenseKey]);
+        const keyData = keyResult.rows[0];
+
+        if (!keyData) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(404).json({ success: false, error: 'License-Key nicht gefunden' });
+        }
+
+        if (keyData.activated_at) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(403).json({ success: false, error: 'License-Key wurde bereits verwendet' });
+        }
+
+        const accessCodeHash = await bcrypt.hash(accessCode, 10);
+
+        // Benutzer eintragen
         await client.query(
           `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
           [username, accessCodeHash, keyData.id]
         );
 
+        // Lizenz-Key als aktiviert markieren
         await client.query(
           `UPDATE license_keys 
            SET activated_at = CURRENT_TIMESTAMP,
@@ -450,33 +453,44 @@ app.post('/api/auth/activate', async (req, res) => {
         console.error('Activation DB-Fehler (PG):', err);
         return res.status(500).json({ success: false, error: 'Datenbankfehler während der Registrierung' });
       }
+
     } else {
-      // SQLite (einfacher – ohne echte Transaktion hier)
-      try {
-        await dbQuery(
-          `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
-           VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-          [username, accessCodeHash, keyData.id]
-        );
+      // SQLite-Zweig (keine Änderungen nötig)
+      const keyQuery = 'SELECT * FROM license_keys WHERE key_code = ?';
+      const result = await dbQuery(keyQuery, [licenseKey]);
+      const keyData = result.rows[0];
 
-        await dbQuery(
-          `UPDATE license_keys 
-           SET activated_at = CURRENT_TIMESTAMP,
-               activated_ip = ?
-           WHERE id = ?`,
-          [clientIP, keyData.id]
-        );
-
-        return res.json({
-          success: true,
-          message: 'Zugang erfolgreich erstellt!',
-          username
-        });
-      } catch (err) {
-        console.error('Activation DB-Fehler (SQLite):', err);
-        return res.status(500).json({ success: false, error: 'Datenbankfehler bei Registrierung (SQLite)' });
+      if (!keyData) {
+        return res.status(404).json({ success: false, error: 'License-Key nicht gefunden' });
       }
+
+      if (keyData.activated_at) {
+        return res.status(403).json({ success: false, error: 'License-Key wurde bereits verwendet' });
+      }
+
+      const accessCodeHash = await bcrypt.hash(accessCode, 10);
+
+      await dbQuery(
+        `INSERT INTO users (username, access_code_hash, license_key_id, registered_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+        [username, accessCodeHash, keyData.id]
+      );
+
+      await dbQuery(
+        `UPDATE license_keys 
+         SET activated_at = CURRENT_TIMESTAMP,
+             activated_ip = ?
+         WHERE id = ?`,
+        [clientIP, keyData.id]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Zugang erfolgreich erstellt!',
+        username
+      });
     }
+
   } catch (error) {
     console.error('Activation error:', error);
     res.status(500).json({ success: false, error: 'Interner Serverfehler bei Registrierung' });
