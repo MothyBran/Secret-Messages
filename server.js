@@ -357,19 +357,19 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username
     });
 
-    // Letzter Login aktualisieren
-    const updateLoginQuery = isPostgreSQL
-    ? `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`
-    : `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`;
+// Letzter Login aktualisieren
+const updateLoginQuery = isPostgreSQL
+  ? `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`
+  : `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`;
 
-    await client.query(updateLoginQuery, [user.id]);
+await dbQuery(updateLoginQuery, [user.id]);
 
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Interner Serverfehler' 
-    });
+res.json({
+  success: true,
+  message: 'Anmeldung erfolgreich',
+  token,
+  username: user.username
+});
   }
 });
 
