@@ -393,7 +393,8 @@ app.post('/api/auth/activate', async (req, res) => {
       ? 'SELECT id FROM users WHERE username = $1'
       : 'SELECT id FROM users WHERE username = ?';
 
-    const usernameCheck = await dbQuery(userCheckQuery, [username]);
+    const client = await db.connect(); // schon vorhanden
+    const usernameCheck = await client.query(userCheckQuery, [username]);
     if (usernameCheck.rows && usernameCheck.rows.length > 0) {
       return res.status(409).json({ success: false, error: 'Benutzername bereits vergeben' });
     }
