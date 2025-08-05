@@ -350,12 +350,19 @@ app.post('/api/auth/login', async (req, res) => {
       expiresAt.toISOString()
     ]);
 
-    res.json({
-      success: true,
-      message: 'Anmeldung erfolgreich',
-      token,
-      username: user.username
-    });
+            // Letzter Login aktualisieren
+const updateLoginQuery = isPostgreSQL
+  ? `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`
+  : `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`;
+
+await dbQuery(updateLoginQuery, [user.id]);
+
+res.json({
+  success: true,
+  message: 'Anmeldung erfolgreich',
+  token,
+  username: user.username
+});
   } catch (error) {
   console.error('Login error:', error);
   res.status(500).json({
@@ -363,21 +370,6 @@ app.post('/api/auth/login', async (req, res) => {
     error: 'Interner Serverfehler'
   });
 }
-});
-
-// Letzter Login aktualisieren
-const updateLoginQuery = isPostgreSQL
-  ? `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`
-  : `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`;
-
-await client.Query(updateLoginQuery, [user.id]);
-
-// Jetzt erst die Antwort senden!
-res.json({
-  success: true,
-  message: 'Anmeldung erfolgreich',
-  token,
-  username: user.username
 });
 
 // License Key Activation / Registrierung
