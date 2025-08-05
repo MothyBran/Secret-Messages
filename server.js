@@ -356,6 +356,14 @@ app.post('/api/auth/login', async (req, res) => {
       token,
       username: user.username
     });
+  } catch (error) {
+  console.error('Login error:', error);
+  res.status(500).json({
+    success: false,
+    error: 'Interner Serverfehler'
+  });
+}
+});
 
 // Letzter Login aktualisieren
 const updateLoginQuery = isPostgreSQL
@@ -364,13 +372,12 @@ const updateLoginQuery = isPostgreSQL
 
 await dbQuery(updateLoginQuery, [user.id]);
 
+// Jetzt erst die Antwort senden!
 res.json({
   success: true,
   message: 'Anmeldung erfolgreich',
   token,
   username: user.username
-});
-  }
 });
 
 // License Key Activation / Registrierung
