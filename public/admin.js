@@ -633,6 +633,7 @@ document.addEventListener('click', async (e) => {
     const usersBtn  = document.getElementById('loadUsersBtn');
     const keysBtn   = document.getElementById('loadKeysBtn');
     const statusFilter = document.getElementById('keysStatusFilter');
+    const purchasesBtn = document.getElementById('loadPurchasesBtn');
 
     if (loginBtn)  loginBtn.addEventListener('click', handleLogin);
     if (pw)        pw.addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
@@ -640,6 +641,7 @@ document.addEventListener('click', async (e) => {
     if (genBtn)    genBtn.addEventListener('click', generateKeys);
     if (usersBtn)  usersBtn.addEventListener('click', loadUsers);
     if (keysBtn)   keysBtn.addEventListener('click', loadKeys);
+    if (purchasesBtn) purchasesBtn.addEventListener('click', loadPurchases);
     if (statusFilter) statusFilter.addEventListener('change', () => loadKeys());
 
     if (pw) pw.focus();
