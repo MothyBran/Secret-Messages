@@ -370,7 +370,7 @@ const updateLoginQuery = isPostgreSQL
   ? `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`
   : `UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`;
 
-await dbQuery(updateLoginQuery, [user.id]);
+await client.Query(updateLoginQuery, [user.id]);
 
 // Jetzt erst die Antwort senden!
 res.json({
