@@ -374,8 +374,8 @@ function computeKeyStatus(k) {
 
   if (!activatedAt) return 'inactive';            // noch nicht gekoppelt
   if (expires && expires <= now) return 'expired'; // abgelaufen
-  if (!isActive && activatedAt) return 'blocked';  // manuell gesperrt
-  if (isActive && activatedAt && hasUser) return 'active'; // korrekt aktiv
+  if (!isActive) return 'blocked';  // manuell gesperrt
+  if (isActive && activatedAt) return 'active'; // korrekt aktiv
   return 'inactive';
 }
 
