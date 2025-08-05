@@ -459,16 +459,18 @@ async function loadKeys() {
           if (st === 'blocked') statusText = '⛔ Gesperrt';
 
           const created = k.created_at || null;
-          const expires = k.expires_at || null;
-          const remaining = (st === 'expired') ? '0 Tage' : calcRemainingDays(expires);
+          const activated = k.activated_at || null;
+          const expires = st === 'active' ? (k.expires_at || null) : null;
+          const remaining = st === 'active' ? calcRemainingDays(expires) : '—';
           const product = k.product_code || '-';
-
+          
           const row = document.createElement("tr");
           row.innerHTML = `
             <td><span class="key-code">${k.key_code}</span></td>
             <td>${product}</td>
             <td>${statusText}</td>
             <td>${formatDateDE(created)}</td>
+            <td>${activated ? formatDateDE(activated) : '—'}</td>
             <td>${expires ? formatDateDE(expires) : '—'}</td>
             <td>${remaining}</td>
             <td>
