@@ -138,6 +138,12 @@ router.post("/confirm-session", async (req, res) => {
       keys.push(code);
     }
 
+    await pool.query(
+      `INSERT INTO purchases (buyer, license, price)
+       VALUES ($1, $2, $3)`,
+      [session.customer_email || 'unbekannt', product_type, product.amount / 100]
+    );
+    
     await pool.query(`INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
       VALUES ($1, $2, $3, $4, $5, NOW(), $6)`, [
       intent.id,
@@ -168,6 +174,29 @@ router.post("/confirm-session", async (req, res) => {
   } catch (err) {
     console.error("confirm-session error:", err);
     res.status(500).json({ error: "Zahlung konnte nicht bestätigt werden." });
+  }
+});
+
+// Admin-API: Käufe abrufen
+router.post("/admin/purchases", async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+      return res.json({ success: false, error: "Zugriff verweigert – Passwort ungültig" });
+    }
+
+    const result = await pool.query(`
+      SELECT id, buyer, license, price, date
+      FROM purchases
+      ORDER BY date DESC
+      LIMIT 100
+    `);
+
+    res.json({ success: true, purchases: result.rows });
+  } catch (err) {
+    console.error("Fehler beim Laden der Käufe:", err);
+    res.status(500).json({ success: false, error: "Interner Serverfehler beim Laden der Käufe." });
   }
 });
 
