@@ -371,7 +371,6 @@ function computeKeyStatus(k) {
   const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
   const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
   const now = Date.now();
-  const hasUser = !!k.user_id; // ← Muss vom Backend mitgeliefert werden
 
   if (!activatedAt) return 'inactive';            // noch nicht gekoppelt
   if (expires && expires <= now) return 'expired'; // abgelaufen
@@ -474,9 +473,9 @@ async function loadKeys() {
             <td>${remaining}</td>
             <td>
               ${st === 'inactive'
-                ? `<button class="btn btn-small btn-danger action-delete" data-id="${k.id}">Löschen</button>`
+                ? `<button class="btn btn-small btn-danger action-delete" data-id="${k.id}">❌</button>`
                 : st === 'active'
-                  ? `<button class="btn btn-small action-activate" data-id="${k.id}">Laufzeit ändern</button>`
+                  ? `<button class="btn btn-small action-activate" data-id="${k.id}">⏳</button>`
                   : ''
               }
             </td>
