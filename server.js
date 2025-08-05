@@ -448,11 +448,11 @@ app.post('/api/auth/activate', async (req, res) => {
 
     // Lizenz-Key als aktiviert markieren
     const updateKeyQuery = isPostgreSQL
-      ? `UPDATE license_keys 
-         SET is_active = true,
-             activated_at = CURRENT_TIMESTAMP,
-             activated_ip = $1
-         WHERE id = $2`
+     ? `UPDATE license_keys 
+        SET activated_at = CURRENT_TIMESTAMP,
+            activated_ip = $1
+        WHERE id = $2
+      
       : `UPDATE license_keys 
          SET is_active = 1,
              activated_at = CURRENT_TIMESTAMP,
@@ -906,11 +906,11 @@ app.post('/api/admin/keys/:id/activate', async (req, res) => {
 
     const sql = isPostgreSQL
       ? `UPDATE license_keys
-           SET is_active = true,
-               activated_at = COALESCE(activated_at, $1),
-               expires_at = $2,
-               product_code = $3
-         WHERE id = $4`
+            SET activated_at = COALESCE(activated_at, $1),
+                expires_at = $2,
+                product_code = $3
+            WHERE id = $4
+            
       : `UPDATE license_keys
            SET is_active = 1,
                activated_at = COALESCE(activated_at, ?),
