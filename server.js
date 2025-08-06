@@ -357,6 +357,12 @@ const updateLoginQuery = isPostgreSQL
 
 await dbQuery(updateLoginQuery, [user.id]);
 
+const updateOnlineStatus = isPostgreSQL
+  ? `UPDATE users SET is_online = true WHERE id = $1`
+  : `UPDATE users SET is_online = 1 WHERE id = ?`;
+
+await dbQuery(updateOnlineStatus, [user.id]);
+
 res.json({
   success: true,
   message: 'Anmeldung erfolgreich',
