@@ -419,9 +419,8 @@ async function handleLogin(event) {
         } else {
           startLicenseCountdown(data.expires_at);
         }
-    
       }, 1500);
-    }
+        
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
     }
