@@ -314,6 +314,13 @@ app.post('/api/auth/login', async (req, res) => {
         error: 'Ungültiger Benutzername oder Zugangscode' 
       });
     }
+    
+    if (user.is_blocked) {
+      return res.status(403).json({
+        success: false,
+        error: 'Ihr Zugang wurde gesperrt! Bitte kontaktieren Sie den Support.'
+      });
+    }
 
     const isValidCode = await bcrypt.compare(accessCode, user.access_code_hash);
     if (!isValidCode) {
