@@ -546,20 +546,26 @@ app.post('/api/activity/log', (req, res) => {
 
 // Logout (Clientseitig handled – keine echte Session-Invalidierung notwendig)
 app.post('/api/auth/logout', async (req, res) => {
-  const { username } = req.body;
-  if (!username) return res.status(400).json({ success: false, error: 'Benutzername fehlt' });
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Token fehlt' });
+  }
 
   try {
-    const updateOnlineStatus = isPostgreSQL
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const username = decoded.username;
+
+    const query = isPostgreSQL
       ? `UPDATE users SET is_online = false WHERE username = $1`
       : `UPDATE users SET is_online = 0 WHERE username = ?`;
 
-    await dbQuery(updateOnlineStatus, [username]);
+    await dbQuery(query, [username]);
 
     res.json({ success: true, message: 'Erfolgreich abgemeldet' });
   } catch (err) {
-    console.error('Logout error:', err);
-    res.status(500).json({ success: false, error: 'Logout fehlgeschlagen' });
+    console.error('Logout-Fehler:', err);
+    res.status(401).json({ success: false, error: 'Ungültiger Token' });
   }
 });
 
