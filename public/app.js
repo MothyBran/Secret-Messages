@@ -336,7 +336,7 @@ function showActivationSection() {
 function showMainSection() {
     showSection('mainSection');
     if (currentUser) {
-        document.getElementById('userInfo').textContent = `Benutzer: ${currentUser}`;
+        document.getElementById('userInfo').textContent = `User: ${currentUser}`;
     }
 }
 
