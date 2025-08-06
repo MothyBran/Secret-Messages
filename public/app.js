@@ -400,7 +400,10 @@ async function handleLogin(event) {
       const currentUserName = data.username || usernameInput;
       currentUser = currentUserName;
       authToken = data.token;
-
+       if (data.expires_at) {
+          startLicenseCountdown(data.expires_at);
+        }
+        
       // Save to localStorage
       localStorage.setItem('secretMessages_token', authToken);
       localStorage.setItem('secretMessages_user', currentUserName);
@@ -719,6 +722,35 @@ async function logActivity(action, metadata = {}) {
     } catch (error) {
         console.error('Activity logging error:', error);
     }
+}
+
+// Lizenz Countdown
+function startLicenseCountdown(expiresAtString) {
+  const countdownEl = document.getElementById('licenseCountdown');
+  if (!countdownEl) return;
+
+  const endTime = new Date(expiresAtString).getTime();
+
+  function updateCountdown() {
+    const now = Date.now();
+    const diff = endTime - now;
+
+    if (diff <= 0) {
+      countdownEl.textContent = '❌ Lizenz abgelaufen';
+      clearInterval(timer);
+      return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diff / (1000 * 60)) % 60);
+    const seconds = Math.floor((diff / 1000) % 60);
+
+    countdownEl.textContent = `⏳ Zugang: ${days}d ${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  updateCountdown();
+  const timer = setInterval(updateCountdown, 1000);
 }
 
 // ================================================================
