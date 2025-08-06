@@ -736,8 +736,9 @@ function startLicenseCountdown(expiresAtString) {
     const diff = endTime - now;
 
     if (diff <= 0) {
-      countdownEl.textContent = '❌ Lizenz abgelaufen';
       clearInterval(timer);
+      countdownEl.textContent = '❌ Lizenz abgelaufen – Sie wurden abgemeldet.';
+      performAutoLogout();
       return;
     }
 
@@ -746,11 +747,34 @@ function startLicenseCountdown(expiresAtString) {
     const minutes = Math.floor((diff / (1000 * 60)) % 60);
     const seconds = Math.floor((diff / 1000) % 60);
 
-    countdownEl.textContent = `⏳ Zugang: ${days}d ${hours}h ${minutes}m ${seconds}s`;
+    countdownEl.textContent = `⏳ Zugang: ${days}:${hours}:${minutes}:${seconds}`;
   }
 
   updateCountdown();
   const timer = setInterval(updateCountdown, 1000);
+}
+
+async function performAutoLogout() {
+  const token = localStorage.getItem('token');
+
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    } catch (err) {
+      console.warn('Automatischer Logout fehlgeschlagen:', err);
+    }
+  }
+
+  localStorage.removeItem('token');
+  document.getElementById('dashboard')?.style?.display = 'none';
+  document.getElementById('loginForm')?.style?.display = 'flex';
+  document.getElementById('loginError')?.style?.display = 'none';
 }
 
 // ================================================================
