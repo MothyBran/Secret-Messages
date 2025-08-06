@@ -299,11 +299,11 @@ app.post('/api/auth/login', async (req, res) => {
       ? `SELECT u.*, k.key_code
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
-         WHERE u.username = $1 AND u.is_blocked = false`
+         WHERE u.username = $1`
       : `SELECT u.*, k.key_code
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
-         WHERE u.username = ? AND u.is_blocked = 0`;
+         WHERE u.username = ?`;
 
     const result = await dbQuery(userQuery, [username]);
     const user = result.rows[0];
