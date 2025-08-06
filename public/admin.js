@@ -287,15 +287,33 @@ async function refreshStats() {
     }
 }
 
-// Logout
-function handleLogout() {
-    adminPassword = '';
-    document.getElementById('adminPassword').value = '';
-    document.getElementById('dashboard').style.display = 'none';
-    document.getElementById('loginForm').style.display = 'flex';
-    document.getElementById('loginError').style.display = 'none';
-}
+// Logout mit Token
+async function handleLogout() {
+  const token = localStorage.getItem('token');
 
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    } catch (error) {
+      console.error('Logout-Fehler:', error);
+    }
+  }
+
+  // Local cleanup
+  localStorage.removeItem('token');
+  adminPassword = '';
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'flex';
+  document.getElementById('loginError').style.display = 'none';
+}
+// Benuter sperren
   function sperreBenutzer(username) {
     if (users[username]) {
       users[username].gesperrt = true;
@@ -304,7 +322,7 @@ function handleLogout() {
       location.reload();
     }
   }
-
+// Benuter löschen
   function loescheBenutzer(username) {
     if (confirm(`Benutzer ${username} wirklich löschen?`)) {
       delete users[username];
