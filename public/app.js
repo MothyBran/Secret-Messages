@@ -410,27 +410,16 @@ async function handleLogin(event) {
       // Log activity
       logActivity('login_success', { username: currentUserName });
     
-      // Warten bis DOM sichtbar → dann Main Section anzeigen und Countdown starten
       setTimeout(() => {
         showMainSection();
     
-        // Countdown-Element holen
-        const countdownEl = document.getElementById('licenseCountdown');
-    
-        if (!countdownEl) {
-          console.warn('⚠️ countdownEl nicht gefunden!');
-          return;
-        }
-    
-        // Unlimited Key → direkt anzeigen
+        // ⏱ Jetzt ist das Element im DOM sichtbar – Countdown starten
         if (data.product_code === 'unl' || !data.expires_at) {
-          countdownEl.textContent = '🔓 UNLIMITED';
+          document.getElementById('licenseCountdown').textContent = '🔓 UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
-    
-      }, 1200);
-    }
+      }, 1500);
         
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
@@ -474,45 +463,44 @@ async function handleActivation(event) {
     }
     
     // Disable button
-  activateBtn.disabled = true;
-  activateBtnText.innerHTML = '<span class="spinner"></span>Aktivierung läuft...';
-
-  try {
-    const response = await fetch(`${API_BASE}/auth/activate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        licenseKey,
-        username: newUsername,
-        accessCode: newAccessCode
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      showStatus('activationStatus', 'Zugang erfolgreich erstellt! Sie werden zum Login weitergeleitet...', 'success');
-
-      // Auto-fill login form
-      setTimeout(() => {
-        showLoginSection();
-        document.getElementById('username').value = newUsername;
-        document.getElementById('accessCode').value = newAccessCode;
-        document.getElementById('username').focus();
-      }, 3000);
-    } else {
-      showStatus('activationStatus', data.error || 'Aktivierung fehlgeschlagen', 'error');
+    activateBtn.disabled = true;
+    activateBtnText.innerHTML = '<span class="spinner"></span>Aktivierung läuft...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/auth/activate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                licenseKey, 
+                username: newUsername, 
+                accessCode: newAccessCode 
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus('activationStatus', 'Zugang erfolgreich erstellt! Sie werden zum Login weitergeleitet...', 'success');
+            
+            // Auto-fill login form
+            setTimeout(() => {
+                showLoginSection();
+                document.getElementById('username').value = newUsername;
+                document.getElementById('accessCode').value = newAccessCode;
+                document.getElementById('username').focus();
+            }, 3000);
+        } else {
+            showStatus('activationStatus', data.error || 'Aktivierung fehlgeschlagen', 'error');
+        }
+    } catch (error) {
+        console.error('Activation error:', error);
+        showStatus('activationStatus', 'Verbindungsfehler zum Server', 'error');
+    } finally {
+        activateBtn.disabled = false;
+        activateBtnText.textContent = 'ZUGANG ERSTELLEN';
     }
-
-  } catch (error) {
-    console.error('Activation error:', error);
-    showStatus('activationStatus', 'Verbindungsfehler zum Server', 'error');
-  } finally {
-    activateBtn.disabled = false;
-    activateBtnText.textContent = 'ZUGANG ERSTELLEN';
-  }
 }
 
 // ================================================================
