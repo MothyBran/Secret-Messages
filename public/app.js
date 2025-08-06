@@ -400,24 +400,28 @@ async function handleLogin(event) {
       const currentUserName = data.username || usernameInput;
       currentUser = currentUserName;
       authToken = data.token;
-       if (data.product_code === 'unl' || !data.expires_at) {
+    
+      // Save to localStorage
+      localStorage.setItem('secretMessages_token', authToken);
+      localStorage.setItem('secretMessages_user', currentUserName);
+    
+      showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
+    
+      // Log activity
+      logActivity('login_success', { username: currentUserName });
+    
+      setTimeout(() => {
+        showMainSection();
+    
+        // ⏱ Jetzt ist das Element im DOM sichtbar – Countdown starten
+        if (data.product_code === 'unl' || !data.expires_at) {
           document.getElementById('licenseCountdown').textContent = '🔓 UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
-        
-      // Save to localStorage
-      localStorage.setItem('secretMessages_token', authToken);
-      localStorage.setItem('secretMessages_user', currentUserName);
-
-      showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
-
-      // Log activity
-      logActivity('login_success', { username: currentUserName });
-
-      setTimeout(() => {
-        showMainSection();
+    
       }, 1500);
+    }
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
     }
