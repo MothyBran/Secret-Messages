@@ -753,7 +753,7 @@ function startLicenseCountdown(expiresAtString) {
     const minutes = Math.floor((diff / (1000 * 60)) % 60);
     const seconds = Math.floor((diff / 1000) % 60);
 
-    countdownEl.textContent = `⏳ Zugang: ${days}:${hours}:${minutes}:${seconds}`;
+    countdownEl.textContent = `Lizenz: ${days}:${hours}:${minutes}:${seconds}`;
   }
 
   updateCountdown();
