@@ -227,10 +227,10 @@ async function loadUsers() {
         users.forEach(user => {
           const row = tableBody.insertRow();
 
-          let statusText = '⏳ Inaktiv';
-          if (user.status === 'active') statusText = '✅ Aktiv';
-          else if (user.status === 'expired') statusText = '❌ Abgelaufen';
-          else if (user.status === 'blocked') statusText = '⛔ Gesperrt';
+          // OnlineStatus statt alter Status
+          let statusText = '🔴 Offline';
+          if (user.is_blocked) statusText = '⛔ Gesperrt';
+          else if (user.is_online) statusText = '🟢 Online';
 
           row.innerHTML = `
             <td>${user.id}</td>
@@ -240,7 +240,7 @@ async function loadUsers() {
             <td>${formatDateDE(user.registered_at)}</td>
             <td>${user.last_login ? formatDateDE(user.last_login) : '—'}</td>
             <td>
-              ${user.status === 'blocked'
+              ${user.is_blocked
                 ? `<button class="btn btn-small btn-success btn-unblock-user" data-id="${user.id}">Entsperren</button>`
                 : `<button class="btn btn-small btn-danger btn-block-user" data-id="${user.id}">Sperren</button>`}
               <button class="btn btn-small btn-secondary btn-delete-user" data-id="${user.id}">Löschen</button>
