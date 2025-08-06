@@ -410,16 +410,27 @@ async function handleLogin(event) {
       // Log activity
       logActivity('login_success', { username: currentUserName });
     
+      // Warten bis DOM sichtbar → dann Main Section anzeigen und Countdown starten
       setTimeout(() => {
         showMainSection();
     
-        // ⏱ Jetzt ist das Element im DOM sichtbar – Countdown starten
+        // Countdown-Element holen
+        const countdownEl = document.getElementById('licenseCountdown');
+    
+        if (!countdownEl) {
+          console.warn('⚠️ countdownEl nicht gefunden!');
+          return;
+        }
+    
+        // Unlimited Key → direkt anzeigen
         if (data.product_code === 'unl' || !data.expires_at) {
-          document.getElementById('licenseCountdown').textContent = '🔓 UNLIMITED';
+          countdownEl.textContent = '🔓 UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
-      }, 1500);
+    
+      }, 1200);
+    }
         
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
