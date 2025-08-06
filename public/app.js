@@ -400,7 +400,9 @@ async function handleLogin(event) {
       const currentUserName = data.username || usernameInput;
       currentUser = currentUserName;
       authToken = data.token;
-       if (data.expires_at) {
+       if (data.product_code === 'unl' || !data.expires_at) {
+          document.getElementById('licenseCountdown').textContent = '🔓 UNLIMITED';
+        } else {
           startLicenseCountdown(data.expires_at);
         }
         
@@ -727,7 +729,7 @@ async function logActivity(action, metadata = {}) {
 // Lizenz Countdown
 function startLicenseCountdown(expiresAtString) {
   const countdownEl = document.getElementById('licenseCountdown');
-  if (!countdownEl) return;
+  if (!countdownEl || !expiresAtString) return;
 
   const endTime = new Date(expiresAtString).getTime();
 
@@ -736,9 +738,10 @@ function startLicenseCountdown(expiresAtString) {
     const diff = endTime - now;
 
     if (diff <= 0) {
-      clearInterval(timer);
       countdownEl.textContent = '❌ Lizenz abgelaufen – Sie wurden abgemeldet.';
+      countdownEl.style.color = 'red';
       performAutoLogout();
+      clearInterval(timer);
       return;
     }
 
