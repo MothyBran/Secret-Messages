@@ -546,7 +546,21 @@ app.post('/api/activity/log', (req, res) => {
 
 // Logout (Clientseitig handled – keine echte Session-Invalidierung notwendig)
 app.post('/api/auth/logout', async (req, res) => {
-  res.json({ success: true, message: 'Erfolgreich abgemeldet' });
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ success: false, error: 'Benutzername fehlt' });
+
+  try {
+    const updateOnlineStatus = isPostgreSQL
+      ? `UPDATE users SET is_online = false WHERE username = $1`
+      : `UPDATE users SET is_online = 0 WHERE username = ?`;
+
+    await dbQuery(updateOnlineStatus, [username]);
+
+    res.json({ success: true, message: 'Erfolgreich abgemeldet' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ success: false, error: 'Logout fehlgeschlagen' });
+  }
 });
 
 // Account löschen
@@ -706,13 +720,13 @@ app.post('/api/admin/users', async (req, res) => {
 
     const selectSql = isPostgreSQL
       ? `SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login,
-                k.key_code, k.is_active, k.activated_at, k.expires_at
+                k.key_code, k.is_active, k.activated_at, k.expires_at, u.is_online
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
          ORDER BY u.registered_at DESC
          LIMIT $1 OFFSET $2`
       : `SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login,
-                k.key_code, k.is_active, k.activated_at, k.expires_at
+                k.key_code, k.is_active, k.activated_at, k.expires_at, u.is_online
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
          ORDER BY datetime(u.registered_at) DESC
@@ -744,6 +758,7 @@ app.post('/api/admin/users', async (req, res) => {
         activated_at: row.activated_at,
         is_active: row.is_active || false,
         is_blocked: row.is_blocked || false,
+        is_online: row.is_online || false,
         status
       };
     });
