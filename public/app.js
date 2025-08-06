@@ -772,9 +772,14 @@ async function performAutoLogout() {
   }
 
   localStorage.removeItem('token');
-  document.getElementById('dashboard')?.style?.display = 'none';
-  document.getElementById('loginForm')?.style?.display = 'flex';
-  document.getElementById('loginError')?.style?.display = 'none';
+
+  const dashboard = document.getElementById('dashboard');
+  const loginForm = document.getElementById('loginForm');
+  const loginError = document.getElementById('loginError');
+
+  if (dashboard) dashboard.style.display = 'none';
+  if (loginForm) loginForm.style.display = 'flex';
+  if (loginError) loginError.style.display = 'none';
 }
 
 // ================================================================
