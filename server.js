@@ -296,11 +296,11 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const userQuery = isPostgreSQL
-      ? `SELECT u.*, k.key_code, k.expires_at
+      ? `SELECT u.*, k.key_code, k.expires_at, k.product_code
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
          WHERE u.username = $1`
-      : `SELECT u.*, k.key_code, k.expires_at
+      : `SELECT u.*, k.key_code, k.expires_at, k.product_code
          FROM users u
          LEFT JOIN license_keys k ON k.id = u.license_key_id
          WHERE u.username = ?`;
@@ -375,7 +375,8 @@ res.json({
   message: 'Anmeldung erfolgreich',
   token,
   username: user.username,
-  expires_at: user.expires_at || null
+  expires_at: user.expires_at || null,
+  product_code: user.product_code || null
 });
   } catch (error) {
   console.error('Login error:', error);
