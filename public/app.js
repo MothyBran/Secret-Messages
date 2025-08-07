@@ -195,15 +195,23 @@ function startMatrixCanvas() {
   let last = 0;
 
   function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const scaledW = Math.min(Math.floor(w * DPR), 1920);
-    const scaledH = Math.min(Math.floor(h * DPR), 1080);
-    cvs.width  = scaledW;
-    cvs.height = scaledH;
-    cvs.style.width  = w + 'px';
-    cvs.style.height = h + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const w = window.innerWidth;
+      const h = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+        window.innerHeight
+      );
+
+      const scaledW = Math.min(Math.floor(w * DPR), 1920);
+      const scaledH = Math.min(Math.floor(h * DPR), 3000); // du kannst hier auch höher gehen
+    
+      cvs.width  = scaledW;
+      cvs.height = scaledH;
+      cvs.style.width  = w + 'px';
+      cvs.style.height = h + 'px';
+    
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
 
     // Spalten neu initialisieren
     const count = Math.min(MAXC, Math.max(1, Math.floor(w / GAP)));
