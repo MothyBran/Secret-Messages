@@ -151,7 +151,7 @@ function setupKeyboardShortcuts() {
         
         // Enter in login/activation forms
         if (e.key === 'Enter') {
-            if (document.activeElement.id === 'accessCode') {
+            if (document.activeElement.id === 'Code') {
                 const loginBtn = document.getElementById('loginBtn');
                 if (loginBtn && !loginBtn.disabled) {
                     loginBtn.click();
@@ -373,17 +373,17 @@ async function handleLogin(event) {
   event.preventDefault();
 
   const usernameInput = document.getElementById('username').value;
-  const accessCode = document.getElementById('accessCode').value;
+  const Code = document.getElementById('Code').value;
   const loginBtn = document.getElementById('loginBtn');
   const loginBtnText = document.getElementById('loginBtnText');
 
   // Validation
-  if (!usernameInput || !accessCode) {
+  if (!usernameInput || !Code) {
     showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
     return;
   }
 
-  if (!/^\d{5}$/.test(accessCode)) {
+  if (!/^\d{5}$/.test(Code)) {
     showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
     return;
   }
@@ -398,7 +398,7 @@ async function handleLogin(event) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username: usernameInput, accessCode })
+      body: JSON.stringify({ username: usernameInput, Code })
     });
 
     const data = await response.json();
@@ -449,7 +449,7 @@ async function handleActivation(event) {
     
     const licenseKey = document.getElementById('licenseKey').value;
     const newUsername = document.getElementById('newUsername').value;
-    const newAccessCode = document.getElementById('newAccessCode').value;
+    const newCode = document.getElementById('newCode').value;
     const activateBtn = document.getElementById('activateBtn');
     const activateBtnText = document.getElementById('activateBtnText');
     
@@ -464,7 +464,7 @@ async function handleActivation(event) {
         return;
     }
     
-    if (!/^\d{5}$/.test(newAccessCode)) {
+    if (!/^\d{5}$/.test(newCode)) {
         showStatus('activationStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
         return;
     }
@@ -482,7 +482,7 @@ async function handleActivation(event) {
             body: JSON.stringify({ 
                 licenseKey, 
                 username: newUsername, 
-                accessCode: newAccessCode 
+                Code: newCode 
             })
         });
         
@@ -495,7 +495,7 @@ async function handleActivation(event) {
             setTimeout(() => {
                 showLoginSection();
                 document.getElementById('username').value = newUsername;
-                document.getElementById('accessCode').value = newAccessCode;
+                document.getElementById('Code').value = newAccessCode;
                 document.getElementById('username').focus();
             }, 3000);
         } else {
@@ -666,6 +666,41 @@ function copyToClipboard() {
 }
 
 // ================================================================
+// Access CHECK (Lizenz + Benutzerstatus prüfen)
+// ================================================================
+async function checkAccessAndRun(action) {
+    const token = localStorage.getItem('token');
+    if (!token) return performAutoLogout();
+
+    try {
+        const res = await fetch(`${API_BASE}/api/checkAccess`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const result = await res.json();
+
+        if (result.status === 'banned') {
+            alert('Dein Account wurde gesperrt. Du wirst jetzt ausgeloggt.');
+            return performAutoLogout();
+        }
+
+        if (result.status === 'expired') {
+            alert('Dein Lizenz-Zugang ist abgelaufen. Du wirst jetzt ausgeloggt.');
+            return performAutoLogout();
+        }
+
+        // Zugriff erlaubt → Aktion ausführen
+        action();
+
+    } catch (err) {
+        console.warn('Zugriffsprüfung fehlgeschlagen:', err);
+        alert('Ein Fehler ist aufgetreten. Bitte neu laden.');
+    }
+}
+
+// ================================================================
 // SESSION MANAGEMENT
 // ================================================================
 
@@ -794,6 +829,18 @@ async function performAutoLogout() {
   if (loginForm) loginForm.style.display = 'flex';
   if (loginError) loginError.style.display = 'none';
 }
+
+// ================================================================
+// BUTTON-BINDUNG MIT ZUGRIFFSPRÜFUNG
+// ================================================================
+
+document.getElementById('encryptButton').addEventListener('click', () => {
+    checkAccessAndRun(() => encryptMessage());
+});
+
+document.getElementById('decryptButton').addEventListener('click', () => {
+    checkAccessAndRun(() => decryptMessage());
+});
 
 // ================================================================
 // DEMO FUNCTIONS
