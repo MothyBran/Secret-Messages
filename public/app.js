@@ -834,11 +834,11 @@ async function performAutoLogout() {
 // BUTTON-BINDUNG MIT ZUGRIFFSPRÜFUNG
 // ================================================================
 
-document.getElementById('encryptButton').addEventListener('click', () => {
+document.getElementById('encryptBtn').addEventListener('click', () => {
     checkAccessAndRun(() => encryptMessage());
 });
 
-document.getElementById('decryptButton').addEventListener('click', () => {
+document.getElementById('decryptBtn').addEventListener('click', () => {
     checkAccessAndRun(() => decryptMessage());
 });
 
