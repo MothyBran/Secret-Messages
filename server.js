@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const paymentRoutes = require('./payment.js');
+const db = require('./db');
 require('dotenv').config();
 
 const app = express();
