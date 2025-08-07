@@ -645,6 +645,22 @@ app.delete('/api/auth/delete-account', async (req, res) => {
     });
   }
 });
+// Lizenz gültigkeits check
+app.get('/api/checkAccess', authenticateUser, async (req, res) => {
+  const user = await db.getUserById(req.user.id); // oder dein ORM/Query
+  const license = await db.getLicenseByUserId(user.id);
+  const now = new Date();
+
+  if (!user || user.status === 'banned') {
+    return res.json({ status: 'banned' });
+  }
+
+  if (!license || new Date(license.expiryDate) < now) {
+    return res.json({ status: 'expired' });
+  }
+
+  res.json({ status: 'active' });
+});
 
 // Admin purchases
 app.post('/api/admin/purchases', async (req, res) => {
