@@ -24,7 +24,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const DATABASE_URL = process.env.DATABASE_URL;
 
 // Database Setup
-let db, isPostgreSQL = false;
+// let db, isPostgreSQL = false;
 
 // Middleware zur Authentifizierung
 function authenticateUser(req, res, next) {
