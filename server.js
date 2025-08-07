@@ -7,7 +7,6 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const paymentRoutes = require('./payment.js');
-const db = require('./database/db');
 require('dotenv').config();
 
 const app = express();
@@ -24,7 +23,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const DATABASE_URL = process.env.DATABASE_URL;
 
 // Database Setup
-// let db, isPostgreSQL = false;
+let db, isPostgreSQL = false;
 
 // Middleware zur Authentifizierung
 function authenticateUser(req, res, next) {
