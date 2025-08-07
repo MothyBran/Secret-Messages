@@ -392,6 +392,12 @@ async function handleLogin(event) {
   const loginBtn = document.getElementById('loginBtn');
   const loginBtnText = document.getElementById('loginBtnText');
 
+  // Validation
+  if (!usernameInput || !Code) {
+    showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
+    return;
+  }
+
   if (!/^\d{5}$/.test(Code)) {
     showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
     return;
@@ -416,27 +422,27 @@ async function handleLogin(event) {
       const currentUserName = data.username || usernameInput;
       currentUser = currentUserName;
       authToken = data.token;
-    
+
       // Save to localStorage
       localStorage.setItem('secretMessages_token', authToken);
       localStorage.setItem('secretMessages_user', currentUserName);
-    
+
       showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
-    
+
       // Log activity
       logActivity('login_success', { username: currentUserName });
-    
+
       setTimeout(() => {
         showMainSection();
-    
-        // ⏱ Jetzt ist das Element im DOM sichtbar – Countdown starten
+
+        // Lizenz-Countdown starten
         if (data.product_code === 'unl' || !data.expires_at) {
           document.getElementById('licenseCountdown').textContent = 'UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
       }, 1500);
-        
+
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
     }
@@ -837,6 +843,15 @@ async function performAutoLogout() {
   if (dashboard) dashboard.style.display = 'none';
   if (loginForm) loginForm.style.display = 'flex';
   if (loginError) loginError.style.display = 'none';
+}
+
+// ================================================================
+// LOGIN FORM BINDUNG
+// ================================================================
+
+const loginForm = document.getElementById('loginForm');
+if (loginForm) {
+  loginForm.addEventListener('submit', handleLogin);
 }
 
 // ================================================================
