@@ -422,7 +422,7 @@ async function handleLogin(event) {
     
         // ⏱ Jetzt ist das Element im DOM sichtbar – Countdown starten
         if (data.product_code === 'unl' || !data.expires_at) {
-          document.getElementById('licenseCountdown').textContent = '🔓 UNLIMITED';
+          document.getElementById('licenseCountdown').textContent = 'UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
