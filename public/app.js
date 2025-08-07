@@ -211,7 +211,6 @@ function startMatrixCanvas() {
       cvs.style.height = h + 'px';
     
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
 
     // Spalten neu initialisieren
     const count = Math.min(MAXC, Math.max(1, Math.floor(w / GAP)));
