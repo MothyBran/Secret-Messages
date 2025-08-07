@@ -377,16 +377,20 @@ function showStatus(statusId, message, type) {
 async function handleLogin(event) {
   event.preventDefault();
 
-  const usernameInput = document.getElementById('username').value;
-  const Code = document.getElementById('Code').value;
-  const loginBtn = document.getElementById('loginBtn');
-  const loginBtnText = document.getElementById('loginBtnText');
+  const usernameEl = document.getElementById('username');
+  const codeEl = document.getElementById('Code');
 
-  // Validation
-  if (!usernameInput || !Code) {
-    showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
+  if (!usernameEl || !codeEl) {
+    console.warn('Login-Felder nicht gefunden im DOM');
+    showStatus('loginStatus', 'Technischer Fehler – bitte neu laden.', 'error');
     return;
   }
+
+  const usernameInput = usernameEl.value;
+  const Code = codeEl.value;
+
+  const loginBtn = document.getElementById('loginBtn');
+  const loginBtnText = document.getElementById('loginBtnText');
 
   if (!/^\d{5}$/.test(Code)) {
     showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
