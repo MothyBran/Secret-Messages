@@ -25,6 +25,24 @@ const DATABASE_URL = process.env.DATABASE_URL;
 // Database Setup
 let db, isPostgreSQL = false;
 
+// Middleware zur Authentifizierung
+function authenticateUser(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Kein Token übergeben' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token ungültig oder abgelaufen' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: {
