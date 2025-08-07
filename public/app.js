@@ -374,7 +374,7 @@ function showStatus(statusId, message, type) {
 // Access CHECK (Lizenz + Benutzerstatus prüfen)
 // ================================================================
 async function checkAccessAndRun(action) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('secretMessages_token');
     if (!token) return performAutoLogout();
 
     try {
@@ -819,7 +819,7 @@ function startLicenseCountdown(expiresAtString) {
 }
 
 async function performAutoLogout() {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('secretMessages_token');
 
   if (token) {
     try {
