@@ -67,13 +67,18 @@ function setupEventListeners() {
     
     const encryptBtn = document.getElementById('encryptBtn');
     if (encryptBtn) {
-        encryptBtn.addEventListener('click', encryptMessage);
+        encryptBtn.addEventListener('click', () => {
+            checkAccessAndRun(() => encryptMessage());
+        });
     }
     
     const decryptBtn = document.getElementById('decryptBtn');
     if (decryptBtn) {
-        decryptBtn.addEventListener('click', decryptMessage);
+        decryptBtn.addEventListener('click', () => {
+            checkAccessAndRun(() => decryptMessage());
+        });
     }
+
     
     const copyBtn = document.getElementById('copyBtn');
     if (copyBtn) {
@@ -829,18 +834,6 @@ async function performAutoLogout() {
   if (loginForm) loginForm.style.display = 'flex';
   if (loginError) loginError.style.display = 'none';
 }
-
-// ================================================================
-// BUTTON-BINDUNG MIT ZUGRIFFSPRÜFUNG
-// ================================================================
-
-document.getElementById('encryptBtn').addEventListener('click', () => {
-    checkAccessAndRun(() => encryptMessage());
-});
-
-document.getElementById('decryptBtn').addEventListener('click', () => {
-    checkAccessAndRun(() => decryptMessage());
-});
 
 // ================================================================
 // DEMO FUNCTIONS
