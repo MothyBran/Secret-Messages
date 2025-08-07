@@ -13,7 +13,7 @@ module.exports = {
 };
 
 // Datenbankverbindung
-const db = new sqlite3.Database(path.resolve(__dirname, 'database.sqlite'));
+const db = new sqlite3.Database(path.resolve(__dirname, '../database.sqlite'));
 
 // Benutzer anhand ID laden
 function getUserById(id) {
@@ -25,7 +25,7 @@ function getUserById(id) {
   });
 }
 
-// Lizenz anhand Lizenz-ID laden (aus users.license_key_id)
+// Lizenz anhand Lizenz-ID laden
 function getLicenseById(id) {
   return new Promise((resolve, reject) => {
     db.get('SELECT * FROM license_keys WHERE id = ?', [id], (err, row) => {
@@ -35,8 +35,7 @@ function getLicenseById(id) {
   });
 }
 
-// Exportieren
 module.exports = {
   getUserById,
-  getLicenseById,
+  getLicenseById
 };
