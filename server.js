@@ -665,23 +665,29 @@ app.delete('/api/auth/delete-account', async (req, res) => {
 });
 
 // Lizenz gültigkeits check
+function getLicenseById(id) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT * FROM license_keys WHERE id = ?', [id], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
   const user = await db.getUserById(req.user.id);
   const now = new Date();
 
-  // Benutzer gesperrt oder nicht vorhanden?
   if (!user || user.is_blocked === true || user.is_blocked === 'true') {
     return res.json({ status: 'banned' });
   }
 
-  // Lizenz holen über license_key_id
-  const license = await db.getLicenseById(user.license_key_id);
+  const license = await getLicenseById(user.license_key_id);
 
   if (!license || !license.expires_at || new Date(license.expires_at) < now) {
     return res.json({ status: 'expired' });
   }
 
-  // Alles in Ordnung
   res.json({ status: 'active' });
 });
 
