@@ -684,6 +684,8 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
 
   const license = await getLicenseById(user.license_key_id);
 
+    console.log('Lizenzdaten:', license);
+
   if (!license || !license.expires_at || new Date(license.expires_at) < now) {
     return res.json({ status: 'expired' });
   }
