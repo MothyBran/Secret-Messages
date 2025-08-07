@@ -371,6 +371,41 @@ function showStatus(statusId, message, type) {
 }
 
 // ================================================================
+// Access CHECK (Lizenz + Benutzerstatus prüfen)
+// ================================================================
+async function checkAccessAndRun(action) {
+    const token = localStorage.getItem('token');
+    if (!token) return performAutoLogout();
+
+    try {
+        const res = await fetch(`${API_BASE}/api/checkAccess`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const result = await res.json();
+
+        if (result.status === 'banned') {
+            alert('Dein Account wurde gesperrt. Du wirst jetzt ausgeloggt.');
+            return performAutoLogout();
+        }
+
+        if (result.status === 'expired') {
+            alert('Dein Lizenz-Zugang ist abgelaufen. Du wirst jetzt ausgeloggt.');
+            return performAutoLogout();
+        }
+
+        // Zugriff erlaubt → Aktion ausführen
+        action();
+
+    } catch (err) {
+        console.warn('Zugriffsprüfung fehlgeschlagen:', err);
+        alert('Ein Fehler ist aufgetreten. Bitte neu laden.');
+    }
+}
+
+// ================================================================
 // LOGIN HANDLER
 // ================================================================
 
@@ -680,40 +715,6 @@ function copyToClipboard() {
     logActivity('copy_to_clipboard', { contentLength: output.value.length });
 }
 
-// ================================================================
-// Access CHECK (Lizenz + Benutzerstatus prüfen)
-// ================================================================
-async function checkAccessAndRun(action) {
-    const token = localStorage.getItem('token');
-    if (!token) return performAutoLogout();
-
-    try {
-        const res = await fetch(`${API_BASE}/api/checkAccess`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        const result = await res.json();
-
-        if (result.status === 'banned') {
-            alert('Dein Account wurde gesperrt. Du wirst jetzt ausgeloggt.');
-            return performAutoLogout();
-        }
-
-        if (result.status === 'expired') {
-            alert('Dein Lizenz-Zugang ist abgelaufen. Du wirst jetzt ausgeloggt.');
-            return performAutoLogout();
-        }
-
-        // Zugriff erlaubt → Aktion ausführen
-        action();
-
-    } catch (err) {
-        console.warn('Zugriffsprüfung fehlgeschlagen:', err);
-        alert('Ein Fehler ist aufgetreten. Bitte neu laden.');
-    }
-}
 
 // ================================================================
 // SESSION MANAGEMENT
