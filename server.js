@@ -695,10 +695,13 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
     const license = licenseResult.rows[0];
     const now = new Date();
 
-    if (!license || !license.expires_at || new Date(license.expires_at) < now) {
+    if (!license) {
       return res.json({ status: 'expired' });
     }
-
+    
+    if (license.expires_at && new Date(license.expires_at) < now) {
+      return res.json({ status: 'expired' });
+    }
     res.json({ status: 'active' });
 
   } catch (err) {
