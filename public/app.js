@@ -3,7 +3,7 @@
 import { encryptFull, decryptFull, base64Encode, base64Decode } from './cryptoLayers.js';
 
 // Configuration
-const API_BASE = '/api';
+const API_BASE = '';
 let currentUser = null;
 let authToken = null;
 
