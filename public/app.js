@@ -337,12 +337,16 @@ function showSection(sectionId) {
 
 function showLoginSection() {
     showSection('loginSection');
-    document.getElementById('username')?.focus();
 
-    // Eingabefelder leeren
-    document.getElementById('username').value = '';
-    document.getElementById('Code').value = '';
-    document.getElementById('loginStatus').textContent = '';
+    const usernameInput = document.getElementById('username');
+    const codeInput = document.getElementById('Code');
+    const loginStatus = document.getElementById('loginStatus');
+
+    if (usernameInput) usernameInput.value = '';
+    if (codeInput) codeInput.value = '';
+    if (loginStatus) loginStatus.textContent = '';
+
+    usernameInput?.focus();
 }
 
 function showActivationSection() {
