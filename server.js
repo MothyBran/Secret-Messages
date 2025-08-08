@@ -729,7 +729,7 @@ app.post('/api/admin/purchases', async (req, res) => {
 
 // Generate Keys
 app.post('/api/admin/generate-key', async (req, res) => {
-  const { password, quantity = 1 } = req.body;
+  const { password, quantity = 1, product } = req.body;
 
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({
@@ -742,6 +742,13 @@ app.post('/api/admin/generate-key', async (req, res) => {
     return res.status(400).json({
       success: false,
       error: 'Anzahl muss zwischen 1 und 100 liegen'
+    });
+  }
+
+  if (!['1m', '3m', '12m', 'unl'].includes(product)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Ungültiger Produkttyp'
     });
   }
 
@@ -761,12 +768,40 @@ app.post('/api/admin/generate-key', async (req, res) => {
       const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
       const keyHash = await bcrypt.hash(keyCode, 10);
 
-      const insertQuery = isPostgreSQL
-        ? 'INSERT INTO license_keys (key_code, key_hash) VALUES ($1, $2)'
-        : 'INSERT INTO license_keys (key_code, key_hash) VALUES (?, ?)';
+      const createdAt = new Date();
+      let expiresAt = null;
+      let remainingDays = null;
 
-      await dbQuery(insertQuery, [keyCode, keyHash]);
-      keys.push(keyCode);
+      if (product === '1m') {
+        expiresAt = new Date(createdAt);
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+        remainingDays = 30;
+      } else if (product === '3m') {
+        expiresAt = new Date(createdAt);
+        expiresAt.setMonth(expiresAt.getMonth() + 3);
+        remainingDays = 90;
+      } else if (product === '12m') {
+        expiresAt = new Date(createdAt);
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        remainingDays = 365;
+      }
+
+      const insertQuery = isPostgreSQL
+        ? `INSERT INTO license_keys (key_code, key_hash, product, activated, expires_at, remaining_days) 
+           VALUES ($1, $2, $3, $4, $5, $6)`
+        : `INSERT INTO license_keys (key_code, key_hash, product, activated, expires_at, remaining_days) 
+           VALUES (?, ?, ?, ?, ?, ?)`;
+
+      await dbQuery(insertQuery, [
+        keyCode,
+        keyHash,
+        product,
+        false,               // activated
+        expiresAt,
+        remainingDays
+      ]);
+
+      keys.push({ key_code: keyCode });
     }
 
     res.json({
