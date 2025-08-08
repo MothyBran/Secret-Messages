@@ -351,7 +351,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign(
       { 
         username: user.username,
-        userId: user.id,
+        id: user.id,
         licenseKey: user.key_code || null
       },
       JWT_SECRET,
