@@ -779,7 +779,9 @@ app.post('/api/admin/generate-key', async (req, res) => {
       } else if (product === '12m') {
         expiresAt = new Date(createdAt);
         expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      } // "unl" → expiresAt bleibt null
+      } else if (product === 'unl') {
+        expiresAt = null; // unbegrenzt
+      }
 
       const insertQuery = isPostgreSQL
         ? `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
