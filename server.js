@@ -683,7 +683,10 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
       return res.json({ status: 'banned' });
     }
 
-    if (user.is_blocked === true) {
+    // 🛠 Boolean sauber prüfen (funktioniert mit PostgreSQL & SQLite)
+    const isBlocked = user.is_blocked === true || user.is_blocked === 1 || user.is_blocked === '1';
+
+    if (isBlocked) {
       console.warn('🚫 Zugriff verweigert: Benutzer ist gesperrt.');
       return res.json({ status: 'banned' });
     }
