@@ -510,7 +510,7 @@ async function handleActivation(event) {
     
     const licenseKey = document.getElementById('licenseKey').value;
     const newUsername = document.getElementById('newUsername').value;
-    const newCode = document.getElementById('newCode').value;
+    const newAccessCode = document.getElementById('newAccessCode').value;
     const activateBtn = document.getElementById('activateBtn');
     const activateBtnText = document.getElementById('activateBtnText');
     
@@ -525,7 +525,7 @@ async function handleActivation(event) {
         return;
     }
     
-    if (!/^\d{5}$/.test(newCode)) {
+    if (!/^\d{5}$/.test(newAccessCode)) {
         showStatus('activationStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
         return;
     }
@@ -543,7 +543,7 @@ async function handleActivation(event) {
             body: JSON.stringify({ 
                 licenseKey, 
                 username: newUsername, 
-                Code: newCode 
+                Code: newAccessCode 
             })
         });
         
