@@ -457,7 +457,7 @@ async function handleLogin(event) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: usernameInput, accessCode: Code })
+      body: JSON.stringify({ username: usernameInput, Code })
     });
 
     const data = await res.json();
