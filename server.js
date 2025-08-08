@@ -757,7 +757,7 @@ app.post('/api/admin/generate-key', async (req, res) => {
   try {
     for (let i = 0; i < quantity; i++) {
       const keyPart = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-';
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let part = '';
         for (let j = 0; j < 5; j++) {
           part += chars[Math.floor(Math.random() * chars.length)];
