@@ -343,7 +343,7 @@ function showLoginSection() {
     showSection('loginSection');
 
     const usernameInput = document.getElementById('username');
-    const codeInput = document.getElementById('Code');
+    const codeInput = document.getElementById('accessCode');
     const loginStatus = document.getElementById('loginStatus');
 
     if (usernameInput) usernameInput.value = '';
@@ -440,7 +440,7 @@ async function handleLogin(event) {
   const loginBtn = document.getElementById('loginBtn');
   const loginBtnText = document.getElementById('loginBtnText');
 
-  if (!usernameInput || !Code) {
+  if (!usernameInput || !accessCode) {
     showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
     return;
   }
