@@ -440,7 +440,7 @@ async function handleLogin(event) {
   const loginBtn = document.getElementById('loginBtn');
   const loginBtnText = document.getElementById('loginBtnText');
 
-  if (!usernameInput || !accessCode) {
+  if (!usernameInput || !Code) {
     showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
     return;
   }
