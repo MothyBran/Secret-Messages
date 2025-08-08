@@ -22,7 +22,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     
     // Check for existing session
-    checkExistingSession();
+    requestAnimationFrame(() => {
+        checkExistingSession();
+    });
 });
 
 // ================================================================
