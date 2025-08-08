@@ -136,6 +136,7 @@ function loadStatistics(stats = {}) {
 // Generate keys
 async function generateKeys() {
   const quantity = parseInt(document.getElementById('keyQuantity').value);
+  const product = document.getElementById('keyProduct').value; // NEU: Produkttyp
   const generateBtn = document.getElementById('generateKeysBtn');
   const generateBtnText = document.getElementById('generateBtnText');
   const result = document.getElementById('generationResult');
@@ -143,6 +144,13 @@ async function generateKeys() {
   if (quantity < 1 || quantity > 100 || isNaN(quantity)) {
     result.className = 'alert error';
     result.textContent = 'Anzahl muss zwischen 1 und 100 liegen';
+    result.style.display = 'block';
+    return;
+  }
+
+  if (!product) {
+    result.className = 'alert error';
+    result.textContent = 'Bitte wähle einen Produkttyp';
     result.style.display = 'block';
     return;
   }
@@ -158,7 +166,8 @@ async function generateKeys() {
       },
       body: JSON.stringify({
         password: adminPassword,
-        quantity
+        quantity,
+        product // NEU: Produkt-Typ mitsenden
       })
     });
 
