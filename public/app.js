@@ -856,6 +856,14 @@ async function performAutoLogout() {
 
   // Sichtbarkeit
   showLoginSection();
+
+  // ✅ Statusbox zurücksetzen
+  const loginStatus = document.getElementById('loginStatus');
+  if (loginStatus) {
+    loginStatus.textContent = '';
+    loginStatus.className = 'status';
+    loginStatus.style.display = 'none';
+  }
 }
 
 // ================================================================
