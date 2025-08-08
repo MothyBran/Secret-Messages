@@ -678,8 +678,8 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
   try {
     const userResult = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
     const user = userResult.rows[0];
-
-    if (!user || user.is_blocked) {
+    
+    if (!user || user.is_blocked === true) {
       return res.json({ status: 'banned' });
     }
 
@@ -805,9 +805,10 @@ app.post('/api/admin/users', async (req, res) => {
     const nowMs = Date.now();
 
     const users = rows.map(row => {
+      const isBlocked = row.is_blocked === true;  // explizite Prüfung
       let status = 'inactive';
 
-      if (row.is_blocked) {
+      if (isBlocked) {
         status = 'blocked';
       } else if (row.expires_at && new Date(row.expires_at).getTime() <= nowMs) {
         status = 'expired';
@@ -824,9 +825,9 @@ app.post('/api/admin/users', async (req, res) => {
         registered_at: row.registered_at,
         last_login: row.last_login,
         activated_at: row.activated_at,
-        is_active: row.is_active || false,
-        is_blocked: row.is_blocked || false,
-        is_online: row.is_online || false,
+        is_active: !!row.is_active,
+        is_blocked: isBlocked,
+        is_online: !!row.is_online,
         status
       };
     });
