@@ -543,7 +543,7 @@ async function handleActivation(event) {
             body: JSON.stringify({ 
                 licenseKey, 
                 username: newUsername, 
-                Code: newAccessCode 
+                accessCode: newAccessCode 
             })
         });
         
