@@ -520,12 +520,12 @@ async function handleActivation(event) {
         return;
     }
     
-    if (!/^[a-zA-Z0-9_-]+$/.test(newUsername) || newUsername.length < 3) {
-        showStatus('activationStatus', 'Gewünschter Benutzername muss mindestens 3 Zeichen lang sein (nur Buchstaben, Zahlen, _, -)', 'error');
+    if (!/^[a-zA-Z0-9]+$/.test(newUsername) || newUsername.length < 3) {
+        showStatus('activationStatus', 'Gewünschter Benutzername muss mindestens 3 Zeichen lang sein (nur Buchstaben, Zahlen,)', 'error');
         return;
     }
     
-    if (!/^\d{5}$/.test(newAccessCode)) {
+    if (!/^[0-9]{5}$/.test(newAccessCode)) {
         showStatus('activationStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
         return;
     }
