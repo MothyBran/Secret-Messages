@@ -479,7 +479,7 @@ async function handleLogin(event) {
       setTimeout(() => {
         document.getElementById('loginSection')?.classList.remove('active');
         document.getElementById('mainSection')?.classList.add('active');
-        document.getElementById('userInfo').textContent = `Angemeldet als: ${currentUser}`;
+        document.getElementById('userInfo').textContent = `User: ${currentUser}`;
         if (data.product_code === 'unl' || !data.expires_at) {
           document.getElementById('licenseCountdown').textContent = 'UNLIMITED';
         } else {
