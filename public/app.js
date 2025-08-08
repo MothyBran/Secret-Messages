@@ -424,79 +424,66 @@ async function checkAccessAndRun(action) {
 
 async function handleLogin(event) {
   event.preventDefault();
-
   console.log('🔒 Login-Funktion ausgeführt – Seite bleibt erhalten.');
-    
+
   const usernameEl = document.getElementById('username');
-  const codeEl = document.getElementById('Code');
+  const codeEl = document.getElementById('accessCode');
 
   if (!usernameEl || !codeEl) {
     console.warn('Login-Felder nicht gefunden im DOM');
+    showStatus('loginStatus', 'Technischer Fehler – bitte neu laden.', 'error');
     return;
   }
 
-  const usernameInput = usernameEl.value;
-  const Code = codeEl.value;
-
+  const usernameInput = usernameEl.value.trim();
+  const Code = codeEl.value.trim();
   const loginBtn = document.getElementById('loginBtn');
   const loginBtnText = document.getElementById('loginBtnText');
 
-  // Validation
   if (!usernameInput || !Code) {
     showStatus('loginStatus', 'Bitte alle Felder ausfüllen', 'error');
     return;
   }
 
-  if (!/^\d{5}$/.test(Code)) {
+  if (!/^[0-9]{5}$/.test(Code)) {
     showStatus('loginStatus', 'Zugangscode muss 5 Ziffern enthalten', 'error');
     return;
   }
 
-  // Disable button
   loginBtn.disabled = true;
   loginBtnText.innerHTML = '<span class="spinner"></span>Anmeldung läuft...';
 
   try {
-    const response = await fetch(`${API_BASE}/auth/login`, {
+    const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username: usernameInput, Code })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: usernameInput, accessCode: Code })
     });
 
-    const data = await response.json();
+    const data = await res.json();
 
     if (data.success) {
-      const currentUserName = data.username || usernameInput;
-      currentUser = currentUserName;
       authToken = data.token;
-
-      // Save to localStorage
+      currentUser = data.username;
       localStorage.setItem('secretMessages_token', authToken);
-      localStorage.setItem('secretMessages_user', currentUserName);
-
+      localStorage.setItem('secretMessages_user', currentUser);
       showStatus('loginStatus', 'Anmeldung erfolgreich!', 'success');
 
-      // Log activity
-      logActivity('login_success', { username: currentUserName });
-
       setTimeout(() => {
-        showMainSection();
-
-        // Lizenz-Countdown starten
+        document.getElementById('loginSection')?.classList.remove('active');
+        document.getElementById('mainSection')?.classList.add('active');
+        document.getElementById('userInfo').textContent = \`Angemeldet als: \${currentUser}\`;
         if (data.product_code === 'unl' || !data.expires_at) {
           document.getElementById('licenseCountdown').textContent = 'UNLIMITED';
         } else {
           startLicenseCountdown(data.expires_at);
         }
       }, 1500);
-
     } else {
       showStatus('loginStatus', data.error || 'Anmeldung fehlgeschlagen', 'error');
     }
-  } catch (error) {
-    console.error('Login error:', error);
+  } catch (err) {
+    console.error('Login-Fehler:', err);
     showStatus('loginStatus', 'Verbindungsfehler zum Server', 'error');
   } finally {
     loginBtn.disabled = false;
