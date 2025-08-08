@@ -346,8 +346,11 @@ function showLoginSection() {
 
     if (usernameInput) usernameInput.value = '';
     if (codeInput) codeInput.value = '';
-    if (loginStatus) loginStatus.textContent = '';
-
+    if (loginStatus) {
+  loginStatus.textContent = '';
+  loginStatus.className = 'status';
+  loginStatus.style.display = 'none';
+}
     usernameInput?.focus();
 }
 
