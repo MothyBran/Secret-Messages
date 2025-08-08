@@ -678,24 +678,29 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
   try {
     const userResult = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
     const user = userResult.rows[0];
-    
-    if (!user || user.is_blocked === true) {
+
+    if (!user) {
+      return res.json({ status: 'banned' });
+    }
+
+    if (user.is_blocked === true) {
+      console.warn('🚫 Zugriff verweigert: Benutzer ist gesperrt.');
       return res.json({ status: 'banned' });
     }
 
     const licenseResult = await db.query('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
     const license = licenseResult.rows[0];
-
     const now = new Date();
-    if (!license || new Date(license.expires_at) < now) {
+
+    if (!license || !license.expires_at || new Date(license.expires_at) < now) {
       return res.json({ status: 'expired' });
     }
 
     res.json({ status: 'active' });
 
   } catch (err) {
-    console.error('❌ Fehler bei /checkAccess:', err.message);
-    res.status(500).json({ status: 'error', message: 'Serverfehler' });
+    console.error('❌ Fehler in /checkAccess:', err);
+    res.status(500).json({ status: 'error', message: 'Serverfehler bei Zugriffskontrolle' });
   }
 });
 
