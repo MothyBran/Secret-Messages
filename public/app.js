@@ -860,15 +860,6 @@ async function performAutoLogout() {
 }
 
 // ================================================================
-// LOGIN FORM BINDUNG
-// ================================================================
-
-const loginForm = document.getElementById('loginForm');
-if (loginForm) {
-  loginForm.addEventListener('submit', handleLogin);
-}
-
-// ================================================================
 // DEMO FUNCTIONS
 // ================================================================
 
