@@ -33,12 +33,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupEventListeners() {
     // Login Form
-    document.addEventListener('DOMContentLoaded', () => {
-      const loginForm = document.getElementById('loginForm');
-      if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-      }
-    });
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+      loginForm.addEventListener('submit', handleLogin);
+    }
     
     // Activation Form
     const activationForm = document.getElementById('activationForm');
