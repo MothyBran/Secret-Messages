@@ -367,13 +367,21 @@ function showMainSection() {
 // STATUS MESSAGES
 // ================================================================
 
-function showStatus(statusId, message, type) {
+function showStatus(statusId, message, type = 'info') {
     const status = document.getElementById(statusId);
     if (!status) return;
-    
+
+    if (!message) {
+        status.textContent = '';
+        status.className = 'status';
+        status.style.display = 'none';  // Box ausblenden
+        return;
+    }
+
     status.textContent = message;
     status.className = `status ${type} show`;
-    
+    status.style.display = 'block'; // Box einblenden
+
     if (type === 'error') {
         setTimeout(() => {
             status.classList.remove('show');
