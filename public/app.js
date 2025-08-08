@@ -425,12 +425,13 @@ async function checkAccessAndRun(action) {
 async function handleLogin(event) {
   event.preventDefault();
 
+  console.log('🔒 Login-Funktion ausgeführt – Seite bleibt erhalten.');
+    
   const usernameEl = document.getElementById('username');
   const codeEl = document.getElementById('Code');
 
   if (!usernameEl || !codeEl) {
     console.warn('Login-Felder nicht gefunden im DOM');
-    showStatus('loginStatus', 'Technischer Fehler – bitte neu laden.', 'error');
     return;
   }
 
