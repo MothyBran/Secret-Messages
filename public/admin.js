@@ -394,16 +394,22 @@ async function loadPurchases() {
 
 // Determine key status
 function computeKeyStatus(k) {
-  const isActive = !!k.is_active;
+  const isActive = k.is_active === true;
   const activatedAt = k.activated_at ? new Date(k.activated_at).getTime() : null;
-  const expires = k.expires_at ? new Date(k.expires_at).getTime() : null;
+  const expiresAt = k.expires_at ? new Date(k.expires_at).getTime() : null;
   const now = Date.now();
 
-  if (!activatedAt) return 'inactive';            // noch nicht gekoppelt
-  if (expires && expires <= now) return 'expired'; // abgelaufen
-  if (!isActive) return 'blocked';  // manuell gesperrt
-  if (isActive && activatedAt) return 'active'; // korrekt aktiv
-  return 'inactive';
+  // Key wurde noch nicht aktiviert
+  if (!activatedAt) return 'inactive';
+
+  // Key ist aktiviert, aber deaktiviert worden
+  if (!isActive) return 'blocked';
+
+  // Key ist aktiv, aber abgelaufen
+  if (expiresAt && expiresAt <= now) return 'expired';
+
+  // Key ist aktiv und nicht abgelaufen oder unendlich gültig
+  return 'active';
 }
 
 // Product label helper
