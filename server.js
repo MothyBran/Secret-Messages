@@ -767,38 +767,33 @@ app.post('/api/admin/generate-key', async (req, res) => {
 
       const keyCode = `${keyPart()}-${keyPart()}-${keyPart()}`;
       const keyHash = await bcrypt.hash(keyCode, 10);
-
       const createdAt = new Date();
       let expiresAt = null;
-      let remainingDays = null;
 
       if (product === '1m') {
         expiresAt = new Date(createdAt);
         expiresAt.setMonth(expiresAt.getMonth() + 1);
-        remainingDays = 30;
       } else if (product === '3m') {
         expiresAt = new Date(createdAt);
         expiresAt.setMonth(expiresAt.getMonth() + 3);
-        remainingDays = 90;
       } else if (product === '12m') {
         expiresAt = new Date(createdAt);
         expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-        remainingDays = 365;
-      }
+      } // "unl" → expiresAt bleibt null
 
       const insertQuery = isPostgreSQL
-        ? `INSERT INTO license_keys (key_code, key_hash, product, activated, expires_at, remaining_days) 
+        ? `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
            VALUES ($1, $2, $3, $4, $5, $6)`
-        : `INSERT INTO license_keys (key_code, key_hash, product, activated, expires_at, remaining_days) 
+        : `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
            VALUES (?, ?, ?, ?, ?, ?)`;
 
       await dbQuery(insertQuery, [
         keyCode,
         keyHash,
-        product,
-        false,               // activated
+        createdAt,
         expiresAt,
-        remainingDays
+        false, // is_active = false bei Generierung
+        product // product_code
       ]);
 
       keys.push({ key_code: keyCode });
