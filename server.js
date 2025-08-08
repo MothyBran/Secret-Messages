@@ -472,9 +472,11 @@ app.post('/api/auth/activate', async (req, res) => {
         // Lizenz-Key als aktiviert markieren
         await client.query(
           `UPDATE license_keys 
-           SET activated_at = CURRENT_TIMESTAMP,
-               activated_ip = $1
-           WHERE id = $2`,
+            SET 
+              is_active = true,
+              activated_at = CURRENT_TIMESTAMP,
+              activated_ip = $1
+            WHERE id = $2`,
           [clientIP, keyData.id]
         );
 
