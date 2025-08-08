@@ -3,7 +3,7 @@
 import { encryptFull, decryptFull, base64Encode, base64Decode } from './cryptoLayers.js';
 
 // Configuration
-const API_BASE = '';
+const API_BASE = '/api';
 let currentUser = null;
 let authToken = null;
 
@@ -389,7 +389,7 @@ async function checkAccessAndRun(action) {
     if (!token) return performAutoLogout();
 
     try {
-        const res = await fetch(`${API_BASE}/api/checkAccess`, {
+        const res = await fetch(`${API_BASE}/checkAccess`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
