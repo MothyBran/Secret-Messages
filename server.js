@@ -675,14 +675,16 @@ function getLicenseById(id) {
 }
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
-  const user = await db.getUserById(req.user.id);
+  const userResult = await db.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+  const user = userResult.rows[0];
   const now = new Date();
 
   if (!user || user.is_blocked === true || user.is_blocked === 'true') {
     return res.json({ status: 'banned' });
   }
 
-  const license = await getLicenseById(user.license_key_id);
+  const licenseResult = await db.query('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
+  const license = licenseResult.rows[0];
 
     console.log('Lizenzdaten:', license);
 
