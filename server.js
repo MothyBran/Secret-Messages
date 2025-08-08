@@ -72,8 +72,6 @@ const loginLimiter = rateLimit({
         error: 'Zu viele Login-Versuche. Bitte versuchen Sie es später erneut.'
     },
     keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
-    standardHeaders: true,
-    legacyHeaders: false
 });
 
 const apiLimiter = rateLimit({
