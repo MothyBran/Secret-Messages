@@ -493,9 +493,9 @@ async function loadKeys() {
 
           const created = k.created_at || null;
           const activated = k.activated_at || null;
-          const expires = st === 'active' ? (k.expires_at || null) : null;
-          const remaining = st === 'active' ? calcRemainingDays(expires) : '—';
           const product = k.product_code || '-';
+          const expires = (st === 'active' && k.expires_at) ? k.expires_at : null;
+          const remaining = expires ? calcRemainingDays(expires) : (product === 'unl' ? '∞' : '—');
           
           const row = document.createElement("tr");
           row.innerHTML = `
