@@ -65,10 +65,15 @@ app.use('/api', paymentRoutes);
 
 // Rate Limiting
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: 'Zu viele Login-Versuche. Bitte versuchen Sie es später erneut.',
+    windowMs: 15 * 60 * 1000, // 15 Minuten
+    max: 5,                   // max. 5 Versuche
+    message: {
+        success: false,
+        error: 'Zu viele Login-Versuche. Bitte versuchen Sie es später erneut.'
+    },
     keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip
+    standardHeaders: true,
+    legacyHeaders: false
 });
 
 const apiLimiter = rateLimit({
