@@ -337,7 +337,12 @@ function showSection(sectionId) {
 
 function showLoginSection() {
     showSection('loginSection');
-    document.getElementById('username').focus();
+    document.getElementById('username')?.focus();
+
+    // Eingabefelder leeren
+    document.getElementById('username').value = '';
+    document.getElementById('Code').value = '';
+    document.getElementById('loginStatus').textContent = '';
 }
 
 function showActivationSection() {
@@ -835,15 +840,19 @@ async function performAutoLogout() {
     }
   }
 
-  localStorage.removeItem('token');
+  // Token und Benutzer lokal entfernen
+  localStorage.removeItem('secretMessages_token');
+  localStorage.removeItem('secretMessages_user');
+  currentUser = null;
+  authToken = null;
 
-  const dashboard = document.getElementById('dashboard');
-  const loginForm = document.getElementById('loginForm');
-  const loginError = document.getElementById('loginError');
+  // Felder zurücksetzen
+  document.getElementById("messageInput").value = "";
+  document.getElementById("messageOutput").value = "";
+  document.getElementById("outputGroup").style.display = "none";
 
-  if (dashboard) dashboard.style.display = 'none';
-  if (loginForm) loginForm.style.display = 'flex';
-  if (loginError) loginError.style.display = 'none';
+  // Sichtbarkeit
+  showLoginSection();
 }
 
 // ================================================================
