@@ -1,4 +1,4 @@
-// store.js
+// store.js - Handhabt Shop-Logik und Status-Polling
 
 const licenseMapping = {
   "1m": { name: "1 Monat Zugang", price: "1,99 €" },
@@ -12,7 +12,35 @@ const licenseMapping = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Lizenz-Buttons
+  // 1. URL Parameter prüfen
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionId = urlParams.get("session_id");
+  const success = urlParams.get("success");
+
+  // 2. Modus entscheiden: Shop oder Status?
+  if (sessionId && success) {
+    // -> STATUS MODUS (Nach Kauf)
+    switchToStatusMode(sessionId);
+  } else {
+    // -> SHOP MODUS (Normal)
+    initializeShop();
+  }
+
+  // Event Listeners für Modal
+  document.getElementById("closeModalBtn")?.addEventListener("click", closeModal);
+  document.getElementById("confirmPurchaseBtn")?.addEventListener("click", confirmPurchase);
+});
+
+// =======================================================
+// SHOP LOGIK
+// =======================================================
+
+function initializeShop() {
+  // Standard-Shop anzeigen
+  document.getElementById("shop-view").style.display = "block";
+  document.getElementById("payment-status-section").style.display = "none";
+
+  // Buttons initialisieren
   const buttons = document.querySelectorAll(".license-btn");
   buttons.forEach(btn => {
     const plan = btn.dataset.plan;
@@ -20,45 +48,23 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", () => showModal(plan));
     }
   });
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const sessionId = urlParams.get("session_id");
-  
-  if (sessionId) {
-    showLoadingOverlay("🔐 Zahlung wird geprüft...");
-    fetch("/api/confirm-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId })
-    }).then(res => res.json()).then(data => {
-      hideLoadingOverlay();
-      if (data.success && data.keys?.length) {
-        showKeyResult(data.keys, data.expires_at);
-      } else {
-        alert("Zahlung nicht bestätigt.");
-      }
-    });
-  }
-
-  // Modal-Buttons
-  document.getElementById("closeModalBtn")?.addEventListener("click", closeModal);
-  document.getElementById("confirmPurchaseBtn")?.addEventListener("click", confirmPurchase);
-});
+}
 
 function showModal(plan) {
   const modal = document.getElementById("modalOverlay");
   const planText = document.getElementById("modalPlan");
   const priceText = document.getElementById("modalPrice");
+  const emailInput = document.getElementById("emailInput");
 
   const license = licenseMapping[plan];
-  if (!license) {
-    alert("Unbekannter Lizenztyp.");
-    return;
-  }
+  if (!license) return alert("Fehler: Unbekannter Lizenztyp.");
 
   modal.dataset.selectedPlan = plan;
-  planText.textContent = `🔐 Lizenz: ${license.name}`;
-  priceText.textContent = `💶 Preis: ${license.price}`;
+  planText.textContent = license.name;
+  priceText.textContent = license.price;
+  emailInput.value = ""; // Reset
+  emailInput.focus();
+  
   modal.style.display = "block";
 }
 
@@ -69,16 +75,19 @@ function closeModal() {
 async function confirmPurchase() {
   const modal = document.getElementById("modalOverlay");
   const plan = modal?.dataset.selectedPlan;
+  const emailInput = document.getElementById("emailInput");
+  const btn = document.getElementById("confirmPurchaseBtn");
 
-  console.log("🧪 Plan gewählt:", plan);
-  
-  closeModal();
-
-  const email = document.getElementById("emailInput")?.value?.trim();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    alert("Ungültige E-Mail-Adresse.");
+  const email = emailInput?.value?.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert("Bitte geben Sie eine gültige E-Mail-Adresse ein.");
     return;
   }
+
+  // Button sperren (Loading)
+  const originalText = btn.innerText;
+  btn.innerText = "⏳ Verbindung zu Stripe...";
+  btn.disabled = true;
 
   try {
     const response = await fetch("/api/create-checkout-session", {
@@ -88,72 +97,119 @@ async function confirmPurchase() {
     });
 
     const data = await response.json();
-    if (!data.success || !data.checkout_url) {
-      alert("Fehler beim Erstellen der Checkout-Sitzung.");
-      return;
+    if (data.success && data.checkout_url) {
+      window.location.href = data.checkout_url;
+    } else {
+      throw new Error(data.error || "Keine URL erhalten");
     }
 
-    window.location.href = data.checkout_url;
   } catch (err) {
     console.error("Zahlungsfehler:", err);
-    alert("Fehler beim Start der Zahlung.");
+    alert("Fehler beim Starten der Zahlung: " + err.message);
+    btn.innerText = originalText;
+    btn.disabled = false;
   }
 }
 
-function showLoadingOverlay(text = "Bitte warten...") {
-  const overlay = document.createElement("div");
-  overlay.id = "paymentOverlay";
-  overlay.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:black;display:flex;align-items:center;justify-content:center;color:lime;font-size:1.2rem;z-index:2000;font-family:'Courier New', monospace;";
-  overlay.innerHTML = `<div><span class="spinner"></span><br>${text}</div>`;
-  document.body.appendChild(overlay);
+// =======================================================
+// STATUS / POLLING LOGIK (Webhook Check)
+// =======================================================
+
+function switchToStatusMode(sessionId) {
+  // Shop ausblenden, Status einblenden
+  document.getElementById("shop-view").style.display = "none";
+  const statusSection = document.getElementById("payment-status-section");
+  statusSection.style.display = "block";
+
+  // Polling starten
+  pollPaymentStatus(sessionId);
 }
 
-function hideLoadingOverlay() {
-  const overlay = document.getElementById("paymentOverlay");
-  if (overlay) overlay.remove();
+async function pollPaymentStatus(sessionId) {
+  const processingDiv = document.getElementById("status-processing");
+  const successDiv = document.getElementById("status-success");
+  const errorDiv = document.getElementById("status-error");
+  const errorMsg = document.getElementById("error-message");
+  const keysArea = document.getElementById("keys-output-area");
+
+  let attempts = 0;
+  const maxAttempts = 40; // ca. 80 Sekunden warten (40 * 2s)
+
+  const check = async () => {
+    attempts++;
+    console.log(`📡 Prüfe Zahlungsstatus (Versuch ${attempts})...`);
+
+    try {
+      const res = await fetch(`/api/order-status?session_id=${sessionId}`);
+      const data = await res.json();
+
+      if (data.success && data.status === 'completed') {
+        // --- ERFOLG ---
+        processingDiv.style.display = "none";
+        successDiv.style.display = "block";
+        
+        // Keys rendern
+        if (data.keys && data.keys.length > 0) {
+           renderKeys(data.keys, keysArea);
+        } else {
+           keysArea.innerHTML = "<p>Keine Keys gefunden (Fehler?)</p>";
+        }
+        return; // Polling beenden
+
+      } else if (data.status === 'processing' || !data.status) {
+        // --- NOCH WARTEN ---
+        if (attempts < maxAttempts) {
+           setTimeout(check, 2000); // In 2 Sekunden nochmal
+        } else {
+           throw new Error("Zeitüberschreitung: Zahlung wurde nicht rechtzeitig bestätigt.");
+        }
+
+      } else {
+        // --- FEHLER ---
+        throw new Error("Server meldet Status: " + data.status);
+      }
+
+    } catch (err) {
+      console.error("Polling Fehler:", err);
+      processingDiv.style.display = "none";
+      errorDiv.style.display = "block";
+      errorMsg.textContent = err.message || "Verbindungsfehler.";
+    }
+  };
+
+  // Start
+  check();
 }
 
-function showKeyResult(keys = [], expiresAt = null) {
-  // Vorherige Inhalte entfernen
-  document.body.innerHTML = "";
-
-  const box = document.createElement("div");
-  box.style = "max-width:600px;margin:80px auto;background:#000;padding:30px;border:1px solid lime;color:lime;text-align:center;box-shadow:0 0 15px lime;font-family:'Courier New', monospace;";
-
-  const keysHTML = keys.map((k, i) => `
-    <div style="margin: 10px 0;">
-      <code style="font-size:1.4rem;">${k}</code><br>
-      <button class="copy-button" data-key="${k}" style="margin-top:5px;padding:5px 10px;border:1px solid lime;background:black;color:lime;cursor:pointer;">🔗 Key kopieren</button>
-    </div>
-  `).join("");
-
-  box.innerHTML = `
-    <h2>✅ Zahlung erfolgreich!</h2>
-    <p>Hier ist dein Lizenz-Key${keys.length > 1 ? 's' : ''}:</p>
-    ${keysHTML}
-    <div id="copy-msg" style="margin-top:10px;opacity:0;transition:opacity 0.5s ease;color:#9f9;">✔️ Lizenz-Key kopiert!</div>
-    <p style="margin-top:20px;"><strong>⚠️ Wichtig:</strong> Bitte kopiere den Key jetzt und bewahre ihn sicher auf. Nach der Aktivierung ist er mit deinem Benutzerkonto verknüpft und kann <u>nicht erneut angezeigt</u> werden.</p>
-    ${expiresAt ? `<p>⏳ Gültig bis: <strong>${new Date(expiresAt).toLocaleDateString("de-DE")}</strong></p>` : `<p>♾️ Unbegrenzte Gültigkeit</p>`}
-    <button id="backBtn" style="margin-top:30px;padding:10px 20px;border:1px solid lime;background:black;color:lime;cursor:pointer;">⬅️ Zurück zum Shop</button>
-  `;
-
-  document.body.appendChild(box);
-
-  // Copy-Buttons aktivieren
-  document.querySelectorAll(".copy-button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const key = btn.getAttribute("data-key");
-      navigator.clipboard.writeText(key).then(() => {
-        const msg = document.getElementById("copy-msg");
-        msg.innerText = "✔️ Lizenz-Key kopiert!";
-        msg.style.opacity = 1;
-        setTimeout(() => msg.style.opacity = 0, 2000);
-      });
-    });
+function renderKeys(keys, container) {
+  let html = "";
+  keys.forEach(key => {
+    html += `
+      <div class="key-display">
+        ${key}
+        <br>
+        <button class="copy-btn" onclick="copyKey(this, '${key}')">🔗 KOPIEREN</button>
+      </div>
+    `;
   });
-
-  // Zurück-zum-Shop-Button
-  document.getElementById("backBtn")?.addEventListener("click", () => {
-    window.location.href = "store.html";
-  });
+  container.innerHTML = html;
 }
+
+// Hilfsfunktion für den Copy-Button im HTML String
+window.copyKey = function(btn, key) {
+  navigator.clipboard.writeText(key).then(() => {
+    const originalText = btn.innerText;
+    btn.innerText = "✔️ KOPIERT!";
+    btn.style.color = "white";
+    btn.style.borderColor = "white";
+    
+    setTimeout(() => {
+        btn.innerText = originalText;
+        btn.style.color = "";
+        btn.style.borderColor = "";
+    }, 2000);
+  }).catch(err => {
+    console.error('Copy failed', err);
+    alert('Konnte Key nicht kopieren.');
+  });
+};
