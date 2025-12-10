@@ -729,8 +729,39 @@ app.post('/api/admin/purchases', async (req, res) => {
   }
 
   try {
-    const result = await dbQuery("SELECT buyer, license, price, date FROM purchases ORDER BY date DESC LIMIT 100");
-    res.json({ success: true, purchases: result.rows });
+    // WIR LESEN JETZT AUS DER 'PAYMENTS' TABELLE (PostgreSQL & SQLite kompatibel)
+    // Dort stehen die Keys in den Metadaten!
+    const query = isPostgreSQL
+      ? `SELECT payment_id, amount, currency, status, completed_at, metadata, payment_method 
+         FROM payments 
+         ORDER BY completed_at DESC LIMIT 100`
+      : `SELECT payment_id, amount, currency, status, completed_at, metadata, payment_method 
+         FROM payments 
+         ORDER BY datetime(completed_at) DESC LIMIT 100`;
+
+    const result = await dbQuery(query);
+    
+    // Wir bereiten die Daten auf, damit das Frontend sie leicht lesen kann
+    const enrichedPurchases = result.rows.map(row => {
+        let meta = {};
+        try {
+            // Metadaten parsen (falls String)
+            meta = (typeof row.metadata === 'string') ? JSON.parse(row.metadata) : row.metadata;
+        } catch (e) { meta = {}; }
+
+        return {
+            id: row.payment_id,
+            email: meta.email || 'Unbekannt', // Email aus Metadaten
+            amount: row.amount,
+            currency: row.currency,
+            date: row.completed_at,
+            keys: meta.keys_generated || [], // HIER SIND DIE KEYS!
+            product: meta.product_type || '?',
+            status: row.status
+        };
+    });
+
+    res.json({ success: true, purchases: enrichedPurchases });
   } catch (err) {
     console.error("Fehler bei /purchases:", err);
     res.status(500).json({ success: false, error: "Datenbankfehler" });
