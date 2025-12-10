@@ -1,129 +1,102 @@
-// Sonderzeichen-Tabelle: Kompakter Binärcode (1–5, 7–8), Ѫ = Start, Ѭ = Ende
-const specialCharToBinary = {
-    '!': '81',  '?': '71',  '@': '11',  '#': '21',  '$': '31',
-    '%': '41',  '^': '51',  '&': '27',  '*': '37',  '(': '47',
-    ')': '57',  '-': '17',  '_': '87',  '+': '77',  '=': '67',
-    '{': '28',  '}': '38',  '[': '48',  ']': '58',  ':': '18',
-    ';': '88',  '"': '78',  "'": '68',  '<': '29',  '>': '39',
-    ',': '49',  '.': '59',  '/': '19',  '\\': '89', '|': '79',
-    '€': '26'
-};
+// cryptoLayers.js - Modern AES-GCM Encryption (Secure)
 
-// Funktion zum Kodieren eines Textes mit Sonderzeichen
-function encodeSpecialChars(text) {
-    return text.replace(/[^a-zA-Z0-9\s]/g, char => {
-        const code = specialCharToBinary[char];
-        return code ? `Ѫ${code}Ѭ` : char;
-    });
+// Hilfsfunktion: String zu ArrayBuffer
+function str2ab(str) {
+    return new TextEncoder().encode(str);
 }
 
-// Umgekehrte Tabelle für das Dekodieren
-const binaryToSpecialChar = Object.fromEntries(
-    Object.entries(specialCharToBinary).map(([char, code]) => [code, char])
-);
-
-// Funktion zum Dekodieren von kodierten Sonderzeichen
-function decodeSpecialChars(text) {
-    return text.replace(/Ѫ(\d{2})Ѭ/g, (_, code) => {
-        return binaryToSpecialChar[code] || '?';
-    });
+// Hilfsfunktion: ArrayBuffer zu Base64 String
+function ab2str(buf) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
 }
 
-// Custom-Mapping: A-Z → Griechisch, 0–9 → Kyrillisch
-const charMap = {
-    A: 'Α', B: 'Β', C: 'Γ', D: 'Δ', E: 'Ε', F: 'Ζ', G: 'Η', H: 'Θ', I: 'Ι',
-    J: 'Κ', K: 'Λ', L: 'Μ', M: 'Ν', N: 'Ξ', O: 'Ο', P: 'Π', Q: 'Ρ', R: 'Σ',
-    S: 'Τ', T: 'Υ', U: 'Φ', V: 'Χ', W: 'Ψ', X: 'Ω', Y: 'α', Z: 'β',
-    0: 'Д', 1: 'Я', 2: 'Й', 3: 'Ц', 4: 'Щ', 5: 'Ъ', 6: 'Ы', 7: 'Э', 8: 'Ю', 9: 'Ж'
-};
-
-const reverseCharMap = Object.fromEntries(
-    Object.entries(charMap).map(([k, v]) => [v, k])
-);
-
-// Custom-Mapping
-function customMapEncode(text) {
-    return text.split('').map(c => charMap[c] || c).join('');
+// Hilfsfunktion: Base64 String zu ArrayBuffer
+function str2ab_b64(str) {
+    return Uint8Array.from(atob(str), c => c.charCodeAt(0));
 }
 
-function customMapDecode(text) {
-    return text.split('').map(c => reverseCharMap[c] || c).join('');
+// 1. Schlüssel aus dem 5-stelligen Code generieren (SHA-256 Hashing)
+// Damit wird aus "12345" ein echter 256-Bit Krypto-Schlüssel
+async function generateKey(passcode) {
+    const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        str2ab(passcode),
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+    );
+
+    // Wir nutzen PBKDF2 mit einem festen Salt (für diese Demo), 
+    // um Brute-Force etwas zu erschweren. 
+    // Ideal wäre ein zufälliger Salt pro Nachricht, aber das ändert dein Datenformat.
+    return window.crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: str2ab("SecretMessagesSalt_v1"), 
+            iterations: 100000, // Hohe Iterationen gegen Brute-Force
+            hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+    );
 }
 
-// Base64
-function base64Encode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-}
-function base64Decode(str) {
-    return decodeURIComponent(escape(atob(str)));
-}
+// HAUPTFUNKTIONEN
 
-// Caesar Cipher
-function caesarEncrypt(str, shift = 3) {
-    return str.split('').map(c => String.fromCharCode(c.charCodeAt(0) + shift)).join('');
-}
-function caesarDecrypt(str, shift = 3) {
-    return str.split('').map(c => String.fromCharCode(c.charCodeAt(0) - shift)).join('');
-}
-
-// Reverse
-function reverseText(str) {
-    return str.split('').reverse().join('');
-}
-
-// Simple AES Ersatz (Pseudo-Verschlüsselung)
-function simpleAES(text, key) {
-    return text.split('').map((char, i) => {
-        const k = key.charCodeAt(i % key.length);
-        return String.fromCharCode(char.charCodeAt(0) ^ k);
-    }).join('');
-}
-
-// Sicherheitscode-Transformation
-function securityCodeTransform(text, code, forward = true) {
-    return text.split('').map((c, i) => {
-        const shift = parseInt(code[i % code.length] || '0');
-        return String.fromCharCode(c.charCodeAt(0) + (forward ? shift : -shift));
-    }).join('');
-}
-
-// Hauptfunktionen
-function encryptFull(message, code) {
-    let step1 = encodeSpecialChars(message);
-    let step2 = customMapEncode(step1);
-    let step3 = securityCodeTransform(step2, code, true);
-    let step4 = base64Encode(step3);
-    let step5 = simpleAES(step4, code);
-    let step6 = caesarEncrypt(step5);
-    let step7 = reverseText(step6);
-    let step8 = caesarEncrypt(step7);
-    let step9 = simpleAES(step8, code);
-    let step10 = base64Encode(securityCodeTransform(step9, code, true));
-    return step10;
-}
-
-function decryptFull(encrypted, code) {
+// Verschlüsseln
+export async function encryptFull(message, code) {
     try {
-        let step1 = securityCodeTransform(base64Decode(encrypted), code, false);
-        let step2 = simpleAES(step1, code);
-        let step3 = caesarDecrypt(step2);
-        let step4 = reverseText(step3);
-        let step5 = caesarDecrypt(step4);
-        let step6 = simpleAES(step5, code);
-        let step7 = base64Decode(step6);
-        let step8 = securityCodeTransform(step7, code, false);
-        let step9 = customMapDecode(step8);
-        let step10 = decodeSpecialChars(step9);
-        return step10;
+        const key = await generateKey(code);
+        const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Zufälliger Initialisierungsvektor
+        
+        const encryptedContent = await window.crypto.subtle.encrypt(
+            {
+                name: "AES-GCM",
+                iv: iv
+            },
+            key,
+            str2ab(message)
+        );
+
+        // Wir müssen IV und Content zusammenpacken, um es später zu entschlüsseln
+        // Format: IV (Base64) : EncryptedData (Base64)
+        const ivStr = ab2str(iv);
+        const dataStr = ab2str(encryptedContent);
+        
+        return `${ivStr}:${dataStr}`;
     } catch (e) {
-        return '[Fehler beim Entschlüsseln]';
+        console.error("Encryption Error:", e);
+        throw new Error("Verschlüsselung fehlgeschlagen");
     }
 }
 
-// Export für Browser (falls notwendig)
-export {
-    encryptFull,
-    decryptFull,
-    base64Encode,
-    base64Decode
-};
+// Entschlüsseln
+export async function decryptFull(encryptedString, code) {
+    try {
+        // Format splitten
+        const parts = encryptedString.split(':');
+        if (parts.length !== 2) throw new Error("Ungültiges Format");
+        
+        const iv = str2ab_b64(parts[0]);
+        const data = str2ab_b64(parts[1]);
+        const key = await generateKey(code);
+
+        const decryptedContent = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv
+            },
+            key,
+            data
+        );
+
+        return new TextDecoder().decode(decryptedContent);
+    } catch (e) {
+        console.error("Decryption Error:", e);
+        // WICHTIG: Bei AES-GCM schlägt die Entschlüsselung fehl, 
+        // wenn der Code falsch ist oder der Text manipuliert wurde.
+        return "[Fehler: Falscher Code oder manipulierte Daten]"; 
+    }
+}
