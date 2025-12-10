@@ -1,102 +1,126 @@
-// cryptoLayers.js - Modern AES-GCM Encryption (Secure)
+// cryptoLayers.js - Hybrid Encryption (AES-GCM Core + Custom Obfuscation Layers)
 
-// Hilfsfunktion: String zu ArrayBuffer
-function str2ab(str) {
-    return new TextEncoder().encode(str);
-}
+// ========================================================
+// 1. DER MATHEMATISCHE KERN (Web Crypto API - AES-GCM)
+// ========================================================
 
-// Hilfsfunktion: ArrayBuffer zu Base64 String
-function ab2str(buf) {
-    return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
+// Hilfsfunktionen für AES
+function str2ab(str) { return new TextEncoder().encode(str); }
+function ab2str(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function str2ab_b64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 
-// Hilfsfunktion: Base64 String zu ArrayBuffer
-function str2ab_b64(str) {
-    return Uint8Array.from(atob(str), c => c.charCodeAt(0));
-}
-
-// 1. Schlüssel aus dem 5-stelligen Code generieren (SHA-256 Hashing)
-// Damit wird aus "12345" ein echter 256-Bit Krypto-Schlüssel
 async function generateKey(passcode) {
     const keyMaterial = await window.crypto.subtle.importKey(
-        "raw",
-        str2ab(passcode),
-        { name: "PBKDF2" },
-        false,
-        ["deriveKey"]
+        "raw", str2ab(passcode), { name: "PBKDF2" }, false, ["deriveKey"]
     );
-
-    // Wir nutzen PBKDF2 mit einem festen Salt (für diese Demo), 
-    // um Brute-Force etwas zu erschweren. 
-    // Ideal wäre ein zufälliger Salt pro Nachricht, aber das ändert dein Datenformat.
     return window.crypto.subtle.deriveKey(
-        {
-            name: "PBKDF2",
-            salt: str2ab("SecretMessagesSalt_v1"), 
-            iterations: 100000, // Hohe Iterationen gegen Brute-Force
-            hash: "SHA-256"
-        },
-        keyMaterial,
-        { name: "AES-GCM", length: 256 },
-        true,
-        ["encrypt", "decrypt"]
+        { name: "PBKDF2", salt: str2ab("SecretMessagesSalt_v1"), iterations: 100000, hash: "SHA-256" },
+        keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
     );
 }
 
-// HAUPTFUNKTIONEN
+// Interne AES Funktion (Der "Safe")
+async function encryptAES(message, code) {
+    const key = await generateKey(code);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const encryptedContent = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv }, key, str2ab(message)
+    );
+    // Standard Format: IV:Ciphertext
+    return `${ab2str(iv)}:${ab2str(encryptedContent)}`;
+}
 
-// Verschlüsseln
+// Interne AES Entschlüsselung
+async function decryptAES(encryptedString, code) {
+    const parts = encryptedString.split(':');
+    if (parts.length !== 2) throw new Error("AES Format ungültig");
+    
+    const iv = str2ab_b64(parts[0]);
+    const data = str2ab_b64(parts[1]);
+    const key = await generateKey(code);
+
+    const decryptedContent = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv }, key, data
+    );
+    return new TextDecoder().decode(decryptedContent);
+}
+
+
+// ========================================================
+// 2. DEINE "ALTE" LOGIK (Der Tarnumhang)
+// ========================================================
+
+// Wir nutzen hier vereinfachte Versionen deiner Algorithmen,
+// die sicher mit dem AES-Output (Base64) umgehen können.
+
+function reverseText(text) {
+    return text.split('').reverse().join('');
+}
+
+function caesarCipher(text, code, forward = true) {
+    // Wir nutzen die Quersumme des Codes als Verschiebung
+    let shift = 0;
+    for(let i=0; i<code.length; i++) shift += parseInt(code[i]);
+    shift = shift % 20; // Verschiebung begrenzen
+
+    if (!forward) shift = -shift;
+
+    return text.split('').map(char => {
+        let c = char.charCodeAt(0);
+        // Wir verschieben einfach den ASCII Wert, damit bleiben alle Zeichen erhalten
+        return String.fromCharCode(c + shift); 
+    }).join('');
+}
+
+// Eine einfache Base64 Hülle ganz außen, damit es sauber aussieht
+function outerWrap(text) {
+    return btoa(text);
+}
+
+function outerUnwrap(text) {
+    return atob(text);
+}
+
+
+// ========================================================
+// 3. HAUPTFUNKTIONEN (Die Verknüpfung)
+// ========================================================
+
 export async function encryptFull(message, code) {
     try {
-        const key = await generateKey(code);
-        const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Zufälliger Initialisierungsvektor
+        // SCHRITT 1: Echte, harte AES Verschlüsselung
+        const safeContent = await encryptAES(message, code);
         
-        const encryptedContent = await window.crypto.subtle.encrypt(
-            {
-                name: "AES-GCM",
-                iv: iv
-            },
-            key,
-            str2ab(message)
-        );
+        // SCHRITT 2: Deine Algorithmen drüber laufen lassen (Obfuscation)
+        // Reihenfolge: AES-String -> Reverse -> Caesar -> Base64
+        let layer1 = reverseText(safeContent);
+        let layer2 = caesarCipher(layer1, code, true); // true = encrypt
+        let finalOutput = outerWrap(layer2); // Finales Base64 encoding
 
-        // Wir müssen IV und Content zusammenpacken, um es später zu entschlüsseln
-        // Format: IV (Base64) : EncryptedData (Base64)
-        const ivStr = ab2str(iv);
-        const dataStr = ab2str(encryptedContent);
-        
-        return `${ivStr}:${dataStr}`;
+        return finalOutput;
+
     } catch (e) {
-        console.error("Encryption Error:", e);
+        console.error("Encryption failed:", e);
         throw new Error("Verschlüsselung fehlgeschlagen");
     }
 }
 
-// Entschlüsseln
-export async function decryptFull(encryptedString, code) {
+export async function decryptFull(encryptedData, code) {
     try {
-        // Format splitten
-        const parts = encryptedString.split(':');
-        if (parts.length !== 2) throw new Error("Ungültiges Format");
+        // SCHRITT 1: Die äußeren Schichten entfernen (in umgekehrter Reihenfolge)
+        // Base64 Decode -> Caesar Rückwärts -> Reverse Rückwärts
+        let layer2 = outerUnwrap(encryptedData);
+        let layer1 = caesarCipher(layer2, code, false); // false = decrypt
+        let aesString = reverseText(layer1);
+
+        // SCHRITT 2: Den Kern mit AES öffnen
+        const originalMessage = await decryptAES(aesString, code);
         
-        const iv = str2ab_b64(parts[0]);
-        const data = str2ab_b64(parts[1]);
-        const key = await generateKey(code);
+        return originalMessage;
 
-        const decryptedContent = await window.crypto.subtle.decrypt(
-            {
-                name: "AES-GCM",
-                iv: iv
-            },
-            key,
-            data
-        );
-
-        return new TextDecoder().decode(decryptedContent);
     } catch (e) {
-        console.error("Decryption Error:", e);
-        // WICHTIG: Bei AES-GCM schlägt die Entschlüsselung fehl, 
-        // wenn der Code falsch ist oder der Text manipuliert wurde.
-        return "[Fehler: Falscher Code oder manipulierte Daten]"; 
+        console.error("Decryption failed:", e);
+        // Wenn AES fehlschlägt, heißt das meistens: Tarnung war okay, aber Passwort falsch
+        return "[Fehler: Code falsch oder Daten manipuliert]";
     }
 }
