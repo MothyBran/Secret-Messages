@@ -535,6 +535,7 @@
         <!-- License Key Activation Section -->
         <div id="activationSection" class="section">
             <h1 class="box-title">KEY AKTIVIERUNG 🔐</h1>
+            
             <div class="login-box">
                 <div class="header">
                     <p class="subtitle">Erstellen Sie Ihren Zugang</p>
@@ -554,18 +555,19 @@
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="newUsername">Gewünschter Benutzername (3–20 Zeichen, keine Leerzeichen)</label>
+                        <label class="form-label" for="newUsername">
+                            Benutzername <small style="color: #666; font-weight: normal;">(3–20 Zeichen, keine Leerzeichen)</small>
+                        </label>
                         <input 
                             type="text" 
                             id="newUsername" 
                             class="form-input" 
-                            placeholder="Benutzernamen"
+                            placeholder="Benutzername"
                             required
                             minlength="3"
                             maxlength="20"
                             pattern="[a-zA-Z0-9]{3,20}" 
                             title="3–20 Zeichen, Buchstaben, Zahlen erlaubt"
-
                         >
                     </div>
                     
@@ -578,35 +580,50 @@
                             placeholder="12345"
                             maxlength="5"
                             pattern="[0-9]{5}"
+                            inputmode="numeric" 
                             required
                         >
                     </div>
                     
-                    <button type="submit" class="btn" id="activateBtn">
+                    <div class="warning-box" style="
+                        border: 1px solid #ffcc00; 
+                        background: rgba(255, 204, 0, 0.1); 
+                        color: #ffcc00; 
+                        padding: 15px; 
+                        margin-top: 25px; 
+                        margin-bottom: 25px; 
+                        border-radius: 4px; 
+                        text-align: left; 
+                        font-size: 0.85rem; 
+                        line-height: 1.5;">
+                        
+                        <strong style="display:block; margin-bottom:10px; font-size:1rem; border-bottom: 1px solid rgba(255,204,0,0.3); padding-bottom:5px;">
+                            ⚠️ WICHTIG: GERÄTE-BINDUNG
+                        </strong>
+                        <ul style="padding-left: 20px; margin: 0;">
+                            <li style="margin-bottom: 8px;">
+                                <strong>Feste Kopplung:</strong> Der Key wird fest mit <u>diesem Gerät</u> verknüpft. Login auf anderen Geräten ist nicht möglich.
+                            </li>
+                            <li style="margin-bottom: 8px;">
+                                <strong>Vorsicht beim Löschen:</strong> Wenn Sie Ihre Browser-Daten (Cache/Cookies) löschen, verlieren Sie den Zugang!
+                            </li>
+                            <li>
+                                <strong>Probleme?</strong> Kontaktieren Sie uns zum Zurücksetzen:<br>
+                                <a href="mailto:support@secret-messages.com" style="color: #ffcc00; text-decoration: underline;">support@secret-messages.com</a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <button type="submit" class="btn" id="activateBtn" style="width: 100%; margin-top: 0;">
                         <span id="activateBtnText">ZUGANG ERSTELLEN</span>
                     </button>
                 </form>
                 
                 <div id="activationStatus" class="status"></div>
                 
-                <div style="text-align: center;">
+                <div style="text-align: center; margin-top: 20px;">
                     <a href="#" class="link" id="showLoginLink">Zurück zum Login</a>
                 </div>
-            </div>
-            <div class="warning-box" style="border: 1px solid #ffcc00; background: rgba(255, 204, 0, 0.1); color: #ffcc00; padding: 15px; margin-bottom: 20px; border-radius: 4px; text-align: left; font-size: 0.85rem; line-height: 1.4;">
-                <strong style="display:block; margin-bottom:8px; font-size:1rem;">⚠️ WICHTIG: GERÄTE-BINDUNG</strong>
-                <ul style="padding-left: 20px; margin: 0;">
-                    <li style="margin-bottom: 5px;">
-                        <strong>Feste Kopplung:</strong> Dieser Lizenz-Key wird fest mit <u>diesem Gerät</u> verknüpft. Ein Login auf anderen Geräten ist nicht möglich.
-                    </li>
-                    <li style="margin-bottom: 5px;">
-                        <strong>Nicht löschen:</strong> Wenn Sie Ihre <u>Browser-Daten (Cache/Cookies)</u> löschen, verlieren Sie den Zugang!
-                    </li>
-                    <li>
-                        <strong>Zugang verloren?</strong> Wenden Sie sich zum Zurücksetzen an: <br>
-                        <a href="mailto:support@secret-messages.com" style="color: #ffcc00; text-decoration: underline;">support@secret-messages.com</a>
-                    </li>
-                </ul>
             </div>
         </div>
         
