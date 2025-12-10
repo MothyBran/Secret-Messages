@@ -20,10 +20,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event Listeners hinzufügen
     setupEventListeners();
     
-    // Check for existing session
-    requestAnimationFrame(() => {
-        checkExistingSession();
-    });
+    // --- HIER IST DIE ÄNDERUNG ---
+    // Wir prüfen erst, ob der Nutzer vom Shop kommt (action=activate)
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (urlParams.get('action') === 'activate') {
+        // Fall 1: Nutzer kommt vom Shop -> Direkt zur Aktivierungs-Seite
+        console.log('🔄 Weiterleitung zur Aktivierung...');
+        setTimeout(() => {
+            showActivationSection(); 
+        }, 100);
+    } else {
+        // Fall 2: Normaler Aufruf -> Prüfen ob eingeloggt
+        requestAnimationFrame(() => {
+            checkExistingSession();
+        });
+    }
 });
 
 // ================================================================
