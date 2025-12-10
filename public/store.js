@@ -181,35 +181,60 @@ async function pollPaymentStatus(sessionId) {
   check();
 }
 
+// store.js - Ersetze die Funktionen renderKeys und copyKey am Ende der Datei
+
 function renderKeys(keys, container) {
   let html = "";
   keys.forEach(key => {
+    // Wir nutzen hier window.copyKey, um sicherzugehen
     html += `
       <div class="key-display">
-        ${key}
+        <span id="key-text-${key}">${key}</span>
         <br>
-        <button class="copy-btn" onclick="copyKey(this, '${key}')">🔗 KOPIEREN</button>
+        <button class="copy-btn" onclick="window.copyKey(this, '${key}')">🔗 KOPIEREN</button>
       </div>
     `;
   });
   container.innerHTML = html;
 }
 
-// Hilfsfunktion für den Copy-Button im HTML String
-window.copyKey = function(btn, key) {
-  navigator.clipboard.writeText(key).then(() => {
-    const originalText = btn.innerText;
-    btn.innerText = "✔️ KOPIERT!";
-    btn.style.color = "white";
-    btn.style.borderColor = "white";
-    
-    setTimeout(() => {
-        btn.innerText = originalText;
-        btn.style.color = "";
-        btn.style.borderColor = "";
-    }, 2000);
-  }).catch(err => {
-    console.error('Copy failed', err);
-    alert('Konnte Key nicht kopieren.');
-  });
+// WICHTIG: Die Funktion explizit an window binden, damit onclick sie findet!
+window.copyKey = async function(btn, key) {
+  try {
+    // Versuch 1: Moderne Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(key);
+    } else {
+      throw new Error('Clipboard API nicht verfügbar');
+    }
+  } catch (err) {
+    // Versuch 2: Fallback für ältere Browser oder nicht-HTTPS
+    const textArea = document.createElement("textarea");
+    textArea.value = key;
+    textArea.style.position = "fixed"; // Vermeidet Scrollen
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+    } catch (e) {
+      console.error('Copy fehlgeschlagen', e);
+      alert('Konnte Key nicht kopieren. Bitte manuell markieren.');
+      document.body.removeChild(textArea);
+      return;
+    }
+    document.body.removeChild(textArea);
+  }
+
+  // Visuelles Feedback
+  const originalText = btn.innerText;
+  btn.innerText = "✔️ KOPIERT!";
+  btn.style.color = "#00ff41";
+  btn.style.borderColor = "#00ff41";
+  
+  setTimeout(() => {
+      btn.innerText = originalText;
+      btn.style.color = "";
+      btn.style.borderColor = "";
+  }, 2000);
 };
