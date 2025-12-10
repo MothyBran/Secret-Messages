@@ -186,9 +186,9 @@ function authenticateUser(req, res, next) {
   });
 }
 
-// Login
+// Login Route (Korrigiert)
 app.post('/api/auth/login', async (req, res) => {
-    const { username, accessCode, deviceId } = req.body; // <--- deviceId prüfen
+    const { username, accessCode, deviceId } = req.body; 
 
     if (!username || !accessCode) return res.status(400).json({ error: 'Daten fehlen' });
 
@@ -202,17 +202,24 @@ app.post('/api/auth/login', async (req, res) => {
         const validPass = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!validPass) return res.status(401).json({ success: false, error: 'Falscher Code' });
 
-        // --- GERÄTE CHECK (NEU) ---
-        // Wenn in der DB eine ID steht, muss sie mit der gesendeten übereinstimmen
+        // --- GERÄTE CHECK (LOGIK) ---
+
+        // 1. Wenn eine ID in der DB steht, ABER sie passt nicht zur aktuellen -> BLOCKIEREN
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ 
                 success: false, 
                 error: 'ZUGRIFF VERWEIGERT: Unbekanntes Gerät. Dieser Account ist an ein anderes Gerät gebunden.' 
             });
-        }
-        // --------------------------
+        } 
 
-        // Lizenz Check (wie vorher)
+        // 2. Wenn KEINE ID in der DB steht (z.B. nach Admin-Reset), binde das aktuelle Gerät automatisch
+        if (!user.allowed_device_id && deviceId) {
+            await dbQuery('UPDATE users SET allowed_device_id = $1 WHERE id = $2', [deviceId, user.id]);
+        }
+
+        // --- ENDE GERÄTE CHECK ---
+
+        // Lizenz Check
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
         const key = keyRes.rows[0];
 
@@ -515,6 +522,24 @@ app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
     res.json({ success: true });
 });
 
+// Device connection Reset
+app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
+    try {
+        // Setzt die Geräte-ID auf NULL, damit das nächste Gerät, das sich einloggt, als neues Standardgerät gilt
+        // ODER du löschst es, damit der User sich beim nächsten Login neu binden muss (dazu müsste Login-Logik "update device if null" erlauben)
+        // Einfacher: Wir setzen es auf NULL. Der User muss uns dann kontaktieren.
+        // Bessere UX: Wir löschen es. Beim nächsten Login des Users speichern wir die NEUE Device ID.
+        
+        // Logik für Server.js Login Anpassung (Optional für Auto-Rebind):
+        // if (user.allowed_device_id === null) { update user set allowed_device_id = newDeviceId }
+        
+        // Für jetzt einfach löschen:
+        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false });
+    }
+});
 
 // ==================================================================
 // 5. EXTERNAL ROUTES (PAYMENT)
