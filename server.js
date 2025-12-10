@@ -444,25 +444,34 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
 app.post('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
         const { filter } = req.body;
+        console.log(`🔍 Admin lädt Keys (Filter: ${filter})...`);
+
         let where = "";
+        // Achte auf korrekte SQL Syntax für Boolean (Postgres=true/false, SQLite=1/0)
         if (filter === 'active') where = `WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`;
         if (filter === 'inactive') where = `WHERE is_active = ${isPostgreSQL ? 'false' : '0'}`;
+        if (filter === 'expired') where = `WHERE expires_at IS NOT NULL AND expires_at < '${new Date().toISOString()}'`;
 
+        // WICHTIG: Wir selektieren explizit die Spalten, um Konflikte zu vermeiden.
+        // Wir verzichten auf den JOIN mit 'users', da der Username eh in 'license_keys' gespeichert wird (siehe activate route).
         const sql = `
-            SELECT k.*, u.username as linked_user
-            FROM license_keys k
-            LEFT JOIN users u ON k.username = u.username
+            SELECT id, key_code, product_code, is_active, username, created_at, activated_at, expires_at
+            FROM license_keys
             ${where}
-            ORDER BY k.created_at DESC LIMIT 100
+            ORDER BY created_at DESC 
+            LIMIT 100
         `;
+
         const result = await dbQuery(sql);
+        console.log(`✅ ${result.rows.length} Keys gefunden.`);
         
+        // Daten mappen für Frontend
         const keys = result.rows.map(r => ({
             id: r.id,
             key_code: r.key_code,
             product_code: r.product_code,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1),
-            username: r.linked_user || r.username,
+            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1), // Normalisierung
+            username: r.username || '—', // Falls null, Strich anzeigen
             created_at: r.created_at,
             activated_at: r.activated_at,
             expires_at: r.expires_at
@@ -470,7 +479,8 @@ app.post('/api/admin/keys', requireAdmin, async (req, res) => {
 
         res.json({ success: true, keys });
     } catch (e) {
-        res.status(500).json({ success: false });
+        console.error("❌ Fehler beim Laden der Keys:", e);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
