@@ -120,6 +120,7 @@ const createTables = async () => {
             username VARCHAR(50) UNIQUE,
             access_code_hash TEXT,
             license_key_id INTEGER,
+            allowed_device_id TEXT,  -- <--- NEUE SPALTE FÜR GERÄTE-ID
             registered_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
             last_login ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
             is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
