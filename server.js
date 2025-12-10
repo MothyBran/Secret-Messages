@@ -59,7 +59,12 @@ app.use(helmet({
   }
 }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    // Speichert den Raw-Body für die Stripe Signatur-Prüfung
+    req.rawBody = buf;
+  }
+}));
 app.use(express.static('public'));
 app.use('/api', paymentRoutes);
 
