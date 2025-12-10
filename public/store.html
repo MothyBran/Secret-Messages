@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="de">
+<!DOCTYPE html>
+<html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -8,12 +9,14 @@
     :root {
       --matrix-green: #00ff41;
       --matrix-dark: #0f0f0f;
+      --error-red: #ff0033;
     }
     body {
       background-color: black;
       color: var(--matrix-green);
       font-family: 'Courier New', monospace;
       padding: 20px;
+      min-height: 100vh;
     }
     .back-to-login-btn {
       position: absolute;
@@ -33,12 +36,24 @@
       background-color: var(--matrix-green);
       color: black;
     }
+    
+    /* Haupt-Shop Container */
     .store-container {
       max-width: 1000px;
       margin: 0 auto;
       padding: 40px 20px;
       text-align: center;
+      display: block; /* Standard sichtbar */
     }
+
+    /* Status Container (Versteckt bis zur Rückkehr von Stripe) */
+    .status-container {
+      max-width: 800px;
+      margin: 80px auto;
+      text-align: center;
+      display: none; /* Standard versteckt */
+    }
+
     .license-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -116,113 +131,201 @@
       color: var(--matrix-green);
       text-decoration: underline;
     }
+
+    /* Styles für den Status-Screen (Nach Kauf) */
+    .status-box {
+        background: rgba(0, 0, 0, 0.9);
+        border: 2px solid var(--matrix-green);
+        padding: 40px;
+        border-radius: 10px;
+        box-shadow: 0 0 30px var(--matrix-green);
+    }
+    
+    .key-display {
+        background: #0f0f0f;
+        border: 1px dashed var(--matrix-green);
+        padding: 20px;
+        margin: 20px 0;
+        font-family: 'Courier New', monospace;
+        font-size: 1.2rem;
+        word-break: break-all;
+        color: #fff;
+    }
+
+    .copy-btn {
+        margin-top: 5px;
+        padding: 5px 10px;
+        border: 1px solid var(--matrix-green);
+        background: black;
+        color: var(--matrix-green);
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+    .copy-btn:hover {
+        background: var(--matrix-green);
+        color: black;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0, 255, 65, 0.3);
+        border-radius: 50%;
+        border-top-color: var(--matrix-green);
+        animation: spin 1s ease-in-out infinite;
+        margin: 20px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
   </style>
 </head>
 <body>
-  <div class="store-container">
+
+  <div class="store-container" id="shop-view">
     <a href="/index.html" class="back-to-login-btn">🔐 Zum Login</a>
     <h1>Secret Messages</h1>
     <h2>🛍️ Lizenz-Shop</h2>
     <p class="subtitle">Wähle dein passendes Lizenzmodell – fair, flexibel & sicher</p>
+    
     <div class="license-grid">
-      <!-- Einzelangebote -->
-      <h1>Einzelangebote</h1>
+      <div style="grid-column: 1/-1; text-align: left;"><h2 style="border-bottom: 1px solid var(--matrix-green); display:inline-block;">Einzelangebote</h2></div>
+      
       <div class="license-card">
         <div class="license-title">🔓 1 Monat Zugang</div>
         <div class="license-price">1,99 €</div>
         <button class="license-btn" data-plan="1m">Lizenz kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">🔑 - 3 Monate Zugang</div>
+        <div class="license-title">🔑 3 Monate Zugang</div>
         <div class="license-price">4,49 €</div>
         <small>💸 Du sparst 1,48 €</small>
         <button class="license-btn" data-plan="3m">Lizenz kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">🔑 - 12 Monate Zugang</div>
+        <div class="license-title">🔑 12 Monate Zugang</div>
         <div class="license-price">14,99 €</div>
         <small>💸 Du sparst 8,89 €</small>
         <button class="license-btn" data-plan="12m">Lizenz kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">♾️🔑 - Unbegrenzter Zugang</div>
+        <div class="license-title">♾️ Unbegrenzter Zugang</div>
         <div class="license-price">49,99 €</div>
         <small>Lebenslanger Zugang</small>
         <button class="license-btn" data-plan="unlimited">Lizenz kaufen</button>
       </div>
-      <!-- Bundles -->
-      <h1>📦 Bundles</h1>
+
+      <div style="grid-column: 1/-1; text-align: left; margin-top: 30px;"><h2 style="border-bottom: 1px solid var(--matrix-green); display:inline-block;">📦 Bundles</h2></div>
+
       <div class="license-card">
-        <div class="license-title">2×🔑 - 1 Monat Zugang</div>
+        <div class="license-title">2×🔑 1 Monat Zugang</div>
         <div class="license-price">3,79 €</div>
         <small>💸 Du sparst 0,19 €</small>
         <button class="license-btn" data-plan="bundle_1m_2">Bundle kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">2×🔑 - 3 Monate Zugang</div>
+        <div class="license-title">2×🔑 3 Monate Zugang</div>
         <div class="license-price">7,99 €</div>
         <small>💸 Du sparst 0,99 €</small>
         <button class="license-btn" data-plan="bundle_3m_2">Bundle kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">5×🔑 - 3 Monate Zugang</div>
+        <div class="license-title">5×🔑 3 Monate Zugang</div>
         <div class="license-price">19,99 €</div>
         <small>💸 Du sparst 2,46 €</small>
         <button class="license-btn" data-plan="bundle_3m_5">Bundle kaufen</button>
       </div>
       <div class="license-card">
-        <div class="license-title">10×🔑 - 12 Monate Zugang</div>
+        <div class="license-title">10×🔑 12 Monate Zugang</div>
         <div class="license-price">129,99 €</div>
         <small>💸 Du sparst 19,91 €</small>
         <button class="license-btn" data-plan="bundle_1y_10">Bundle kaufen</button>
       </div>
     </div>
-  </div>  <!-- Info-Sektionen -->  <section class="matrix-box">
-    <h2>💡 Wichtige Informationen zum Lizenz-Key</h2>
-    <p>Ein Lizenz-Key ist deine <strong>einzige Eintrittskarte</strong> zum Secret Messages Tool. Er wird einmalig über die Login-Seite unter <em>„License Key aktivieren“</em> aktiviert.</p>
-    <ul>
-      <li>🔓 Zugang nur mit gültigem Lizenz-Key</li>
-      <li>🧪 Keine Registrierung nötig – volle Anonymität</li>
-      <li>📆 Keine Abofalle – Key läuft automatisch aus</li>
-      <li>🛡️ Key ist nur einmalig aktivierbar</li>
-      <li>♾️ Alternativ: Unlimitierter Zugang mit einmaligem Kauf</li>
-    </ul>
-  </section>  <section class="matrix-box">
-    <h2>❓ Häufige Fragen (FAQ)</h2>
-    <details><summary>Was ist ein Lizenz-Key?</summary><p>Ein Lizenz-Key ist ein Zugangscode, der dir exklusiven Zugriff auf das Verschlüsselungstool von Secret Messages gibt. Ohne Key kein Zugriff.</p></details>
-    <details><summary>Wie lange ist ein Key gültig?</summary><p>Das hängt vom gewählten Paket ab: 1 Monat, 3 Monate, 12 Monate oder unlimitiert. Die Zeit läuft ab Aktivierung.</p></details>
-    <details><summary>Wird der Key automatisch verlängert?</summary><p>Nein! Es gibt keine automatische Verlängerung oder Abo-Fallen. Du kaufst einmalig und behältst volle Kontrolle.</p></details>
-    <details><summary>Was passiert, wenn ich mein Gerät verliere?</summary><p>Die verschlüsselten Nachrichten bleiben geschützt. Ohne deinen Code kann niemand sie lesen.</p></details>
-    <details><summary>Kann ich einen Key verschenken?</summary><p>Ja, das ist möglich. Jeder Key ist einmalig aktivierbar. Ideal für Freunde oder Partner.</p></details>
-  </section>  <section class="matrix-box">
-    <h2>💳 Zahlungsarten</h2>
-    <p>Wir akzeptieren folgende sichere Zahlungsmethoden:</p>
-    <ul>
-      <li>✔️ PayPal</li>
-      <li>✔️ Kreditkarte (Visa, MasterCard, AmEx)</li>
-      <li>✔️ Google Pay & Apple Pay</li>
-    </ul>
-  </section>  <section class="matrix-box">
-    <h2>📞 Support</h2>
-    <p>Fragen? Probleme beim Aktivieren? Unser Support hilft dir:</p>
-    <p><strong>E-Mail:</strong> <a href="mailto:support@secret-messages.com">support@secret-messages.com</a></p>
-  </section>  <footer class="matrix-footer">
-    <p>© 2025 – Secret Messages | <a href="#">Impressum</a> | <a href="#">Datenschutz</a></p>
-  </footer>  
-  
-  <!-- MODALES FENSTER -->
-<div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; backdrop-filter: blur(4px);">
-  <div id="modalBox" style="max-width:400px; margin:100px auto; background:black; border:1px solid var(--matrix-green); box-shadow:0 0 20px var(--matrix-green); padding:20px; border-radius:10px; text-align:center; color:var(--matrix-green); font-family:'Share Tech Mono', monospace;">
-    <h2 style="margin-bottom: 15px; text-shadow: 0 0 10px var(--matrix-green);">🛒 Lizenz kaufen</h2>
-    <p id="modalPlan" style="margin-bottom: 10px; font-size: 1.1rem;"></p>
-    <p id="modalPrice" style="margin-bottom: 20px; font-weight: bold;"></p>
-    <input type="email" id="emailInput" placeholder="Deine E-Mail-Adresse" style="width: 100%; padding: 10px; margin-bottom: 15px; background: black; color: var(--matrix-green); border: 1px solid var(--matrix-green); border-radius: 4px; font-family: 'Courier New', monospace;" />
-    <button id="confirmPurchaseBtn" style="margin-right: 10px; padding: 10px 15px; border: 1px solid var(--matrix-green); background: transparent; color: var(--matrix-green); cursor: pointer;">✅ Kauf bestätigen</button>
-    <button id="closeModalBtn" style="padding: 10px 15px; border: 1px solid var(--matrix-green); background: transparent; color: var(--matrix-green); cursor: pointer;">❌ Abbrechen</button>
+
+    <div style="margin-top: 60px;">
+        <section class="matrix-box">
+            <h2>💡 Wichtige Informationen zum Lizenz-Key</h2>
+            <ul style="text-align: left;">
+            <li>🔓 Zugang nur mit gültigem Lizenz-Key</li>
+            <li>🧪 Keine Registrierung nötig – volle Anonymität</li>
+            <li>📆 Keine Abofalle – Key läuft automatisch aus</li>
+            <li>🛡️ Key ist nur einmalig aktivierbar</li>
+            </ul>
+        </section>  
+        
+        <section class="matrix-box">
+            <h2>❓ Häufige Fragen (FAQ)</h2>
+            <div style="text-align: left;">
+                <details><summary>Was ist ein Lizenz-Key?</summary><p>Ein Lizenz-Key ist ein Zugangscode, der dir exklusiven Zugriff auf das Verschlüsselungstool von Secret Messages gibt.</p></details>
+                <details><summary>Wie lange ist ein Key gültig?</summary><p>Das hängt vom gewählten Paket ab. Die Zeit läuft erst ab der Aktivierung im Tool.</p></details>
+                <details><summary>Wird der Key automatisch verlängert?</summary><p>Nein! Es gibt keine automatische Verlängerung oder Abo-Fallen.</p></details>
+            </div>
+        </section>
+        
+        <section class="matrix-box">
+            <h2>💳 Zahlungsarten</h2>
+            <p>Wir akzeptieren sichere Zahlungen via Stripe (Kreditkarte, Google Pay, Apple Pay).</p>
+        </section>
+
+        <section class="matrix-box">
+             <h2>📞 Support</h2>
+             <p>Fragen? E-Mail: <a href="mailto:support@secret-messages.com">support@secret-messages.com</a></p>
+        </section>
+    </div>
+
+    <footer class="matrix-footer">
+        <p>© 2025 – Secret Messages</p>
+    </footer>  
   </div>
-</div>
+
+  <div id="payment-status-section" class="status-container">
+        
+        <div id="status-processing" class="status-box">
+            <h2>🔐 Zahlung wird verifiziert...</h2>
+            <div class="spinner"></div>
+            <p>Bitte schließen Sie dieses Fenster nicht.</p>
+            <p style="font-size: 0.8rem; opacity: 0.7;">Wir warten auf die Bestätigung der Bank...</p>
+        </div>
+
+        <div id="status-success" class="status-box" style="display: none;">
+            <h1 style="color: var(--matrix-green); font-size: 2.5rem;">✅ KAUF ERFOLGREICH!</h1>
+            <p style="font-size: 1.1rem; margin-top: 10px;">Vielen Dank. Hier sind Ihre Zugangsdaten:</p>
+            
+            <div id="keys-output-area">
+                </div>
+
+            <p style="color: #ffff00; margin-top: 20px;">⚠️ <strong>WICHTIG:</strong> Kopieren Sie die Keys JETZT. Sie werden hier nur einmal angezeigt.</p>
+            <p>Eine Kopie wurde an Ihre E-Mail gesendet.</p>
+
+            <a href="/index.html" class="btn license-btn" style="display: inline-block; margin-top: 30px; text-decoration: none;">🔐 Jetzt Zugang aktivieren</a>
+            <br><br>
+            <a href="/store.html" style="color: #666; font-size: 0.8rem;">Zurück zum Shop</a>
+        </div>
+
+        <div id="status-error" class="status-box" style="display: none; border-color: var(--error-red);">
+            <h2 style="color: var(--error-red);">❌ Ein Fehler ist aufgetreten</h2>
+            <p id="error-message">Wir konnten Ihre Zahlung nicht automatisch zuordnen.</p>
+            <p>Falls Geld abgebucht wurde, kontaktieren Sie bitte den Support mit Ihrer Zahlungs-ID.</p>
+            <a href="/store.html" class="btn license-btn" style="border-color: var(--error-red); color: var(--error-red);">Zurück zum Shop</a>
+        </div>
+  </div>
+
+  <div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:1000; backdrop-filter: blur(5px);">
+    <div id="modalBox" style="max-width:400px; margin:100px auto; background:black; border:1px solid var(--matrix-green); box-shadow:0 0 20px var(--matrix-green); padding:30px; border-radius:10px; text-align:center; color:var(--matrix-green); font-family:'Courier New', monospace;">
+      <h2 style="margin-bottom: 15px; text-shadow: 0 0 10px var(--matrix-green);">🛒 Kauf bestätigen</h2>
+      <p id="modalPlan" style="margin-bottom: 5px; font-size: 1.1rem; font-weight: bold;"></p>
+      <p id="modalPrice" style="margin-bottom: 25px; font-size: 1.4rem; color: white;"></p>
+      
+      <div style="text-align: left; margin-bottom: 5px; font-size: 0.8rem;">Ihre E-Mail (für den Empfang der Keys):</div>
+      <input type="email" id="emailInput" placeholder="name@beispiel.de" style="width: 100%; padding: 12px; margin-bottom: 20px; background: #0f0f0f; color: var(--matrix-green); border: 1px solid var(--matrix-green); border-radius: 4px; font-family: 'Courier New', monospace; box-sizing: border-box;" />
+      
+      <button id="confirmPurchaseBtn" style="width: 100%; margin-bottom: 10px; padding: 12px; border: 1px solid var(--matrix-green); background: var(--matrix-green); color: black; font-weight: bold; cursor: pointer; transition: all 0.2s;">ZUR KASSE (Stripe)</button>
+      <button id="closeModalBtn" style="width: 100%; padding: 10px; border: 1px solid #555; background: transparent; color: #888; cursor: pointer;">Abbrechen</button>
+    </div>
+  </div>
 
   <script src="store.js"></script>
   <script src="https://js.stripe.com/v3/"></script>
-  </body>
+</body>
 </html>
