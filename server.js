@@ -188,8 +188,9 @@ function authenticateUser(req, res, next) {
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
-    const { username, accessCode } = req.body;
-    if (!username || !accessCode) return res.status(400).json({ error: 'Fehlende Daten' });
+    const { username, accessCode, deviceId } = req.body; // <--- deviceId prüfen
+
+    if (!username || !accessCode) return res.status(400).json({ error: 'Daten fehlen' });
 
     try {
         const result = await dbQuery('SELECT * FROM users WHERE username = $1', [username]);
@@ -197,23 +198,29 @@ app.post('/api/auth/login', async (req, res) => {
 
         if (!user) return res.status(401).json({ success: false, error: 'User nicht gefunden' });
         
-        // Block Check
-        const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
-        if (isBlocked) return res.status(403).json({ success: false, error: 'Account gesperrt' });
-
+        // Passwort Check
         const validPass = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!validPass) return res.status(401).json({ success: false, error: 'Falscher Code' });
 
-        // Lizenz Check
+        // --- GERÄTE CHECK (NEU) ---
+        // Wenn in der DB eine ID steht, muss sie mit der gesendeten übereinstimmen
+        if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'ZUGRIFF VERWEIGERT: Unbekanntes Gerät. Dieser Account ist an ein anderes Gerät gebunden.' 
+            });
+        }
+        // --------------------------
+
+        // Lizenz Check (wie vorher)
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
         const key = keyRes.rows[0];
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
 
-        // Update Login Time
-        const now = new Date().toISOString();
+        // Login loggen
         await dbQuery('UPDATE users SET last_login = $1, is_online = $2 WHERE id = $3', 
-            [now, (isPostgreSQL ? true : 1), user.id]);
+            [new Date().toISOString(), (isPostgreSQL ? true : 1), user.id]);
 
         res.json({ 
             success: true, 
@@ -240,31 +247,28 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
 
 // Activate License (Register)
 app.post('/api/auth/activate', async (req, res) => {
-    const { licenseKey, username, accessCode } = req.body;
+    const { licenseKey, username, accessCode, deviceId } = req.body; // <--- deviceId kommt vom Frontend
+
+    if (!deviceId) return res.status(400).json({ error: 'Geräte-ID fehlt. Bitte Seite neu laden.' });
     
     try {
-        // 1. Check Key
+        // ... (Key und User Checks wie vorher) ...
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
         const key = keyRes.rows[0];
-        
         if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
         
-        // 2. Check Username
         const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
-        // 3. Create User
+        // User erstellen MIT Device ID Binding
         const hash = await bcrypt.hash(accessCode, 10);
-        const userInsert = await dbQuery(
-            'INSERT INTO users (username, access_code_hash, license_key_id, registered_at) VALUES ($1, $2, $3, $4) RETURNING id',
-            [username, hash, key.id, new Date().toISOString()]
+        await dbQuery(
+            'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)',
+            [username, hash, key.id, deviceId, new Date().toISOString()]
         );
         
-        // SQLite fallback for ID
-        const userId = userInsert.rows[0]?.id || userInsert.lastID;
-
-        // 4. Update Key
+        // Key updaten
         await dbQuery(
             'UPDATE license_keys SET is_active = $1, activated_at = $2, username = $3 WHERE id = $4',
             [(isPostgreSQL ? true : 1), new Date().toISOString(), username, key.id]
