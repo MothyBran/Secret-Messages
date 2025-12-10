@@ -142,7 +142,7 @@ function setupInputFormatters() {
 }
 
 function setupKeyboardShortcuts() {
-    document.addEventListener('keydown', function(e) {
+    ('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             const messageInput = document.getElementById('messageInput');
             if (messageInput && document.activeElement === messageInput) {
