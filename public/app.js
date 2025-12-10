@@ -349,7 +349,7 @@ async function handleLogin(event) {
         const res = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: usernameEl.value.trim(), accessCode: codeEl.value.trim() })
+            body: JSON.stringify({ username: usernameEl.value.trim(), accessCode: codeEl.value.trim(), deviceId: getDeviceId() })
         });
 
         const data = await res.json();
@@ -396,7 +396,7 @@ async function handleActivation(event) {
         const res = await fetch(`${API_BASE}/auth/activate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ licenseKey: key, username: user, accessCode: code })
+            body: JSON.stringify({ licenseKey: key, username: user, accessCode: code, deviceId: getDeviceId() })
         });
         const data = await res.json();
 
@@ -551,6 +551,16 @@ function showStatus(id, msg, type) {
     el.className = `status ${type} show`;
     el.style.display = 'block';
     if (type === 'error') setTimeout(() => el.style.display = 'none', 5000);
+}
+
+function getDeviceId() {
+    let deviceId = localStorage.getItem('sm_device_id');
+    if (!deviceId) {
+        // Zufällige UUID generieren
+        deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+        localStorage.setItem('sm_device_id', deviceId);
+    }
+    return deviceId;
 }
 
 // ================================================================
