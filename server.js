@@ -375,7 +375,7 @@ app.post('/api/admin/stats', requireAdmin, async (req, res) => {
 app.post('/api/admin/users', requireAdmin, async (req, res) => {
     try {
         const sql = `
-            SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login, u.is_online,
+            SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login, u.is_online, u.allowed_device_id, -- <--- HINZUGEFÜGT
                    k.key_code 
             FROM users u
             LEFT JOIN license_keys k ON u.license_key_id = k.id
@@ -386,13 +386,14 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
         const users = result.rows.map(r => ({
             id: r.id,
             username: r.username,
-            name: r.username, // Alias für Frontend
+            name: r.username, 
             license_key: r.key_code,
-            key_code: r.key_code, // Alias
+            key_code: r.key_code, 
             is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1),
             is_online: isPostgreSQL ? r.is_online : (r.is_online === 1),
             registered_at: r.registered_at,
-            last_login: r.last_login
+            last_login: r.last_login,
+            allowed_device_id: r.allowed_device_id // <--- HINZUGEFÜGT
         }));
 
         res.json({ success: true, users });
