@@ -213,16 +213,31 @@ async function loadUsers() {
             tbody.innerHTML = '';
             data.users.forEach(u => {
                 const row = document.createElement('tr');
+                
+                const isBlocked = u.is_blocked; // Boolean vom Server
+                const device = u.allowed_device_id || '—';
+                
                 row.innerHTML = `
                     <td style="color:#888;">${u.id}</td>
                     <td style="font-weight:bold;">${u.username}</td>
                     <td>${u.license_key ? `<span class="key-code">${u.license_key}</span>` : '—'}</td>
-                    <td>${u.is_blocked ? '<span class="status-blocked">Gesperrt</span>' : '<span class="status-active">Aktiv</span>'}</td>
-                    <td>${formatDateDE(u.created_at)}</td>
+                    
+                    <td style="font-size:0.8em; color:#bbb;">
+                        ${device}
+                    </td>
+
+                    <td>${isBlocked ? '<span class="status-blocked">Gesperrt</span>' : '<span class="status-active">Aktiv</span>'}</td>
+                    
+                    <td>${formatDateDE(u.registered_at)}</td> 
+                    
                     <td>${formatDateDE(u.last_login)}</td>
                     <td>
-                        <button class="btn-small btn-danger" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})">
-                            ${u.is_blocked ? 'Entsperren' : 'Sperren'}
+                        <button class="btn-small" onclick="resetUserDevice('${u.id}')" 
+                                title="Devicebindung aufheben" 
+                                ${u.allowed_device_id ? '' : 'disabled'}>⟲ Device</button>
+                                
+                        <button class="btn-small btn-danger" onclick="toggleUserBlock('${u.id}', ${isBlocked})">
+                            ${isBlocked ? 'Entsperren' : 'Sperren'}
                         </button>
                     </td>
                 `;
