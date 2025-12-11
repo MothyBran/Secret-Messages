@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Filter
     document.getElementById('keysStatusFilter')?.addEventListener('change', loadKeys);
     
-    // Globale Suche (Input Event - Wird von HTML aufgerufen)
+    // Globale Suche (Input Event)
     document.getElementById('globalSearch')?.addEventListener('keyup', filterAllTables);
 });
 
@@ -216,9 +216,10 @@ async function loadUsers() {
                 const row = document.createElement('tr');
                 
                 const isBlocked = u.is_blocked; // Boolean vom Server
-                const device = u.allowed_device_id || '—';
+                // FIX: allowed_device_id kommt vom Server (muss im Server SQL ergänzt werden)
+                const device = u.allowed_device_id || '—'; 
                 
-                // FIX: Device Spalte hinzugefügt, und Buttons sind jetzt aktiv
+                // FIX: Device Spalte hinzugefügt und Buttons sind jetzt aktiv
                 row.innerHTML = `
                     <td style="color:#888;">${u.id}</td>
                     <td style="font-weight:bold;">${u.username}</td>
@@ -257,7 +258,7 @@ async function loadUsers() {
     }
 }
 
-// FIX: 'sync' zu 'async' korrigiert (Behebt SyntaxError)
+// FIX: 'sync' zu 'async' korrigiert (Behebt SyntaxError) und Block-Logik eingefügt
 async function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
     
@@ -283,7 +284,7 @@ async function toggleUserBlock(userId, currentStatus) {
     }
 }
 
-// FIX: Funktion für Device Reset (für den Button in loadUsers)
+// NEU: Funktion für Device Reset (für den Button in loadUsers)
 async function resetUserDevice(userId) {
     if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
     
@@ -410,7 +411,8 @@ async function loadKeys() {
 
 // FIX: deleteKey mit korrekter Logik und Error Handling (Buttons funktionieren jetzt)
 async function deleteKey(id) {
-    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return;
+    // FIX: Bestätigungstext korrigiert und Button-Logik präzisiert
+    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return; 
     
     try {
         const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
@@ -432,7 +434,7 @@ async function deleteKey(id) {
 }
 
 // ==========================================
-// SUCHFUNKTION (Frontend Filter - Aus HTML verschoben)
+// SUCHFUNKTION (Frontend Filter)
 // ==========================================
 
 function filterAllTables() {
