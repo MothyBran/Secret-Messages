@@ -174,17 +174,40 @@ initializeDatabase();
 // 3. AUTHENTICATION & APP ROUTES
 // ==================================================================
 
-// Middleware: Token Check
-function authenticateUser(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Kein Token' });
+// Middleware: Token Check (FIXED: Jetzt asynchron und prüft Sperr-Status)
+async function authenticateUser(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'Kein Token' });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Token ungültig' });
-    req.user = user;
-    next();
-  });
+    jwt.verify(token, JWT_SECRET, async (err, user) => { // Beachten Sie das async hier
+        if (err) return res.status(403).json({ error: 'Token ungültig' });
+        
+        try {
+            // Holt den aktuellen is_blocked Status
+            const userResult = await dbQuery("SELECT is_blocked FROM users WHERE id = $1", [user.id]);
+            const dbUser = userResult.rows[0];
+
+            // *******************************************************
+            // PRÜFUNG: Wenn User nicht existiert ODER gesperrt ist
+            // *******************************************************
+            if (!dbUser || dbUser.is_blocked) {
+                console.log(`Zugriff verweigert (gesperrt/gelöscht) für User ID: ${user.id}`);
+                // 403 Forbidden
+                return res.status(403).json({ 
+                    error: "Ihr Konto wurde gesperrt. Bitte kontaktieren Sie den Support." 
+                });
+            }
+
+            // Wenn der User existiert und nicht gesperrt ist:
+            req.user = user;
+            next();
+            
+        } catch (dbError) {
+            console.error("DB-Fehler bei Token-Prüfung:", dbError);
+            return res.status(500).json({ error: 'Interner Serverfehler bei der Authentifizierung.' });
+        }
+    });
 }
 
 // Login Route (Korrigiert)
@@ -198,7 +221,15 @@ app.post('/api/auth/login', async (req, res) => {
         const user = result.rows[0];
 
         if (!user) return res.status(401).json({ success: false, error: 'User nicht gefunden' });
-        
+
+        if (user.is_blocked) {
+            console.log(`Login blockiert für User: ${user.username}`);
+            return res.status(401).json({ 
+                success: false, 
+                error: "Ihr Konto wurde gesperrt. Bitte kontaktieren Sie den Support." 
+            });
+        }
+
         // Passwort Check
         const validPass = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!validPass) return res.status(401).json({ success: false, error: 'Falscher Code' });
@@ -536,9 +567,22 @@ app.post('/api/admin/purchases', requireAdmin, async (req, res) => {
 
 // User Actions (Block/Unblock)
 app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
-    await dbQuery(`UPDATE users SET is_blocked = ${isPostgreSQL ? 'true' : '1'} WHERE id = $1`, [req.params.id]);
-    res.json({ success: true });
+    try {
+        const userId = req.params.id;
+
+        // 1. Benutzer sperren
+        await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [userId]);
+
+        // 2. WICHTIG: Alle aktiven Sitzungen des Benutzers sofort beenden (Logout erzwingen)
+        // Wir löschen alle Token aus der user_sessions Tabelle für diesen User.
+        await dbQuery("DELETE FROM user_sessions WHERE user_id = $1", [userId]);
+
+        res.json({ success: true, message: 'User blockiert und abgemeldet.' });
+    } catch (e) {
+        // ... (Fehlerbehandlung)
+    }
 });
+
 app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
     await dbQuery(`UPDATE users SET is_blocked = ${isPostgreSQL ? 'false' : '0'} WHERE id = $1`, [req.params.id]);
     res.json({ success: true });
