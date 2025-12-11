@@ -386,7 +386,7 @@ async function loadKeys() {
                     <td>${k.product_code || 'Standard'}</td>
                     <td>${k.is_active ? '🔴 Aktiviert' : '🟢 Frei'}</td>
                     <td>${k.username || '—'}</td>
-                    <td>${formatDateDE(k.user_created_at)}</td>
+                    <td>${formatDateDE(k.created_at)}</td> 
                     <td>${calcRemainingDays(k.expires_at)}</td>
                     <td>
                         <button class="btn-small btn-danger" onclick="deleteKey('${k.id}')">X</button>
