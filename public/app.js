@@ -170,7 +170,7 @@ function updateAppMode(mode) {
 
 async function handleMainAction() {
     // 1. Tastatur auf Handy schließen
-    document.activeElement.blur();
+    if (document.activeElement) document.activeElement.blur();
 
     // 2. Daten sammeln
     const code = document.getElementById('messageCode').value;
@@ -189,41 +189,42 @@ async function handleMainAction() {
         let result = "";
 
         if (currentMode === 'encrypt') {
-            // VERSCHLÜSSELN
-            // Empfänger Logik: CurrentUser ist immer dabei + Eingabefeld
-            const recipientInput = document.getElementById('recipientName').value;
-            // Wir bauen einen String für die "Recipients", der an cryptoLayers übergeben wird
-            // Format: "UserA,UserB" -> cryptoLayers nutzt das für den Hash/Salt
-            // WICHTIG: Deine Logik besagte, currentUser + Eingabe sind relevant.
+            // --- VERSCHLÜSSELN ---
             
-            // Einfache Logik: Wir übergeben den String so wie er ist, 
-            // PLUS den aktuellen User, falls er nicht drin steht.
-            let recipients = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
-            if (!recipients.includes(currentUser)) {
-                recipients.push(currentUser);
-            }
-            // Sortieren für Konsistenz (Wichtig für Hashing!)
-            recipients.sort();
-            const recipientString = recipients.join(',');
+            const recipientInput = document.getElementById('recipientName').value;
+            let recipientIDs = [];
 
-            result = await encryptFull(text, code, recipientString);
+            // Eingabe am Komma trennen und bereinigen
+            const rawList = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+            if (rawList.length > 0) {
+                // FALL A: RESTRICTED ACCESS (Mindestens 1 Empfänger)
+                // Nur Absender + gelistete Empfänger dürfen entschlüsseln.
+                recipientIDs = rawList;
+
+                // WICHTIG: Absender (Du selbst) muss auch auf die Liste, 
+                // sonst kannst du deine eigene Nachricht nicht mehr lesen!
+                if (currentUser && !recipientIDs.includes(currentUser)) {
+                    recipientIDs.push(currentUser);
+                }
+            } else {
+                // FALL B: PUBLIC ACCESS (Kein Empfänger)
+                // Liste bleibt leer []. cryptoLayers.js erkennt das und
+                // erstellt einen "Public Slot", der nur den 5-stelligen Code braucht.
+            }
+
+            // Wir übergeben das Array an die neue Logik
+            result = await encryptFull(text, code, recipientIDs);
 
         } else {
-            // ENTSCHLÜSSELN
-            // Beim Entschlüsseln muss der User beweisen, dass er einer der Empfänger ist.
-            // Der `recipientName` Parameter in `decryptFull` beeinflusst den Salt/Key.
-            // Problem: Wenn der Absender "UserA, UserB" eingegeben hat, ist der Salt basierend auf "UserA,UserB".
-            // Der Entschlüsseler muss exakt diesen String kennen? 
-            // ODER: Die Verschlüsselung basiert auf EINER ID?
+            // --- ENTSCHLÜSSELN ---
             
-            // ANNAHME basierend auf deiner Logik:
-            // "Verschlüsselung nur mit dem eingeloggten Kontakt möglich"
-            // Das bedeutet, wir probieren, mit UNSERER User-ID zu entschlüsseln.
-            // Wenn der Text für mehrere Empfänger verschlüsselt wurde, müsste man technisch gesehen
-            // für JEDEN Empfänger den Text separat verschlüsseln (wie bei PGP) oder einen Shared Key nutzen.
+            // Hier passiert die Magie der "Key Slots":
+            // Wir übergeben unsere eigene ID (currentUser).
+            // Die Funktion decryptFull prüft automatisch:
+            // "Gibt es einen Tresor für MICH + diesen Code?"
+            // ODER "Gibt es einen öffentlichen Tresor für diesen Code?"
             
-            // Für deine Algorithmus-Logik (ID fließt ein):
-            // Wir nutzen hier testweise den CurrentUser als Kriterium.
             result = await decryptFull(text, code, currentUser);
         }
 
@@ -237,7 +238,12 @@ async function handleMainAction() {
 
     } catch (err) {
         console.error(err);
-        alert("Vorgang fehlgeschlagen. Überprüfen Sie Code und Berechtigungen.");
+        // Benutzerfreundliche Fehlermeldung
+        if (err.message.includes("Verschlüsselung")) {
+             alert("Fehler beim Verschlüsseln. Bitte prüfen Sie die Eingaben.");
+        } else {
+             alert("Entschlüsselung fehlgeschlagen!\n\nMögliche Gründe:\n1. Falscher 5-stelliger Code.\n2. Sie sind nicht berechtigt (falscher Benutzer).\n3. Daten wurden manipuliert.");
+        }
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
