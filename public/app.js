@@ -56,46 +56,91 @@ function setupUIEvents() {
     overlay.addEventListener('click', () => toggleSidebar(true));
     
     // Sidebar Links
-    document.getElementById('logoutBtnSide').addEventListener('click', handleLogout);
+    // WICHTIG: Prüfen ob das Element existiert, um Fehler zu vermeiden (falls User ausgeloggt ist)
+    const navContacts = document.getElementById('navContacts');
+    if (navContacts) {
+        navContacts.addEventListener('click', (e) => {
+            e.preventDefault();
+            alert("Kontaktverzeichnis-Modul wird geladen..."); 
+            toggleSidebar(true); 
+        });
+    }
+    
+    // Support
+    document.getElementById('navSupport').addEventListener('click', () => {
+        toggleSidebar(true);
+    });
+    
+    const logoutBtn = document.getElementById('logoutBtnSide');
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+    // Delete Account
+    const delBtn = document.getElementById('navDelete');
+    if(delBtn) delBtn.addEventListener('click', confirmDeleteAccount);
     
     // --- MODE SWITCHER (Verschlüsseln <-> Entschlüsseln) ---
     const modeSwitch = document.getElementById('modeSwitch');
-    modeSwitch.addEventListener('change', (e) => {
-        updateAppMode(e.target.checked ? 'decrypt' : 'encrypt');
-    });
+    if (modeSwitch) {
+        modeSwitch.addEventListener('change', (e) => {
+            updateAppMode(e.target.checked ? 'decrypt' : 'encrypt');
+        });
+    }
 
     // --- MAIN ACTIONS ---
     const actionBtn = document.getElementById('actionBtn');
-    actionBtn.addEventListener('click', handleMainAction);
+    if (actionBtn) actionBtn.addEventListener('click', handleMainAction);
 
-    document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+    const copyBtn = document.getElementById('copyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', copyToClipboard);
     
-    document.getElementById('clearFieldsBtn').addEventListener('click', () => {
-        document.getElementById('messageInput').value = '';
-        document.getElementById('messageOutput').value = '';
-        document.getElementById('messageCode').value = '';
-        document.getElementById('recipientName').value = '';
-        document.getElementById('outputGroup').style.display = 'none';
-    });
+    const clearBtn = document.getElementById('clearFieldsBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            document.getElementById('messageInput').value = '';
+            document.getElementById('messageOutput').value = '';
+            document.getElementById('messageCode').value = '';
+            const recInput = document.getElementById('recipientName');
+            if(recInput) recInput.value = '';
+            document.getElementById('outputGroup').style.display = 'none';
+        });
+    }
 
     // --- FORMS (Login / Activation) ---
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
-    document.getElementById('activationForm').addEventListener('submit', handleActivation);
+    const loginForm = document.getElementById('loginForm');
+    if(loginForm) loginForm.addEventListener('submit', handleLogin);
+
+    const actForm = document.getElementById('activationForm');
+    if(actForm) actForm.addEventListener('submit', handleActivation);
     
-    document.getElementById('showActivationLink').addEventListener('click', (e) => {
+    const showActLink = document.getElementById('showActivationLink');
+    if(showActLink) showActLink.addEventListener('click', (e) => {
         e.preventDefault(); showSection('activationSection');
     });
-    document.getElementById('showLoginLink').addEventListener('click', (e) => {
+
+    const showLoginLink = document.getElementById('showLoginLink');
+    if(showLoginLink) showLoginLink.addEventListener('click', (e) => {
         e.preventDefault(); showSection('loginSection');
     });
 
-    // --- QR CODE (Placeholder Logic) ---
-    document.getElementById('qrGenBtn').addEventListener('click', () => {
-        const text = document.getElementById('messageOutput').value;
-        if(!text) return alert("Bitte erst Text verschlüsseln!");
-        showQRModal(text);
-    });
-}
+    // --- QR CODE ---
+    const qrGenBtn = document.getElementById('qrGenBtn');
+    if (qrGenBtn) {
+        qrGenBtn.addEventListener('click', () => {
+            const text = document.getElementById('messageOutput').value;
+            if(!text) return alert("Bitte erst Text verschlüsseln!");
+            showQRModal(text);
+        });
+    }
+
+    // HIER WAR DER FEHLER: Dieser Teil gehört noch IN die Funktion
+    const closeQrBtn = document.getElementById('closeQrBtn');
+    if (closeQrBtn) {
+        closeQrBtn.addEventListener('click', () => {
+            document.getElementById('qrModal').classList.remove('active');
+        });
+    }
+
+} 
 
 // ================================================================
 // CORE UI LOGIC (MODE SWITCHING)
@@ -323,14 +368,9 @@ async function handleActivation(e) {
 }
 
 async function handleLogout() {
-    // API Call (optional)
-    if(authToken) {
-        try { await fetch(`${API_BASE}/auth/logout`, { 
-            method: 'POST', 
-            headers: {'Authorization': `Bearer ${authToken}`} 
-        }); } catch(e){}
-    }
-    // Lokal löschen
+    // ... (API Call Code) ...
+
+    // Lokal aufräumen
     localStorage.removeItem('sm_token');
     localStorage.removeItem('sm_user');
     currentUser = null;
@@ -340,6 +380,9 @@ async function handleLogout() {
     document.getElementById('sidebar').classList.remove('active');
     document.getElementById('sidebarOverlay').classList.remove('active');
     
+    // UI auf "Gast" setzen (versteckt die Buttons)
+    updateSidebarInfo(null, "Nicht verbunden"); 
+    
     showSection('loginSection');
 }
 
@@ -348,8 +391,22 @@ async function handleLogout() {
 // ================================================================
 
 function showSection(id) {
+    // Alle Sections ausblenden
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    // Gewünschte Section anzeigen
+    const target = document.getElementById(id);
+    if (target) target.classList.add('active');
+
+    // --- HEADER LOGIK ---
+    const switchWrapper = document.getElementById('headerSwitchWrapper');
+    if (id === 'mainSection') {
+        switchWrapper.style.display = 'inline-block'; // Oder 'block'/'flex'
+    } else {
+        switchWrapper.style.display = 'none';
+        // Optional: Switch zurücksetzen beim Verlassen?
+        // document.getElementById('modeSwitch').checked = false;
+        // updateAppMode('encrypt'); 
+    }
 }
 
 function showStatus(elementId, msg, type) {
@@ -381,8 +438,20 @@ function getDeviceId() {
 }
 
 function updateSidebarInfo(user, status) {
-    document.getElementById('sidebarUser').textContent = user;
-    document.getElementById('sidebarLicense').textContent = status;
+    // Texte aktualisieren
+    document.getElementById('sidebarUser').textContent = user || 'Gast';
+    document.getElementById('sidebarLicense').textContent = status || 'Nicht verbunden';
+
+    // Elemente holen, die nur für eingeloggte User sind
+    const authElements = document.querySelectorAll('.auth-only');
+
+    if (user) {
+        // USER IST EINGELOGGT -> Buttons anzeigen
+        authElements.forEach(el => el.style.display = 'flex'); // oder 'block'
+    } else {
+        // GAST / LOGOUT -> Buttons verstecken
+        authElements.forEach(el => el.style.display = 'none');
+    }
 }
 
 async function checkExistingSession() {
@@ -430,4 +499,25 @@ function showQRModal(text) {
     
     // Wenn du qrcode.js einbindest:
     // new QRCode(container, text);
+}
+
+async function confirmDeleteAccount() {
+    if (!confirm('WARNUNG: Account wirklich unwiderruflich löschen?')) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/auth/delete-account`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('Konto wurde gelöscht.');
+            handleLogout(); // Loggt aus und setzt UI zurück
+        } else {
+            alert('Fehler: ' + data.error);
+        }
+    } catch (e) {
+        alert('Verbindungsfehler');
+    }
 }
