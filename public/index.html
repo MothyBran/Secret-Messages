@@ -641,16 +641,27 @@
             
             <!-- Encryption/Decryption Interface -->
             <div class="login-box" style="max-width: 800px;">
+                
                 <div class="form-group">
-                    <label class="form-label" for="messageCode">Sicherheitscode (5 Zeichen)</label>
-                    <input 
-                        type="text" 
-                        id="messageCode" 
-                        class="form-input" 
-                        placeholder="12345"
-                        maxlength="5"
-                        style="max-width: 200px; text-align: center; font-size: 1.2rem; letter-spacing: 3px;"
-                    >
+                    <label class="form-label">Sicherheitscode (5 Ziffern) & Empfänger</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input 
+                            type="text" 
+                            id="messageCode" 
+                            class="form-input" 
+                            placeholder="Code (5)"
+                            maxlength="5"
+                            style="width: 150px; text-align: center; font-size: 1.2rem; letter-spacing: 3px; flex-shrink: 0;"
+                        >
+                        <input 
+                            type="text" 
+                            id="recipientName" 
+                            class="form-input" 
+                            placeholder="Empfänger-Username (Muss stimmen)"
+                            required
+                            style="flex-grow: 1;"
+                        >
+                    </div>
                 </div>
                 
                 <div class="form-group">
