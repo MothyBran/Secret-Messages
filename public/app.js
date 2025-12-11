@@ -171,29 +171,25 @@ function setupKeyboardShortcuts() {
 // ENCRYPTION - Jetzt ASYNC für Web Crypto API
 async function encryptMessage() {
     const code = document.getElementById('messageCode').value;
+    const recipient = document.getElementById('recipientName').value; // NEU: Empfängername
     const message = document.getElementById('messageInput').value;
 
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie einen 5-stelligen Sicherheitscode ein.');
         return;
     }
-
-    if (!message) {
-        alert('Bitte geben Sie eine Nachricht ein.');
+    // NEU: Empfänger-Check
+    if (!recipient || recipient.length < 3) {
+        alert('Bitte geben Sie den Benutzernamen des Empfängers ein.');
         return;
     }
-
-    // UI Feedback: Loading
-    const btn = document.getElementById('encryptBtn');
-    const originalText = btn.innerText;
-    btn.innerText = '⏳ Verschlüssle...';
-    btn.disabled = true;
+    // ...
 
     try {
         logActivity('encrypt_message', { length: message.length });
 
-        // WICHTIG: await verwenden!
-        const encrypted = await encryptFull(message, code);
+        // WICHTIG: recipient zum Aufruf hinzufügen
+        const encrypted = await encryptFull(message, code, recipient); // <--- HIER GEÄNDERT
 
         document.getElementById('messageOutput').value = encrypted;
         document.getElementById('outputGroup').style.display = 'block';
@@ -209,29 +205,27 @@ async function encryptMessage() {
 // DECRYPTION - Jetzt ASYNC für Web Crypto API
 async function decryptMessage() {
     const code = document.getElementById('messageCode').value;
+    const recipient = document.getElementById('recipientName').value; // NEU: Empfängername
     const encrypted = document.getElementById('messageInput').value;
+    const sender = currentUser; // NEU: Der aktuell eingeloggte Benutzer
 
     if (!code || code.length !== 5) {
         alert('Bitte geben Sie den korrekten 5-stelligen Sicherheitscode ein.');
         return;
     }
-
-    if (!encrypted) {
-        alert('Bitte geben Sie den verschlüsselten Text ein.');
+    // NEU: Empfänger-Check
+    if (!recipient || recipient !== sender) {
+        alert(`Entschlüsselung fehlgeschlagen. Der Empfänger-Name ("${recipient}") muss exakt mit Ihrem eingeloggten Benutzernamen ("${sender}") übereinstimmen.`);
         return;
     }
-
-    // UI Feedback
-    const btn = document.getElementById('decryptBtn');
-    const originalText = btn.innerText;
-    btn.innerText = '⏳ Entschlüssle...';
-    btn.disabled = true;
+    
+    // ...
 
     try {
         logActivity('decrypt_message', { length: encrypted.length });
 
-        // WICHTIG: await verwenden!
-        const decrypted = await decryptFull(encrypted, code);
+        // WICHTIG: recipient zum Aufruf hinzufügen
+        const decrypted = await decryptFull(encrypted, code, recipient); // <--- HIER GEÄNDERT
 
         // Prüfen auf Fehler-String aus cryptoLayers (oder Fehler werfen lassen)
         if (decrypted.startsWith('[Fehler')) {
