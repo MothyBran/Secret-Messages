@@ -278,6 +278,28 @@ async function toggleUserBlock(userId, currentStatus) {
     }
 }
 
+async function resetUserDevice(userId) {
+    if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen? Der User muss sich neu einloggen, um das neue Gerät zu binden.')) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/admin/reset-device/${userId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        if (res.ok) {
+            alert('Gerätebindung erfolgreich zurückgesetzt!');
+            loadUsers(); // User-Liste neu laden
+        } else {
+            const data = await res.json();
+            alert('Reset fehlgeschlagen: ' + (data.error || res.statusText));
+        }
+    } catch (e) {
+        alert('Serverfehler beim Device Reset.');
+    }
+}
+
 // ==========================================
 // 3. ZAHLUNGEN LADEN (Verknüpfte Daten)
 // ==========================================
