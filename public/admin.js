@@ -261,21 +261,21 @@ async function toggleUserBlock(userId, currentStatus) {
     const action = currentStatus ? 'unblock-user' : 'block-user'; 
     
     try {
-        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { // Nutzt /api/admin/block-user/:id
+        // Der Endpoint muss exakt zu deinem Server-Code passen: /api/admin/block-user/:id
+        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: adminPassword })
         });
         
         if (res.ok) {
-            console.log(`User ${userId} erfolgreich ${action}t. (Status: ${res.status})`);
             loadUsers(); // User-Liste neu laden
         } else {
             const data = await res.json();
             alert('Aktion fehlgeschlagen: ' + (data.error || res.statusText));
         }
     } catch (e) {
-        alert('Serverfehler beim Sperren/Entsperren. Siehe Konsole.');
+        alert('Serverfehler beim Sperren/Entsperren.');
     }
 }
 
@@ -283,7 +283,7 @@ async function resetUserDevice(userId) {
     if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
     
     try {
-        // Nutzt den korrekten Backend-Endpunkt /api/admin/reset-device/:id
+        // Der Endpoint muss exakt zu deinem Server-Code passen: /api/admin/reset-device/:id
         const res = await fetch(`${API_BASE}/admin/reset-device/${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -298,7 +298,7 @@ async function resetUserDevice(userId) {
             alert('Reset fehlgeschlagen: ' + (data.error || res.statusText));
         }
     } catch (e) {
-        alert('Serverfehler beim Device Reset. Siehe Konsole.');
+        alert('Serverfehler beim Device Reset.');
     }
 }
 
