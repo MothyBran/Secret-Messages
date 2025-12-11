@@ -68,6 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Globale Suche (Input Event)
     document.getElementById('globalSearch')?.addEventListener('keyup', filterAllTables);
+    
+    // FIX CSP: Event Delegation für alle dynamischen Buttons
+    setupDelegatedListeners();
 });
 
 // ==========================================
@@ -216,10 +219,9 @@ async function loadUsers() {
                 const row = document.createElement('tr');
                 
                 const isBlocked = u.is_blocked; // Boolean vom Server
-                // FIX: allowed_device_id kommt vom Server (muss im Server SQL ergänzt werden)
                 const device = u.allowed_device_id || '—'; 
                 
-                // FIX: Device Spalte hinzugefügt und Buttons sind jetzt aktiv
+                // FIX CSP: onclick entfernt, Klassen und data-Attribute hinzugefügt
                 row.innerHTML = `
                     <td style="color:#888;">${u.id}</td>
                     <td style="font-weight:bold;">${u.username}</td>
@@ -235,11 +237,11 @@ async function loadUsers() {
                     
                     <td>${formatDateDE(u.last_login)}</td>
                     <td>
-                        <button class="btn-small" onclick="resetUserDevice('${u.id}')" 
+                        <button class="btn-small action-reset-device" data-user-id="${u.id}" 
                                 title="Devicebindung aufheben" 
                                 ${u.allowed_device_id ? '' : 'disabled'}>⟲ Device</button>
                                 
-                        <button class="btn-small btn-danger" onclick="toggleUserBlock('${u.id}', ${isBlocked})">
+                        <button class="btn-small btn-danger action-toggle-block" data-user-id="${u.id}" data-blocked-status="${isBlocked}">
                             ${isBlocked ? 'Entsperren' : 'Sperren'}
                         </button>
                     </td>
@@ -258,7 +260,7 @@ async function loadUsers() {
     }
 }
 
-// FIX: 'sync' zu 'async' korrigiert (Behebt SyntaxError) und Block-Logik eingefügt
+// AKTION: User Sperren/Entsperren
 async function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
     
@@ -284,7 +286,7 @@ async function toggleUserBlock(userId, currentStatus) {
     }
 }
 
-// NEU: Funktion für Device Reset (für den Button in loadUsers)
+// AKTION: Device Reset
 async function resetUserDevice(userId) {
     if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
     
@@ -383,8 +385,7 @@ async function loadKeys() {
                 // Status bestimmen
                 let statusBadge = '<span class="status-active">Frei</span>';
                 if (k.is_active) statusBadge = '<span class="status-active">Benutzt</span>';
-                // Hier könnte man auch prüfen ob "expires_at" in der Vergangenheit liegt -> "Abgelaufen"
-
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><span class="key-code">${k.key_code}</span></td>
@@ -394,7 +395,7 @@ async function loadKeys() {
                     <td>${formatDateDE(k.created_at)}</td> 
                     <td>${calcRemainingDays(k.expires_at)}</td>
                     <td>
-                        <button class="btn-small btn-danger" onclick="deleteKey('${k.id}')">X</button>
+                        <button class="btn-small btn-danger action-delete-key" data-key-id="${k.id}">X</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -409,10 +410,9 @@ async function loadKeys() {
     }
 }
 
-// FIX: deleteKey mit korrekter Logik und Error Handling (Buttons funktionieren jetzt)
+// AKTION: Key Löschen
 async function deleteKey(id) {
-    // FIX: Bestätigungstext korrigiert und Button-Logik präzisiert
-    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return; 
+    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return;
     
     try {
         const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
@@ -454,6 +454,41 @@ function filterAllTables() {
             } else {
                 row.style.display = 'none';
             }
+        }
+    });
+}
+
+
+// ==========================================
+// FIX CSP: EVENT DELEGATION
+// ==========================================
+
+function setupDelegatedListeners() {
+    const dashboard = document.getElementById('dashboard');
+    if (!dashboard) return;
+
+    dashboard.addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if (!target) return;
+
+        // 1. User Sperren/Entsperren
+        if (target.classList.contains('action-toggle-block')) {
+            const userId = target.dataset.userId;
+            // Daten-Attribut ist ein String, muss zu Boolean konvertiert werden
+            const currentStatus = target.dataset.blockedStatus === 'true'; 
+            toggleUserBlock(userId, currentStatus);
+        }
+
+        // 2. User Device Reset
+        if (target.classList.contains('action-reset-device')) {
+            const userId = target.dataset.userId;
+            resetUserDevice(userId);
+        }
+        
+        // 3. Key Löschen
+        if (target.classList.contains('action-delete-key')) {
+            const keyId = target.dataset.keyId;
+            deleteKey(keyId);
         }
     });
 }
