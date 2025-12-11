@@ -253,6 +253,7 @@ async function loadUsers() {
     }
 }
 
+// admin.js (FIXED: toggleUserBlock)
 async function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
     
@@ -260,28 +261,29 @@ async function toggleUserBlock(userId, currentStatus) {
     const action = currentStatus ? 'unblock-user' : 'block-user'; 
     
     try {
-        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, {
+        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { // Nutzt /api/admin/block-user/:id
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: adminPassword })
         });
         
         if (res.ok) {
-            console.log(`User ${userId} erfolgreich ${action}t.`);
+            console.log(`User ${userId} erfolgreich ${action}t. (Status: ${res.status})`);
             loadUsers(); // User-Liste neu laden
         } else {
             const data = await res.json();
             alert('Aktion fehlgeschlagen: ' + (data.error || res.statusText));
         }
     } catch (e) {
-        alert('Serverfehler beim Sperren/Entsperren.');
+        alert('Serverfehler beim Sperren/Entsperren. Siehe Konsole.');
     }
 }
 
 async function resetUserDevice(userId) {
-    if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen? Der User muss sich neu einloggen, um das neue Gerät zu binden.')) return;
+    if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
     
     try {
+        // Nutzt den korrekten Backend-Endpunkt /api/admin/reset-device/:id
         const res = await fetch(`${API_BASE}/admin/reset-device/${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -296,7 +298,7 @@ async function resetUserDevice(userId) {
             alert('Reset fehlgeschlagen: ' + (data.error || res.statusText));
         }
     } catch (e) {
-        alert('Serverfehler beim Device Reset.');
+        alert('Serverfehler beim Device Reset. Siehe Konsole.');
     }
 }
 
