@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Filter
     document.getElementById('keysStatusFilter')?.addEventListener('change', loadKeys);
     
-    // Globale Suche (Input Event)
+    // Globale Suche (Input Event - Wird von HTML aufgerufen)
     document.getElementById('globalSearch')?.addEventListener('keyup', filterAllTables);
 });
 
@@ -199,7 +199,8 @@ async function loadUsers() {
     const btn = document.getElementById('loadUsersBtn');
     
     btn.disabled = true;
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Lade Daten...</td></tr>';
+    // FIX: Colspan auf 8 erhöht, da Device-Spalte hinzugefügt wird
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Lade Daten...</td></tr>'; 
 
     try {
         const res = await fetch(`${API_BASE}/admin/users`, {
@@ -217,6 +218,7 @@ async function loadUsers() {
                 const isBlocked = u.is_blocked; // Boolean vom Server
                 const device = u.allowed_device_id || '—';
                 
+                // FIX: Device Spalte hinzugefügt, und Buttons sind jetzt aktiv
                 row.innerHTML = `
                     <td style="color:#888;">${u.id}</td>
                     <td style="font-weight:bold;">${u.username}</td>
@@ -244,28 +246,27 @@ async function loadUsers() {
                 tbody.appendChild(row);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Keine User gefunden</td></tr>';
+            // FIX: Colspan auf 8 erhöht
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Keine User gefunden</td></tr>';
         }
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:red">Fehler: ${err.message}</td></tr>`;
+        // FIX: Colspan auf 8 erhöht
+        tbody.innerHTML = `<tr><td colspan="8" style="color:red">Fehler: ${err.message}</td></tr>`;
     } finally {
         btn.disabled = false;
     }
 }
 
-// admin.js (FIXED: toggleUserBlock)
-sync function toggleUserBlock(userId, currentStatus) {
+// FIX: 'sync' zu 'async' korrigiert (Behebt SyntaxError)
+async function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
     
     // Bestimme den korrekten Backend-Endpunkt
-    // currentStatus = true (Gesperrt) -> Aktion ist UNBLOCK
-    // currentStatus = false (Aktiv) -> Aktion ist BLOCK
     const action = currentStatus ? 'unblock-user' : 'block-user'; 
     
     try {
-        // Der Endpoint muss /api/admin/block-user/1 oder /api/admin/unblock-user/1 sein
         const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { 
-            method: 'POST', // Muss POST sein, wie im Server definiert
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: adminPassword })
         });
@@ -282,11 +283,11 @@ sync function toggleUserBlock(userId, currentStatus) {
     }
 }
 
+// FIX: Funktion für Device Reset (für den Button in loadUsers)
 async function resetUserDevice(userId) {
     if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
     
     try {
-        // Der Endpoint muss exakt zu deinem Server-Code passen: /api/admin/reset-device/:id
         const res = await fetch(`${API_BASE}/admin/reset-device/${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -407,21 +408,20 @@ async function loadKeys() {
     }
 }
 
+// FIX: deleteKey mit korrekter Logik und Error Handling (Buttons funktionieren jetzt)
 async function deleteKey(id) {
     if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return;
     
     try {
-        // Der Endpoint muss DELETE /api/admin/keys/1 sein
         const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
-            method: 'DELETE', // Muss DELETE sein, wie im Server definiert
+            method: 'DELETE', // DELETE Methode
             headers: { 'Content-Type': 'application/json' },
-            // Wichtig: Das Passwort muss im Body mitgesendet werden, da dein requireAdmin Middleware es erwartet
-            body: JSON.stringify({ password: adminPassword }) 
+            body: JSON.stringify({ password: adminPassword }) // Admin Passwort senden
         });
         
         if (res.ok) {
             console.log(`Key ${id} erfolgreich gelöscht.`);
-            loadKeys(); // Key-Liste neu laden
+            loadKeys();
         } else {
             const data = await res.json();
             alert('Löschen fehlgeschlagen: ' + (data.error || res.statusText));
@@ -432,7 +432,7 @@ async function deleteKey(id) {
 }
 
 // ==========================================
-// SUCHFUNKTION (Frontend Filter)
+// SUCHFUNKTION (Frontend Filter - Aus HTML verschoben)
 // ==========================================
 
 function filterAllTables() {
