@@ -255,8 +255,27 @@ async function loadUsers() {
 
 async function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
-    // Hier Logik für Blockieren einfügen (braucht entsprechenden Endpunkt in server.js)
-    alert("Funktion muss in server.js implementiert sein (/admin/block-user)");
+    
+    // Bestimme den korrekten Backend-Endpunkt
+    const action = currentStatus ? 'unblock-user' : 'block-user'; 
+    
+    try {
+        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: adminPassword })
+        });
+        
+        if (res.ok) {
+            console.log(`User ${userId} erfolgreich ${action}t.`);
+            loadUsers(); // User-Liste neu laden
+        } else {
+            const data = await res.json();
+            alert('Aktion fehlgeschlagen: ' + (data.error || res.statusText));
+        }
+    } catch (e) {
+        alert('Serverfehler beim Sperren/Entsperren.');
+    }
 }
 
 // ==========================================
