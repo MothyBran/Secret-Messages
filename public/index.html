@@ -267,16 +267,21 @@
     </div>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    <nav class="sidebar" id="sidebar">
-        <div class="user-badge">
-            <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">Gast</h3>
-            <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
-        </div>
-        <a href="#" class="sidebar-item" id="navContacts">📇 Kontaktverzeichnis</a>
-        <a href="#" class="sidebar-item" id="navSupport">🆘 Support</a>
-        <a href="#" class="sidebar-item" id="navDelete" style="color: var(--error-red); margin-top: auto;">⚠️ Konto löschen</a>
-        <a href="#" class="sidebar-item" id="logoutBtnSide">🔒 Abmelden</a>
-    </nav>
+        <nav class="sidebar" id="sidebar">
+            <div class="user-badge">
+                <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">Gast</h3>
+                <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
+            </div>
+            
+            <a href="store.html" class="sidebar-item" id="navShop">🛒 Lizenz Shop</a>
+        
+            <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;">📇 Kontaktverzeichnis</a>
+            
+            <a href="mailto:support@secret-messages.com" class="sidebar-item" id="navSupport">🆘 Support</a>
+            
+            <a href="#" class="sidebar-item auth-only" id="navDelete" style="color: var(--error-red); margin-top: auto; display:none;">⚠️ Konto löschen</a>
+            <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
+        </nav>
 
     <header>
         <button class="menu-btn" id="menuToggle">☰</button>
@@ -284,7 +289,7 @@
             <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
             <span>SECURE APP</span>
         </div>
-        <div class="mode-switch-container">
+        <div class="mode-switch-container" id="headerSwitchWrapper" style="display:none;">
             <input type="checkbox" class="mode-checkbox" id="modeSwitch">
             <span class="mode-slider"></span>
         </div>
@@ -395,11 +400,11 @@
     </footer>
 
     <div id="qrModal" class="modal">
-        <h3 style="margin-bottom:20px;">SECURE QR</h3>
-        <div class="qr-placeholder" id="qrDisplay">
-            [QR Code wird generiert]
-        </div>
-        <button class="btn" onclick="document.getElementById('qrModal').classList.remove('active')">SCHLIESSEN</button>
+        <h3 style="margin-bottom:20px; color: var(--accent-blue);">SECURE QR</h3>
+        <div class="qr-placeholder" id="qrDisplay" style="background: white; padding: 10px;">
+            </div>
+        <br>
+        <button class="btn" id="closeQrBtn">SCHLIESSEN</button>
     </div>
 
     <script type="module" src="app.js"></script>
