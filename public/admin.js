@@ -254,28 +254,31 @@ async function loadUsers() {
 }
 
 // admin.js (FIXED: toggleUserBlock)
-async function toggleUserBlock(userId, currentStatus) {
+sync function toggleUserBlock(userId, currentStatus) {
     if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
     
     // Bestimme den korrekten Backend-Endpunkt
+    // currentStatus = true (Gesperrt) -> Aktion ist UNBLOCK
+    // currentStatus = false (Aktiv) -> Aktion ist BLOCK
     const action = currentStatus ? 'unblock-user' : 'block-user'; 
     
     try {
-        // Der Endpoint muss exakt zu deinem Server-Code passen: /api/admin/block-user/:id
+        // Der Endpoint muss /api/admin/block-user/1 oder /api/admin/unblock-user/1 sein
         const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { 
-            method: 'POST',
+            method: 'POST', // Muss POST sein, wie im Server definiert
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: adminPassword })
         });
         
         if (res.ok) {
+            console.log(`User ${userId} erfolgreich ${action}t.`);
             loadUsers(); // User-Liste neu laden
         } else {
             const data = await res.json();
             alert('Aktion fehlgeschlagen: ' + (data.error || res.statusText));
         }
     } catch (e) {
-        alert('Serverfehler beim Sperren/Entsperren.');
+        alert('Serverfehler beim Sperren/Entsperren. Bitte Konsole prüfen.');
     }
 }
 
@@ -405,19 +408,27 @@ async function loadKeys() {
 }
 
 async function deleteKey(id) {
-    if (!confirm('Key wirklich löschen?')) return;
+    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return;
+    
     try {
+        // Der Endpoint muss DELETE /api/admin/keys/1 sein
         const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
-            method: 'DELETE',
+            method: 'DELETE', // Muss DELETE sein, wie im Server definiert
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
+            // Wichtig: Das Passwort muss im Body mitgesendet werden, da dein requireAdmin Middleware es erwartet
+            body: JSON.stringify({ password: adminPassword }) 
         });
+        
         if (res.ok) {
-            loadKeys();
+            console.log(`Key ${id} erfolgreich gelöscht.`);
+            loadKeys(); // Key-Liste neu laden
         } else {
-            alert('Löschen fehlgeschlagen');
+            const data = await res.json();
+            alert('Löschen fehlgeschlagen: ' + (data.error || res.statusText));
         }
-    } catch (e) { alert('Fehler'); }
+    } catch (e) { 
+        alert('Serverfehler beim Löschen. Bitte Konsole prüfen.'); 
+    }
 }
 
 // ==========================================
