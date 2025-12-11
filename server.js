@@ -132,12 +132,13 @@ const createTables = async () => {
             id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
             key_code VARCHAR(17) UNIQUE NOT NULL,
             key_hash TEXT NOT NULL,
-            product_code VARCHAR(10),
+            product_code VARCHAR(10), 
             created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
             activated_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
+            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}, 
             is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            username VARCHAR(50)
+            username VARCHAR(50), 
+            activated_ip VARCHAR(50) 
         )`);
 
         // Payments (WICHTIG für Admin Panel)
@@ -430,8 +431,10 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
             await dbQuery(
                 `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at) 
                  VALUES ($1, $2, $3, $4, $5, $6)`,
+                // FIX: `product_code` wird direkt als `$3` übergeben
                 [code, hash, product, (isPostgreSQL?false:0), new Date().toISOString(), isoExp]
             );
+          
             keys.push(code);
         }
         res.json({ success: true, keys });
@@ -448,18 +451,26 @@ app.post('/api/admin/keys', requireAdmin, async (req, res) => {
         console.log(`🔍 Admin lädt Keys (Filter: ${filter})...`);
 
         let where = "";
-        // Achte auf korrekte SQL Syntax für Boolean (Postgres=true/false, SQLite=1/0)
+        // SQL-Datumskonvertierung ist je nach DB kritisch.
+        const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")'; 
+        
         if (filter === 'active') where = `WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`;
         if (filter === 'inactive') where = `WHERE is_active = ${isPostgreSQL ? 'false' : '0'}`;
-        if (filter === 'expired') where = `WHERE expires_at IS NOT NULL AND expires_at < '${new Date().toISOString()}'`;
+        
+        // FIX: Abgelaufene Keys werden anhand des expires_at Datums geprüft.
+        if (filter === 'expired') where = `WHERE expires_at IS NOT NULL AND expires_at < ${now}`;
 
-        // WICHTIG: Wir selektieren explizit die Spalten, um Konflikte zu vermeiden.
-        // Wir verzichten auf den JOIN mit 'users', da der Username eh in 'license_keys' gespeichert wird (siehe activate route).
+        // Wir nutzen die korrekten Spaltennamen product_code und expires_at.
+        // Das Backend muss den `username` über einen JOIN aus der `users` Tabelle holen, da er nicht in `license_keys` steht.
+        // WICHTIG: Laut deinem Schema steht der Username NICHT in license_keys! (Siehe unten).
+        
         const sql = `
-            SELECT id, key_code, product_code, is_active, username, created_at, activated_at, expires_at
-            FROM license_keys
+            SELECT k.id, k.key_code, k.product_code, k.is_active, k.created_at, k.activated_at, k.expires_at,
+                   u.username
+            FROM license_keys k
+            LEFT JOIN users u ON u.license_key_id = k.id -- JOIN, um den Usernamen zu bekommen
             ${where}
-            ORDER BY created_at DESC 
+            ORDER BY k.created_at DESC 
             LIMIT 100
         `;
 
@@ -470,9 +481,9 @@ app.post('/api/admin/keys', requireAdmin, async (req, res) => {
         const keys = result.rows.map(r => ({
             id: r.id,
             key_code: r.key_code,
-            product_code: r.product_code,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1), // Normalisierung
-            username: r.username || '—', // Falls null, Strich anzeigen
+            product_code: r.product_code, // Korrekter Spaltenname
+            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1), 
+            username: r.username || '—', // Kommt vom JOIN
             created_at: r.created_at,
             activated_at: r.activated_at,
             expires_at: r.expires_at
