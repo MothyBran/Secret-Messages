@@ -172,7 +172,7 @@
         </div>
 
         <div class="mb-20">
-            <input type="text" id="globalSearch" placeholder="🔍 Global Search (User, Key, Email, ID)..." onkeyup="filterAllTables()">
+            <input type="text" id="globalSearch" placeholder="🔍 Global Search (User, Key, Email, ID)...">
         </div>
 
         <div class="section">
@@ -202,7 +202,7 @@
                             <th>User-ID</th>
                             <th>Benutzername</th>
                             <th>Verknüpfter Key</th>
-                            <th>Gerät/Device</th>  <th>Status</th>
+                            <th>Gerät/Device</th> <th>Status</th>
                             <th>Erstellt am</th>
                             <th>Login</th>
                             <th>Aktionen</th>
@@ -269,25 +269,5 @@
     </div>
 
     <script src="./admin.js"></script>
-    <script>
-        // Einfache Suchfunktion im Frontend
-        function filterAllTables() {
-            const input = document.getElementById("globalSearch");
-            const filter = input.value.toUpperCase();
-            const tables = document.querySelectorAll(".data-table");
-            
-            tables.forEach(table => {
-                const tr = table.getElementsByTagName("tr");
-                for (let i = 1; i < tr.length; i++) {
-                    let txtValue = tr[i].textContent || tr[i].innerText;
-                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                        tr[i].style.display = "";
-                    } else {
-                        tr[i].style.display = "none";
-                    }
-                }
-            });
-        }
-    </script>
-</body>
+    </body>
 </html>
