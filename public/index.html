@@ -2,709 +2,406 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SECURE MESSENGER | Enterprise Edition</title>
     <link rel="icon" type="image/png" href="/favicon.png">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secret Messages - Secure Login</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-        @media (prefers-reduced-motion: reduce) {.matrix-bg { opacity: 0.06; }}
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         :root {
-            --matrix-green: #00ff41;
-            --matrix-dark-green: #008f11;
-            --bg-black: #0a0a0a;
-            --bg-dark: #0d0d0d;
-            --error-red: #ff0033;
+            --bg-dark: #050505;
+            --bg-panel: #0f1215;
+            --accent-blue: #00BFFF; /* Dein gewünschtes Hellblau */
+            --accent-glow: rgba(0, 191, 255, 0.3);
+            --text-main: #e0e0e0;
+            --text-muted: #8899a6;
+            --border-color: #333;
+            --error-red: #ff3333;
+            --success-green: #00ff41;
+            
+            --sidebar-width: 280px;
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            background: var(--bg-black);
-            color: var(--matrix-green);
-            font-family: 'Share Tech Mono', monospace;
-            min-height: 100vh;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
             overflow-x: hidden;
-            position: relative;
-        }
-        
-/* Matrix Rain Effekt – Hintergrund */
-        
-.matrix-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100%;
-  max-width: 100%;
-  max-height: none;
-  z-index: -1;
-  opacity: 0.12;
-  pointer-events: none;
-}
-        
-        /* Container */
-        .container {
-            min-height: 100vh;
             display: flex;
-            align-items: center;
+            flex-direction: column;
+        }
+
+        /* === HINTERGRUND EFFEKT (Subtiles Gitter) === */
+        .bg-grid {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 191, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 191, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* === LANDSCAPE WARNUNG (Mobile) === */
+        @media screen and (orientation: landscape) and (max-width: 900px) {
+            .landscape-warning {
+                display: flex !important;
+            }
+        }
+        .landscape-warning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark);
+            z-index: 9999;
+            flex-direction: column;
             justify-content: center;
+            align-items: center;
+            text-align: center;
             padding: 20px;
         }
-        
-        /* Login Box */
-        .login-box {
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid var(--matrix-green);
-            border-radius: 0;
-            padding: 40px;
-            width: 100%;
-            max-width: 450px;
-            box-shadow: 0 0 40px rgba(0, 255, 65, 0.5);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .login-box::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(45deg, var(--matrix-green), transparent, var(--matrix-green));
-            z-index: -1;
-            animation: glitch 3s ease-in-out infinite;
-        }
-        
-        @keyframes glitch {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 0.8; }
-        }
+        .rotate-icon { font-size: 3rem; margin-bottom: 20px; color: var(--accent-blue); animation: rotate 2s infinite; }
+        @keyframes rotate { 0% { transform: rotate(0deg); } 25% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
 
-        .box-title {
-            margin-bottom: 14px;
-            margin-left: 1.8px;
-            color: #00ff00;
-            font-size: 2rem;
-            font-weight: bold;
-            padding: 0 8px;
-            display: inline-block;
-            position: relative;
-            top: 18px;
-            z-index: 5;
-        }
-
-        /* Header */
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+        /* === UI KOMPONENTEN === */
+        input, textarea, button { font-family: 'Roboto Mono', monospace; outline: none; }
         
-        .logo {
-            position: absolute;
-            font-size: 2.5rem;
-            font-weight: bold;
-            text-shadow: 0 0 20px var(--matrix-green);
-            margin-bottom: 10px;
-            letter-spacing: 3px;
-        }
-        
-        .subtitle {
-            font-size: 0.9rem;
-            color: var(--matrix-dark-green);
-            letter-spacing: 1px;
-        }
-        
-        /* Form */
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .form-input {
-            width: 100%;
-            padding: 12px 15px;
-            background: rgba(0, 255, 65, 0.05);
-            border: 1px solid var(--matrix-green);
-            color: var(--matrix-green);
-            font-family: inherit;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        
-        .form-input:focus {
-            outline: none;
-            background: rgba(0, 255, 65, 0.1);
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-            border-color: var(--matrix-green);
-        }
-        
-        .form-input::placeholder {
-            color: var(--matrix-dark-green);
-            opacity: 0.7;
-        }
-        
-        /* Buttons */
         .btn {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(45deg, var(--matrix-dark-green), var(--matrix-green));
-            border: none;
-            color: var(--bg-black);
-            font-family: inherit;
+            background: rgba(0, 191, 255, 0.1);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            padding: 12px;
             font-size: 1rem;
-            font-weight: bold;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 2px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { 
+            background: var(--accent-blue); 
+            color: #000; 
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+        .btn-danger { border-color: var(--error-red); color: var(--error-red); background: rgba(255,50,50,0.05); }
+
+        /* === HEADER === */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: rgba(15, 18, 21, 0.9);
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .menu-btn {
+            background: none; border: none; color: var(--accent-blue);
+            font-size: 1.5rem; cursor: pointer;
+        }
+
+        .app-logo {
+            font-weight: 700; font-size: 1.2rem; letter-spacing: 2px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .shield-icon { width: 24px; height: 24px; fill: var(--accent-blue); }
+
+        /* === MODE SWITCH (Oben Rechts) === */
+        .mode-switch-container {
             position: relative;
-            overflow: hidden;
+            display: inline-block;
+            width: 50px; height: 26px;
+        }
+        .mode-checkbox { opacity: 0; width: 0; height: 0; }
+        .mode-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333;
+            transition: .4s;
             border-radius: 4px;
         }
-        
-        .btn::before {
-            content: '';
-            position: relative;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.2);
-            transition: left 0.5s ease;
+        .mode-slider:before {
+            position: absolute; content: "";
+            height: 18px; width: 18px;
+            left: 4px; bottom: 4px;
+            background-color: var(--text-muted);
+            transition: .4s;
+            border-radius: 2px;
         }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 255, 65, 0.5);
+        /* Wenn gecheckt (Decrypt Mode) */
+        .mode-checkbox:checked + .mode-slider { background-color: var(--accent-blue); }
+        .mode-checkbox:checked + .mode-slider:before { transform: translateX(24px); background-color: #fff; }
+
+        /* === SIDEBAR (Menü) === */
+        .sidebar {
+            position: fixed; top: 0; left: 0;
+            width: var(--sidebar-width); height: 100%;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--accent-blue);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 200;
+            display: flex; flex-direction: column;
+            padding-top: 60px;
         }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        .sidebar.active { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+        .sidebar-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 150;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s;
         }
+        .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
         
-        /* Links */
-        .link {
-            color: var(--matrix-green);
+        .sidebar-item {
+            padding: 15px 25px;
+            border-bottom: 1px solid #222;
+            color: var(--text-main);
             text-decoration: none;
-            display: inline-block;
-            margin-top: 20px;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            position: relative;
+            display: flex; align-items: center; gap: 10px;
+            transition: 0.2s;
         }
-        
-        .link::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            width: 0;
-            height: 1px;
-            background: var(--matrix-green);
-            transition: width 0.3s ease;
-        }
-        
-        .link:hover::after {
-            width: 100%;
-        }
-        
-        /* Status Messages */
-        .status {
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 0;
-            text-align: center;
-            font-size: 0.9rem;
-            display: none;
-        }
-        
-        .status.show {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .status.success {
-            background: rgba(0, 255, 65, 0.1);
-            border: 1px solid var(--matrix-green);
-            color: var(--matrix-green);
-        }
-        
-        .status.error {
-            background: rgba(255, 0, 51, 0.1);
-            border: 1px solid var(--error-red);
-            color: var(--error-red);
-        }
-        
-        /* Loading Spinner */
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(0, 255, 65, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--matrix-green);
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
-            vertical-align: middle;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Sections */
-        .section {
-            display: none;
-        }
-        
-        .section.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-        
-        /* Encryption Section Styles */
-        .app-header {
-            background: rgba(0, 0, 0, 0.95);
-            border: 1px solid var(--matrix-green);
-            padding: 10px;
-            margin-bottom: 30px;
-            position: relative;
-        }
-        
-        .app-title {
-            font-size: 2rem;
-            text-align: center;
+        .sidebar-item:hover { background: rgba(0, 191, 255, 0.05); padding-left: 30px; color: var(--accent-blue); }
+        .user-badge {
+            padding: 20px;
+            background: linear-gradient(180deg, rgba(0,191,255,0.1), transparent);
+            border-bottom: 1px solid var(--accent-blue);
             margin-bottom: 10px;
-            text-shadow: 0 0 20px var(--matrix-green);
         }
 
-        .license-countdown { 
-            font-size: 0.8rem;
-            font-weight: normal;
-            color: #00ff41;
-            margin-bottom: 2px;
-            padding-left: 5px;
-            text-align: left;
+        /* === MAIN CONTENT === */
+        .main-container {
+            flex: 1;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* SECTION: LOGIN / ACTIVATION / APP */
+        .section { display: none; animation: fadeIn 0.4s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* INPUT GROUPS */
+        .input-group { position: relative; margin-bottom: 15px; }
+        .input-label {
+            display: block; font-size: 0.75rem; color: var(--accent-blue);
+            margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .input-field {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #333;
+            border-left: 3px solid #333;
+            color: #fff;
+            padding: 12px;
+            font-size: 1rem;
+            transition: 0.3s;
+        }
+        .input-field:focus {
+            border-color: var(--accent-blue);
+            border-left-color: var(--accent-blue);
+            box-shadow: -5px 0 10px -5px var(--accent-glow);
+        }
+
+        /* 5-Digit Code Special Styling */
+        .code-input {
+            letter-spacing: 8px; font-size: 1.2rem; text-align: center;
+        }
+
+        /* === STATUS & FOOTER === */
+        .status-msg {
+            padding: 10px; margin-top: 10px; border-radius: 4px;
+            font-size: 0.9rem; text-align: center; display: none;
         }
         
-        .user-info {
-            font-size: 0.8rem;
-            font-weight: normal;
-            color: #00ff41;
-            padding-left: 5px;
-            text-align: left;
-        }
-        
-        .logout-btn {
-            position: absolute;
-            width: auto;
-            top: 10px;
-            right: 10px;
-            padding: 10px 16px;
-            background: transparent;
-            border: 1px solid var(--matrix-green);
-            color: var(--matrix-green);
-            font-family: inherit;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            z-index: 10;
-        }
-        
-        .logout-btn:hover {
-            background: var(--matrix-green);
-            color: var(--bg-black);
-        }
-        
-        .delete-account-btn {
-            position: absolut;
-            bottom: 10px;
-            padding: 8px 15px;
-            background: transparent;
-            border: 1px solid var(--error-red);
-            color: var(--error-red);
-            font-family: inherit;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        footer {
             margin-top: auto;
+            padding: 20px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #444;
+            border-top: 1px solid #111;
         }
-        
-        .delete-account-btn:hover {
-            background: var(--error-red);
-            color: white;
+
+        /* === QR CODE MODAL === */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 1000;
+            justify-content: center; align-items: center;
+            flex-direction: column;
         }
-        
-        /* Responsive */
-    
-@media (max-width: 600px) {
-  .container {
-    padding: 10px;
-  }
+        .modal.active { display: flex; }
+        .qr-placeholder {
+            width: 250px; height: 250px; background: #fff; margin: 20px;
+            display: flex; justify-content: center; align-items: center;
+            color: #000;
+        }
 
-  .login-box {
-    width: 100%;
-    max-width: none;
-    padding: 25px 15px;
-    box-sizing: border-box;
-  }
-
-  .logo {
-    font-size: 2rem;
-  }
-    
-  .form-input, .btn {
-    font-size: 0.9rem;
-  }
-
-  .box-title {
-    font-size: 1.5rem;
-    top: 10px;
-  }
-
-  .btn {
-    padding: 12px;
-  }
-
-  .license-Countdown,.user-info, .logout-btn {
-    font-size: 0.75rem;
-  }
-
-  .form-label {
-    font-size: 0.8rem;
-  }
-
-  .delete-account-btn {
-    font-size: 0.75rem;
-    padding: 6px 12px;
-  }
-
-  textarea.form-input {
-    font-size: 0.9rem;
-  }
-
-  details summary {
-    font-size: 1rem !important;
-  }
-}
     </style>
 </head>
 <body>
-    <!-- Matrix Background -->
-    <canvas id="matrixCanvas" class="matrix-bg" aria-hidden="true"></canvas>
-    
-    <!-- Container -->
-    <div class="container">
-        <!-- Login Section -->
+
+    <div class="bg-grid"></div>
+
+    <div class="landscape-warning">
+        <div class="rotate-icon">↻</div>
+        <h2>SYSTEM LOCKED</h2>
+        <p>Sicherheitsprotokoll erfordert Hochformat.</p>
+        <p>Bitte Gerät drehen.</p>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <nav class="sidebar" id="sidebar">
+        <div class="user-badge">
+            <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">Gast</h3>
+            <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
+        </div>
+        <a href="#" class="sidebar-item" id="navContacts">📇 Kontaktverzeichnis</a>
+        <a href="#" class="sidebar-item" id="navSupport">🆘 Support</a>
+        <a href="#" class="sidebar-item" id="navDelete" style="color: var(--error-red); margin-top: auto;">⚠️ Konto löschen</a>
+        <a href="#" class="sidebar-item" id="logoutBtnSide">🔒 Abmelden</a>
+    </nav>
+
+    <header>
+        <button class="menu-btn" id="menuToggle">☰</button>
+        <div class="app-logo">
+            <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+            <span>SECURE APP</span>
+        </div>
+        <div class="mode-switch-container">
+            <input type="checkbox" class="mode-checkbox" id="modeSwitch">
+            <span class="mode-slider"></span>
+        </div>
+    </header>
+
+    <div class="main-container">
+
         <div id="loginSection" class="section active">
-            <div class="login-box">
-                <div class="header">
-                    <img src="/Logo_SM.png" alt="Secret Messages Logo" style="width: 250px; margin-bottom: 15px; filter: drop-shadow(0 0 10px #00ff41);">
-                    <p class="subtitle">XII-FOLD HYBRID ENCRYPTION</p>
+            <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
+            <form id="loginForm">
+                <div class="input-group">
+                    <label class="input-label">Benutzername</label>
+                    <input type="text" id="username" class="input-field" placeholder="USER.ID" required>
                 </div>
-                
-                <form id="loginForm">
-                    <div class="form-group">
-                        <label class="form-label" for="username">Benutzername</label>
-                        <input 
-                            type="text" 
-                            id="username" 
-                            class="form-input" 
-                            placeholder="Ihr Benutzername"
-                            required
-                            autocomplete="username"
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="accessCode">Zugangscode (5-stellig)</label>
-                        <input 
-                            type="text" 
-                            id="accessCode" 
-                            class="form-input" 
-                            placeholder="12345"
-                            maxlength="5"
-                            pattern="[0-9]{5}"
-                            required
-                            autocomplete="current-password"
-                        >
-                    </div>
-                    
-                    <button type="submit" class="btn" id="loginBtn">
-                        <span id="loginBtnText">ANMELDEN</span>
-                    </button> 
-                </form>
-                
-                <div id="loginStatus" class="status" style="display: none;"></div>
-
-                <div style="text-align: center;">
-                    <a href="#" class="link" id="showActivationLink">License-Key aktivieren</a>
+                <div class="input-group">
+                    <label class="input-label">Zugangscode</label>
+                    <input type="password" id="accessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required>
                 </div>
+                <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">
+                    <span id="loginBtnText">VERBINDUNG HERSTELLEN</span>
+                </button>
+            </form>
+            <div style="text-align:center; margin-top:20px;">
+                <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>
             </div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                  <a href="store.html" class="btn" style="width: auto; padding: 12px 20px; font-size: 0.9rem;">
-🛒 License-Key Shop
-  </a>
-            </div>
-            
-            <!-- Anleitung (Akkordeon) -->
-           <div style="margin-top: 40px; max-width: 600px; text-align: left; color: var(--matrix-green); font-size: 0.92rem;">
-             <details style="margin-top: 40px; max-width: 600px; text-align: left; color: var(--matrix-green); padding: 0; border: 1px solid var(--matrix-green); box-shadow: 0 0 20px var(--matrix-green); border-radius: 6px; background: rgba(0,0,0,0.85); overflow: hidden;">
-             <summary style="cursor: pointer; padding: 20px; font-size: 1.1rem; text-align: center; color: var(--matrix-green); font-weight: bold; text-shadow: 0 0 10px var(--matrix-green); background: rgba(0, 0, 0, 0.9); border-bottom: 1px solid var(--matrix-green);">
-    🧪 Wie funktioniert's?</summary>
-            
-                <div style="padding: 20px; font-size: 0.92rem; line-height: 1.7;">
-                <ol style="padding-left: 20px; margin-top: 10px;">
-                <li><strong>🔑 Sicherheitscode eingeben:</strong><br> Wähle einen 5-stelligen Zahlencode – nur du kennst ihn. Beispiel: <code>48315</code>.</li>
-                <li><strong>💬 Nachricht schreiben:</strong><br> Gib deine geheime Botschaft in das Eingabefeld ein, - Buchstaben, Zahlen und Sonderzeichen möglich.</li>
-                <li><strong>🧬 „Verschlüsseln“ klicken:</strong><br> Die Nachricht wird jetzt 12-fach gesichert – inklusive binärer Sonderzeichen-Kodierung, AES-ähnlicher Logik, Caesar-Verschiebung u. v. m.</li>
-                <li><strong>📋 Kopieren & versenden:</strong><br> Mit einem Klick kopieren und über einen beliebigen Messenger an dein Gegenüber senden.</li>
-                <li><strong>🔓 Entschlüsselung:</strong><br> Der Empfänger gibt den gleichen Code ein und klickt auf „Entschlüsseln“. Nur dann wird der Originaltext sichtbar.</li>
-            </ol>
-            <p style="margin-top: 10px;"><strong>💡 Hinweis:</strong> Nur wer den <em>richtigen Code</em> und Zugriff auf die Seite hat, kann die Nachricht wieder sichtbar machen.</p>
+            <div id="loginStatus" class="status-msg"></div>
         </div>
-    </details>
-</div>
 
-        <!-- Feature-Bereich -->
-        <details style="margin-top: 40px; max-width: 600px; text-align: left; color: var(--matrix-green); padding: 0; border: 1px solid var(--matrix-green); box-shadow: 0 0 20px var(--matrix-green); border-radius: 6px; background: rgba(0,0,0,0.85); overflow: hidden;">
-        <summary style="cursor: pointer; padding: 20px; font-size: 1.1rem; text-align: center; color: var(--matrix-green); font-weight: bold; text-shadow: 0 0 10px var(--matrix-green); background: rgba(0, 0, 0, 0.9); border-bottom: 1px solid var(--matrix-green);">
-    🛡️ BESONDERHEITEN ANZEIGEN
-        </summary>
-
-          <div style="padding: 20px; font-size: 0.92rem; line-height: 1.7;">
-            <ul style="list-style: none; padding-left: 0;">
-                <li>🔒 <strong>Bleibt auf deinem Gerät:</strong> Deine Nachricht verlässt nie dein System – keine Übertragung, keine Cloud, kein Risiko.</li>
-                <li>👤 <strong>100 % anonym:</strong> Kein Login mit Echtnamen, keine persönlichen Daten – einfach nutzen, ohne Spuren zu hinterlassen.</li>
-                <li>🛰️ <strong>Offline nutzbar:</strong> Kein Internet? Kein Problem. Die gesamte Verschlüsselung läuft lokal in deinem Browser.</li>
-                <li>📲 <strong>Messenger-freundlich:</strong> Kopiere den verschlüsselten Code und sende ihn per WhatsApp, Signal, E-Mail oder Rauchzeichen – alles ist möglich.</li>
-                <li>🔐 <strong>12-fache Verschlüsselung:</strong> Dein Text wird mehrfach codiert, gewürfelt, gespiegelt und mit einem 5-stelligen Schlüssel gesichert.</li>
-                <li>🧠 <strong>Nur du kennst den Schlüssel:</strong> Ohne deinen Sicherheitscode ist die Nachricht mathematisch unknackbar.</li>
-                <li>💥 <strong>Gerät verloren?</strong> Kein Zugriff für Dritte – ohne deinen Code und Zugang bleibt alles verschlüsselt und wertlos.</li>
-                <li>🧬 <strong>Individuelle AES-256:</strong> Eine eigens entwickelte Verschlüsselung sorgt für zusätzliche Tiefe und Sicherheit.</li>
-                <li>🧩 <strong>Geräteübergreifend kompatibel:</strong> Jeder verschlüsselte Code funktioniert überall gleich – auf PC, Tablet oder Smartphone.</li>
-                <li>🕵️‍♂️ <strong>Keine Daten. Kein Tracking. Kein Bullshit:</strong> Voller Fokus auf deine Privatsphäre – wie es sein sollte.</li>
-            </ul>
-          </div>
-        </details>
-
-        <!-- App-Einrichten -->
-<details style="margin-top: 40px; max-width: 600px; text-align: left; color: var(--matrix-green); padding: 0; border: 1px solid var(--matrix-green); box-shadow: 0 0 20px var(--matrix-green); border-radius: 6px; background: rgba(0,0,0,0.85); overflow: hidden;">
-    <summary style="cursor: pointer; padding: 20px; font-size: 1.1rem; text-align: center; color: var(--matrix-green); font-weight: bold; text-shadow: 0 0 10px var(--matrix-green); background: rgba(0, 0, 0, 0.9); border-bottom: 1px solid var(--matrix-green);">
-        📱 Secret Messages als App!
-    </summary>
-
-    <div style="padding: 20px; font-size: 0.92rem; line-height: 1.7;">
-        <p>🌐 <strong>Secret Messages ist eine Web-App.</strong><br>
-        Du kannst sie direkt im Browser nutzen oder auf deinem Smartphone wie eine normale App zum Startbildschirm hinzufügen:</p>
-
-        <ol style="padding-left: 20px; margin-top: 10px;">
-            <li>Rufe die <strong>Secret Messages</strong>-Webseite in deinem Browser auf.</li>
-            <li>Öffne das <strong>Browser-Menü</strong> (meist als drei Punkte oder Striche dargestellt).</li>
-            <li>Wähle den Menüpunkt <strong>„Zum Startbildschirm hinzufügen“</strong> aus.</li>
-            <li>Gib der App einen Namen, z. B. <em>Secret Messages</em>.</li>
-            <li>Klicke auf <strong>„Installieren“</strong> oder <strong>„Hinzufügen“</strong>.</li>
-        </ol>
-
-        <p>✅ Die App wird nun auf deinem Startbildschirm angezeigt und kann wie jede andere App gestartet werden.</p>
-    </div>
-</details>
-        </div>
-        
-        <!-- License Key Activation Section -->
         <div id="activationSection" class="section">
-            <h1 class="box-title">KEY AKTIVIERUNG 🔐</h1>
-            
-            <div class="login-box">
-                <div class="header">
-                    <p class="subtitle">Erstellen Sie Ihren Zugang</p>
+            <h2 style="text-align:center; margin-bottom:20px;">LIZENZIERUNG</h2>
+            <form id="activationForm">
+                <div class="input-group">
+                    <label class="input-label">Lizenz-Key</label>
+                    <input type="text" id="licenseKey" class="input-field" placeholder="XXXXX-XXXXX-XXXXX" required>
                 </div>
-                
-                <form id="activationForm">
-                    <div class="form-group">
-                        <label class="form-label" for="licenseKey">License-Key</label>
-                        <input 
-                            type="text" 
-                            id="licenseKey" 
-                            class="form-input" 
-                            placeholder="XXXXX-XXXXX-XXXXX"
-                            maxlength="17"
-                            required
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="newUsername">
-                            Benutzername <small style="color: #666; font-weight: normal;">(3–20 Zeichen, keine Leerzeichen)</small>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="newUsername" 
-                            class="form-input" 
-                            placeholder="Benutzername"
-                            required
-                            minlength="3"
-                            maxlength="20"
-                            pattern="[a-zA-Z0-9]{3,20}" 
-                            title="3–20 Zeichen, Buchstaben, Zahlen erlaubt"
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="newAccessCode">Zugangscode (5 Ziffern)</label>
-                        <input 
-                            type="text" 
-                            id="newAccessCode" 
-                            class="form-input" 
-                            placeholder="12345"
-                            maxlength="5"
-                            pattern="[0-9]{5}"
-                            inputmode="numeric" 
-                            required
-                        >
-                    </div>
-                    
-                    <div class="warning-box" style="
-                        border: 1px solid #ffcc00; 
-                        background: rgba(255, 204, 0, 0.1); 
-                        color: #ffcc00; 
-                        padding: 15px; 
-                        margin-top: 25px; 
-                        margin-bottom: 25px; 
-                        border-radius: 4px; 
-                        text-align: left; 
-                        font-size: 0.85rem; 
-                        line-height: 1.5;">
-                        
-                        <strong style="display:block; margin-bottom:10px; font-size:1rem; border-bottom: 1px solid rgba(255,204,0,0.3); padding-bottom:5px;">
-                            ⚠️ WICHTIG: GERÄTE-BINDUNG
-                        </strong>
-                        <ul style="padding-left: 20px; margin: 0;">
-                            <li style="margin-bottom: 8px;">
-                                <strong>Feste Kopplung:</strong> Der Key wird fest mit <u>diesem Gerät</u> verknüpft. Login auf anderen Geräten ist nicht möglich.
-                            </li>
-                            <li style="margin-bottom: 8px;">
-                                <strong>Vorsicht beim Löschen:</strong> Wenn Sie Ihre Browser-Daten (Cache/Cookies) löschen, verlieren Sie den Zugang!
-                            </li>
-                            <li>
-                                <strong>Probleme?</strong> Kontaktieren Sie uns zum Zurücksetzen:<br>
-                                <a href="mailto:support@secret-messages.com" style="color: #ffcc00; text-decoration: underline;">support@secret-messages.com</a>
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <button type="submit" class="btn" id="activateBtn" style="width: 100%; margin-top: 0;">
-                        <span id="activateBtnText">ZUGANG ERSTELLEN</span>
-                    </button>
-                </form>
-                
-                <div id="activationStatus" class="status"></div>
-                
-                <div style="text-align: center; margin-top: 20px;">
-                    <a href="#" class="link" id="showLoginLink">Zurück zum Login</a>
+                <div class="input-group">
+                    <label class="input-label">Neuer Benutzername</label>
+                    <input type="text" id="newUsername" class="input-field" required>
                 </div>
+                <div class="input-group">
+                    <label class="input-label">Neuer Zugangscode (5 Stellen)</label>
+                    <input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" inputmode="numeric" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%" id="activateBtn">
+                    <span id="activateBtnText">LIZENZ BINDEN</span>
+                </button>
+            </form>
+            <div style="text-align:center; margin-top:15px;">
+                <button class="btn" id="showLoginLink" style="border:none; background:none; font-size:0.8rem;">Zurück</button>
             </div>
+            <div id="activationStatus" class="status-msg"></div>
         </div>
-        
-        <!-- Main Application Section -->
+
         <div id="mainSection" class="section">
-            <div class="app-header">
-                <div class="license-countdown" id="licenseCountdown"></div> 
-                
-                <div class="user-info" id="userInfo"></div>
-                
-                <button class="logout-btn" id="logoutBtn">Abmelden</button>
-                <div style="text-align: center;">
-                    <img src="/Logo_SM.png" alt="Secret Messages Logo" style="width: 250px; margin-bottom: 15px; filter: drop-shadow(0 0 10px #00ff41);">
-                </div>
-                <p class="subtitle" style="text-align: center;">XII-FOLD HYBRID ENCRYPTION</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
+                <h3 id="modeTitle" style="color:var(--accent-blue);">VERSCHLÜSSELUNG</h3>
+                <span id="statusIndicator" style="font-size:0.7rem; color:var(--success-green);">● SICHER</span>
             </div>
-            
-            <div class="login-box" style="max-width: 800px;">
-                
-                <div class="form-group">
-                    <label class="form-label">Sicherheitscode (5 Ziffern) & Empfänger</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input 
-                            type="text" 
-                            id="messageCode" 
-                            class="form-input" 
-                            placeholder="Code (5)"
-                            maxlength="5"
-                            style="width: 150px; text-align: center; font-size: 1.2rem; letter-spacing: 3px; flex-shrink: 0;"
-                        >
-                        <input 
-                            type="text" 
-                            id="recipientName" 
-                            class="form-input" 
-                            placeholder="Empfänger-Username"
-                            required
-                            style="flex-grow: 1;"
-                        >
-                    </div>
+
+            <div class="input-group" id="recipientGroup">
+                <label class="input-label">Empfänger ID(s)</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="recipientName" class="input-field" placeholder="Komma getrennt (z.B. UserA, UserB)">
+                    <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
                 </div>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Sitzungs-Schlüssel (5-stellig)</label>
+                <input type="password" id="messageCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label" id="textLabel">Nachrichteneingabe</label>
+                <textarea id="messageInput" class="input-field" rows="6" placeholder="Daten hier eingeben..."></textarea>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button id="actionBtn" class="btn btn-primary">🔒 DATEN VERSCHLÜSSELN</button>
                 
-                <div class="form-group">
-                    <label class="form-label">Nachricht</label>
-                    <textarea 
-                        id="messageInput" 
-                        class="form-input" 
-                        rows="6" 
-                        placeholder="Geben Sie Ihre Nachricht ein..."
-                        style="resize: vertical;"
-                    ></textarea>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <button id="copyBtn" class="btn">📋 KOPIEREN</button>
+                    <button id="clearFieldsBtn" class="btn btn-danger">🧹 LEEREN</button>
                 </div>
-                
-                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
-                    <button class="btn" id="encryptBtn">🔒 VERSCHLÜSSELN</button>
-                    <button class="btn" id="decryptBtn">🔓 ENTSCHLÜSSELN</button>
-                    <button class="btn" id="clearFieldsBtn">🧹 ALLE FELDER LEEREN</button>
-                </div>
-                
-                <div class="form-group" id="outputGroup" style="display: none; margin-top: 25px;">
-                    <label class="form-label">Ergebnis</label>
-                    <textarea 
-                        id="messageOutput" 
-                        class="form-input" 
-                        rows="6" 
-                        readonly
-                        style="resize: vertical; background: rgba(0, 255, 65, 0.05);"
-                    ></textarea>
-                    <button class="btn" id="copyBtn" style="margin-top: 10px;">📋 KOPIEREN</button>
-                </div>
-                
-                <div style="text-align: center; margin-top: 30px;">
-                    <button class="delete-account-btn" id="deleteAccountBtn">
-                        ⚠️ Zugang unwiderruflich löschen
-                    </button>
-                </div>
+
+                <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
+                <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
+            </div>
+
+            <div class="input-group" id="outputGroup" style="display:none; margin-top:20px; border-top:1px solid #333; padding-top:10px;">
+                <label class="input-label">Ergebnis</label>
+                <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue);"></textarea>
             </div>
         </div>
+
     </div>
-    
-    <!-- External JavaScript -->
-    <script type="module" src="app.js" ></script>
+
+    <footer>
+        <details>
+            <summary style="cursor:pointer; color:var(--text-muted); outline:none;">ℹ️ Info & Anleitung</summary>
+            <p style="margin-top:10px; color:#666;">
+                Secure Messenger Enterprise.<br>
+                AES-256 + 4-Layer Obfuscation.<br>
+                Daten verbleiben auf dem Endgerät.
+            </p>
+        </details>
+        <div style="margin-top:10px; color:#333;">&copy; 2025 Secure Corp.</div>
+    </footer>
+
+    <div id="qrModal" class="modal">
+        <h3 style="margin-bottom:20px;">SECURE QR</h3>
+        <div class="qr-placeholder" id="qrDisplay">
+            [QR Code wird generiert]
+        </div>
+        <button class="btn" onclick="document.getElementById('qrModal').classList.remove('active')">SCHLIESSEN</button>
+    </div>
+
+    <script type="module" src="app.js"></script>
 </body>
 </html>
-
