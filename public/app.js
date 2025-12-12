@@ -419,13 +419,17 @@ function showStatus(elementId, msg, type) {
 function formatLicenseDuration(expiryDateString) {
     if (!expiryDateString) return "Unbekannt";
     
-    // Prüfen auf "Unlimited" Keywords (falls vom Server kommend)
-    if (expiryDateString === 'lifetime' || expiryDateString.includes('9999')) {
+    // Prüfen auf "Unlimited" Keywords
+    if (expiryDateString === 'lifetime' || String(expiryDateString).includes('9999')) {
         return "♾️ UNLIMITED";
     }
 
     const now = new Date();
     const expiry = new Date(expiryDateString);
+    
+    // Check ob Datum gültig ist
+    if (isNaN(expiry.getTime())) return "Gültig";
+
     const diffMs = expiry - now;
 
     if (diffMs <= 0) return "❌ ABGELAUFEN";
