@@ -157,48 +157,38 @@ function updateAppMode(mode) {
     const qrScanBtn = document.getElementById('qrScanBtn');
     const qrGenBtn = document.getElementById('qrGenBtn');
     const textLabel = document.getElementById('textLabel');
+    
+    // WICHTIG: Felder leeren beim Wechsel
     const msgInput = document.getElementById('messageInput');
+    const msgOutput = document.getElementById('messageOutput');
     const outputGroup = document.getElementById('outputGroup');
-
-    // WICHTIG: Felder beim Wechsel leeren, damit nichts Falsches drin steht
-    // Das verhindert, dass der Klartext plötzlich im "Geheimtext"-Feld steht
-    if(msgInput) msgInput.value = ''; 
+    
+    if(msgInput) msgInput.value = '';
+    if(msgOutput) msgOutput.value = '';
     if(outputGroup) outputGroup.style.display = 'none';
-    document.getElementById('messageOutput').value = '';
 
     if (isDecrypt) {
-        // --- ENTSCHLÜSSELN MODUS ---
+        // ENTSCHLÜSSELN (Alles in Blau/Accent-Color)
         title.textContent = 'ENTSCHLÜSSELUNG';
-        
-        // FIX: Farbe jetzt auch Blau (Akzentfarbe) statt Grün
-        // Wir nutzen var(--accent-blue) via Style-Manipulation oder Klasse
         title.style.color = 'var(--accent-blue)'; 
         
         indicator.textContent = '● EMPFANGSBEREIT';
         indicator.style.color = 'var(--accent-blue)';
 
         actionBtn.textContent = '🔓 NACHRICHT ENTSCHLÜSSELN';
-        actionBtn.classList.remove('btn-primary'); // Optional: Rahmen-Stil
-        
-        // Design Anpassung an Blau
-        actionBtn.style.borderColor = 'var(--accent-blue)';
+        actionBtn.classList.remove('btn-primary');
+        actionBtn.style.border = '1px solid var(--accent-blue)';
         actionBtn.style.color = 'var(--accent-blue)';
-        actionBtn.style.borderWidth = '1px';
-        actionBtn.style.borderStyle = 'solid';
         actionBtn.style.background = 'transparent';
 
         textLabel.textContent = 'Verschlüsselter Text hier einfügen';
-        msgInput.placeholder = 'Paste ciphertext here...';
         
-        // Inputs ausblenden
-        recipientGroup.style.display = 'none'; 
-        
-        // QR
-        qrScanBtn.style.display = 'block'; 
-        qrGenBtn.style.display = 'none';   
+        if(recipientGroup) recipientGroup.style.display = 'none'; 
+        if(qrScanBtn) qrScanBtn.style.display = 'block'; 
+        if(qrGenBtn) qrGenBtn.style.display = 'none';   
 
     } else {
-        // --- VERSCHLÜSSELN MODUS ---
+        // VERSCHLÜSSELN
         title.textContent = 'VERSCHLÜSSELUNG';
         title.style.color = 'var(--accent-blue)';
         
@@ -207,102 +197,74 @@ function updateAppMode(mode) {
 
         actionBtn.textContent = '🔒 DATEN VERSCHLÜSSELN';
         actionBtn.classList.add('btn-primary');
-        
-        // Reset Styles
-        actionBtn.style.borderColor = '';
+        actionBtn.style.border = '';
         actionBtn.style.color = '';
-        actionBtn.style.background = ''; // Nutzt wieder CSS Klasse
+        actionBtn.style.background = '';
 
         textLabel.textContent = 'Nachrichteneingabe (Klartext)';
-        msgInput.placeholder = 'Daten hier eingeben...';
 
-        // Inputs einblenden
-        recipientGroup.style.display = 'block';
-
-        // QR
-        qrScanBtn.style.display = 'none';
-        qrGenBtn.style.display = 'block';
+        if(recipientGroup) recipientGroup.style.display = 'block';
+        if(qrScanBtn) qrScanBtn.style.display = 'none';
+        if(qrGenBtn) qrGenBtn.style.display = 'block';
     }
 }
+
 // ================================================================
 // HAUPTFUNKTION (ENCRYPT / DECRYPT HANDLER)
 // ================================================================
 
 async function handleMainAction() {
-    // 1. Tastatur auf Handy schließen
     if (document.activeElement) document.activeElement.blur();
 
-    // 2. Daten sammeln
     const code = document.getElementById('messageCode').value;
     const text = document.getElementById('messageInput').value;
     
-    // Validation
     if (!text) return alert("Bitte geben Sie einen Text ein.");
     if (!code || code.length !== 5) return alert("Der 5-stellige Sicherheitscode ist erforderlich.");
 
     const btn = document.getElementById('actionBtn');
     const originalText = btn.textContent;
-    btn.textContent = "⏳ VERARBEITUNG...";
+    btn.textContent = "⏳ ...";
     btn.disabled = true;
 
     try {
         let result = "";
 
         if (currentMode === 'encrypt') {
-            // --- VERSCHLÜSSELN ---
-            
+            // VERSCHLÜSSELN
             const recipientInput = document.getElementById('recipientName').value;
             let recipientIDs = [];
 
-            // Eingabe am Komma trennen und bereinigen
-            const rawList = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
-
-            if (rawList.length > 0) {
-                // FALL A: RESTRICTED ACCESS (Mindestens 1 Empfänger)
-                // Nur Absender + gelistete Empfänger dürfen entschlüsseln.
-                recipientIDs = rawList;
-
-                // WICHTIG: Absender (Du selbst) muss auch auf die Liste, 
-                // sonst kannst du deine eigene Nachricht nicht mehr lesen!
+            // Nur wenn etwas eingegeben wurde, erstellen wir eine Liste
+            if (recipientInput && recipientInput.trim().length > 0) {
+                recipientIDs = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                
+                // Absender automatisch hinzufügen (damit man seine eigene Nachricht lesen kann)
                 if (currentUser && !recipientIDs.includes(currentUser)) {
                     recipientIDs.push(currentUser);
                 }
-            } else {
-                // FALL B: PUBLIC ACCESS (Kein Empfänger)
-                // Liste bleibt leer []. cryptoLayers.js erkennt das und
-                // erstellt einen "Public Slot", der nur den 5-stelligen Code braucht.
-            }
+            } 
+            // WICHTIG: Wenn das Feld leer ist, bleibt recipientIDs = [] 
+            // -> cryptoLayers erstellt dann automatisch einen "Public Slot"
 
-            // Wir übergeben das Array an die neue Logik
             result = await encryptFull(text, code, recipientIDs);
 
         } else {
-            // --- ENTSCHLÜSSELN ---
-            
-            // Hier passiert die Magie der "Key Slots":
-            // Wir übergeben unsere eigene ID (currentUser).
-            // Die Funktion decryptFull prüft automatisch:
-            // "Gibt es einen Tresor für MICH + diesen Code?"
-            // ODER "Gibt es einen öffentlichen Tresor für diesen Code?"
-            
+            // ENTSCHLÜSSELN
             result = await decryptFull(text, code, currentUser);
         }
 
-        // Ergebnis anzeigen
         const output = document.getElementById('messageOutput');
         output.value = result;
         document.getElementById('outputGroup').style.display = 'block';
-        
-        // Scroll zum Ergebnis
         output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     } catch (err) {
         console.error(err);
-        // Benutzerfreundliche Fehlermeldung
-        if (err.message.includes("Verschlüsselung")) {
-             alert("Fehler beim Verschlüsseln. Bitte prüfen Sie die Eingaben.");
+        if(err.message.includes("FEHLER")) {
+            alert("Zugriff verweigert! Code falsch oder Sie sind nicht berechtigt.");
         } else {
-             alert("Entschlüsselung fehlgeschlagen!\n\nMögliche Gründe:\n1. Falscher 5-stelliger Code.\n2. Sie sind nicht berechtigt (falscher Benutzer).\n3. Daten wurden manipuliert.");
+            alert("Fehler bei der Verarbeitung. Bitte prüfen Sie die Eingaben.");
         }
     } finally {
         btn.textContent = originalText;
