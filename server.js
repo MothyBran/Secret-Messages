@@ -354,17 +354,39 @@ app.post('/api/users/exists', authenticateUser, async (req, res) => {
         
         if (!targetUsername) return res.json({ exists: false });
 
-        // Wir prüfen nur, ob der User existiert und NICHT blockiert ist
-        const result = await dbQuery(
-            `SELECT id FROM users WHERE username = $1 AND is_blocked = ${isPostgreSQL ? 'false' : '0'}`, 
-            [targetUsername]
-        );
+        // Wir trimmen Leerzeichen weg, um Fehler bei Copy-Paste zu vermeiden
+        const searchName = targetUsername.trim();
 
-        if (result.rows.length > 0) {
-            res.json({ exists: true });
-        } else {
-            res.json({ exists: false });
+        console.log(`🔎 Suche User (Strikt): '${searchName}'`);
+
+        // 1. Wir holen den User NUR anhand des Namens (Case-Sensitive!)
+        // Wir holen auch 'is_blocked', um es im Server-Log zu sehen.
+        const query = `SELECT id, username, is_blocked FROM users WHERE username = $1`;
+        
+        const result = await dbQuery(query, [searchName]);
+
+        // A) User gar nicht gefunden
+        if (result.rows.length === 0) {
+            console.log(`❌ Datenbank meldet: Kein Eintrag für '${searchName}' gefunden.`);
+            return res.json({ exists: false });
         }
+
+        const user = result.rows[0];
+        console.log(`✅ User gefunden. ID: ${user.id}, Blocked-Status in DB: ${user.is_blocked}`);
+
+        // B) User gefunden -> Jetzt prüfen wir, ob er blockiert ist
+        // Wir prüfen tolerant auf 'true', 1 oder '1'
+        const isBlocked = (user.is_blocked === true || user.is_blocked === 1 || user.is_blocked === '1');
+
+        if (isBlocked) {
+            console.log(`⛔ User existiert, ist aber blockiert.`);
+            return res.json({ exists: false }); // Wir sagen "existiert nicht", um keine Infos preiszugeben
+        }
+
+        // C) Alles OK
+        console.log(`👍 User gültig und verfügbar.`);
+        res.json({ exists: true });
+
     } catch (e) {
         console.error("User Check Error:", e);
         res.status(500).json({ error: "Serverfehler beim Prüfen des Benutzers" });
