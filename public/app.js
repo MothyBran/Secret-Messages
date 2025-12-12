@@ -372,32 +372,78 @@ function openEditModal(contact = null) {
     modal.classList.add('active');
 }
 
-function saveContact(e) {
+async function saveContact(e) {
     e.preventDefault();
+    
+    const btnSave = document.getElementById('btnSaveContact');
+    const originalText = btnSave.textContent;
     const nameVal = document.getElementById('inputName').value.trim();
     const idVal = document.getElementById('inputID').value.trim();
     const groupVal = document.getElementById('inputGroup').value.trim();
 
-    if (!idVal) return alert("ID ist Pflicht!");
+    if (!idVal) return showAppStatus("Benutzer-ID ist ein Pflichtfeld!", 'error');
 
-    // Check existenz (nur bei neuem Kontakt wichtig, oder wenn ID geändert werden könnte)
-    // Da ID im Edit Mode readonly ist, finden wir beim Editieren den Kontakt.
-    
-    // Wir entfernen den alten Eintrag mit dieser ID (falls Update) und pushen neu
-    contacts = contacts.filter(c => c.id !== idVal);
+    // UI Feedback: Laden...
+    btnSave.disabled = true;
+    btnSave.textContent = "Prüfe ID...";
 
-    contacts.push({
-        id: idVal,
-        name: nameVal || idVal, // Fallback auf ID wenn Name leer
-        group: groupVal
-    });
+    try {
+        // 1. LIVE-CHECK gegen die Datenbank
+        const res = await fetch(`${API_BASE}/users/exists`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}` // Wichtig: User muss eingeloggt sein
+            },
+            body: JSON.stringify({ targetUsername: idVal })
+        });
+        
+        const data = await res.json();
 
+        // 2. FEHLERMELDUNG wenn User nicht existiert
+        if (!data.exists) {
+            showAppStatus(`Fehler: Benutzer-ID "${idVal}" ist unbekannt oder existiert nicht.`, 'error');
+            // Abbruch des Speicherns
+            btnSave.disabled = false;
+            btnSave.textContent = originalText;
+            return; 
+        }
+
+        // --- AB HIER: User existiert -> Speichern erlaubt ---
+
+        // Alten Eintrag entfernen (falls Update)
+        contacts = contacts.filter(c => c.id !== idVal);
+
+        contacts.push({
+            id: idVal,
+            name: nameVal || idVal, 
+            group: groupVal
+        });
+
+        saveContactsToStorage(); // Hilfsfunktion zum Speichern (siehe unten)
+        
+        document.getElementById('contactEditModal').classList.remove('active');
+        
+        // Liste neu rendern (je nach aktuellem Filter)
+        renderContactList(document.getElementById('contactSearch').value);
+        
+        if(contactMode === 'select') renderGroupTags();
+
+        showAppStatus(`Kontakt "${idVal}" erfolgreich verifiziert und gespeichert.`, 'success');
+
+    } catch (err) {
+        console.error(err);
+        showAppStatus("Verbindungsfehler bei der Überprüfung.", 'error');
+    } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = originalText;
+    }
+}
+
+// Kleine Hilfsfunktion, falls noch nicht vorhanden, um Code Redundanz zu vermeiden
+function saveContactsToStorage() {
+    contacts.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
     localStorage.setItem('sm_contacts', JSON.stringify(contacts));
-    
-    document.getElementById('contactEditModal').classList.remove('active');
-    renderContactList(document.getElementById('contactSearch').value);
-    
-    if(contactMode === 'select') renderGroupTags(); // Update checkbox list
 }
 
 function deleteContact() {
