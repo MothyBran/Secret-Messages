@@ -7,6 +7,9 @@
     <link rel="icon" type="image/png" href="/favicon.png">
     
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     
     <style>
         :root {
@@ -349,9 +352,31 @@
     </div>
 
     <div id="qrModal" class="modal">
-        <h3 style="margin-bottom:20px; color: var(--accent-blue);">SECURE QR</h3>
-        <div style="background:white; padding:10px; color:black;" id="qrDisplay"></div>
-        <br><button class="btn" id="closeQrBtn">SCHLIESSEN</button>
+        <div class="modal-box" style="text-align: center; background: white; color: black;">
+            <h3 style="margin-bottom:15px; color: var(--bg-dark);">QR CODE</h3>
+            
+            <div id="qrDisplay" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #333; color: #333;">Schließen</button>
+                <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 PNG Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="qrScannerModal" class="modal">
+        <div class="modal-box" style="width: 100%; max-width: 500px; padding: 0; overflow: hidden; background: #000;">
+            <div style="padding: 10px; background: var(--bg-panel); display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="color: var(--accent-blue); margin: 0;">SCANNER</h4>
+                <button id="closeScannerBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem;">✕</button>
+            </div>
+            
+            <div id="qr-reader" style="width: 100%;"></div>
+            
+            <div style="padding: 10px; text-align: center; color: #777; font-size: 0.8rem;">
+                Halten Sie den QR-Code vor die Kamera.
+            </div>
+        </div>
     </div>
 
     <div id="contactEditModal" class="modal">
