@@ -10,6 +10,7 @@ const API_BASE = '/api';
 let currentUser = null;
 let authToken = null;
 let currentMode = 'encrypt'; // 'encrypt' oder 'decrypt'
+let contacts = JSON.parse(localStorage.getItem('sm_contacts')) || [];
 
 // ================================================================
 // INITIALISIERUNG
@@ -56,90 +57,85 @@ function setupUIEvents() {
     overlay.addEventListener('click', () => toggleSidebar(true));
     
     // Sidebar Links
-    // WICHTIG: Prüfen ob das Element existiert, um Fehler zu vermeiden (falls User ausgeloggt ist)
     const navContacts = document.getElementById('navContacts');
     if (navContacts) {
+        // Menü -> Kontaktverwaltung öffnen
         navContacts.addEventListener('click', (e) => {
             e.preventDefault();
-            alert("Kontaktverzeichnis-Modul wird geladen..."); 
+            openContactsModal('manageTab'); 
             toggleSidebar(true); 
         });
     }
     
-    // Support
-    document.getElementById('navSupport').addEventListener('click', () => {
+    document.getElementById('navSupport')?.addEventListener('click', () => {
         toggleSidebar(true);
     });
     
-    const logoutBtn = document.getElementById('logoutBtnSide');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-
-    // Delete Account
-    const delBtn = document.getElementById('navDelete');
-    if(delBtn) delBtn.addEventListener('click', confirmDeleteAccount);
+    document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
+    document.getElementById('navDelete')?.addEventListener('click', confirmDeleteAccount);
     
-    // --- MODE SWITCHER (Verschlüsseln <-> Entschlüsseln) ---
-    const modeSwitch = document.getElementById('modeSwitch');
-    if (modeSwitch) {
-        modeSwitch.addEventListener('change', (e) => {
-            updateAppMode(e.target.checked ? 'decrypt' : 'encrypt');
-        });
-    }
-
-    // --- MAIN ACTIONS ---
-    const actionBtn = document.getElementById('actionBtn');
-    if (actionBtn) actionBtn.addEventListener('click', handleMainAction);
-
-    const copyBtn = document.getElementById('copyBtn');
-    if (copyBtn) copyBtn.addEventListener('click', copyToClipboard);
+    // --- MAIN ACTIONS & MODAL EVENTS ---
     
-    const clearBtn = document.getElementById('clearFieldsBtn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            document.getElementById('messageInput').value = '';
-            document.getElementById('messageOutput').value = '';
-            document.getElementById('messageCode').value = '';
-            const recInput = document.getElementById('recipientName');
-            if(recInput) recInput.value = '';
-            document.getElementById('outputGroup').style.display = 'none';
-        });
-    }
-
-    // --- FORMS (Login / Activation) ---
-    const loginForm = document.getElementById('loginForm');
-    if(loginForm) loginForm.addEventListener('submit', handleLogin);
-
-    const actForm = document.getElementById('activationForm');
-    if(actForm) actForm.addEventListener('submit', handleActivation);
+    // Button am Empfängerfeld (Öffnet Modal zum Auswählen)
+    document.getElementById('contactsBtn')?.addEventListener('click', () => openContactsModal('selectTab'));
     
-    const showActLink = document.getElementById('showActivationLink');
-    if(showActLink) showActLink.addEventListener('click', (e) => {
-        e.preventDefault(); showSection('activationSection');
+    // Formular zum Hinzufügen (Tab 'Verwalten')
+    document.getElementById('addContactForm')?.addEventListener('submit', handleAddContact);
+    
+    // Modal Tabs steuern
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => switchContactTab(e.target.dataset.target));
     });
 
-    const showLoginLink = document.getElementById('showLoginLink');
-    if(showLoginLink) showLoginLink.addEventListener('click', (e) => {
+    // Abbrechen Button im Modal
+    document.getElementById('cancelSelectionBtn')?.addEventListener('click', closeContactsModal);
+
+    // Bestätigen Button im Modal
+    document.getElementById('confirmSelectionBtn')?.addEventListener('click', handleConfirmSelection);
+    
+    
+    // --- STANDARD APP EVENTS ---
+    
+    // MODE SWITCHER
+    document.getElementById('modeSwitch')?.addEventListener('change', (e) => {
+        updateAppMode(e.target.checked ? 'decrypt' : 'encrypt');
+    });
+
+    // Haupt-Aktion
+    document.getElementById('actionBtn')?.addEventListener('click', handleMainAction);
+
+    // Copy / Clear
+    document.getElementById('copyBtn')?.addEventListener('click', copyToClipboard);
+    document.getElementById('clearFieldsBtn')?.addEventListener('click', () => {
+        document.getElementById('messageInput').value = '';
+        document.getElementById('messageOutput').value = '';
+        document.getElementById('messageCode').value = '';
+        document.getElementById('recipientName').value = '';
+        document.getElementById('outputGroup').style.display = 'none';
+    });
+
+    // Forms
+    document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
+    document.getElementById('activationForm')?.addEventListener('submit', handleActivation);
+    
+    document.getElementById('showActivationLink')?.addEventListener('click', (e) => {
+        e.preventDefault(); showSection('activationSection');
+    });
+    document.getElementById('showLoginLink')?.addEventListener('click', (e) => {
         e.preventDefault(); showSection('loginSection');
     });
 
-    // --- QR CODE ---
-    const qrGenBtn = document.getElementById('qrGenBtn');
-    if (qrGenBtn) {
-        qrGenBtn.addEventListener('click', () => {
-            const text = document.getElementById('messageOutput').value;
-            if(!text) return alert("Bitte erst Text verschlüsseln!");
-            showQRModal(text);
-        });
-    }
+    // QR Code
+    document.getElementById('qrGenBtn')?.addEventListener('click', () => {
+        const text = document.getElementById('messageOutput').value;
+        if(!text) return alert("Bitte erst Text verschlüsseln!");
+        showQRModal(text);
+    });
 
-    const closeQrBtn = document.getElementById('closeQrBtn');
-    if (closeQrBtn) {
-        closeQrBtn.addEventListener('click', () => {
-            document.getElementById('qrModal').classList.remove('active');
-        });
-    }
-
-} 
+    document.getElementById('closeQrBtn')?.addEventListener('click', () => {
+        document.getElementById('qrModal').classList.remove('active');
+    });
+}
 
 // ================================================================
 // CORE UI LOGIC (MODE SWITCHING)
@@ -402,6 +398,131 @@ async function handleLogout() {
     updateSidebarInfo(null, "Nicht verbunden"); 
     
     showSection('loginSection');
+}
+
+// ================================================================
+// KONTAKTVERZEICHNIS LOGIK
+// ================================================================
+
+function saveContacts() {
+    localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+    renderContactLists(); // Listen nach Speichern neu zeichnen
+}
+
+function renderContactLists() {
+    const manageList = document.getElementById('contactList');
+    const selectList = document.getElementById('selectContactList');
+    
+    if (!manageList || !selectList) return;
+
+    // Listen leeren
+    manageList.innerHTML = '';
+    selectList.innerHTML = '';
+
+    if (contacts.length === 0) {
+        manageList.innerHTML = '<li style="color: #777; text-align: center;">(Noch keine Kontakte gespeichert)</li>';
+        selectList.innerHTML = '<li style="color: #777; text-align: center;">(Bitte Kontakte im Tab "Verwalten" hinzufügen)</li>';
+        return;
+    }
+
+    contacts.forEach(contact => {
+        // Liste "Verwalten" (mit Lösch-Button)
+        const manageItem = document.createElement('li');
+        manageItem.innerHTML = `
+            <span style="font-weight: bold;">${contact.name}</span>
+            <span class="contact-info" style="color: #ccc;">${contact.id}</span>
+            <button class="delete-btn" data-id="${contact.id}" onclick="window.handleDeleteContact(this)">Löschen</button>
+        `;
+        manageList.appendChild(manageItem);
+
+        // Liste "Auswählen" (mit Checkbox)
+        const selectItem = document.createElement('li');
+        selectItem.innerHTML = `
+            <label style="display: flex; gap: 10px; cursor: pointer; flex-grow: 1; align-items: center;">
+                <input type="checkbox" data-id="${contact.id}" value="${contact.id}" style="width: 18px; height: 18px; border: 1px solid var(--accent-blue);">
+                <span style="color: var(--text-main);">${contact.name}</span>
+            </label>
+            <span class="contact-info" style="color: #777; font-size: 0.8rem;">${contact.id}</span>
+        `;
+        selectList.appendChild(selectItem);
+    });
+
+    // Globale Funktion für Lösch-Button (wird über onclick im HTML gerufen)
+    window.handleDeleteContact = (btn) => {
+        const idToDelete = btn.dataset.id;
+        if (confirm(`Soll der Kontakt "${idToDelete}" wirklich gelöscht werden?`)) {
+            contacts = contacts.filter(c => c.id !== idToDelete);
+            saveContacts();
+        }
+    };
+}
+
+function openContactsModal(initialTab = 'manageTab') {
+    const modal = document.getElementById('contactsModal');
+    if (!modal) return;
+    
+    renderContactLists(); // Vor dem Öffnen Listen aktualisieren
+    switchContactTab(initialTab);
+    modal.classList.add('active');
+}
+
+function closeContactsModal() {
+    document.getElementById('contactsModal')?.classList.remove('active');
+}
+
+function switchContactTab(targetId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(targetId)?.classList.add('active');
+    document.querySelector(`.tab-btn[data-target="${targetId}"]`)?.classList.add('active');
+}
+
+function handleAddContact(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('newContactName');
+    const idInput = document.getElementById('newContactID');
+
+    const name = nameInput.value.trim();
+    const id = idInput.value.trim();
+
+    if (name.length < 3 || id.length < 3) {
+        alert("Name und Benutzer-ID müssen mindestens 3 Zeichen lang sein.");
+        return;
+    }
+    if (contacts.some(c => c.id.toLowerCase() === id.toLowerCase())) {
+        alert(`Kontakt mit der ID "${id}" existiert bereits.`);
+        return;
+    }
+
+    contacts.push({ name: name, id: id });
+    contacts.sort((a, b) => a.name.localeCompare(b.name));
+    saveContacts();
+
+    nameInput.value = '';
+    idInput.value = '';
+    
+    alert(`Kontakt "${name}" erfolgreich hinzugefügt.`);
+}
+
+function handleConfirmSelection() {
+    const selectedCheckboxes = document.querySelectorAll('#selectContactList input[type="checkbox"]:checked');
+    const recipientInput = document.getElementById('recipientName');
+    
+    if (!recipientInput) {
+        closeContactsModal();
+        return;
+    }
+    
+    let selectedIDs = [];
+    selectedCheckboxes.forEach(cb => {
+        selectedIDs.push(cb.value);
+    });
+    
+    // IDs als Komma-getrennten String in das Empfängerfeld einfügen
+    recipientInput.value = selectedIDs.join(', ');
+    
+    closeContactsModal();
 }
 
 // ================================================================
