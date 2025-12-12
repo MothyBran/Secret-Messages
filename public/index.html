@@ -80,22 +80,61 @@
         .app-logo { font-weight: 700; font-size: 1.2rem; letter-spacing: 2px; display: flex; align-items: center; gap: 10px; }
         .shield-icon { width: 24px; height: 24px; fill: var(--accent-blue); }
 
-        /* === MODE SWITCH === */
+        /* === MODE SWITCH (BUGFIXED) === */
         .mode-switch-container {
             position: relative; display: inline-block; width: 70px; height: 34px;
             background-color: #1a1a1a; border-radius: 17px; border: 1px solid #333; cursor: pointer;
         }
-        .mode-switch-container::before { content: '🔓'; position: absolute; top: 50%; left: 8px; transform: translateY(-50%); font-size: 18px; opacity: 0.5; filter: grayscale(100%); transition: 0.3s; }
-        .mode-switch-container::after { content: '🔒'; position: absolute; top: 50%; right: 8px; transform: translateY(-50%); font-size: 18px; opacity: 0.5; filter: grayscale(100%); transition: 0.3s; }
+        
+        /* GRUNDEINSTELLUNGEN ICONS */
+        .mode-switch-container::before,
+        .mode-switch-container::after {
+            position: absolute; top: 50%; transform: translateY(-50%); font-size: 18px;
+            transition: 0.3s;
+            z-index: 0; /* Liegen hinter dem Slider */
+        }
+        
+        /* LINKES ICON (Offen) - Standardmäßig UNSICHTBAR (da Slider hier startet) */
+        .mode-switch-container::before { 
+            content: '🔓'; left: 8px; 
+            opacity: 0; /* <--- WICHTIG: War 0.5 */
+        }
+        
+        /* RECHTES ICON (Zu) - Standardmäßig SICHTBAR (da Slider links ist) */
+        .mode-switch-container::after { 
+            content: '🔒'; right: 8px; 
+            opacity: 0.5; filter: grayscale(100%); 
+        }
+        
         .mode-checkbox { opacity: 0; width: 0; height: 0; position: absolute; }
+        
         .mode-slider {
             position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
-            background-color: var(--accent-blue); border-radius: 50%; transition: transform 0.4s cubic-bezier(0.7, -0.4, 0.4, 1.4);
+            background-color: var(--accent-blue); border-radius: 50%; 
+            transition: transform 0.4s cubic-bezier(0.7, -0.4, 0.4, 1.4);
+            z-index: 1; /* Liegt über den Icons */
         }
+        
+        /* === INTERAKTION === */
+        
+        /* Slider bewegt sich */
         .mode-checkbox:checked + .mode-slider { transform: translateX(36px); }
-        .mode-switch-container:has(.mode-checkbox:checked)::before { opacity: 1; filter: grayscale(0%); color: var(--accent-blue); }
-        .mode-switch-container:has(.mode-checkbox:not(:checked))::after { opacity: 1; filter: grayscale(0%); color: var(--accent-blue); }
-
+        
+        /* WENN CHECKED (Entschlüsseln): Linkes Icon sichtbar machen */
+        .mode-switch-container:has(.mode-checkbox:checked)::before { 
+            opacity: 1; filter: grayscale(0%); color: var(--accent-blue); 
+        }
+        
+        /* WENN CHECKED (Entschlüsseln): Rechtes Icon KOMPLETT verstecken */
+        .mode-switch-container:has(.mode-checkbox:checked)::after { 
+            opacity: 0; /* <--- DAS FEHLTE: Icon muss weg, damit es nicht durchscheint */
+        }
+        
+        /* WENN NICHT CHECKED: Rechtes Icon aktiv (optional, für Farbe) */
+        .mode-switch-container:has(.mode-checkbox:not(:checked))::after { 
+            opacity: 1; filter: grayscale(0%); color: var(--accent-blue); 
+        }
+        
         /* === SIDEBAR (Hauptmenü) === */
         .sidebar {
             position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100%;
