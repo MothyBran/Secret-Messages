@@ -211,67 +211,62 @@ async function authenticateUser(req, res, next) {
 }
 
 // Login Route (Korrigiert)
-app.post('/api/auth/login', async (req, res) => {
-    const { username, accessCode, deviceId } = req.body; 
-
-    if (!username || !accessCode) return res.status(400).json({ error: 'Daten fehlen' });
-
+app.post('/api/auth/login', rateLimiter, async (req, res) => {
     try {
-        const result = await dbQuery('SELECT * FROM users WHERE username = $1', [username]);
-        const user = result.rows[0];
+        const { username, accessCode, deviceId } = req.body;
+        
+        // 1. User UND Lizenz-Infos abrufen (JOIN)
+        // Wir holen uns direkt das 'expires_at' aus der license_keys Tabelle
+        const userRes = await dbQuery(`
+            SELECT u.*, l.expires_at 
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.username = $1
+        `, [username]);
 
-        if (!user) return res.status(401).json({ success: false, error: 'User nicht gefunden' });
-
-        if (user.is_blocked) {
-            console.log(`Login blockiert für User: ${user.username}`);
-            return res.status(401).json({ 
-                success: false, 
-                error: "Ihr Konto wurde gesperrt. Bitte kontaktieren Sie den Support." 
-            });
+        if (userRes.rows.length === 0) {
+            return res.status(401).json({ success: false, error: "Benutzer nicht gefunden" });
         }
 
-        // Passwort Check
-        const validPass = await bcrypt.compare(accessCode, user.access_code_hash);
-        if (!validPass) return res.status(401).json({ success: false, error: 'Falscher Code' });
+        const user = userRes.rows[0];
 
-        // --- GERÄTE CHECK (LOGIK) ---
+        // 2. Zugangscode prüfen (Hash Vergleich)
+        const match = await bcrypt.compare(accessCode, user.access_code_hash);
+        if (!match) {
+            return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
+        }
 
-        // 1. Wenn eine ID in der DB steht, ABER sie passt nicht zur aktuellen -> BLOCKIEREN
+        // 3. Geräte-Bindung prüfen
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            return res.status(403).json({ 
-                success: false, 
-                error: 'ZUGRIFF VERWEIGERT: Unbekanntes Gerät. Dieser Account ist an ein anderes Gerät gebunden.' 
-            });
-        } 
-
-        // 2. Wenn KEINE ID in der DB steht (z.B. nach Admin-Reset), binde das aktuelle Gerät automatisch
-        if (!user.allowed_device_id && deviceId) {
-            await dbQuery('UPDATE users SET allowed_device_id = $1 WHERE id = $2', [deviceId, user.id]);
+            return res.status(403).json({ success: false, error: "Dieses Gerät ist nicht für den Account autorisiert." });
         }
 
-        // --- ENDE GERÄTE CHECK ---
+        // Falls noch kein Gerät gebunden ist (erster Login), binden wir es jetzt
+        if (!user.allowed_device_id) {
+            await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
+        }
 
-        // Lizenz Check
-        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
-        const key = keyRes.rows[0];
+        // 4. Token erstellen
+        const token = jwt.sign(
+            { id: user.id, username: user.username }, 
+            process.env.JWT_SECRET || 'secret_fallback_key', 
+            { expiresIn: '24h' }
+        );
 
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+        // 5. Update: Letzter Login
+        await dbQuery("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
 
-        // Login loggen
-        await dbQuery('UPDATE users SET last_login = $1, is_online = $2 WHERE id = $3', 
-            [new Date().toISOString(), (isPostgreSQL ? true : 1), user.id]);
-
+        // 6. ERFOLG: Wir senden jetzt auch das Ablaufdatum mit!
         res.json({ 
             success: true, 
             token, 
             username: user.username,
-            product_code: key ? key.product_code : null,
-            expires_at: key ? key.expires_at : null
+            expiresAt: user.expires_at // <--- Das fehlte vorher!
         });
 
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Serverfehler' });
+    } catch (err) {
+        console.error("Login Error:", err);
+        res.status(500).json({ success: false, error: "Serverfehler" });
     }
 });
 
@@ -361,9 +356,29 @@ app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
 // Validate Token
 app.post('/api/auth/validate', async (req, res) => {
     const { token } = req.body;
+    if (!token) return res.json({ valid: false });
+
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        res.json({ valid: true, username: decoded.username });
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
+        
+        // Prüfen ob User noch existiert und Lizenzstatus holen
+        const userRes = await dbQuery(`
+            SELECT u.*, l.expires_at 
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.id = $1
+        `, [decoded.id]);
+        
+        if (userRes.rows.length > 0) {
+            // Token ist valide, wir senden aktuelle Daten zurück
+            res.json({ 
+                valid: true, 
+                username: userRes.rows[0].username,
+                expiresAt: userRes.rows[0].expires_at // <--- Auch beim Refresh aktualisieren
+            });
+        } else {
+            res.json({ valid: false });
+        }
     } catch (e) {
         res.json({ valid: false });
     }
