@@ -495,7 +495,7 @@ function updateSidebarInfo(user, expiryData) {
     if (user && licenseLabel) {
         // Prüfen auf Lifetime
         if (expiryData === 'lifetime' || String(expiryData).toLowerCase().includes('unlimited')) {
-            licenseLabel.textContent = "LIZENZ: ♾️ UNLIMITED";
+            licenseLabel.textContent = "LIZENZ: UNLIMITED";
             licenseLabel.style.color = "#00ff41"; // Grün für Lifetime
         } 
         // Prüfen auf Datum
