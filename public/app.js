@@ -468,34 +468,24 @@ function updateSidebarInfo(user, statusOrDate) {
     const userLabel = document.getElementById('sidebarUser');
     const licenseLabel = document.getElementById('sidebarLicense');
     
-    userLabel.textContent = user || 'Gast';
+    if(userLabel) userLabel.textContent = user || 'Gast';
     
-    // Logik: Wenn User eingeloggt ist, zeigen wir den Countdown
-    if (user && statusOrDate) {
-        // Wir gehen davon aus, dass statusOrDate jetzt das Datum ist (oder "Unlimited")
-        // Falls es nur ein Status-Text wie "Verbunden" ist, zeigen wir den an.
-        // Aber unser Ziel ist das Datum.
-        
-        // Check: Ist es ein Datum?
-        if (statusOrDate.includes('-') || statusOrDate.includes(':') || !isNaN(Date.parse(statusOrDate))) {
+    if (user && statusOrDate && licenseLabel) {
+        // Prüfen, ob formatLicenseDuration existiert, um Absturz zu verhindern
+        if (typeof formatLicenseDuration === 'function' && (String(statusOrDate).includes('-') || String(statusOrDate).includes(':'))) {
              licenseLabel.textContent = "LIZENZ: " + formatLicenseDuration(statusOrDate);
              licenseLabel.style.color = "var(--accent-blue)";
         } else {
-             // Fallback für alte Aufrufe
-             licenseLabel.textContent = statusOrDate;
+             // Fallback, falls Funktion fehlt oder Format anders ist
+             licenseLabel.textContent = "Status: Online";
         }
-    } else {
+    } else if (licenseLabel) {
         licenseLabel.textContent = "Nicht verbunden";
-        licenseLabel.style.color = "var(--text-muted)";
+        licenseLabel.style.color = "#888"; // var(--text-muted)
     }
 
-    // Elemente für eingeloggte User schalten
     const authElements = document.querySelectorAll('.auth-only');
-    if (user) {
-        authElements.forEach(el => el.style.display = 'flex');
-    } else {
-        authElements.forEach(el => el.style.display = 'none');
-    }
+    authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
 }
 
 async function checkExistingSession() {
