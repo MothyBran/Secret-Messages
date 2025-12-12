@@ -210,37 +210,39 @@ export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
     try {
         console.log("🔓 Entschlüsselung startet...", { user: currentUserId });
 
-        // 1. Äußere Hülle entfernen
+        // 1. Äußere Hülle entfernen (Algorithmen rückwärts)
         let rawStr = atob(encryptedPackage);
-
-        // 2. Die 4 Algorithmen RÜCKWÄRTS anwenden
-        // Reihenfolge Rückwärts: Mirror -> Caesar -> BlockSwap -> Swap
         rawStr = algoMirror(rawStr);
         rawStr = algoCaesar(rawStr, accessCode, false);
         rawStr = algoBlockSwap(rawStr);
         rawStr = algoMapSwap(rawStr, false);
 
-        // 3. JSON parsen
+        // 2. JSON parsen
         const container = JSON.parse(rawStr);
         if (!container.v || !container.s) throw new Error("Format ungültig");
 
         let masterKeyRaw = null;
 
-        // 4. Den richtigen Tresor (Slot) finden und öffnen
-        // Wir iterieren durch alle Slots und schauen, ob unser Schlüssel passt.
+        // 3. Den richtigen Tresor (Slot) finden
+        // Wir probieren JETZT beides: 
+        // A) Einen persönlichen Slot (wenn User eingeloggt)
+        // B) Einen öffentlichen Slot (falls vorhanden)
         
         for (const slot of container.s) {
             try {
-                let kek; // Key Encryption Key (Der Schlüssel zum Öffnen des Tresors)
+                let kek; // Key Encryption Key
 
                 if (slot.type === 'pub') {
-                    // Public Slot: Braucht nur den Code
+                    // FALL A: Public Slot (Jeder mit Code)
+                    // Wir versuchen es IMMER, egal wer eingeloggt ist
                     kek = await importKeyFromPass(accessCode, "PUBLIC_ACCESS_SALT");
-                } else if (slot.type === 'usr') {
-                    // User Slot: Braucht Code + Eigene UserID
-                    // Wenn wir nicht eingeloggt sind, können wir diesen Slot nicht öffnen
-                    if (!currentUserId) continue;
+                } 
+                else if (slot.type === 'usr' && currentUserId) {
+                    // FALL B: User Slot (Nur für mich)
                     kek = await importKeyFromPass(accessCode, currentUserId.trim());
+                } else {
+                    // Slot nicht für uns relevant
+                    continue;
                 }
 
                 // Versuch: MasterKey entschlüsseln
@@ -250,13 +252,13 @@ export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
                     base642buf(slot.data)
                 );
 
-                // WENN WIR HIER SIND, HAT ES GEKLAPPT!
-                console.log("✅ Gültiger Slot gefunden!");
-                break; // Schleife verlassen
+                if(masterKeyRaw) {
+                    console.log(`✅ Gültiger Slot gefunden! Typ: ${slot.type}`);
+                    break; // Erfolg! Raus aus der Schleife
+                }
 
             } catch (err) {
-                // Falscher Slot oder falsches Passwort -> Weiter zum nächsten Slot
-                // console.log("Slot passt nicht, versuche nächsten...");
+                // Falscher Slot/Code -> weiter zum nächsten
             }
         }
 
@@ -264,7 +266,7 @@ export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
             throw new Error("Keine Berechtigung oder falscher Code.");
         }
 
-        // 5. Nachricht entschlüsseln mit dem gefundenen MasterKey
+        // 4. Nachricht entschlüsseln
         const masterKey = await importMasterKeyRaw(masterKeyRaw);
         
         const decryptedBuffer = await window.crypto.subtle.decrypt(
@@ -277,7 +279,6 @@ export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
 
     } catch (e) {
         console.error("Decrypt Error:", e);
-        // Generische Fehlermeldung für den User
-        return "[FEHLER: Zugriff verweigert. Code falsch oder Sie stehen nicht auf der Empfängerliste.]";
+        throw new Error("Zugriff verweigert. Code falsch oder nicht berechtigt.");
     }
 }
