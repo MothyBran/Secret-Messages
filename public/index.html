@@ -412,21 +412,21 @@
             </div>
 
             <div class="input-group" id="recipientGroup">
-                <label class="input-label">Empfänger ID(s)</label>
+                <label class="input-label">Empfänger ID's</label>
                 <div style="display:flex; gap:5px;">
-                    <input type="text" id="recipientName" class="input-field" placeholder="Komma getrennt (z.B. UserA, UserB)">
+                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB,...">
                     <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
                 </div>
             </div>
 
             <div class="input-group">
-                <label class="input-label">Sitzungs-Schlüssel (5-stellig)</label>
-                <input type="password" id="messageCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+                <label class="input-label">Schlüssel (5-stellig)</label>
+                <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric">
             </div>
 
             <div class="input-group">
                 <label class="input-label" id="textLabel">Nachrichteneingabe</label>
-                <textarea id="messageInput" class="input-field" rows="6" placeholder="Daten hier eingeben..."></textarea>
+                <textarea id="messageInput" class="input-field" rows="6" placeholder="Text hier eingeben..."></textarea>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:10px;">
@@ -503,6 +503,134 @@
         <br>
         <button class="btn" id="closeQrBtn">SCHLIESSEN</button>
     </div>
+
+    <div id="contactsModal" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;">📞 Kontaktverzeichnis</h3>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-target="manageTab">Verwalten</button>
+                <button class="tab-btn" data-target="selectTab">Auswählen (Senden)</button>
+            </div>
+    
+            <div id="manageTab" class="tab-content active">
+                
+                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Kontakt hinzufügen</h4>
+                <form id="addContactForm" style="display: flex; gap: 10px; margin-bottom: 30px;">
+                    <input type="text" id="newContactName" class="input-field" placeholder="Name" style="flex-grow: 1;">
+                    <input type="text" id="newContactID" class="input-field" placeholder="Benutzer-ID" style="flex-grow: 1;">
+                    <button type="submit" class="btn" style="width: auto; padding: 10px;">➕</button>
+                </form>
+    
+                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Gespeicherte Kontakte</h4>
+                <ul id="contactList" style="list-style: none; padding: 0; max-height: 250px; overflow-y: auto;">
+                    </ul>
+            </div>
+    
+            <div id="selectTab" class="tab-content">
+                 <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Empfänger wählen</h4>
+                <ul id="selectContactList" style="list-style: none; padding: 0; max-height: 350px; overflow-y: auto;">
+                    </ul>
+                
+                <div style="margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn" id="confirmSelectionBtn" style="background: var(--accent-blue); color: #000;">BESTÄTIGEN</button>
+                    <button class="btn" id="cancelSelectionBtn" style="background: #333; color: #fff; border: 1px solid #555;">ABBRECHEN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<style>
+    /* ... (dein bestehendes CSS) ... */
+
+    /* Generic Modal Style (Sollte bei dir schon existieren, falls nicht, hinzufügen) */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.8);
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(5px);
+    }
+    .modal.active {
+        display: flex;
+    }
+    .modal-content {
+        background-color: var(--bg-panel);
+        margin: auto;
+        padding: 20px;
+        border: 1px solid var(--accent-blue);
+        width: 90%;
+        max-width: 500px; /* Begrenzung der Breite */
+        box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
+        position: relative;
+    }
+
+    /* Tabs */
+    
+    .tabs {
+        display: flex;
+        justify-content: center;
+        border-bottom: 1px solid #333;
+    }
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: 10px 15px;
+        color: #777;
+        cursor: pointer;
+        transition: color 0.3s;
+        font-family: 'Rajdhani', sans-serif;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    .tab-btn.active {
+        color: var(--accent-blue);
+        border-bottom: 2px solid var(--accent-blue);
+    }
+    .tab-content {
+        display: none;
+        padding-top: 15px;
+    }
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Kontaktliste */
+    #contactList li, #selectContactList li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #222;
+    }
+    #contactList li:last-child, #selectContactList li:last-child {
+        border-bottom: none;
+    }
+    .contact-info {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.9rem;
+    }
+    .delete-btn {
+        background: none;
+        border: 1px solid var(--error-red);
+        color: var(--error-red);
+        padding: 3px 8px;
+        cursor: pointer;
+        font-size: 0.7rem;
+        transition: 0.2s;
+    }
+    .delete-btn:hover {
+        background: var(--error-red);
+        color: white;
+    }
+</style>
 
     <script type="module" src="app.js"></script>
 </body>
