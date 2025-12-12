@@ -1,52 +1,68 @@
-// store.js - Handhabt Shop-Logik und Status-Polling
+// store.js - Handhabt Shop-Logik, Modal und Status-Polling
 
+// 1. Konfiguration der Produkte (Mapping von ID zu Name & Preis)
 const licenseMapping = {
+  // Einzel-Lizenzen
   "1m": { name: "1 Monat Zugang", price: "1,99 €" },
   "3m": { name: "3 Monate Zugang", price: "4,49 €" },
   "12m": { name: "12 Monate Zugang", price: "14,99 €" },
-  "unlimited": { name: "Unbegrenzter Zugang", price: "49,99 €" },
-  "bundle_1m_2": { name: "2× 1 Monat Zugang", price: "3,79 €" },
-  "bundle_3m_2": { name: "2× 3 Monate Zugang", price: "7,99 €" },
-  "bundle_3m_5": { name: "5× 3 Monate Zugang", price: "19,99 €" },
-  "bundle_1y_10": { name: "10× 12 Monate Zugang", price: "129,99 €" }
+  "unlimited": { name: "Unbegrenzter Zugang (Lifetime)", price: "49,99 €" },
+  
+  // Bundles (Hier waren welche verschwunden, jetzt wieder da!)
+  "bundle_1m_2": { name: "Bundle: 2x Keys (1 Monat)", price: "3,79 €" },
+  "bundle_3m_2": { name: "Bundle: 2x Keys (3 Monate)", price: "7,99 €" },
+  "bundle_3m_5": { name: "Bundle: 5x Keys (3 Monate)", price: "19,99 €" },
+  "bundle_1y_10": { name: "Bundle: 10x Keys (12 Monate)", price: "129,99 €" }
 };
 
+// 2. Initialisierung beim Laden
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. URL Parameter prüfen
+  // URL Parameter prüfen (Kommen wir von Stripe zurück?)
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get("session_id");
   const success = urlParams.get("success");
 
-  // 2. Modus entscheiden: Shop oder Status?
+  // Modus entscheiden: Shop anzeigen oder Status prüfen?
   if (sessionId && success) {
-    // -> STATUS MODUS (Nach Kauf)
     switchToStatusMode(sessionId);
   } else {
-    // -> SHOP MODUS (Normal)
     initializeShop();
   }
 
-  // Event Listeners für Modal
-  document.getElementById("closeModalBtn")?.addEventListener("click", closeModal);
-  document.getElementById("confirmPurchaseBtn")?.addEventListener("click", confirmPurchase);
+  // Event Listeners für das Modal
+  const closeBtn = document.getElementById("closeModalBtn");
+  if(closeBtn) closeBtn.addEventListener("click", closeModal);
+
+  const confirmBtn = document.getElementById("confirmPurchaseBtn");
+  if(confirmBtn) confirmBtn.addEventListener("click", confirmPurchase);
+  
+  // Klick auf Hintergrund schließt Modal
+  const overlay = document.getElementById("modalOverlay");
+  if(overlay) {
+      overlay.addEventListener("click", (e) => {
+          if(e.target === e.currentTarget) closeModal();
+      });
+  }
 });
 
 // =======================================================
-// SHOP LOGIK
+// SHOP UI LOGIC
 // =======================================================
 
 function initializeShop() {
-  // Standard-Shop anzeigen
-  document.getElementById("shop-view").style.display = "block";
-  document.getElementById("payment-status-section").style.display = "none";
+  const shopView = document.getElementById("shop-view");
+  const statusView = document.getElementById("payment-status-section");
 
-  // Buttons initialisieren
+  if(shopView) shopView.style.display = "block";
+  if(statusView) statusView.style.display = "none";
+
+  // Allen "Kaufen"-Buttons das Event hinzufügen
   const buttons = document.querySelectorAll(".license-btn");
   buttons.forEach(btn => {
-    const plan = btn.dataset.plan;
-    if (plan) {
-      btn.addEventListener("click", () => showModal(plan));
-    }
+    btn.addEventListener("click", () => {
+        const plan = btn.getAttribute("data-plan");
+        if(plan) showModal(plan);
+    });
   });
 }
 
@@ -59,18 +75,29 @@ function showModal(plan) {
   const license = licenseMapping[plan];
   if (!license) return alert("Fehler: Unbekannter Lizenztyp.");
 
+  // Speichere den gewählten Plan im Dataset des Modals
   modal.dataset.selectedPlan = plan;
+  
+  // Texte setzen
   planText.textContent = license.name;
   priceText.textContent = license.price;
-  emailInput.value = ""; // Reset
-  emailInput.focus();
   
-  modal.style.display = "block";
+  // Input zurücksetzen
+  emailInput.value = ""; 
+  
+  // Anzeigen
+  modal.style.display = "flex"; // Flex für Zentrierung
+  emailInput.focus();
 }
 
 function closeModal() {
-  document.getElementById("modalOverlay").style.display = "none";
+  const modal = document.getElementById("modalOverlay");
+  if(modal) modal.style.display = "none";
 }
+
+// =======================================================
+// STRIPE CHECKOUT STARTEN
+// =======================================================
 
 async function confirmPurchase() {
   const modal = document.getElementById("modalOverlay");
@@ -79,15 +106,18 @@ async function confirmPurchase() {
   const btn = document.getElementById("confirmPurchaseBtn");
 
   const email = emailInput?.value?.trim();
+  
+  // E-Mail Validierung
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("Bitte geben Sie eine gültige E-Mail-Adresse ein.");
     return;
   }
 
-  // Button sperren (Loading)
+  // Button Status: Loading
   const originalText = btn.innerText;
-  btn.innerText = "⏳ Verbindung zu Stripe...";
+  btn.innerText = "⏳ Verbinde zu Stripe...";
   btn.disabled = true;
+  btn.style.opacity = "0.7";
 
   try {
     const response = await fetch("/api/create-checkout-session", {
@@ -97,10 +127,12 @@ async function confirmPurchase() {
     });
 
     const data = await response.json();
+    
     if (data.success && data.checkout_url) {
+      // Weiterleitung zu Stripe
       window.location.href = data.checkout_url;
     } else {
-      throw new Error(data.error || "Keine URL erhalten");
+      throw new Error(data.error || "Keine Checkout-URL vom Server erhalten.");
     }
 
   } catch (err) {
@@ -108,11 +140,12 @@ async function confirmPurchase() {
     alert("Fehler beim Starten der Zahlung: " + err.message);
     btn.innerText = originalText;
     btn.disabled = false;
+    btn.style.opacity = "1";
   }
 }
 
 // =======================================================
-// STATUS / POLLING LOGIK (Webhook Check)
+// STATUS / POLLING LOGIK (Nach dem Kauf)
 // =======================================================
 
 function switchToStatusMode(sessionId) {
@@ -133,11 +166,11 @@ async function pollPaymentStatus(sessionId) {
   const keysArea = document.getElementById("keys-output-area");
 
   let attempts = 0;
-  const maxAttempts = 40; // ca. 80 Sekunden warten (40 * 2s)
+  const maxAttempts = 30; // 60 Sekunden Timeout (30 * 2s)
 
   const check = async () => {
     attempts++;
-    console.log(`📡 Prüfe Zahlungsstatus (Versuch ${attempts})...`);
+    console.log(`📡 Status-Check ${attempts}...`);
 
     try {
       const res = await fetch(`/api/order-status?session_id=${sessionId}`);
@@ -148,25 +181,25 @@ async function pollPaymentStatus(sessionId) {
         processingDiv.style.display = "none";
         successDiv.style.display = "block";
         
-        // Keys rendern
+        // Keys anzeigen
         if (data.keys && data.keys.length > 0) {
            renderKeys(data.keys, keysArea);
         } else {
-           keysArea.innerHTML = "<p>Keine Keys gefunden (Fehler?)</p>";
+           keysArea.innerHTML = "<p>Zahlung erfolgreich, aber keine Keys gefunden. Bitte E-Mail prüfen.</p>";
         }
         return; // Polling beenden
 
       } else if (data.status === 'processing' || !data.status) {
         // --- NOCH WARTEN ---
         if (attempts < maxAttempts) {
-           setTimeout(check, 2000); // In 2 Sekunden nochmal
+           setTimeout(check, 2000); // Alle 2 Sekunden erneut prüfen
         } else {
-           throw new Error("Zeitüberschreitung: Zahlung wurde nicht rechtzeitig bestätigt.");
+           throw new Error("Zeitüberschreitung. Die Bestätigung dauert länger als erwartet.");
         }
 
       } else {
-        // --- FEHLER ---
-        throw new Error("Server meldet Status: " + data.status);
+        // --- FEHLER VOM SERVER ---
+        throw new Error("Zahlungsstatus: " + data.status);
       }
 
     } catch (err) {
@@ -177,64 +210,48 @@ async function pollPaymentStatus(sessionId) {
     }
   };
 
-  // Start
+  // Start Polling
   check();
 }
-
-// store.js - Ersetze die Funktionen renderKeys und copyKey am Ende der Datei
 
 function renderKeys(keys, container) {
   let html = "";
   keys.forEach(key => {
-    // Wir nutzen hier window.copyKey, um sicherzugehen
+    // Generiert eine Box für jeden Key
     html += `
-      <div class="key-display">
-        <span id="key-text-${key}">${key}</span>
+      <div class="key-display-box">
+        <span style="letter-spacing:2px; color:#fff; font-weight:bold;">${key}</span>
         <br>
-        <button class="copy-btn" onclick="window.copyKey(this, '${key}')">🔗 KOPIEREN</button>
+        <button class="btn" style="margin-top:15px; padding:8px 20px; font-size:0.8rem;" onclick="window.copyKey(this, '${key}')">KOPIEREN</button>
       </div>
     `;
   });
   container.innerHTML = html;
 }
 
-// WICHTIG: Die Funktion explizit an window binden, damit onclick sie findet!
+// 3. Copy-Funktion (Global verfügbar machen für onclick im HTML)
 window.copyKey = async function(btn, key) {
   try {
-    // Versuch 1: Moderne Clipboard API
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(key);
-    } else {
-      throw new Error('Clipboard API nicht verfügbar');
-    }
+    await navigator.clipboard.writeText(key);
   } catch (err) {
-    // Versuch 2: Fallback für ältere Browser oder nicht-HTTPS
+    // Fallback für ältere Browser
     const textArea = document.createElement("textarea");
     textArea.value = key;
-    textArea.style.position = "fixed"; // Vermeidet Scrollen
     document.body.appendChild(textArea);
-    textArea.focus();
     textArea.select();
-    try {
-      document.execCommand('copy');
-    } catch (e) {
-      console.error('Copy fehlgeschlagen', e);
-      alert('Konnte Key nicht kopieren. Bitte manuell markieren.');
-      document.body.removeChild(textArea);
-      return;
-    }
+    document.execCommand('copy');
     document.body.removeChild(textArea);
   }
 
-  // Visuelles Feedback
+  // Visuelles Feedback am Button
   const originalText = btn.innerText;
-  btn.innerText = "✔️ KOPIERT!";
+  btn.innerText = "✓ KOPIERT!";
+  btn.style.borderColor = "#00ff41"; 
   btn.style.color = "#00ff41";
-  btn.style.borderColor = "#00ff41";
   
   setTimeout(() => {
       btn.innerText = originalText;
-      btn.style.color = "";
       btn.style.borderColor = "";
+      btn.style.color = "";
   }, 2000);
 };
