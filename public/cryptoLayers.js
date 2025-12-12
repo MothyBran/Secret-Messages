@@ -1,14 +1,14 @@
-// cryptoLayers.js - Multi-Recipient Architecture & Hybrid Obfuscation
-// Erfüllt die Anforderung: Public Access ODER Restricted List Access
-
-// ========================================================
-// 1. HILFSFUNKTIONEN (Tools)
-// ========================================================
+// cryptoLayers.js - Multi-Recipient Architecture & Hybrid Obfuscation (Final High-Sec)
+// Kombiniert Multi-User Slots mit High-Security Parametern der alten Version.
 
 const textEnc = new TextEncoder();
 const textDec = new TextDecoder();
 
-// Konvertierung String <-> Base64 (UrlSafe)
+// ========================================================
+// 1. HILFSFUNKTIONEN
+// ========================================================
+
+// Robuste Base64 Konvertierung (UrlSafe handled by Standard Base64 for internal use)
 function buf2base64(buffer) {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
@@ -16,7 +16,11 @@ function base642buf(str) {
     return Uint8Array.from(atob(str), c => c.charCodeAt(0));
 }
 
-// Generiert einen echten Zufallsschlüssel (Master Key)
+// ========================================================
+// 2. KRYPTOGRAFISCHER KERN (AES-GCM + PBKDF2)
+// ========================================================
+
+// Generiert den Master Key (Zufällig pro Nachricht)
 async function generateMasterKey() {
     return await window.crypto.subtle.generateKey(
         { name: "AES-GCM", length: 256 },
@@ -24,51 +28,57 @@ async function generateMasterKey() {
     );
 }
 
-// Importiert einen Key aus Raw-Daten (für die Tresore)
-async function importKeyFromPass(passString, saltString) {
+// Generiert den "Schlüssel zum Tresor" (KEK) basierend auf Code + UserID
+async function importKeyFromPass(passString, uniqueSaltID) {
+    // 1. Importiere das Passwort (den 5-stelligen Code)
     const keyMaterial = await window.crypto.subtle.importKey(
         "raw", textEnc.encode(passString), { name: "PBKDF2" }, false, ["deriveKey"]
     );
-    // Wir nutzen PBKDF2 um aus dem kurzen Code + ID einen starken 256-bit Key zu machen
+
+    // 2. Erstelle ein komplexes Salt (Wie in der alten Version, aber dynamisch)
+    // Wir kombinieren einen festen App-Salt mit der User-ID (oder Public-Salt)
+    const combinedSalt = "SECRET_MSG_V2_SALT_LAYER_" + uniqueSaltID.trim().toLowerCase();
+
+    // 3. PBKDF2 Ableitung (100.000 Iterationen für maximale Sicherheit gegen Brute-Force)
     return window.crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt: textEnc.encode(saltString), iterations: 50000, hash: "SHA-256" },
-        keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"] // false = key kann nicht exportiert werden
+        { 
+            name: "PBKDF2", 
+            salt: textEnc.encode(combinedSalt), 
+            iterations: 100000, // Hochgesetzt auf 100k (wie in deiner alten Version)
+            hash: "SHA-256" 
+        },
+        keyMaterial, 
+        { name: "AES-GCM", length: 256 }, 
+        false, 
+        ["encrypt", "decrypt"]
     );
 }
 
-// Exportiert den MasterKey, damit wir ihn in die Tresore legen können
-async function exportMasterKey(key) {
-    return await window.crypto.subtle.exportKey("raw", key);
-}
-
-// Importiert den MasterKey zurück (nachdem er aus dem Tresor geholt wurde)
+// Export/Import für den MasterKey (um ihn in die Slots zu legen)
+async function exportMasterKey(key) { return await window.crypto.subtle.exportKey("raw", key); }
 async function importMasterKeyRaw(raw) {
-    return await window.crypto.subtle.importKey(
-        "raw", raw, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-    );
+    return await window.crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
 }
 
 // ========================================================
-// 2. DIE 4 ALGORITHMEN (Obfuscation Layers)
+// 3. DIE 4 ALGORITHMEN (Obfuscation Layers)
 // ========================================================
-// Diese Algorithmen verschleiern das JSON-Paket, NACHDEM es kryptografisch gesichert wurde.
+// Diese verschleiern das Datenpaket, basierend auf dem 5-stelligen Code.
 
-// Algo 1: Spiegelung (Mirror)
-function algoMirror(text) {
-    return text.split('').reverse().join('');
-}
+// Algo 1: Spiegelung
+function algoMirror(text) { return text.split('').reverse().join(''); }
 
-// Algo 2: ASCII Shift basierend auf der Quersumme des Codes
+// Algo 2: Dynamischer Caesar (Zahlendreher/Shift)
+// Basiert auf der Quersumme des Codes
 function algoCaesar(text, code, forward = true) {
     let shift = 0;
     for(let char of code) shift += parseInt(char) || 0;
-    shift = shift % 10 + 1; // Shift zwischen 1 und 10
+    shift = shift % 15 + 1; // Shift zwischen 1 und 15
     if (!forward) shift = -shift;
 
-    // Wir shiften nur druckbare Zeichen, um das Format nicht zu zerstören
     return text.split('').map(c => {
         let code = c.charCodeAt(0);
-        // Bereich: 32 (Space) bis 126 (~)
+        // Wir shiften nur den lesbaren ASCII Bereich (32-126) um JSON nicht zu zerstören
         if (code >= 32 && code <= 126) {
             return String.fromCharCode(((code - 32 + shift + 95) % 95) + 32);
         }
@@ -76,18 +86,16 @@ function algoCaesar(text, code, forward = true) {
     }).join('');
 }
 
-// Algo 3: Block-Swap (Tauscht erste und zweite Hälfte)
+// Algo 3: Block-Swap (Hälften tauschen)
 function algoBlockSwap(text) {
     const mid = Math.floor(text.length / 2);
     return text.substring(mid) + text.substring(0, mid);
 }
 
-// Algo 4: Dummy Injektion (Fügt an ungeraden Stellen sinnlose Zeichen ein - Simpel)
-// Wir nutzen hier eine einfache Variante: Base64 "Verdrehung"
+// Algo 4: Map Swap (Zeichentauschtabelle)
 function algoMapSwap(text, forward = true) {
-    // Tauscht A mit Z, a mit z (einfache Substitution)
-    const mapSrc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    const mapDst = "ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkjihgfedcba";
+    const mapSrc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const mapDst = "9876543210zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA";
     
     return text.split('').map(c => {
         const idx = forward ? mapSrc.indexOf(c) : mapDst.indexOf(c);
@@ -95,100 +103,67 @@ function algoMapSwap(text, forward = true) {
     }).join('');
 }
 
-
 // ========================================================
-// 3. CORE LOGIC: ENCRYPTION
+// 4. HAUPTFUNKTION: VERSCHLÜSSELN
 // ========================================================
 
-/**
- * @param {string} message - Der Klartext
- * @param {string} accessCode - Der 5-stellige Code
- * @param {Array<string>} recipientIDs - Liste der User-IDs (Inkl. Absender!). Leer = Public.
- */
 export async function encryptFull(message, accessCode, recipientIDs = []) {
     try {
-        console.log("🔒 Verschlüsselung startet...", { recipients: recipientIDs.length });
-
-        // 1. Master Key generieren (zufällig für diese eine Nachricht)
+        // A. Master Key erstellen & Nachricht damit verschlüsseln
         const masterKey = await generateMasterKey();
         const masterKeyRaw = await exportMasterKey(masterKey);
-
-        // 2. Nachricht mit Master Key verschlüsseln
+        
         const ivMsg = window.crypto.getRandomValues(new Uint8Array(12));
         const encryptedMsgBuffer = await window.crypto.subtle.encrypt(
             { name: "AES-GCM", iv: ivMsg }, masterKey, textEnc.encode(message)
         );
 
-        // 3. Schlüsseltresore (Key Slots) bauen
+        // B. Tresore (Slots) erstellen
         const slots = [];
         const isPublic = recipientIDs.length === 0;
 
         if (isPublic) {
-            // FALL 1: PUBLIC (Keine Empfänger)
-            // Wir verschlüsseln den MasterKey NUR mit dem 5-stelligen Code
-            // Salt ist fix, damit jeder mit dem Code den Key generieren kann
-            const salt = "PUBLIC_ACCESS_SALT"; 
-            const kek = await importKeyFromPass(accessCode, salt); // Key Encryption Key
-            
+            // PUBLIC SLOT (Jeder mit Code)
+            const kek = await importKeyFromPass(accessCode, "PUBLIC_GLOBAL_SALT");
             const ivSlot = window.crypto.getRandomValues(new Uint8Array(12));
             const wrappedKey = await window.crypto.subtle.encrypt(
                 { name: "AES-GCM", iv: ivSlot }, kek, masterKeyRaw
             );
-            
-            slots.push({
-                type: 'pub',
-                iv: buf2base64(ivSlot),
-                data: buf2base64(wrappedKey)
-            });
-            
+            slots.push({ type: 'pub', iv: buf2base64(ivSlot), data: buf2base64(wrappedKey) });
         } else {
-            // FALL 2: RESTRICTED (Liste von Empfängern)
-            // Wir erstellen einen Slot für JEDEN Empfänger
+            // USER SLOTS (Für jeden Empfänger + Absender)
+            // Hier fließt die ID des Empfängers in die Verschlüsselung ein!
             for (const userId of recipientIDs) {
                 if(!userId) continue;
                 
-                // Der Schlüssel für den Tresor ist: 5-stelliger Code + UserID
-                // Salt ist die UserID selbst (macht es unique pro User)
+                // Salt ist jetzt "SECRET_MSG_V2_SALT_LAYER_" + userId
                 const kek = await importKeyFromPass(accessCode, userId.trim());
                 
                 const ivSlot = window.crypto.getRandomValues(new Uint8Array(12));
                 const wrappedKey = await window.crypto.subtle.encrypt(
                     { name: "AES-GCM", iv: ivSlot }, kek, masterKeyRaw
                 );
-
-                slots.push({
-                    type: 'usr',
-                    // Wir speichern NICHT die UserID im Klartext, um Anonymität zu wahren.
-                    // Stattdessen versuchen wir beim Entschlüsseln alle Slots.
-                    // Aber zur Optimierung speichern wir einen Hash der UserID, 
-                    // damit der Client weiß, welchen Slot er probieren soll?
-                    // NEIN: User wollte "muss nicht wissen welche Empfänger".
-                    // Am sichersten: Wir speichern KEINE ID. Der Client probiert einfach alle Slots durch.
-                    iv: buf2base64(ivSlot),
-                    data: buf2base64(wrappedKey)
-                });
+                slots.push({ type: 'usr', iv: buf2base64(ivSlot), data: buf2base64(wrappedKey) });
             }
         }
 
-        // 4. Das Paket schnüren (JSON)
-        const container = {
-            v: 2, // Version
-            iv: buf2base64(ivMsg),
-            p: buf2base64(encryptedMsgBuffer), // Payload
-            s: slots // Die Tresore
-        };
-        
-        let finalString = JSON.stringify(container);
+        // C. Paket schnüren
+        let container = JSON.stringify({ 
+            v: 3, // Version 3 (High-Sec)
+            iv: buf2base64(ivMsg), 
+            p: buf2base64(encryptedMsgBuffer), 
+            s: slots 
+        });
 
-        // 5. Die 4 Algorithmen anwenden (Layering)
-        // Reihenfolge: Swap -> BlockSwap -> Caesar -> Mirror
-        finalString = algoMapSwap(finalString, true);
-        finalString = algoBlockSwap(finalString);
-        finalString = algoCaesar(finalString, accessCode, true);
-        finalString = algoMirror(finalString);
+        // D. Tarnkappen-Algorithmen anwenden (Hängen nur vom Code ab)
+        // Reihenfolge: MapSwap -> BlockSwap -> Caesar -> Mirror
+        container = algoMapSwap(container, true);
+        container = algoBlockSwap(container);
+        container = algoCaesar(container, accessCode, true);
+        container = algoMirror(container);
 
-        // 6. Finale Hülle (Base64) damit es sauber kopierbar ist
-        return btoa(finalString);
+        // E. Finale Base64 Hülle
+        return btoa(container);
 
     } catch (e) {
         console.error("Encrypt Error:", e);
@@ -196,77 +171,61 @@ export async function encryptFull(message, accessCode, recipientIDs = []) {
     }
 }
 
-
 // ========================================================
-// 4. CORE LOGIC: DECRYPTION
+// 5. HAUPTFUNKTION: ENTSCHLÜSSELN
 // ========================================================
 
-/**
- * @param {string} encryptedPackage - Der verschlüsselte String
- * @param {string} accessCode - Der 5-stellige Code
- * @param {string} currentUserId - Die ID des aktuell eingeloggten Users
- */
 export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
     try {
-        console.log("🔓 Entschlüsselung startet...", { user: currentUserId });
-
-        // 1. Äußere Hülle entfernen (Algorithmen rückwärts)
+        // A. Äußere Hülle entfernen
         let rawStr = atob(encryptedPackage);
+        
+        // Algorithmen rückwärts: Mirror -> Caesar -> BlockSwap -> MapSwap
         rawStr = algoMirror(rawStr);
         rawStr = algoCaesar(rawStr, accessCode, false);
         rawStr = algoBlockSwap(rawStr);
         rawStr = algoMapSwap(rawStr, false);
 
-        // 2. JSON parsen
+        // B. JSON parsen
         const container = JSON.parse(rawStr);
-        if (!container.v || !container.s) throw new Error("Format ungültig");
+        if (!container.s) throw new Error("Format ungültig");
 
         let masterKeyRaw = null;
 
-        // 3. Den richtigen Tresor (Slot) finden
-        // Wir probieren JETZT beides: 
-        // A) Einen persönlichen Slot (wenn User eingeloggt)
-        // B) Einen öffentlichen Slot (falls vorhanden)
-        
+        // C. Passenden Slot suchen & öffnen
         for (const slot of container.s) {
             try {
-                let kek; // Key Encryption Key
+                let kek;
 
+                // Prüfen: Ist es ein Public Slot?
                 if (slot.type === 'pub') {
-                    // FALL A: Public Slot (Jeder mit Code)
-                    // Wir versuchen es IMMER, egal wer eingeloggt ist
-                    kek = await importKeyFromPass(accessCode, "PUBLIC_ACCESS_SALT");
+                    kek = await importKeyFromPass(accessCode, "PUBLIC_GLOBAL_SALT");
                 } 
+                // Prüfen: Ist es ein Slot für MICH?
                 else if (slot.type === 'usr' && currentUserId) {
-                    // FALL B: User Slot (Nur für mich)
                     kek = await importKeyFromPass(accessCode, currentUserId.trim());
-                } else {
-                    // Slot nicht für uns relevant
-                    continue;
+                } 
+                else {
+                    continue; // Nicht mein Slot
                 }
 
-                // Versuch: MasterKey entschlüsseln
+                // Versuch den Slot zu öffnen
                 masterKeyRaw = await window.crypto.subtle.decrypt(
                     { name: "AES-GCM", iv: base642buf(slot.iv) },
                     kek,
                     base642buf(slot.data)
                 );
 
-                if(masterKeyRaw) {
-                    console.log(`✅ Gültiger Slot gefunden! Typ: ${slot.type}`);
-                    break; // Erfolg! Raus aus der Schleife
-                }
+                if (masterKeyRaw) break; // Erfolg! Wir haben den MasterKey
 
             } catch (err) {
-                // Falscher Slot/Code -> weiter zum nächsten
+                // Falscher Code oder falscher Slot -> weiterprobieren
             }
         }
 
-        if (!masterKeyRaw) {
-            throw new Error("Keine Berechtigung oder falscher Code.");
-        }
+        if (!masterKeyRaw) throw new Error("Kein gültiger Schlüssel gefunden.");
 
-        // 4. Nachricht entschlüsseln
+        // D. Nachricht entschlüsseln
         const masterKey = await importMasterKeyRaw(masterKeyRaw);
         
         const decryptedBuffer = await window.crypto.subtle.decrypt(
@@ -278,7 +237,8 @@ export async function decryptFull(encryptedPackage, accessCode, currentUserId) {
         return textDec.decode(decryptedBuffer);
 
     } catch (e) {
-        console.error("Decrypt Error:", e);
-        throw new Error("Zugriff verweigert. Code falsch oder nicht berechtigt.");
+        console.error("Decrypt Fehler:", e);
+        // Generischer Fehler für Sicherheit
+        throw new Error("Entschlüsselung fehlgeschlagen. Code falsch oder keine Berechtigung.");
     }
 }
