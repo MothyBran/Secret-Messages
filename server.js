@@ -632,14 +632,110 @@ app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
 });
 
 // ==================================================================
-// 5. EXTERNAL ROUTES (PAYMENT)
+// 5. ADMIN API ROUTES (Fehlte wahrscheinlich)
 // ==================================================================
 
-// Wir nutzen die Payment Routes für Stripe Callbacks
-// HINWEIS: Die Admin-Routes in payment.js werden hiermit durch die
-// oben definierten "Server.js"-Routes überschrieben, da Express
-// die obigen zuerst matcht (wenn sie vor app.use kommen).
-// Um sicher zu gehen, definieren wir Admin-Routes oben.
+// Middleware: Prüft das Admin Passwort aus Railway Variables
+const adminAuth = (req, res, next) => {
+    const sentPassword = req.headers['x-admin-password'];
+    // Hier holen wir das Passwort aus den Railway Variables
+    const realPassword = process.env.ADMIN_PASSWORD || 'admin123'; // Fallback falls Variable fehlt
+
+    if (sentPassword === realPassword) {
+        next(); // Passwort stimmt -> Weiter
+    } else {
+        res.status(401).json({ error: "Falsches Admin Passwort" });
+    }
+};
+
+// Route: Alle User laden
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT * FROM users ORDER BY id DESC");
+        res.json(result.rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Route: User Blockieren/Entsperren
+app.post('/api/admin/users/:id/block', adminAuth, async (req, res) => {
+    try {
+        const { block } = req.body; // true oder false
+        await dbQuery("UPDATE users SET is_blocked = $1 WHERE id = $2", [block, req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Route: Gerätebindung aufheben (Reset Device)
+app.post('/api/admin/users/:id/reset-device', adminAuth, async (req, res) => {
+    try {
+        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Route: Alle Keys laden
+app.get('/api/admin/keys', adminAuth, async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT * FROM license_keys ORDER BY created_at DESC");
+        res.json(result.rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Route: Neue Keys generieren
+app.post('/api/admin/generate-keys', adminAuth, async (req, res) => {
+    try {
+        const { productCode, count } = req.body; 
+        const amount = parseInt(count) || 1;
+        const newKeys = [];
+
+        // Dauer berechnen
+        let durationDays = 30;
+        if(productCode === '3m') durationDays = 90;
+        if(productCode === '12m') durationDays = 365;
+        if(productCode === 'unlimited') durationDays = 99999; // Lifetime
+
+        // Loop zum Erstellen
+        for(let i=0; i < amount; i++) {
+            // Zufälliger Key XXXX-XXXX-XXXX-XXXX
+            const keyRaw = crypto.randomBytes(8).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+            
+            // Hash erstellen (für die DB)
+            const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+            
+            // Ablaufdatum berechnen (ab Aktivierung, hier setzen wir es aber erst bei Aktivierung)
+            // ABER: In diesem Admin-Tool generieren wir "frische" Keys.
+            // In der DB speichern wir NULL bei activated_at.
+            
+            await dbQuery(`
+                INSERT INTO license_keys (key_code, key_hash, product_code, is_active)
+                VALUES ($1, $2, $3, true)
+            `, [keyRaw, keyHash, productCode]); // Wir speichern keyRaw hier nur zur Anzeige, normalerweise hash!
+            // Hinweis: Für Admin Generierung speichern wir oft den Raw Key, damit du ihn kopieren kannst.
+            // Falls deine DB Struktur 'key_code' als Klartext erlaubt:
+            
+            newKeys.push(keyRaw);
+        }
+
+        res.json({ success: true, keys: newKeys });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Fehler beim Generieren" });
+    }
+});
+
+// ==================================================================
+// PAYMENTS STRIPE
+// ==================================================================
+
 app.use('/api', paymentRoutes);
 
 
