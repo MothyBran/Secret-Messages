@@ -396,19 +396,23 @@
                 <textarea id="messageInput" class="input-field" rows="6" placeholder="Text hier eingeben..."></textarea>
             </div>
 
+            <button id="actionBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: bold; letter-spacing: 1px;">
+                🔒 DATEN VERSCHLÜSSELN
+            </button>
+
+            <div class="input-group" id="outputGroup" style="display:none; margin-bottom:20px; border-top:1px solid #333; padding-top:15px;">
+                <label class="input-label">Ergebnis</label>
+                <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue); font-weight: bold;"></textarea>
+            </div>
+
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="actionBtn" class="btn btn-primary">🔒 DATEN VERSCHLÜSSELN</button>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <button id="copyBtn" class="btn">📋 KOPIEREN</button>
                     <button id="clearFieldsBtn" class="btn btn-danger">🧹 LEEREN</button>
                 </div>
+                
                 <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
                 <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
-            </div>
-
-            <div class="input-group" id="outputGroup" style="display:none; margin-top:20px; border-top:1px solid #333; padding-top:10px;">
-                <label class="input-label">Ergebnis</label>
-                <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue);"></textarea>
             </div>
         </div>
 
