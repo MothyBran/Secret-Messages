@@ -98,14 +98,27 @@ function setupUIEvents() {
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
 
-    // --- QR CODE ---
+    // --- QR CODE EVENTS ---
+    
+    // 1. Generieren (Verschlüsseln-Seite)
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
         const text = document.getElementById('messageOutput').value;
         if(!text) return showAppStatus("Bitte erst Text verschlüsseln!", 'error');
         showQRModal(text);
     });
-    document.getElementById('closeQrBtn')?.addEventListener('click', () => document.getElementById('qrModal').classList.remove('active'));
+    
+    // Schließen & Speichern beim Generator
+    document.getElementById('closeQrBtn')?.addEventListener('click', () => {
+        document.getElementById('qrModal').classList.remove('active');
+        document.getElementById('qrDisplay').innerHTML = ''; // Aufräumen
+    });
+    document.getElementById('saveQrBtn')?.addEventListener('click', downloadQR);
 
+    // 2. Scannen (Entschlüsseln-Seite)
+    document.getElementById('qrScanBtn')?.addEventListener('click', startQRScanner);
+    
+    // Scanner Schließen (Stoppt auch die Kamera)
+    document.getElementById('closeScannerBtn')?.addEventListener('click', stopQRScanner);
 
     // ============================================================
     // KONTAKT-SIDEBAR EVENTS (WICHTIG!)
@@ -710,8 +723,111 @@ function copyToClipboard() {
 }
 
 function showQRModal(text) {
-    const m = document.getElementById('qrModal');
-    const c = document.getElementById('qrDisplay');
-    m.classList.add('active');
-    c.textContent = text.substring(0,50) + "... (QR Simuliert)";
+    const modal = document.getElementById('qrModal');
+    const container = document.getElementById('qrDisplay');
+    
+    container.innerHTML = ""; // Alten Code löschen
+    modal.classList.add('active');
+
+    // QRCode Bibliothek nutzen (global verfügbar durch script tag)
+    // Wir warten kurz, damit das Modal sichtbar ist (für korrekte Dimensionen)
+    setTimeout(() => {
+        new QRCode(container, {
+            text: text,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.M
+        });
+    }, 50);
+}
+
+function downloadQR() {
+    const container = document.getElementById('qrDisplay');
+    const img = container.querySelector('img'); // Die Library erzeugt ein <img> tag
+
+    if (img && img.src) {
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = `secure-msg-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showAppStatus("QR-Code gespeichert!", 'success');
+    } else {
+        // Fallback, falls Library Canvas nutzt statt Img (Browser-abhängig)
+        const canvas = container.querySelector('canvas');
+        if (canvas) {
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL("image/png");
+            link.download = `secure-msg-${Date.now()}.png`;
+            link.click();
+            showAppStatus("QR-Code gespeichert!", 'success');
+        } else {
+            showAppStatus("Fehler beim Speichern.", 'error');
+        }
+    }
+}
+
+
+// --- 2. SCANNEN (KAMERA) ---
+
+let html5QrCodeScanner = null;
+
+function startQRScanner() {
+    const modal = document.getElementById('qrScannerModal');
+    modal.classList.add('active');
+
+    // Scanner Instanz erstellen (falls nicht vorhanden)
+    if (!html5QrCodeScanner) {
+        html5QrCodeScanner = new Html5Qrcode("qr-reader");
+    }
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    // Kamera starten (facingMode: "environment" = Rückkamera auf Handys)
+    html5QrCodeScanner.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess, 
+        onScanFailure
+    ).catch(err => {
+        console.error("Kamera Fehler:", err);
+        showAppStatus("Kein Kamerazugriff. Bitte HTTPS nutzen oder Berechtigung erteilen.", 'error');
+        modal.classList.remove('active');
+    });
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    // 1. Scanner stoppen
+    stopQRScanner();
+    
+    // 2. Text einfügen
+    const inputField = document.getElementById('messageInput');
+    inputField.value = decodedText;
+    
+    // 3. Feedback
+    showAppStatus("QR-Code erfolgreich gescannt!", 'success');
+    
+    // Optional: Automatisch Fokus auf das Code-Feld setzen
+    document.getElementById('messageCode').focus();
+}
+
+function onScanFailure(error) {
+    // Wird oft aufgerufen, wenn im Frame kein QR Code ist -> Ignorieren
+    // console.warn(`Scan error: ${error}`);
+}
+
+function stopQRScanner() {
+    const modal = document.getElementById('qrScannerModal');
+    modal.classList.remove('active');
+
+    if (html5QrCodeScanner) {
+        html5QrCodeScanner.stop().then(() => {
+            html5QrCodeScanner.clear();
+        }).catch(err => {
+            console.error("Stop failed", err);
+        });
+    }
 }
