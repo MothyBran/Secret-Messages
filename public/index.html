@@ -575,27 +575,35 @@
             <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;">📞 Kontaktverzeichnis</h3>
             
             <div class="tabs">
-                <button class="tab-btn active" data-target="manageTab">Verwalten</button>
-                <button class="tab-btn" data-target="selectTab">Auswählen (Senden)</button>
+                <button class="tab-btn active" data-target="manageTab">Verwalten & Gruppen</button>
+                <button class="tab-btn" data-target="selectTab">Empfänger wählen (Senden)</button>
             </div>
     
             <div id="manageTab" class="tab-content active">
                 
                 <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Kontakt hinzufügen</h4>
-                <form id="addContactForm" style="display: flex; gap: 10px; margin-bottom: 30px;">
-                    <input type="text" id="newContactName" class="input-field" placeholder="Name" style="flex-grow: 1;">
-                    <input type="text" id="newContactID" class="input-field" placeholder="Benutzer-ID" style="flex-grow: 1;">
+                <form id="addContactForm" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="newContactName" class="input-field" placeholder="Alias (z.B. Anna)" style="width: 35%;">
+                    <input type="text" id="newContactID" class="input-field" placeholder="Benutzername / ID des Kontakts" style="flex-grow: 1;">
                     <button type="submit" class="btn" style="width: auto; padding: 10px;">➕</button>
                 </form>
+                
+                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Deine Kontakte</h4>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="manageSearch" class="input-field" placeholder="Suchen / Sortieren (Name/Gruppe)" style="flex-grow: 1;">
+                </div>
     
-                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Gespeicherte Kontakte</h4>
-                <ul id="contactList" style="list-style: none; padding: 0; max-height: 250px; overflow-y: auto;">
+                <ul id="contactList" style="list-style: none; padding: 0; max-height: 250px; overflow-y: auto; border: 1px solid #111; padding: 10px;">
                     </ul>
             </div>
     
             <div id="selectTab" class="tab-content">
-                 <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Empfänger wählen</h4>
-                <ul id="selectContactList" style="list-style: none; padding: 0; max-height: 350px; overflow-y: auto;">
+                 <h4 style="color: var(--accent-blue); margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Empfänger wählen</h4>
+                 
+                 <input type="text" id="selectSearch" class="input-field" placeholder="Kontakte / Gruppen suchen..." style="margin-bottom: 15px;">
+    
+                <ul id="selectContactList" style="list-style: none; padding: 0; max-height: 300px; overflow-y: auto; border: 1px solid #111; padding: 10px;">
                     </ul>
                 
                 <div style="margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px;">
