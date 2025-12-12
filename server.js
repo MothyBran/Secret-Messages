@@ -348,6 +348,29 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
     }
 });
 
+app.post('/api/users/exists', authenticateUser, async (req, res) => {
+    try {
+        const { targetUsername } = req.body;
+        
+        if (!targetUsername) return res.json({ exists: false });
+
+        // Wir prüfen nur, ob der User existiert und NICHT blockiert ist
+        const result = await dbQuery(
+            `SELECT id FROM users WHERE username = $1 AND is_blocked = ${isPostgreSQL ? 'false' : '0'}`, 
+            [targetUsername]
+        );
+
+        if (result.rows.length > 0) {
+            res.json({ exists: true });
+        } else {
+            res.json({ exists: false });
+        }
+    } catch (e) {
+        console.error("User Check Error:", e);
+        res.status(500).json({ error: "Serverfehler beim Prüfen des Benutzers" });
+    }
+});
+
 // Delete Account
 app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
     try {
