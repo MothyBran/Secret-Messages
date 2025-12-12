@@ -343,7 +343,7 @@
                 </p>
             </div>
             
-            <button onclick="document.getElementById('navBackToApp').click()" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
+            <button id="btnBackGuide" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <div id="infoSection" class="section">
@@ -381,7 +381,7 @@
                 Encryption: PBKDF2 (100k rounds) + AES-GCM
             </div>
             
-            <button onclick="document.getElementById('navBackToApp').click()" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
+            <button id="btnBackInfo" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <footer style="margin-top:auto; padding-top:40px; text-align:center; font-size:0.8rem; color:#555; padding-bottom:20px;">
@@ -447,6 +447,22 @@
                 </div>
                 <button type="button" id="btnDeleteContact" class="btn btn-danger" style="width:100%; margin-top:10px; display:none;">Löschen</button>
             </form>
+        </div>
+    </div>
+
+    <div id="deleteAccountModal" class="modal">
+        <div class="modal-box" style="border-color: var(--error-red); box-shadow: 0 0 30px rgba(255, 50, 50, 0.2);">
+            <h3 style="color: var(--error-red); margin-bottom: 15px; text-align: center;">⚠️ WARNUNG</h3>
+            
+            <p style="color: #ccc; text-align: center; margin-bottom: 20px; line-height: 1.5;">
+                Möchtest du deinen Zugang wirklich <b>unwiderruflich löschen</b>?<br><br>
+                Deine Benutzer-ID und deine Lizenz gehen dabei verloren. Eine Wiederherstellung ist nicht möglich!
+            </p>
+
+            <div style="display:flex; gap:10px;">
+                <button class="btn" id="btnCancelDelete" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-danger" id="btnConfirmDelete" style="flex:1; background:rgba(255,0,0,0.2);">Endgültig Löschen</button>
+            </div>
         </div>
     </div>
 
