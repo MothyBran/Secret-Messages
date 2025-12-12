@@ -1,4 +1,4 @@
-// app.js - Frontend Logic (Complete: Sidebar, Contacts, Guide, Info, Security)
+// app.js - Frontend Logic (Final Polish: Custom Delete Modal & Fixed Navigation)
 
 import { encryptFull, decryptFull } from './cryptoLayers.js';
 
@@ -13,9 +13,9 @@ let currentMode = 'encrypt';
 
 // Kontakt State
 let contacts = JSON.parse(localStorage.getItem('sm_contacts')) || [];
-let contactMode = 'manage'; // 'manage' (Verwalten) oder 'select' (Auswählen)
-let isEditMode = false;     // Toggle für Bearbeitungs-Modus
-let selectedContactIds = new Set(); // Set für ausgewählte IDs
+let contactMode = 'manage'; 
+let isEditMode = false;     
+let selectedContactIds = new Set(); 
 let sortKey = 'name';       
 let sortDir = 'asc';        
 
@@ -24,11 +24,9 @@ let sortDir = 'asc';
 // ================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Secure App Initialized');
-    
     setupUIEvents();
     
-    // Check URL Actions (z.B. nach Kauf)
+    // URL Check (Kauf-Rückkehr)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('action') === 'activate') {
         showSection('activationSection');
@@ -43,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupUIEvents() {
     
-    // --- SIDEBAR (HAUPTMENÜ) ---
+    // --- SIDEBAR (MENÜ) ---
     const menuBtn = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
@@ -60,59 +58,60 @@ function setupUIEvents() {
 
     menuBtn?.addEventListener('click', () => toggleMainMenu());
     
-    // Overlay schließt BEIDE Sidebars
+    // Overlay Klick schließt alles
     overlay?.addEventListener('click', () => {
         toggleMainMenu(true);
         closeContactSidebar();
     });
 
-    // 1. LINK: KONTAKTVERZEICHNIS
+    // Sidebar Links
     document.getElementById('navContacts')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        toggleMainMenu(true); // Hauptmenü zu
-        openContactSidebar('manage'); // Kontakt-Sidebar auf
+        e.preventDefault(); toggleMainMenu(true); openContactSidebar('manage');
     });
 
-    // 2. LINK: ANLEITUNG (NEU)
     document.getElementById('navGuide')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        toggleMainMenu(true);
-        showSection('guideSection');
+        e.preventDefault(); toggleMainMenu(true); showSection('guideSection');
     });
 
-    // 3. LINK: INFO & SICHERHEIT (NEU)
     document.getElementById('navInfo')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        toggleMainMenu(true);
-        showSection('infoSection');
+        e.preventDefault(); toggleMainMenu(true); showSection('infoSection');
     });
 
-    // 4. LINK: ABMELDEN
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
 
-    // 5. LINK: ZUGANG LÖSCHEN (NEU)
-    document.getElementById('navDelete')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        toggleMainMenu(true);
-        confirmDeleteAccount();
-    });
-
-    // WICHTIG: Helper für "Zurück zur App" Buttons in den HTML Sections
-    // Wir erstellen ein unsichtbares Element, auf das die HTML-Buttons klicken
-    const backDummy = document.createElement('div');
-    backDummy.id = 'navBackToApp';
-    document.body.appendChild(backDummy);
-    backDummy.addEventListener('click', () => {
+    // --- NAVIGATION & SEITEN (FIXED) ---
+    
+    // Funktion für "Zurück zur App"
+    function goBackToMain() {
         if(currentUser) showSection('mainSection');
         else showSection('loginSection');
+    }
+
+    document.getElementById('btnBackGuide')?.addEventListener('click', goBackToMain);
+    document.getElementById('btnBackInfo')?.addEventListener('click', goBackToMain);
+
+
+    // --- ACCOUNT LÖSCHEN (NEUES LAYOUT) ---
+    
+    // 1. Klick im Menü -> Öffnet Warn-Modal
+    document.getElementById('navDelete')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMainMenu(true); // Menü zu
+        document.getElementById('deleteAccountModal').classList.add('active'); // Modal auf
     });
 
-    // --- BUTTONS AM EMPFÄNGERFELD ---
-    document.getElementById('contactsBtn')?.addEventListener('click', () => {
-        openContactSidebar('select');
+    // 2. "Abbrechen" im Modal
+    document.getElementById('btnCancelDelete')?.addEventListener('click', () => {
+        document.getElementById('deleteAccountModal').classList.remove('active');
     });
 
-    // --- HAUPTAKTIONEN ---
+    // 3. "Endgültig Löschen" im Modal -> Führt API Call aus
+    document.getElementById('btnConfirmDelete')?.addEventListener('click', performAccountDeletion);
+
+
+    // --- HAUPT APP EVENTS ---
+    document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select'));
+    
     document.getElementById('modeSwitch')?.addEventListener('change', (e) => {
         updateAppMode(e.target.checked ? 'decrypt' : 'encrypt');
     });
@@ -120,13 +119,13 @@ function setupUIEvents() {
     document.getElementById('copyBtn')?.addEventListener('click', copyToClipboard);
     document.getElementById('clearFieldsBtn')?.addEventListener('click', clearAllFields);
 
-    // --- FORMS ---
+    // Forms
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('activationForm')?.addEventListener('submit', handleActivation);
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
 
-    // --- QR CODE ---
+    // QR
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
         const text = document.getElementById('messageOutput').value;
         if(!text) return showAppStatus("Bitte erst Text verschlüsseln!", 'error');
@@ -138,8 +137,7 @@ function setupUIEvents() {
     document.getElementById('qrScanBtn')?.addEventListener('click', startQRScanner);
     document.getElementById('closeScannerBtn')?.addEventListener('click', stopQRScanner);
 
-
-    // --- KONTAKT-SIDEBAR EVENTS ---
+    // Kontakt Sidebar Events
     document.getElementById('closeContactSidebar')?.addEventListener('click', closeContactSidebar);
     document.getElementById('contactSearch')?.addEventListener('input', (e) => renderContactList(e.target.value));
     document.getElementById('sortByName')?.addEventListener('click', () => toggleSort('name'));
@@ -147,7 +145,6 @@ function setupUIEvents() {
     
     document.getElementById('btnAddContactOpen')?.addEventListener('click', () => openEditModal()); 
     document.getElementById('btnEditToggle')?.addEventListener('click', toggleEditMode);
-    
     document.getElementById('btnCancelSelect')?.addEventListener('click', closeContactSidebar);
     document.getElementById('btnConfirmSelect')?.addEventListener('click', confirmSelection);
     
@@ -156,9 +153,56 @@ function setupUIEvents() {
     document.getElementById('btnDeleteContact')?.addEventListener('click', deleteContact);
 }
 
+// ================================================================
+// SEITEN LOGIK
+// ================================================================
+
+function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    
+    const wrapper = document.getElementById('headerSwitchWrapper');
+    if(id === 'mainSection') wrapper.style.display = 'inline-block';
+    else wrapper.style.display = 'none';
+    
+    window.scrollTo(0,0);
+}
 
 // ================================================================
-// KONTAKT-VERZEICHNIS LOGIK
+// ACCOUNT LÖSCHEN LOGIK (API)
+// ================================================================
+
+async function performAccountDeletion() {
+    const btn = document.getElementById('btnConfirmDelete');
+    const originalText = btn.textContent;
+    btn.textContent = "Lösche..."; btn.disabled = true;
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/delete-account`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const d = await res.json();
+        
+        document.getElementById('deleteAccountModal').classList.remove('active'); // Modal zu
+        
+        if(d.success) {
+            alert("Dein Account wurde erfolgreich gelöscht.");
+            handleLogout();
+        } else {
+            showAppStatus(d.error || "Fehler beim Löschen", 'error');
+        }
+    } catch(e) { 
+        showAppStatus("Verbindungsfehler", 'error'); 
+        document.getElementById('deleteAccountModal').classList.remove('active');
+    } finally {
+        btn.textContent = originalText; btn.disabled = false;
+    }
+}
+
+
+// ================================================================
+// KONTAKT LOGIK (Unverändert gut)
 // ================================================================
 
 function openContactSidebar(mode) {
@@ -168,7 +212,6 @@ function openContactSidebar(mode) {
 
     const sidebar = document.getElementById('contactSidebar');
     const overlay = document.getElementById('sidebarOverlay');
-    
     const footerManage = document.getElementById('csFooterManage');
     const footerSelect = document.getElementById('csFooterSelect');
     const groupArea = document.getElementById('groupSelectionArea');
@@ -188,7 +231,6 @@ function openContactSidebar(mode) {
         groupArea.style.display = 'flex'; 
         renderGroupTags(); 
     }
-
     renderContactList(); 
     sidebar.classList.add('active');
     overlay.classList.add('active');
@@ -201,25 +243,16 @@ function closeContactSidebar() {
 
 function renderGroupTags() {
     const area = document.getElementById('groupSelectionArea');
-    area.innerHTML = '<small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen (wählt alle aus):</small>';
-    
+    area.innerHTML = '<small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen:</small>';
     const groups = [...new Set(contacts.map(c => c.group).filter(g => g))].sort();
-    if (groups.length === 0) {
-        area.innerHTML += '<span style="color:#555; font-size:0.8rem;">Keine Gruppen vorhanden.</span>';
-        return;
-    }
+    if (groups.length === 0) { area.innerHTML += '<span style="color:#555; font-size:0.8rem;">Keine Gruppen.</span>'; return; }
 
     groups.forEach(g => {
         const tag = document.createElement('div');
         tag.className = 'group-tag';
-        tag.innerHTML = `
-            <input type="checkbox" class="grp-chk" value="${g}" style="width:auto; margin-right:5px;">
-            <span>${g}</span>
-        `;
+        tag.innerHTML = `<input type="checkbox" class="grp-chk" value="${g}" style="width:auto; margin-right:5px;"><span>${g}</span>`;
         const chk = tag.querySelector('input');
-        tag.addEventListener('click', (e) => {
-            if (e.target !== chk) { chk.checked = !chk.checked; toggleGroupSelection(g, chk.checked); }
-        });
+        tag.addEventListener('click', (e) => { if (e.target !== chk) { chk.checked = !chk.checked; toggleGroupSelection(g, chk.checked); } });
         chk.addEventListener('change', (e) => toggleGroupSelection(g, e.target.checked));
         area.appendChild(tag);
     });
@@ -227,17 +260,13 @@ function renderGroupTags() {
 
 function toggleGroupSelection(groupName, isSelected) {
     const members = contacts.filter(c => c.group === groupName);
-    members.forEach(m => {
-        if (isSelected) selectedContactIds.add(m.id);
-        else selectedContactIds.delete(m.id);
-    });
+    members.forEach(m => { if (isSelected) selectedContactIds.add(m.id); else selectedContactIds.delete(m.id); });
     renderContactList(document.getElementById('contactSearch').value);
 }
 
 function toggleSort(key) {
     if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
     else { sortKey = key; sortDir = 'asc'; }
-    
     document.getElementById('sortByName').textContent = `Empfänger ${sortKey==='name' ? (sortDir==='asc'?'▲':'▼') : '↕'}`;
     document.getElementById('sortByGroup').textContent = `Gruppe ${sortKey==='group' ? (sortDir==='asc'?'▲':'▼') : '↕'}`;
     renderContactList(document.getElementById('contactSearch').value);
@@ -249,9 +278,7 @@ function renderContactList(search = '') {
     const term = search.toLowerCase();
 
     let list = contacts.filter(c => 
-        (c.name && c.name.toLowerCase().includes(term)) || 
-        c.id.toLowerCase().includes(term) ||
-        (c.group && c.group.toLowerCase().includes(term))
+        (c.name && c.name.toLowerCase().includes(term)) || c.id.toLowerCase().includes(term) || (c.group && c.group.toLowerCase().includes(term))
     );
 
     list.sort((a, b) => {
@@ -262,10 +289,7 @@ function renderContactList(search = '') {
         return 0;
     });
 
-    if (list.length === 0) {
-        document.getElementById('emptyContactMsg').style.display = 'block';
-        return;
-    }
+    if (list.length === 0) { document.getElementById('emptyContactMsg').style.display = 'block'; return; }
     document.getElementById('emptyContactMsg').style.display = 'none';
 
     list.forEach(c => {
@@ -273,456 +297,196 @@ function renderContactList(search = '') {
         row.className = 'cs-row';
         if (contactMode === 'select' && selectedContactIds.has(c.id)) row.classList.add('selected');
         if (contactMode === 'manage' && isEditMode) row.classList.add('edit-mode-active');
-
-        row.innerHTML = `
-            <div style="display:flex; flex-direction:column; flex:2; overflow:hidden;">
-                <span style="font-weight:bold; color:#fff;">${c.name || c.id}</span>
-                ${c.name ? `<span style="font-size:0.75rem; color:#666;">ID: ${c.id}</span>` : ''}
-            </div>
-            <div style="flex:1; text-align:right; font-size:0.8rem; color:var(--accent-blue);">${c.group || '-'}</div>
-        `;
+        row.innerHTML = `<div style="display:flex; flex-direction:column; flex:2; overflow:hidden;"><span style="font-weight:bold; color:#fff;">${c.name || c.id}</span>${c.name ? `<span style="font-size:0.75rem; color:#666;">ID: ${c.id}</span>` : ''}</div><div style="flex:1; text-align:right; font-size:0.8rem; color:var(--accent-blue);">${c.group || '-'}</div>`;
         row.addEventListener('click', () => handleRowClick(c));
         container.appendChild(row);
     });
 }
 
 function handleRowClick(contact) {
-    if (contactMode === 'manage') {
-        if (isEditMode) openEditModal(contact);
-    } else {
-        if (selectedContactIds.has(contact.id)) selectedContactIds.delete(contact.id);
-        else selectedContactIds.add(contact.id);
-        renderContactList(document.getElementById('contactSearch').value);
-    }
+    if (contactMode === 'manage') { if (isEditMode) openEditModal(contact); }
+    else { if (selectedContactIds.has(contact.id)) selectedContactIds.delete(contact.id); else selectedContactIds.add(contact.id); renderContactList(document.getElementById('contactSearch').value); }
 }
 
 function toggleEditMode() {
     isEditMode = !isEditMode;
     const btn = document.getElementById('btnEditToggle');
-    if (isEditMode) {
-        btn.style.background = 'rgba(255, 165, 0, 0.2)';
-        btn.textContent = 'Modus: Bearbeiten';
-    } else {
-        btn.style.background = 'transparent';
-        btn.textContent = '✎ Bearbeiten';
-    }
+    if (isEditMode) { btn.style.background = 'rgba(255, 165, 0, 0.2)'; btn.textContent = 'Modus: Bearbeiten'; }
+    else { btn.style.background = 'transparent'; btn.textContent = '✎ Bearbeiten'; }
     renderContactList(document.getElementById('contactSearch').value);
 }
 
 function openEditModal(contact = null) {
     const modal = document.getElementById('contactEditModal');
-    const title = document.getElementById('modalTitle');
     const btnSave = document.getElementById('btnSaveContact');
     const btnDel = document.getElementById('btnDeleteContact');
-    
     document.getElementById('contactForm').reset();
-    
-    const dl = document.getElementById('groupSuggestions');
-    dl.innerHTML = '';
-    const groups = [...new Set(contacts.map(c => c.group).filter(g => g))];
-    groups.forEach(g => dl.appendChild(new Option(g,g)));
+    const dl = document.getElementById('groupSuggestions'); dl.innerHTML = '';
+    [...new Set(contacts.map(c => c.group).filter(g => g))].forEach(g => dl.appendChild(new Option(g,g)));
 
     if (contact) {
-        title.textContent = 'Kontakt bearbeiten';
+        document.getElementById('modalTitle').textContent = 'Kontakt bearbeiten';
         document.getElementById('inputName').value = contact.name || '';
-        document.getElementById('inputID').value = contact.id;
+        document.getElementById('inputID').value = contact.id; document.getElementById('inputID').readOnly = true; document.getElementById('inputID').style.opacity = '0.5';
         document.getElementById('inputGroup').value = contact.group || '';
-        document.getElementById('inputID').readOnly = true;
-        document.getElementById('inputID').style.opacity = '0.5';
-        btnSave.textContent = 'Aktualisieren';
-        btnDel.style.display = 'block';
-        btnDel.dataset.id = contact.id;
+        btnSave.textContent = 'Aktualisieren'; btnDel.style.display = 'block'; btnDel.dataset.id = contact.id;
     } else {
-        title.textContent = 'Kontakt hinzufügen';
-        document.getElementById('inputID').readOnly = false;
-        document.getElementById('inputID').style.opacity = '1';
-        btnSave.textContent = 'Speichern';
-        btnDel.style.display = 'none';
+        document.getElementById('modalTitle').textContent = 'Kontakt hinzufügen';
+        document.getElementById('inputID').readOnly = false; document.getElementById('inputID').style.opacity = '1';
+        btnSave.textContent = 'Speichern'; btnDel.style.display = 'none';
     }
     modal.classList.add('active');
 }
 
 async function saveContact(e) {
     e.preventDefault();
-    const btnSave = document.getElementById('btnSaveContact');
-    const originalText = btnSave.textContent;
+    const btn = document.getElementById('btnSaveContact'); const oldTxt = btn.textContent;
     const nameVal = document.getElementById('inputName').value.trim();
     const idVal = document.getElementById('inputID').value.trim();
     const groupVal = document.getElementById('inputGroup').value.trim();
 
     if (!idVal) return showAppStatus("ID fehlt!", 'error');
-
-    btnSave.disabled = true; btnSave.textContent = "Prüfe...";
+    btn.disabled = true; btn.textContent = "Prüfe...";
 
     try {
         const res = await fetch(`${API_BASE}/users/exists`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
             body: JSON.stringify({ targetUsername: idVal })
         });
         const data = await res.json();
-
-        if (!data.exists) {
-            showAppStatus(`ID "${idVal}" nicht gefunden.`, 'error');
-            btnSave.disabled = false; btnSave.textContent = originalText;
-            return; 
-        }
+        if (!data.exists) { showAppStatus(`ID "${idVal}" nicht gefunden.`, 'error'); btn.disabled = false; btn.textContent = oldTxt; return; }
 
         contacts = contacts.filter(c => c.id !== idVal);
         contacts.push({ id: idVal, name: nameVal || idVal, group: groupVal });
         contacts.sort((a, b) => a.name.localeCompare(b.name));
         localStorage.setItem('sm_contacts', JSON.stringify(contacts));
-        
         document.getElementById('contactEditModal').classList.remove('active');
         renderContactList(document.getElementById('contactSearch').value);
         if(contactMode === 'select') renderGroupTags();
-
-        showAppStatus(`Kontakt gespeichert.`, 'success');
-
-    } catch (err) {
-        showAppStatus("Verbindungsfehler", 'error');
-    } finally {
-        btnSave.disabled = false; btnSave.textContent = originalText;
-    }
+        showAppStatus(`Gespeichert.`, 'success');
+    } catch (err) { showAppStatus("Fehler", 'error'); } finally { btn.disabled = false; btn.textContent = oldTxt; }
 }
 
 function deleteContact() {
     const id = document.getElementById('btnDeleteContact').dataset.id;
-    if (confirm("Kontakt wirklich löschen?")) {
+    if (confirm("Kontakt löschen?")) {
         contacts = contacts.filter(c => c.id !== id);
         localStorage.setItem('sm_contacts', JSON.stringify(contacts));
-        document.getElementById('contactEditModal').classList.remove('active');
-        renderContactList();
-        showAppStatus("Gelöscht.", 'success');
+        document.getElementById('contactEditModal').classList.remove('active'); renderContactList(); showAppStatus("Gelöscht.", 'success');
     }
 }
 
 function confirmSelection() {
-    const input = document.getElementById('recipientName');
-    const arr = Array.from(selectedContactIds);
+    const input = document.getElementById('recipientName'); const arr = Array.from(selectedContactIds);
     if (arr.length > 0) input.value = arr.join(', ');
     closeContactSidebar();
 }
 
-
 // ================================================================
-// LOGIK: AUTH & ACCOUNT
+// AUTH & HELPERS
 // ================================================================
 
 async function handleLogin(e) {
     e.preventDefault();
-    const u = document.getElementById('username').value;
-    const c = document.getElementById('accessCode').value;
-    const btn = document.getElementById('loginBtn');
-    btn.disabled = true;
-
+    const u = document.getElementById('username').value; const c = document.getElementById('accessCode').value;
     try {
-        const devId = getDeviceId();
         const res = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username:u, accessCode:c, deviceId:devId })
+            body: JSON.stringify({ username:u, accessCode:c, deviceId:getDeviceId() })
         });
         const data = await res.json();
-        
         if (data.success) {
             authToken = data.token; currentUser = data.username;
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
-            updateSidebarInfo(currentUser);
-            showSection('mainSection');
-        } else {
-            showAppStatus(data.error || "Login fehlgeschlagen", 'error');
-        }
+            updateSidebarInfo(currentUser); showSection('mainSection');
+        } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
-    finally { btn.disabled = false; }
 }
 
 async function handleActivation(e) {
     e.preventDefault();
-    const payload = {
-        licenseKey: document.getElementById('licenseKey').value,
-        username: document.getElementById('newUsername').value,
-        accessCode: document.getElementById('newAccessCode').value,
-        deviceId: getDeviceId()
-    };
+    const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: getDeviceId() };
     try {
-        const res = await fetch(`${API_BASE}/auth/activate`, {
-            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-        });
+        const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
-        if(d.success) {
-            alert("Erfolg! Bitte einloggen."); showSection('loginSection');
-            document.getElementById('username').value = payload.username;
-        } else {
-            showAppStatus(d.error, 'error');
-        }
-    } catch(e) { showAppStatus("Serverfehler", 'error'); }
+        if(d.success) { alert("Erfolg! Einloggen."); showSection('loginSection'); document.getElementById('username').value = payload.username; } 
+        else showAppStatus(d.error, 'error');
+    } catch(e) { showAppStatus("Fehler", 'error'); }
 }
 
 async function handleLogout() {
     localStorage.removeItem('sm_token'); localStorage.removeItem('sm_user');
-    currentUser=null; authToken=null;
-    updateSidebarInfo(null);
-    document.getElementById('sidebar').classList.remove('active');
-    showSection('loginSection');
-}
-
-async function confirmDeleteAccount() {
-    if (!confirm("WARNUNG:\nDein Account wird unwiderruflich gelöscht!\nDeine ID und Lizenz sind danach weg.\n\nFortfahren?")) return;
-    
-    try {
-        const res = await fetch(`${API_BASE}/auth/delete-account`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const d = await res.json();
-        if(d.success) {
-            alert("Account gelöscht. Auf Wiedersehen.");
-            handleLogout();
-        } else {
-            showAppStatus(d.error || "Fehler beim Löschen", 'error');
-        }
-    } catch(e) { showAppStatus("Fehler", 'error'); }
-}
-
-
-// ================================================================
-// LOGIK: HAUPTAKTION & SEITEN
-// ================================================================
-
-function showSection(id) {
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    
-    // Header-Switch nur auf der Hauptseite anzeigen
-    const wrapper = document.getElementById('headerSwitchWrapper');
-    if(id === 'mainSection') wrapper.style.display = 'inline-block';
-    else wrapper.style.display = 'none';
-    
-    // Scroll nach oben
-    window.scrollTo(0,0);
+    currentUser=null; authToken=null; updateSidebarInfo(null);
+    document.getElementById('sidebar').classList.remove('active'); showSection('loginSection');
 }
 
 function updateAppMode(mode) {
     currentMode = mode;
-    const isDecrypt = (mode === 'decrypt');
-    const title = document.getElementById('modeTitle');
-    const indicator = document.getElementById('statusIndicator');
-    const actionBtn = document.getElementById('actionBtn');
-    const recipientGroup = document.getElementById('recipientGroup');
-    const qrScanBtn = document.getElementById('qrScanBtn');
-    const qrGenBtn = document.getElementById('qrGenBtn');
-    const textLabel = document.getElementById('textLabel');
-    const outGroup = document.getElementById('outputGroup');
-
-    // Reset Fields
-    document.getElementById('messageInput').value = '';
-    document.getElementById('messageOutput').value = '';
-    outGroup.style.display = 'none';
-
-    if (isDecrypt) {
-        title.textContent = 'ENTSCHLÜSSELUNG';
-        indicator.textContent = '● EMPFANGSBEREIT';
-        actionBtn.textContent = '🔓 NACHRICHT ENTSCHLÜSSELN';
-        actionBtn.classList.remove('btn-primary');
-        actionBtn.style.border = '1px solid var(--accent-blue)';
-        actionBtn.style.background = 'transparent';
-        textLabel.textContent = 'Verschlüsselter Text';
-        
-        if(recipientGroup) recipientGroup.style.display = 'none'; 
-        if(qrScanBtn) qrScanBtn.style.display = 'block'; 
-        if(qrGenBtn) qrGenBtn.style.display = 'none';   
-    } else {
-        title.textContent = 'VERSCHLÜSSELUNG';
-        indicator.textContent = '● GESICHERT';
-        actionBtn.textContent = '🔒 DATEN VERSCHLÜSSELN';
-        actionBtn.classList.add('btn-primary');
-        actionBtn.style.border = '';
-        actionBtn.style.background = '';
-        textLabel.textContent = 'Nachrichteneingabe (Klartext)';
-
-        if(recipientGroup) recipientGroup.style.display = 'block';
-        if(qrScanBtn) qrScanBtn.style.display = 'none';
-        if(qrGenBtn) qrGenBtn.style.display = 'block';
-    }
+    const isDec = (mode === 'decrypt');
+    document.getElementById('modeTitle').textContent = isDec ? 'ENTSCHLÜSSELUNG' : 'VERSCHLÜSSELUNG';
+    document.getElementById('statusIndicator').textContent = isDec ? '● EMPFANGSBEREIT' : '● GESICHERT';
+    const btn = document.getElementById('actionBtn');
+    btn.textContent = isDec ? '🔓 NACHRICHT ENTSCHLÜSSELN' : '🔒 DATEN VERSCHLÜSSELN';
+    btn.className = isDec ? 'btn' : 'btn btn-primary';
+    if(isDec) { btn.style.border='1px solid var(--accent-blue)'; btn.style.color='var(--accent-blue)'; } else { btn.style.border=''; btn.style.color=''; }
+    document.getElementById('textLabel').textContent = isDec ? 'Verschlüsselter Text' : 'Nachrichteneingabe (Klartext)';
+    document.getElementById('recipientGroup').style.display = isDec ? 'none' : 'block';
+    document.getElementById('qrScanBtn').style.display = isDec ? 'block' : 'none';
+    document.getElementById('qrGenBtn').style.display = isDec ? 'none' : 'block';
+    document.getElementById('messageInput').value = ''; document.getElementById('messageOutput').value = ''; document.getElementById('outputGroup').style.display = 'none';
 }
 
 async function handleMainAction() {
-    if (document.activeElement) document.activeElement.blur();
-
-    const code = document.getElementById('messageCode').value;
-    const text = document.getElementById('messageInput').value;
-    
-    if (!text) return showAppStatus("Kein Text eingegeben.", 'error');
-    if (!code || code.length !== 5) return showAppStatus("5-stelliger Code fehlt.", 'error');
-    if (!currentUser) return showAppStatus("Bitte einloggen.", 'error');
-
-    const btn = document.getElementById('actionBtn');
-    const oldTxt = btn.textContent;
-    btn.textContent = "⏳ Verarbeite..."; btn.disabled = true;
-
+    const code = document.getElementById('messageCode').value; const text = document.getElementById('messageInput').value;
+    if (!text || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
+    const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
     try {
-        let result = "";
+        let res = "";
         if (currentMode === 'encrypt') {
-            const rInput = document.getElementById('recipientName').value;
-            let rIDs = rInput ? rInput.split(',').map(s=>s.trim()).filter(s=>s) : [];
-            if(!rIDs.includes(currentUser)) rIDs.push(currentUser);
-
-            result = await encryptFull(text, code, rIDs);
+            const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
+            if(!rIds.includes(currentUser)) rIds.push(currentUser);
+            res = await encryptFull(text, code, rIds);
         } else {
-            result = await decryptFull(text, code, currentUser);
+            res = await decryptFull(text, code, currentUser);
         }
-
-        document.getElementById('messageOutput').value = result;
+        document.getElementById('messageOutput').value = res;
         document.getElementById('outputGroup').style.display = 'block';
-        
-        // Scroll zum Ergebnis
-        setTimeout(() => {
-            document.getElementById('outputGroup').scrollIntoView({ behavior:'smooth', block:'nearest' });
-        }, 100);
-
-    } catch (err) {
-        console.error(err);
-        let msg = err.message || "Fehler";
-        if (msg.includes("Berechtigung") || msg.includes("Code")) {
-             showAppStatus("ZUGRIFF VERWEIGERT! Falscher Code oder falscher User.", 'error');
-        } else {
-             showAppStatus("Fehler: " + msg, 'error');
-        }
-    } finally {
-        btn.textContent = oldTxt; btn.disabled = false;
-    }
+        setTimeout(() => document.getElementById('outputGroup').scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
+    } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
 }
 
-
-// ================================================================
-// HELPER (QR, Status, etc.)
-// ================================================================
-
-function getDeviceId() {
-    let id = localStorage.getItem('sm_device_id');
-    if(!id) { id = 'dev-'+Date.now(); localStorage.setItem('sm_device_id', id); }
-    return id;
+function getDeviceId() { let id=localStorage.getItem('sm_id'); if(!id){id='dev-'+Date.now();localStorage.setItem('sm_id',id);} return id; }
+function updateSidebarInfo(u) { 
+    document.getElementById('sidebarUser').textContent = u||'Gast'; 
+    document.getElementById('sidebarLicense').textContent = u?'LIZENZ: Aktiv':'Nicht verbunden';
+    document.querySelectorAll('.auth-only').forEach(e=>e.style.display=u?'flex':'none');
 }
-
-function updateSidebarInfo(user) {
-    const lblUser = document.getElementById('sidebarUser');
-    const lblLic = document.getElementById('sidebarLicense');
-    
-    if(user) {
-        lblUser.textContent = user;
-        lblLic.textContent = "LIZENZ: Aktiv";
-        document.querySelectorAll('.auth-only').forEach(e=>e.style.display='flex');
-    } else {
-        lblUser.textContent = "Gast";
-        lblLic.textContent = "Nicht verbunden";
-        document.querySelectorAll('.auth-only').forEach(e=>e.style.display='none');
-    }
-}
-
 async function checkExistingSession() {
-    const t = localStorage.getItem('sm_token');
-    const u = localStorage.getItem('sm_user');
-    if(t && u) {
-        authToken = t; currentUser = u;
-        updateSidebarInfo(u);
-        showSection('mainSection');
-    } else {
-        showSection('loginSection');
-    }
+    const t=localStorage.getItem('sm_token'), u=localStorage.getItem('sm_user');
+    if(t&&u) { authToken=t; currentUser=u; updateSidebarInfo(u); showSection('mainSection'); } 
+    else showSection('loginSection');
 }
-
-function showAppStatus(msg, type = 'success') {
-    const div = document.createElement('div');
-    div.className = `app-status-msg ${type}`;
-    div.textContent = msg;
-    document.getElementById('globalStatusContainer').appendChild(div);
-    requestAnimationFrame(() => div.classList.add('active'));
-    setTimeout(() => {
-        div.classList.remove('active');
-        setTimeout(() => div.remove(), 500);
-    }, 4000);
+function showAppStatus(msg, type='success') {
+    const d=document.createElement('div'); d.className=`app-status-msg ${type}`; d.textContent=msg;
+    document.getElementById('globalStatusContainer').appendChild(d);
+    requestAnimationFrame(()=>d.classList.add('active')); setTimeout(()=>{d.classList.remove('active');setTimeout(()=>d.remove(),500)},4000);
 }
+function clearAllFields() { document.getElementById('messageInput').value=''; document.getElementById('messageOutput').value=''; document.getElementById('messageCode').value=''; document.getElementById('recipientName').value=''; document.getElementById('outputGroup').style.display='none'; }
+function copyToClipboard() { const el=document.getElementById('messageOutput'); el.select(); navigator.clipboard.writeText(el.value); showAppStatus("Kopiert!", 'success'); }
 
-function clearAllFields() {
-    document.getElementById('messageInput').value = '';
-    document.getElementById('messageOutput').value = '';
-    document.getElementById('messageCode').value = '';
-    document.getElementById('recipientName').value = '';
-    document.getElementById('outputGroup').style.display = 'none';
-}
-
-function copyToClipboard() {
-    const out = document.getElementById('messageOutput');
-    out.select();
-    navigator.clipboard.writeText(out.value);
-    const btn = document.getElementById('copyBtn');
-    btn.textContent = "OK"; setTimeout(()=>btn.textContent="📋 KOPIEREN", 1500);
-}
-
-
-// --- QR CODE (Fixed Logic) ---
-
+// QR
 function showQRModal(text) {
-    const modal = document.getElementById('qrModal');
-    const container = document.getElementById('qrDisplay');
-    modal.classList.add('active');
-    container.innerHTML = "";
-    
-    if (typeof QRCode === 'undefined') {
-        container.textContent = "QR Lib nicht geladen."; return;
-    }
-
-    try {
-        new QRCode(container, {
-            text: text,
-            width: 190, height: 190,
-            colorDark : "#000000", colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L 
-        });
-    } catch (e) { container.textContent = "Fehler beim Erstellen."; }
+    document.getElementById('qrModal').classList.add('active'); const c=document.getElementById('qrDisplay'); c.innerHTML="";
+    try { new QRCode(c, { text:text, width:190, height:190, colorDark:"#000", colorLight:"#fff", correctLevel:QRCode.CorrectLevel.L }); } catch(e){c.textContent="QR Lib Error";}
 }
-
 function downloadQR() {
-    const container = document.getElementById('qrDisplay');
-    const img = container.querySelector('img'); 
-    const canvas = container.querySelector('canvas');
-    let url = "";
-    if (img && img.src) url = img.src;
-    else if (canvas) url = canvas.toDataURL("image/png");
-    else return;
-
-    const link = document.createElement('a');
-    link.href = url; link.download = `secure-qr-${Date.now()}.png`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); }
 }
-
-// Global für Scanner
-let html5QrCode = null;
-
+let qrScan=null;
 function startQRScanner() {
-    // Basic HTTPS Check
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        alert("Kamera benötigt HTTPS."); 
-    }
-    const modal = document.getElementById('qrScannerModal');
-    modal.classList.add('active');
-
-    if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
-
-    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
-        (decodedText) => {
-            stopQRScanner();
-            document.getElementById('messageInput').value = decodedText;
-            showAppStatus("QR erkannt!", 'success');
-            document.getElementById('messageCode').focus();
-        },
-        () => {} // Ignore Errors
-    ).catch(err => {
-        document.getElementById('qr-reader').innerHTML = `<p style="color:red; padding:20px;">Kamera Fehler: ${err}</p>`;
-    });
+    if(location.protocol!=='https:' && location.hostname!=='localhost') alert("HTTPS nötig.");
+    document.getElementById('qrScannerModal').classList.add('active');
+    if(!qrScan) qrScan=new Html5Qrcode("qr-reader");
+    qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (txt)=>{stopQRScanner(); document.getElementById('messageInput').value=txt; showAppStatus("QR erkannt!");}, ()=>{}).catch(e=>{document.getElementById('qr-reader').innerHTML="Kamera Fehler";});
 }
-
-function stopQRScanner() {
-    document.getElementById('qrScannerModal').classList.remove('active');
-    if (html5QrCode) html5QrCode.stop().then(() => html5QrCode.clear()).catch(()=>{});
-}
+function stopQRScanner() { document.getElementById('qrScannerModal').classList.remove('active'); if(qrScan) qrScan.stop().catch(()=>{}); }
