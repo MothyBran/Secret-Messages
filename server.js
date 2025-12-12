@@ -38,6 +38,15 @@ app.use(helmet({
 
 app.use(cors());
 
+// ==================================================================
+// RATE LIMITER DEFINITION (Fehlte vorher)
+// ==================================================================
+const rateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 Minuten
+    max: 100, // Maximal 100 Anfragen pro IP
+    message: { error: "Zu viele Anfragen, bitte versuchen Sie es später erneut." }
+});
+
 // Raw Body für Stripe Webhooks, JSON für alles andere
 app.use(express.json({
   verify: (req, res, buf) => {
