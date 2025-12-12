@@ -150,7 +150,7 @@ function updateAppMode(mode) {
     currentMode = mode;
     const isDecrypt = (mode === 'decrypt');
 
-    // Elemente holen
+    // Elemente holen (mit Sicherheitscheck)
     const title = document.getElementById('modeTitle');
     const indicator = document.getElementById('statusIndicator');
     const actionBtn = document.getElementById('actionBtn');
@@ -158,32 +158,36 @@ function updateAppMode(mode) {
     const qrScanBtn = document.getElementById('qrScanBtn');
     const qrGenBtn = document.getElementById('qrGenBtn');
     const textLabel = document.getElementById('textLabel');
+    const outputGroup = document.getElementById('outputGroup');
+
+    // Sicherheitsabfrage: Wenn wir nicht auf der Main-Page sind, abbrechen
+    if (!title || !actionBtn) return;
 
     if (isDecrypt) {
-        // ENTSCHLÜSSELN MODUS (Grün/Orange Akzente oder einfach Textänderung)
+        // --- ENTSCHLÜSSELN MODUS ---
         title.textContent = 'ENTSCHLÜSSELUNG';
-        title.style.color = '#00ff41'; // Matrix Grün
+        title.style.color = '#00ff41'; // Grün
         
         indicator.textContent = '● EMPFANGSBEREIT';
         indicator.style.color = '#00ff41';
 
-        // Button Style ändern
         actionBtn.textContent = '🔓 NACHRICHT ENTSCHLÜSSELN';
         actionBtn.classList.remove('btn-primary');
-        actionBtn.style.borderColor = '#00ff41';
+        actionBtn.style.border = '1px solid #00ff41';
         actionBtn.style.color = '#00ff41';
+        actionBtn.style.boxShadow = 'none';
 
-        textLabel.textContent = 'Verschlüsselter Text (Cipher)';
+        if(textLabel) textLabel.textContent = 'Verschlüsselter Text (Cipher)';
         
         // Input Felder steuern
-        recipientGroup.style.display = 'none'; // Beim Entschlüsseln brauchen wir keinen Empfänger eingeben (wir sind es selbst)
+        if(recipientGroup) recipientGroup.style.display = 'none'; 
         
         // QR Buttons
-        qrScanBtn.style.display = 'block'; // Scanner an
-        qrGenBtn.style.display = 'none';   // Generator aus (man generiert QR meist vom Ergebnis oder beim Senden)
+        if(qrScanBtn) qrScanBtn.style.display = 'block'; 
+        if(qrGenBtn) qrGenBtn.style.display = 'none';   
 
     } else {
-        // VERSCHLÜSSELN MODUS (Standard Blau)
+        // --- VERSCHLÜSSELN MODUS ---
         title.textContent = 'VERSCHLÜSSELUNG';
         title.style.color = 'var(--accent-blue)';
         
@@ -192,21 +196,22 @@ function updateAppMode(mode) {
 
         actionBtn.textContent = '🔒 DATEN VERSCHLÜSSELN';
         actionBtn.classList.add('btn-primary');
-        actionBtn.style.borderColor = '';
+        actionBtn.style.border = '';
         actionBtn.style.color = '';
+        actionBtn.style.boxShadow = '';
 
-        textLabel.textContent = 'Nachrichteneingabe (Klartext)';
+        if(textLabel) textLabel.textContent = 'Nachrichteneingabe (Klartext)';
 
         // Input Felder
-        recipientGroup.style.display = 'block';
+        if(recipientGroup) recipientGroup.style.display = 'block';
 
         // QR Buttons
-        qrScanBtn.style.display = 'none';
-        qrGenBtn.style.display = 'block';
+        if(qrScanBtn) qrScanBtn.style.display = 'none';
+        if(qrGenBtn) qrGenBtn.style.display = 'block';
     }
 
     // Reset Output beim Wechsel
-    document.getElementById('outputGroup').style.display = 'none';
+    if(outputGroup) outputGroup.style.display = 'none';
 }
 
 // ================================================================
