@@ -248,6 +248,30 @@
         .app-status-msg.success { border-color: var(--success-green); color: var(--success-green); }
         .app-status-msg.error { border-color: var(--error-red); color: var(--error-red); }
 
+        /* FIX FÜR QR GENERATOR */
+        #qrDisplay {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px auto;
+            border: 5px solid white; /* Damit man sieht wo er sein sollte */
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #qrDisplay img {
+            max-width: 100%;
+        }
+
+        /* FIX FÜR SCANNER */
+        #qr-reader {
+            width: 100%;
+            min-height: 300px; /* Wichtig! Sonst ist er 0px hoch */
+            background: #000;
+            border: 1px solid #333;
+        }
+
     </style>
 </head>
 <body>
@@ -391,29 +415,30 @@
     </div>
 
     <div id="qrModal" class="modal">
-        <div class="modal-box" style="text-align: center; background: white; color: black;">
-            <h3 style="margin-bottom:15px; color: var(--bg-dark);">QR CODE</h3>
+        <div class="modal-box" style="text-align: center; background: var(--bg-panel); border: 1px solid var(--accent-blue);">
+            <h3 style="margin-bottom:15px; color: var(--accent-blue);">QR CODE</h3>
             
-            <div id="qrDisplay" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
+            <div id="qrDisplay"></div>
             
             <div style="display: flex; gap: 10px;">
-                <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #333; color: #333;">Schließen</button>
-                <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 PNG Speichern</button>
+                <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;">Schließen</button>
+                <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 Speichern</button>
             </div>
         </div>
     </div>
-
+    
     <div id="qrScannerModal" class="modal">
-        <div class="modal-box" style="width: 100%; max-width: 500px; padding: 0; overflow: hidden; background: #000;">
-            <div style="padding: 10px; background: var(--bg-panel); display: flex; justify-content: space-between; align-items: center;">
-                <h4 style="color: var(--accent-blue); margin: 0;">SCANNER</h4>
-                <button id="closeScannerBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem;">✕</button>
+        <div class="modal-box" style="width: 100%; max-width: 500px; padding: 0; overflow: hidden; background: #000; border: 1px solid var(--accent-blue);">
+            <div style="padding: 10px; background: #111; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
+                <h4 style="color: var(--accent-blue); margin: 0;">KAMERA SCANNER</h4>
+                <button id="closeScannerBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor:pointer;">✕</button>
             </div>
             
-            <div id="qr-reader" style="width: 100%;"></div>
+            <div id="qr-reader"></div>
             
-            <div style="padding: 10px; text-align: center; color: #777; font-size: 0.8rem;">
-                Halten Sie den QR-Code vor die Kamera.
+            <div style="padding: 15px; text-align: center; color: #ccc; font-size: 0.9rem;">
+                Bitte Kamera freigeben und Code scannen.<br>
+                <small style="color: #777;">(Funktioniert mobil nur über HTTPS!)</small>
             </div>
         </div>
     </div>
