@@ -214,7 +214,7 @@ function updateAppMode(mode) {
 // ================================================================
 
 async function handleMainAction() {
-    // 1. Tastatur schließen
+    // 1. Tastatur auf Handy schließen
     if (document.activeElement) document.activeElement.blur();
 
     const code = document.getElementById('messageCode').value;
@@ -225,7 +225,7 @@ async function handleMainAction() {
 
     const btn = document.getElementById('actionBtn');
     const originalText = btn.textContent;
-    btn.textContent = "⏳ ...";
+    btn.textContent = "⏳ VERARBEITUNG...";
     btn.disabled = true;
 
     try {
@@ -233,49 +233,59 @@ async function handleMainAction() {
 
         if (currentMode === 'encrypt') {
             // --- VERSCHLÜSSELN ---
+            
             const recipientInput = document.getElementById('recipientName').value;
             let recipientIDs = [];
 
-            // Nur wenn wirklich Text drin steht (und nicht nur Leerzeichen), ist es eine User-Verschlüsselung
+            // Nur wenn das Feld NICHT leer ist, bauen wir eine Empfängerliste
             if (recipientInput && recipientInput.trim().length > 0) {
                 recipientIDs = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
-                
-                // Absender automatisch hinzufügen (damit man seine eigene Nachricht lesen kann)
+
+                // Absender (Dich selbst) hinzufügen, damit du deine eigene Nachricht lesen kannst
                 if (currentUser && !recipientIDs.includes(currentUser)) {
                     recipientIDs.push(currentUser);
                 }
             } 
-            // WICHTIG: Wenn recipientIDs leer bleibt [], erstellt cryptoLayers.js automatisch einen "Public Slot"
+            // WICHTIG: Ist das Feld leer, bleibt recipientIDs = []. 
+            // Die cryptoLayers.js erkennt das automatisch als "Public Message".
 
-            console.log("Verschlüssele für:", recipientIDs.length === 0 ? "JEDEN (Public)" : recipientIDs);
+            console.log("Verschlüssele für:", recipientIDs.length === 0 ? "ALLE (Public)" : recipientIDs);
+            
+            // Aufruf der Verschlüsselung
             result = await encryptFull(text, code, recipientIDs);
 
         } else {
             // --- ENTSCHLÜSSELN ---
-            console.log("Entschlüssele als:", currentUser);
+            
+            console.log("Entschlüssele als User:", currentUser || "Gast");
+            
+            // Wir übergeben den User. Die cryptoLayers prüfen automatisch:
+            // 1. Gibt es einen "Public Slot"? (Wenn ja -> Öffnen)
+            // 2. Gibt es einen "User Slot" für mich? (Wenn ja -> Öffnen)
             result = await decryptFull(text, code, currentUser);
         }
 
+        // Ergebnis anzeigen
         const output = document.getElementById('messageOutput');
         output.value = result;
         document.getElementById('outputGroup').style.display = 'block';
+        
+        // Scroll zum Ergebnis
         output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     } catch (err) {
-        console.error("Vorgang fehlgeschlagen:", err);
+        console.error("Fehler im Prozess:", err);
         
-        // Erweiterte Fehleranzeige für besseres Debugging
-        let errorMsg = err.message || "Unbekannter Fehler";
-        
-        if (errorMsg.includes("Format")) {
-            alert("Fehler: Das Nachrichtenformat ist ungültig. (Alte Version?)");
-        } else if (errorMsg.includes("Code") || errorMsg.includes("Berechtigung") || errorMsg.includes("Key")) {
-             alert("Zugriff verweigert!\n\nGründe:\n1. Falscher 5-stelliger Code\n2. Nachricht ist nicht für Sie bestimmt\n3. Nachricht wurde manipuliert");
-        } else {
-             // Zeigt den echten technischen Fehler an, falls es etwas anderes ist
-             alert("Systemfehler: " + errorMsg);
-        }
+        // GENAUE FEHLERMELDUNG (Damit wir wissen, was los ist)
+        let msg = err.message || "Unbekannter Fehler";
 
+        if (msg.includes("Format")) {
+             alert("Fehler: Das Nachrichtenformat ist veraltet oder ungültig.");
+        } else if (msg.includes("Berechtigung") || msg.includes("Code") || msg.includes("Key")) {
+             alert("ZUGRIFF VERWEIGERT!\n\nMögliche Gründe:\n1. Falscher 5-stelliger Code.\n2. Die Nachricht ist privat und nicht für Sie bestimmt.\n3. Daten wurden manipuliert.");
+        } else {
+             alert("Technischer Fehler: " + msg);
+        }
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
