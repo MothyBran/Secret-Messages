@@ -746,7 +746,7 @@ function showQRModal(text) {
             height: 190,
             colorDark : "#000000",
             colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.M
+            correctLevel : QRCode.CorrectLevel.L
         });
     } catch (e) {
         console.error("QR Fehler:", e);
