@@ -298,15 +298,22 @@ async function handleMainAction() {
 // ================================================================
 
 async function handleLogin(e) {
-    e.preventDefault();
-    const username = document.getElementById('username').value;
-    const accessCode = document.getElementById('accessCode').value;
+    if (e) e.preventDefault();
+    
+    const usernameInput = document.getElementById('username');
+    const accessCodeInput = document.getElementById('accessCode');
     const btn = document.getElementById('loginBtn');
     
-    btn.disabled = true;
+    if (!usernameInput || !accessCodeInput) return;
+
+    const username = usernameInput.value;
+    const accessCode = accessCodeInput.value;
+    
+    if(btn) btn.disabled = true;
+    const statusEl = document.getElementById('loginStatus');
+    if(statusEl) statusEl.style.display = 'none';
     
     try {
-        // Device ID generieren/holen
         const deviceId = getDeviceId();
         
         const res = await fetch(`${API_BASE}/auth/login`, {
@@ -314,24 +321,36 @@ async function handleLogin(e) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, accessCode, deviceId })
         });
+        
         const data = await res.json();
 
         if (data.success) {
             authToken = data.token;
             currentUser = data.username;
+            
+            // WICHTIG: Fallback, falls Server doch mal null schickt
+            // Wir nutzen 'lifetime' als String, wenn nichts da ist
+            let expiry = data.expiresAt || 'lifetime';
+            
+            // Speichern
             localStorage.setItem('sm_token', authToken);
             localStorage.setItem('sm_user', currentUser);
             localStorage.setItem('sm_exp', expiry);
             
+            // UI Update (Hier lag oft der Fehler, jetzt sicher)
             updateSidebarInfo(currentUser, expiry);
+            
+            // Zur Hauptseite
             showSection('mainSection');
         } else {
-            showStatus('loginStatus', data.error, 'error');
+            showStatus('loginStatus', data.error || "Login fehlgeschlagen", 'error');
         }
     } catch (err) {
-        showStatus('loginStatus', 'Verbindungsfehler', 'error');
+        console.error("Login Error Details:", err);
+        // Wir zeigen jetzt den echten Fehler an, statt nur "Verbindungsfehler"
+        showStatus('loginStatus', 'Fehler: ' + err.message, 'error');
     } finally {
-        btn.disabled = false;
+        if(btn) btn.disabled = false;
     }
 }
 
@@ -464,36 +483,59 @@ function getDeviceId() {
     return id;
 }
 
-function updateSidebarInfo(user, statusOrDate) {
+function updateSidebarInfo(user, expiryData) {
     const userLabel = document.getElementById('sidebarUser');
     const licenseLabel = document.getElementById('sidebarLicense');
-    
-    if(userLabel) userLabel.textContent = user || 'Gast';
-    
-    if (user && statusOrDate && licenseLabel) {
-        // Prüfen, ob formatLicenseDuration existiert, um Absturz zu verhindern
-        if (typeof formatLicenseDuration === 'function' && (String(statusOrDate).includes('-') || String(statusOrDate).includes(':'))) {
-             licenseLabel.textContent = "LIZENZ: " + formatLicenseDuration(statusOrDate);
-             licenseLabel.style.color = "var(--accent-blue)";
+    const authElements = document.querySelectorAll('.auth-only');
+
+    // 1. User Name setzen
+    if (userLabel) userLabel.textContent = user || 'Gast';
+
+    // 2. Lizenz-Anzeige Logik
+    if (user && licenseLabel) {
+        // Prüfen auf Lifetime
+        if (expiryData === 'lifetime' || String(expiryData).toLowerCase().includes('unlimited')) {
+            licenseLabel.textContent = "LIZENZ: ♾️ UNLIMITED";
+            licenseLabel.style.color = "#00ff41"; // Grün für Lifetime
+        } 
+        // Prüfen auf Datum
+        else if (expiryData) {
+            try {
+                const dateObj = new Date(expiryData);
+                // Ist das Datum gültig?
+                if (!isNaN(dateObj.getTime())) {
+                    const dateStr = dateObj.toLocaleDateString('de-DE', {
+                        day: '2-digit', month: '2-digit', year: 'numeric'
+                    });
+                    licenseLabel.textContent = "LIZENZ gültig bis: " + dateStr;
+                    licenseLabel.style.color = "var(--accent-blue)";
+                } else {
+                    // Fallback, falls Datum komisch ist
+                    licenseLabel.textContent = "LIZENZ: Aktiv";
+                }
+            } catch (e) {
+                licenseLabel.textContent = "LIZENZ: Aktiv";
+            }
         } else {
-             // Fallback, falls Funktion fehlt oder Format anders ist
-             licenseLabel.textContent = "Status: Online";
+            licenseLabel.textContent = "LIZENZ: Unbekannt";
         }
     } else if (licenseLabel) {
+        // Wenn nicht eingeloggt
         licenseLabel.textContent = "Nicht verbunden";
-        licenseLabel.style.color = "#888"; // var(--text-muted)
+        licenseLabel.style.color = "#888";
     }
 
-    const authElements = document.querySelectorAll('.auth-only');
+    // 3. Menü-Buttons ein-/ausblenden
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
 }
 
 async function checkExistingSession() {
     const token = localStorage.getItem('sm_token');
     const user = localStorage.getItem('sm_user');
+    const savedExpiry = localStorage.getItem('sm_exp'); // Datum aus Speicher holen
     
     if (token && user) {
-        // Token validieren (Quick Check)
+        // Token validieren
         try {
             const res = await fetch(`${API_BASE}/auth/validate`, {
                 method: 'POST',
@@ -501,17 +543,28 @@ async function checkExistingSession() {
                 body: JSON.stringify({ token })
             });
             const data = await res.json();
+            
             if (data.valid) {
                 authToken = token;
                 currentUser = user;
-                const expiry = localStorage.getItem('sm_exp');
-                updateSidebarInfo(user, "Online");
+                
+                // Wir nehmen das Datum vom Server (falls vorhanden) oder das gespeicherte
+                const finalExpiry = data.expiresAt || savedExpiry || 'lifetime';
+                
+                // Falls Server neues Datum geschickt hat, speichern wir es
+                if (data.expiresAt) {
+                    localStorage.setItem('sm_exp', data.expiresAt);
+                }
+
+                updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
                 return;
             }
-        } catch(e) {}
+        } catch(e) {
+            console.log("Session Check fehlgeschlagen", e);
+        }
     }
-    // Fallback
+    // Fallback: Login anzeigen
     showSection('loginSection');
 }
 
