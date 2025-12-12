@@ -450,15 +450,50 @@
     </div>
 
     <footer>
-        <details>
-            <summary style="cursor:pointer; color:var(--text-muted); outline:none;">ℹ️ Info & Anleitung</summary>
-            <p style="margin-top:10px; color:#666;">
-                Secure Messenger Enterprise.<br>
-                AES-256 + 4-Layer Obfuscation.<br>
-                Daten verbleiben auf dem Endgerät.
-            </p>
-        </details>
-        <div style="margin-top:10px; color:#333;">&copy; 2025 Secure Corp.</div>
+        <div style="max-width: 600px; margin: 0 auto; text-align: left;">
+            
+            <details style="margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                <summary style="cursor:pointer; color:var(--accent-blue); outline:none; font-weight:bold;">
+                    ℹ️ ANLEITUNG & HILFE
+                </summary>
+                
+                <div style="margin-top:15px; color:#ccc; font-size: 0.85rem; line-height: 1.6;">
+                    <strong style="color:var(--accent-blue);">1. Nachricht Verschlüsseln:</strong>
+                    <ol style="margin-left: 20px; margin-bottom: 10px;">
+                        <li>Gib deinen Text in das Hauptfeld ein.</li>
+                        <li>Wähle einen <strong>5-stelligen Code</strong> (diesen musst du dem Empfänger mitteilen!).</li>
+                        <li>Optional: Gib Empfänger an (Komma getrennt). Lässt du es leer, kann jeder mit dem Code lesen.</li>
+                        <li>Klicke auf <strong>VERSCHLÜSSELN</strong>.</li>
+                        <li>Kopiere das Ergebnis oder zeige den QR-Code.</li>
+                    </ol>
+
+                    <strong style="color:#00ff41;">2. Nachricht Entschlüsseln:</strong>
+                    <ol style="margin-left: 20px;">
+                        <li>Schalte oben rechts auf <strong>"ENTSCHLÜSSELN"</strong> um.</li>
+                        <li>Füge den Geheimtext ein oder scanne den QR-Code.</li>
+                        <li>Gib den vereinbarten <strong>5-stelligen Code</strong> ein.</li>
+                        <li>Klicke auf den Button. War der Code korrekt, erscheint der Klartext.</li>
+                    </ol>
+                </div>
+            </details>
+
+            <div style="text-align: center; color: #555; font-size: 0.75rem; margin-top: 20px;">
+                <p style="margin-bottom: 5px;">
+                    <strong>Secure App Corp.</strong><br>
+                    IT-Security & Encryption Solutions<br>
+                    Musterstraße 1, 10115 Berlin
+                </p>
+                <p>
+                    <a href="#" style="color:#666; text-decoration:none;">Impressum</a> | 
+                    <a href="#" style="color:#666; text-decoration:none;">Datenschutz</a> | 
+                    <a href="mailto:support@secret-messages.com" style="color:#666; text-decoration:none;">Support</a>
+                </p>
+                <p style="margin-top: 10px; opacity: 0.5;">
+                    &copy; 2025 Secure App Corp. All rights reserved.<br>
+                    Engine: AES-256-GCM + 4-Layer Obfuscation
+                </p>
+            </div>
+        </div>
     </footer>
 
     <div id="qrModal" class="modal">
