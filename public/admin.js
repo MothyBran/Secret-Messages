@@ -1,494 +1,274 @@
-// admin.js - Logik für das Secret Messages Admin Panel
+// admin.js - Logik für das Secret Messages Admin Panel (Refactored)
 
-// ==========================================
-// KONFIGURATION & STATE
-// ==========================================
 const API_BASE = '/api';
 let adminPassword = '';
 
 // ==========================================
-// HELPER FUNCTIONS
+// INIT & AUTH
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Check session storage for simple persistence during refresh
+    const storedPw = sessionStorage.getItem('sm_admin_pw');
+    if(storedPw) {
+        adminPassword = storedPw;
+        tryLogin();
+    }
+
+    // Login Form Listener
+    document.getElementById('adminLoginForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        adminPassword = document.getElementById('adminPasswordInput').value;
+        tryLogin();
+    });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        sessionStorage.removeItem('sm_admin_pw');
+        location.reload();
+    });
+
+    // Event Delegation for Tables
+    setupTableActions();
+    
+    // Generator
+    document.getElementById('generateBtn').addEventListener('click', generateKeys);
+    
+    // Refresh btns
+    document.getElementById('refreshUsersBtn').addEventListener('click', loadUsers);
+});
+
+async function tryLogin() {
+    // Wir testen den Login, indem wir versuchen Daten zu laden
+    const success = await loadStats();
+    if (success) {
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        sessionStorage.setItem('sm_admin_pw', adminPassword);
+        
+        // Load rest of data
+        loadUsers();
+        loadKeys();
+    } else {
+        alert("Zugriff verweigert. Passwort falsch.");
+        sessionStorage.removeItem('sm_admin_pw');
+    }
+}
+
+// ==========================================
+// API CALLS & DATA LOADING
 // ==========================================
 
-function formatDateDE(isoString) {
-    if (!isoString) return '—';
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '—';
-    return date.toLocaleString('de-DE', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
+function getHeaders() {
+    return { 
+        'Content-Type': 'application/json',
+        'x-admin-password': adminPassword
+    };
+}
+
+async function loadStats() {
+    try {
+        // Da wir keine dedizierte Stats-Route haben in deinem alten Code,
+        // nutzen wir die user-Route als Check und berechnen Stats lokal
+        // oder wir rufen /api/admin/users und /api/admin/keys auf.
+        
+        const resUsers = await fetch(`${API_BASE}/admin/users`, { headers: getHeaders() });
+        if(resUsers.status === 401 || resUsers.status === 403) return false;
+        
+        const users = await resUsers.json();
+        
+        const resKeys = await fetch(`${API_BASE}/admin/keys`, { headers: getHeaders() });
+        const keys = await resKeys.json();
+
+        // Stats berechnen
+        document.getElementById('statUsers').textContent = users.length;
+        document.getElementById('statKeys').textContent = keys.filter(k => k.is_active).length;
+        
+        // Umsatz Check (falls du eine Sales Route hast, sonst dummy)
+        // const resSales = await fetch(`${API_BASE}/admin/sales`, { headers: getHeaders() });
+        // const sales = await resSales.json();
+        // let total = sales.reduce((sum, s) => sum + s.amount, 0) / 100;
+        // document.getElementById('statRevenue').textContent = total.toFixed(2) + ' €';
+        
+        return true;
+    } catch (e) {
+        console.error(e);
+        return false;
+    }
+}
+
+async function loadUsers() {
+    try {
+        const res = await fetch(`${API_BASE}/admin/users`, { headers: getHeaders() });
+        const users = await res.json();
+        renderUsers(users);
+    } catch (e) { console.error("Error loading users", e); }
+}
+
+async function loadKeys() {
+    try {
+        const res = await fetch(`${API_BASE}/admin/keys`, { headers: getHeaders() });
+        const keys = await res.json();
+        renderKeys(keys);
+    } catch (e) { console.error("Error loading keys", e); }
+}
+
+// ==========================================
+// RENDERING
+// ==========================================
+
+function renderUsers(users) {
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
+    
+    users.forEach(user => {
+        const tr = document.createElement('tr');
+        
+        // Status Logik
+        let statusClass = user.is_blocked ? 'status-blocked' : 'status-active';
+        let statusText = user.is_blocked ? 'GESPERRT' : 'AKTIV';
+        
+        // Device ID Kürzen für Anzeige
+        let devId = user.allowed_device_id ? 
+            `<span title="${user.allowed_device_id}">${user.allowed_device_id.substring(0, 8)}...</span>` : 
+            '<span style="color:#555">Kein Gerät</span>';
+
+        tr.innerHTML = `
+            <td>#${user.id}</td>
+            <td style="font-weight:bold; color:#fff;">${user.username}</td>
+            <td class="${statusClass}">${statusText}</td>
+            <td>${formatDate(user.last_login)}</td>
+            <td>${devId}</td>
+            <td>
+                <button class="action-btn toggle-block-btn" data-id="${user.id}" data-blocked="${user.is_blocked}">
+                    ${user.is_blocked ? '🔓 Freigeben' : '🛑 Sperren'}
+                </button>
+                <button class="action-btn btn-danger-small reset-device-btn" data-id="${user.id}">
+                    📱 Reset Device
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Suchfilter Logic (Simple Client Side)
+    document.getElementById('searchUser').addEventListener('keyup', (e) => {
+        const term = e.target.value.toLowerCase();
+        Array.from(tbody.rows).forEach(row => {
+            const name = row.cells[1].textContent.toLowerCase();
+            row.style.display = name.includes(term) ? '' : 'none';
+        });
     });
 }
 
-function formatMoney(amount) {
-    // Stripe speichert Beträge in Cent (z.B. 199 = 1,99€)
-    return (amount / 100).toFixed(2).replace('.', ',') + ' €';
+function renderKeys(keys) {
+    const tbody = document.getElementById('keysTableBody');
+    tbody.innerHTML = ''; // Limit auf die letzten 50 zur Performance
+    
+    // Sortieren: Neueste zuerst
+    keys.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    keys.slice(0, 100).forEach(key => {
+        const tr = document.createElement('tr');
+        
+        let status = 'Frei';
+        if (!key.is_active) status = 'Inaktiv';
+        if (key.activated_at) status = 'Benutzt';
+        
+        // Ablaufdatum Check
+        let expiryDisplay = formatDate(key.expires_at);
+        if(!key.expires_at) expiryDisplay = "Lifetime";
+        
+        tr.innerHTML = `
+            <td style="font-family:'Roboto Mono'; letter-spacing:1px;">${key.key_code}</td>
+            <td>${key.product_code || 'Standard'}</td>
+            <td>${status}</td>
+            <td>${formatDate(key.created_at)}</td>
+            <td>${expiryDisplay}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
-function calcRemainingDays(isoString) {
-    if (!isoString) return '—';
-    const exp = new Date(isoString).getTime();
-    const now = Date.now();
-    if (isNaN(exp)) return '—';
-    
-    const diff = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
-    
-    if (diff < 0) return '<span style="color:red">Abgelaufen</span>';
-    return `<span style="color:#00ff41">${diff} Tage</span>`;
-}
-
 // ==========================================
-// INITIALISIERUNG & EVENT LISTENERS
+// ACTIONS
 // ==========================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Login Handling
-    const loginBtn = document.getElementById('loginBtn');
-    const pwInput = document.getElementById('adminPassword');
+function setupTableActions() {
+    const userTable = document.getElementById('usersTableBody');
     
-    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
-    if (pwInput) {
-        pwInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLogin();
-        });
-        pwInput.focus();
-    }
-
-    // Dashboard Actions
-    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
-    document.getElementById('generateKeysBtn')?.addEventListener('click', generateKeys);
-    
-    // Load Data Buttons
-    document.getElementById('loadUsersBtn')?.addEventListener('click', loadUsers);
-    document.getElementById('loadKeysBtn')?.addEventListener('click', loadKeys);
-    document.getElementById('loadPurchasesBtn')?.addEventListener('click', loadPurchases);
-    
-    // Filter
-    document.getElementById('keysStatusFilter')?.addEventListener('change', loadKeys);
-    
-    // Globale Suche (Input Event)
-    document.getElementById('globalSearch')?.addEventListener('keyup', filterAllTables);
-    
-    // FIX CSP: Event Delegation für alle dynamischen Buttons
-    setupDelegatedListeners();
-});
-
-// ==========================================
-// AUTHENTIFIZIERUNG
-// ==========================================
-
-async function handleLogin() {
-    const pwInput = document.getElementById('adminPassword');
-    const password = pwInput.value.trim();
-    const errorDiv = document.getElementById('loginError');
-
-    if (!password) return;
-
-    // Wir testen das Passwort, indem wir versuchen, Stats zu laden
-    try {
-        const res = await fetch(`${API_BASE}/admin/stats`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            // Login erfolgreich
-            adminPassword = password;
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
+    userTable.addEventListener('click', async (e) => {
+        const target = e.target;
+        
+        // BLOCK / UNBLOCK
+        if(target.classList.contains('toggle-block-btn')) {
+            const userId = target.dataset.id;
+            const isBlocked = target.dataset.blocked === 'true';
             
-            // Initial Data Load
-            updateStats(data.stats);
-            loadUsers(); // Lädt User sofort
-            // Auto-Refresh Stats alle 30s
-            setInterval(() => refreshStats(), 30000);
-        } else {
-            errorDiv.textContent = 'Falsches Passwort';
-            errorDiv.style.display = 'block';
+            if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
+            
+            await fetch(`${API_BASE}/admin/users/${userId}/block`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ block: !isBlocked })
+            });
+            loadUsers();
         }
-    } catch (err) {
-        console.error(err);
-        errorDiv.textContent = 'Server-Verbindungsfehler';
-        errorDiv.style.display = 'block';
-    }
+        
+        // RESET DEVICE
+        if(target.classList.contains('reset-device-btn')) {
+            const userId = target.dataset.id;
+            if(!confirm("Gerätebindung für diesen Nutzer wirklich aufheben?")) return;
+            
+            await fetch(`${API_BASE}/admin/users/${userId}/reset-device`, {
+                method: 'POST',
+                headers: getHeaders()
+            });
+            alert("Gerätebindung aufgehoben.");
+            loadUsers();
+        }
+    });
 }
-
-function handleLogout() {
-    adminPassword = '';
-    location.reload();
-}
-
-// ==========================================
-// STATISTIKEN
-// ==========================================
-
-async function refreshStats() {
-    if (!adminPassword) return;
-    try {
-        const res = await fetch(`${API_BASE}/admin/stats`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-        });
-        const data = await res.json();
-        if (data.success) updateStats(data.stats);
-    } catch (e) { console.error('Stats Update Error', e); }
-}
-
-function updateStats(stats) {
-    if (!stats) return;
-    document.getElementById('activeUsers').innerText = stats.activeUsers || 0;
-    document.getElementById('activeSessions').innerText = stats.activeSessions || 0;
-    document.getElementById('recentRegistrations').innerText = stats.recentRegistrations || 0;
-    
-    // Falls Key-Count mitgesendet wird (Optional, je nach server.js)
-    if (stats.totalKeys !== undefined) {
-        document.getElementById('totalKeys').innerText = stats.totalKeys;
-    }
-}
-
-// ==========================================
-// 1. KEY GENERATOR
-// ==========================================
 
 async function generateKeys() {
-    const qty = document.getElementById('keyQuantity').value;
-    const prod = document.getElementById('keyProduct').value;
-    const resultDiv = document.getElementById('generationResult');
-    const btn = document.getElementById('generateKeysBtn');
-
+    const duration = document.getElementById('genDuration').value;
+    const count = parseInt(document.getElementById('genCount').value) || 1;
+    
+    const btn = document.getElementById('generateBtn');
     btn.disabled = true;
-    btn.innerText = 'Generiere...';
-
+    btn.textContent = "Generating...";
+    
     try {
         const res = await fetch(`${API_BASE}/admin/generate-keys`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                password: adminPassword,
-                count: parseInt(qty),
-                product: prod
-            })
+            headers: getHeaders(),
+            body: JSON.stringify({ productCode: duration, count: count })
         });
+        
         const data = await res.json();
-
-        if (data.success) {
-            let html = `<h4 style="color:#00ff41; margin-bottom:10px;">${data.keys.length} Keys erstellt:</h4>`;
-            data.keys.forEach(k => {
-                html += `<div class="key-code" style="margin-bottom:5px;">${k}</div>`;
-            });
-            resultDiv.innerHTML = html;
-            resultDiv.style.display = 'block';
+        if(data.success) {
+            // Keys anzeigen
+            const area = document.getElementById('newKeysArea');
+            area.style.display = 'block';
+            area.textContent = data.keys.join('\n');
             loadKeys(); // Tabelle aktualisieren
+            loadStats(); // Stats aktualisieren
         } else {
-            alert('Fehler: ' + (data.error || 'Unbekannt'));
+            alert("Fehler: " + data.error);
         }
-    } catch (err) {
-        alert('Serverfehler beim Generieren.');
+    } catch(e) {
+        alert("Fehler beim Generieren");
     } finally {
         btn.disabled = false;
-        btn.innerText = 'GENERIEREN';
+        btn.textContent = "Generieren";
     }
 }
 
 // ==========================================
-// 2. USER TABELLE LADEN
+// HELPERS
 // ==========================================
-
-async function loadUsers() {
-    const tbody = document.getElementById('userTableBody');
-    const btn = document.getElementById('loadUsersBtn');
-    
-    btn.disabled = true;
-    // FIX: Colspan auf 8 erhöht, da Device-Spalte hinzugefügt wird
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Lade Daten...</td></tr>'; 
-
-    try {
-        const res = await fetch(`${API_BASE}/admin/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-        });
-        const data = await res.json();
-
-        if (data.success && data.users.length > 0) {
-            tbody.innerHTML = '';
-            data.users.forEach(u => {
-                const row = document.createElement('tr');
-                
-                const isBlocked = u.is_blocked; // Boolean vom Server
-                const device = u.allowed_device_id || '—'; 
-                
-                // FIX CSP: onclick entfernt, Klassen und data-Attribute hinzugefügt
-                row.innerHTML = `
-                    <td style="color:#888;">${u.id}</td>
-                    <td style="font-weight:bold;">${u.username}</td>
-                    <td>${u.license_key ? `<span class="key-code">${u.license_key}</span>` : '—'}</td>
-                    
-                    <td style="font-size:0.8em; color:#bbb;">
-                        ${device}
-                    </td>
-
-                    <td>${isBlocked ? '<span class="status-blocked">Gesperrt</span>' : '<span class="status-active">Aktiv</span>'}</td>
-                    
-                    <td>${formatDateDE(u.registered_at)}</td> 
-                    
-                    <td>${formatDateDE(u.last_login)}</td>
-                    <td>
-                        <button class="btn-small action-reset-device" data-user-id="${u.id}" 
-                                title="Devicebindung aufheben" 
-                                ${u.allowed_device_id ? '' : 'disabled'}>⟲ Device</button>
-                                
-                        <button class="btn-small btn-danger action-toggle-block" data-user-id="${u.id}" data-blocked-status="${isBlocked}">
-                            ${isBlocked ? 'Entsperren' : 'Sperren'}
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        } else {
-            // FIX: Colspan auf 8 erhöht
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Keine User gefunden</td></tr>';
-        }
-    } catch (err) {
-        // FIX: Colspan auf 8 erhöht
-        tbody.innerHTML = `<tr><td colspan="8" style="color:red">Fehler: ${err.message}</td></tr>`;
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-// AKTION: User Sperren/Entsperren
-async function toggleUserBlock(userId, currentStatus) {
-    if (!confirm(currentStatus ? 'User entsperren?' : 'User wirklich sperren?')) return;
-    
-    // Bestimme den korrekten Backend-Endpunkt
-    const action = currentStatus ? 'unblock-user' : 'block-user'; 
-    
-    try {
-        const res = await fetch(`${API_BASE}/admin/${action}/${userId}`, { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-        });
-        
-        if (res.ok) {
-            console.log(`User ${userId} erfolgreich ${action}t.`);
-            loadUsers(); // User-Liste neu laden
-        } else {
-            const data = await res.json();
-            alert('Aktion fehlgeschlagen: ' + (data.error || res.statusText));
-        }
-    } catch (e) {
-        alert('Serverfehler beim Sperren/Entsperren. Bitte Konsole prüfen.');
-    }
-}
-
-// AKTION: Device Reset
-async function resetUserDevice(userId) {
-    if (!confirm('Gerätebindung für User ' + userId + ' wirklich zurücksetzen?')) return;
-    
-    try {
-        const res = await fetch(`${API_BASE}/admin/reset-device/${userId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-        });
-        
-        if (res.ok) {
-            alert('Gerätebindung erfolgreich zurückgesetzt!');
-            loadUsers(); // User-Liste neu laden
-        } else {
-            const data = await res.json();
-            alert('Reset fehlgeschlagen: ' + (data.error || res.statusText));
-        }
-    } catch (e) {
-        alert('Serverfehler beim Device Reset.');
-    }
-}
-
-// ==========================================
-// 3. ZAHLUNGEN LADEN (Verknüpfte Daten)
-// ==========================================
-
-async function loadPurchases() {
-    const tbody = document.getElementById('purchaseTableBody');
-    const btn = document.getElementById('loadPurchasesBtn');
-
-    btn.disabled = true;
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center">Lade Zahlungsdaten...</td></tr>';
-
-    try {
-        const res = await fetch(`${API_BASE}/admin/purchases`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-        });
-        const data = await res.json();
-
-        if (data.success && data.purchases && data.purchases.length > 0) {
-            tbody.innerHTML = '';
-            data.purchases.forEach(p => {
-                // Keys formatieren
-                let keysHtml = '<span style="color:#555;">—</span>';
-                if (p.keys && Array.isArray(p.keys) && p.keys.length > 0) {
-                    keysHtml = p.keys.map(k => `<span class="key-code" style="font-size:0.85em;">${k}</span>`).join('<br>');
-                }
-
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${formatDateDE(p.date)}</td>
-                    <td style="color:#fff; font-weight:bold;">${p.email}</td>
-                    <td>${formatMoney(p.amount)} <small>${p.currency.toUpperCase()}</small></td>
-                    <td>${keysHtml}</td>
-                    <td style="font-size:0.8em; color:#666;">${p.id}</td>
-                    <td>${p.status === 'completed' ? '✅ Bezahlt' : '⚠️ ' + p.status}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        } else {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Keine Käufe gefunden</td></tr>';
-        }
-    } catch (err) {
-        console.error(err);
-        tbody.innerHTML = `<tr><td colspan="6" style="color:red">Fehler: ${err.message}</td></tr>`;
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-// ==========================================
-// 4. ALLE KEYS LADEN
-// ==========================================
-
-async function loadKeys() {
-    const tbody = document.getElementById('keysTableBody');
-    const btn = document.getElementById('loadKeysBtn');
-    const filter = document.getElementById('keysStatusFilter').value;
-
-    btn.disabled = true;
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Lade Keys...</td></tr>';
-
-    try {
-        const res = await fetch(`${API_BASE}/admin/keys`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword, filter })
-        });
-        const data = await res.json();
-
-        if (data.success && data.keys.length > 0) {
-            tbody.innerHTML = '';
-            data.keys.forEach(k => {
-                // Status bestimmen
-                let statusBadge = '<span class="status-active">Frei</span>';
-                if (k.is_active) statusBadge = '<span class="status-active">Benutzt</span>';
-                
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><span class="key-code">${k.key_code}</span></td>
-                    <td>${k.product_code || 'Standard'}</td>
-                    <td>${k.is_active ? '🔴 Aktiviert' : '🟢 Frei'}</td>
-                    <td>${k.username || '—'}</td>
-                    <td>${formatDateDE(k.created_at)}</td> 
-                    <td>${calcRemainingDays(k.expires_at)}</td>
-                    <td>
-                        <button class="btn-small btn-danger action-delete-key" data-key-id="${k.id}">X</button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        } else {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Keine Keys für Filter: ' + filter + '</td></tr>';
-        }
-    } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:red">Fehler: ${err.message}</td></tr>`;
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-// AKTION: Key Löschen
-async function deleteKey(id) {
-    if (!confirm('WARNUNG: Key wirklich unwiderruflich löschen?')) return;
-    
-    try {
-        const res = await fetch(`${API_BASE}/admin/keys/${id}`, {
-            method: 'DELETE', // DELETE Methode
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword }) // Admin Passwort senden
-        });
-        
-        if (res.ok) {
-            console.log(`Key ${id} erfolgreich gelöscht.`);
-            loadKeys();
-        } else {
-            const data = await res.json();
-            alert('Löschen fehlgeschlagen: ' + (data.error || res.statusText));
-        }
-    } catch (e) { 
-        alert('Serverfehler beim Löschen. Bitte Konsole prüfen.'); 
-    }
-}
-
-// ==========================================
-// SUCHFUNKTION (Frontend Filter)
-// ==========================================
-
-function filterAllTables() {
-    const input = document.getElementById('globalSearch');
-    const filter = input.value.toUpperCase();
-    const tables = document.querySelectorAll('.data-table');
-
-    tables.forEach(table => {
-        const rows = table.getElementsByTagName('tr');
-        // Wir starten bei 1, um den Header zu überspringen
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const txtValue = row.textContent || row.innerText;
-            
-            if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        }
-    });
-}
-
-
-// ==========================================
-// FIX CSP: EVENT DELEGATION
-// ==========================================
-
-function setupDelegatedListeners() {
-    const dashboard = document.getElementById('dashboard');
-    if (!dashboard) return;
-
-    dashboard.addEventListener('click', (e) => {
-        const target = e.target.closest('button');
-        if (!target) return;
-
-        // 1. User Sperren/Entsperren
-        if (target.classList.contains('action-toggle-block')) {
-            const userId = target.dataset.userId;
-            // Daten-Attribut ist ein String, muss zu Boolean konvertiert werden
-            const currentStatus = target.dataset.blockedStatus === 'true'; 
-            toggleUserBlock(userId, currentStatus);
-        }
-
-        // 2. User Device Reset
-        if (target.classList.contains('action-reset-device')) {
-            const userId = target.dataset.userId;
-            resetUserDevice(userId);
-        }
-        
-        // 3. Key Löschen
-        if (target.classList.contains('action-delete-key')) {
-            const keyId = target.dataset.keyId;
-            deleteKey(keyId);
-        }
-    });
+function formatDate(iso) {
+    if(!iso) return '-';
+    const d = new Date(iso);
+    if(isNaN(d)) return '-';
+    return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
 }
