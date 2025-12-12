@@ -150,7 +150,6 @@ function updateAppMode(mode) {
     currentMode = mode;
     const isDecrypt = (mode === 'decrypt');
 
-    // Elemente holen (mit Sicherheitscheck)
     const title = document.getElementById('modeTitle');
     const indicator = document.getElementById('statusIndicator');
     const actionBtn = document.getElementById('actionBtn');
@@ -158,33 +157,45 @@ function updateAppMode(mode) {
     const qrScanBtn = document.getElementById('qrScanBtn');
     const qrGenBtn = document.getElementById('qrGenBtn');
     const textLabel = document.getElementById('textLabel');
+    const msgInput = document.getElementById('messageInput');
     const outputGroup = document.getElementById('outputGroup');
 
-    // Sicherheitsabfrage: Wenn wir nicht auf der Main-Page sind, abbrechen
-    if (!title || !actionBtn) return;
+    // WICHTIG: Felder beim Wechsel leeren, damit nichts Falsches drin steht
+    // Das verhindert, dass der Klartext plötzlich im "Geheimtext"-Feld steht
+    if(msgInput) msgInput.value = ''; 
+    if(outputGroup) outputGroup.style.display = 'none';
+    document.getElementById('messageOutput').value = '';
 
     if (isDecrypt) {
         // --- ENTSCHLÜSSELN MODUS ---
         title.textContent = 'ENTSCHLÜSSELUNG';
-        title.style.color = '#00ff41'; // Grün
+        
+        // FIX: Farbe jetzt auch Blau (Akzentfarbe) statt Grün
+        // Wir nutzen var(--accent-blue) via Style-Manipulation oder Klasse
+        title.style.color = 'var(--accent-blue)'; 
         
         indicator.textContent = '● EMPFANGSBEREIT';
-        indicator.style.color = '#00ff41';
+        indicator.style.color = 'var(--accent-blue)';
 
         actionBtn.textContent = '🔓 NACHRICHT ENTSCHLÜSSELN';
-        actionBtn.classList.remove('btn-primary');
-        actionBtn.style.border = '1px solid #00ff41';
-        actionBtn.style.color = '#00ff41';
-        actionBtn.style.boxShadow = 'none';
+        actionBtn.classList.remove('btn-primary'); // Optional: Rahmen-Stil
+        
+        // Design Anpassung an Blau
+        actionBtn.style.borderColor = 'var(--accent-blue)';
+        actionBtn.style.color = 'var(--accent-blue)';
+        actionBtn.style.borderWidth = '1px';
+        actionBtn.style.borderStyle = 'solid';
+        actionBtn.style.background = 'transparent';
 
-        if(textLabel) textLabel.textContent = 'Verschlüsselter Text (Cipher)';
+        textLabel.textContent = 'Verschlüsselter Text hier einfügen';
+        msgInput.placeholder = 'Paste ciphertext here...';
         
-        // Input Felder steuern
-        if(recipientGroup) recipientGroup.style.display = 'none'; 
+        // Inputs ausblenden
+        recipientGroup.style.display = 'none'; 
         
-        // QR Buttons
-        if(qrScanBtn) qrScanBtn.style.display = 'block'; 
-        if(qrGenBtn) qrGenBtn.style.display = 'none';   
+        // QR
+        qrScanBtn.style.display = 'block'; 
+        qrGenBtn.style.display = 'none';   
 
     } else {
         // --- VERSCHLÜSSELN MODUS ---
@@ -196,24 +207,23 @@ function updateAppMode(mode) {
 
         actionBtn.textContent = '🔒 DATEN VERSCHLÜSSELN';
         actionBtn.classList.add('btn-primary');
-        actionBtn.style.border = '';
+        
+        // Reset Styles
+        actionBtn.style.borderColor = '';
         actionBtn.style.color = '';
-        actionBtn.style.boxShadow = '';
+        actionBtn.style.background = ''; // Nutzt wieder CSS Klasse
 
-        if(textLabel) textLabel.textContent = 'Nachrichteneingabe (Klartext)';
+        textLabel.textContent = 'Nachrichteneingabe (Klartext)';
+        msgInput.placeholder = 'Daten hier eingeben...';
 
-        // Input Felder
-        if(recipientGroup) recipientGroup.style.display = 'block';
+        // Inputs einblenden
+        recipientGroup.style.display = 'block';
 
-        // QR Buttons
-        if(qrScanBtn) qrScanBtn.style.display = 'none';
-        if(qrGenBtn) qrGenBtn.style.display = 'block';
+        // QR
+        qrScanBtn.style.display = 'none';
+        qrGenBtn.style.display = 'block';
     }
-
-    // Reset Output beim Wechsel
-    if(outputGroup) outputGroup.style.display = 'none';
 }
-
 // ================================================================
 // HAUPTFUNKTION (ENCRYPT / DECRYPT HANDLER)
 // ================================================================
