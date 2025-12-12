@@ -220,7 +220,8 @@ async function handleMainAction() {
     const text = document.getElementById('messageInput').value;
     
     if (!text) return alert("Bitte geben Sie einen Text ein.");
-    if (!code || code.length !== 5) return alert("Der 5-stellige Sicherheitscode ist erforderlich.");
+    if (!code || code.length !== 5) return alert("Der 5-stellige Sicherheitscode (5 Ziffern) ist erforderlich.");
+    if (!currentUser) return alert("Fehler: Zum Verschlüsseln/Entschlüsseln müssen Sie angemeldet sein."); // Sicherheitscheck
 
     const btn = document.getElementById('actionBtn');
     const originalText = btn.textContent;
@@ -231,24 +232,27 @@ async function handleMainAction() {
         let result = "";
 
         if (currentMode === 'encrypt') {
-            // --- VERSCHLÜSSELN ---
+            // --- VERSCHLÜSSELN (NEUE SICHERHEITSREGEL: Kein Public Mode) ---
             
             const recipientInput = document.getElementById('recipientName').value;
             let recipientIDs = [];
 
-            // Nur wenn das Feld NICHT leer ist, bauen wir eine Empfängerliste
+            // 1. Empfänger aus Input hinzufügen
             if (recipientInput && recipientInput.trim().length > 0) {
                 recipientIDs = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            }
+            
+            // 2. ABSENDER HINZUFÜGEN (Absender MUSS immer dabei sein)
+            if (!recipientIDs.includes(currentUser)) {
+                recipientIDs.push(currentUser);
+            }
+            
+            if (recipientIDs.length === 0) {
+                 // Sollte nach der obigen Logik nicht passieren, ist aber ein Fallback-Check
+                throw new Error("Sicherheit: Konnte keinen berechtigten Empfänger (Absender) festlegen.");
+            }
 
-                // Absender (Dich selbst) hinzufügen, damit du deine eigene Nachricht lesen kannst
-                if (currentUser && !recipientIDs.includes(currentUser)) {
-                    recipientIDs.push(currentUser);
-                }
-            } 
-            // WICHTIG: Ist das Feld leer, bleibt recipientIDs = []. 
-            // Die cryptoLayers.js erkennt das automatisch als "Public Message".
-
-            console.log("Verschlüssele für:", recipientIDs.length === 0 ? "ALLE (Public)" : recipientIDs);
+            console.log("🔒 Verschlüssele für:", recipientIDs);
             
             // Aufruf der Verschlüsselung
             result = await encryptFull(text, code, recipientIDs);
@@ -256,11 +260,9 @@ async function handleMainAction() {
         } else {
             // --- ENTSCHLÜSSELN ---
             
-            console.log("Entschlüssele als User:", currentUser || "Gast");
+            console.log("🔓 Entschlüssele als User:", currentUser);
             
-            // Wir übergeben den User. Die cryptoLayers prüfen automatisch:
-            // 1. Gibt es einen "Public Slot"? (Wenn ja -> Öffnen)
-            // 2. Gibt es einen "User Slot" für mich? (Wenn ja -> Öffnen)
+            // Ruft decryptFull auf. Dieses prüft jetzt NUR User-Slots (kein Public Slot mehr).
             result = await decryptFull(text, code, currentUser);
         }
 
@@ -275,7 +277,7 @@ async function handleMainAction() {
     } catch (err) {
         console.error("Fehler im Prozess:", err);
         
-        // GENAUE FEHLERMELDUNG (Damit wir wissen, was los ist)
+        // GENAUE FEHLERMELDUNG
         let msg = err.message || "Unbekannter Fehler";
 
         if (msg.includes("Format")) {
