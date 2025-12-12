@@ -132,7 +132,6 @@ function setupUIEvents() {
         });
     }
 
-    // HIER WAR DER FEHLER: Dieser Teil gehört noch IN die Funktion
     const closeQrBtn = document.getElementById('closeQrBtn');
     if (closeQrBtn) {
         closeQrBtn.addEventListener('click', () => {
