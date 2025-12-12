@@ -314,11 +314,77 @@
             color: #000;
         }
 
+        /* === GLOBALE STATUSMELDUNGEN (NEU) === */
+#globalStatusContainer {
+    position: fixed;
+    top: 60px; /* Unter dem Header */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    width: 90%;
+    max-width: 400px;
+}
+.app-status-msg {
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    border: 1px solid;
+    font-size: 0.9rem;
+    text-align: center;
+    background: var(--bg-panel);
+    color: var(--text-main);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.5s, transform 0.5s;
+    transform: translateY(-20px);
+}
+.app-status-msg.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+.app-status-msg.success { border-color: var(--success-green); color: var(--success-green); }
+.app-status-msg.error { border-color: var(--error-red); color: var(--error-red); }
+
+/* === KONTAKTVERZEICHNIS MODAL STYLES === */
+.modal-content {
+    background-color: var(--bg-panel);
+    margin: auto;
+    padding: 20px;
+    border: 1px solid var(--accent-blue);
+    width: 90%;
+    max-width: 550px; 
+    box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
+    position: relative;
+}
+
+/* Tabs */
+.tabs { display: flex; justify-content: center; border-bottom: 1px solid #333; }
+.tab-btn {
+    background: none; border: none; padding: 10px 15px; color: #777; cursor: pointer; transition: color 0.3s;
+    font-family: 'Rajdhani', sans-serif; font-weight: bold; text-transform: uppercase;
+}
+.tab-btn.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); }
+.tab-content { display: none; padding-top: 15px; }
+.tab-content.active { display: block; }
+
+/* Listen-Styling */
+#contactList li, #selectContactList li {
+    display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222;
+    font-family: 'Roboto Mono', monospace;
+}
+#contactList li:last-child, #selectContactList li:last-child { border-bottom: none; }
+.delete-btn {
+    background: none; border: 1px solid var(--error-red); color: var(--error-red); padding: 3px 8px; cursor: pointer;
+    font-size: 0.7rem; transition: 0.2s; text-transform: uppercase;
+}
+.delete-btn:hover { background: var(--error-red); color: white; }
+
     </style>
 </head>
 <body>
 
     <div class="bg-grid"></div>
+
+    <div id="globalStatusContainer"></div>
 
     <div class="landscape-warning">
         <div class="rotate-icon">↻</div>
