@@ -12,6 +12,12 @@ let authToken = null;
 let currentMode = 'encrypt'; // 'encrypt' oder 'decrypt'
 let contacts = JSON.parse(localStorage.getItem('sm_contacts')) || [];
 
+const contactGroups = [
+    { name: "Alle Kontakte", id: "ALL" },
+    { name: "Freunde", id: "FRIENDS" },
+    { name: "Arbeit", id: "WORK" }
+];
+
 // ================================================================
 // INITIALISIERUNG
 // ================================================================
@@ -62,7 +68,7 @@ function setupUIEvents() {
         // Menü -> Kontaktverwaltung öffnen
         navContacts.addEventListener('click', (e) => {
             e.preventDefault();
-            openContactsModal('manageTab'); 
+            openContactsModal('manageTab'); // Öffnet direkt den Manage Tab
             toggleSidebar(true); 
         });
     }
@@ -79,20 +85,24 @@ function setupUIEvents() {
     // Button am Empfängerfeld (Öffnet Modal zum Auswählen)
     document.getElementById('contactsBtn')?.addEventListener('click', () => openContactsModal('selectTab'));
     
-    // Formular zum Hinzufügen (Tab 'Verwalten')
-    document.getElementById('addContactForm')?.addEventListener('submit', handleAddContact);
-    
-    // Modal Tabs steuern
+    // Modal Events (Tabs und Aktionen)
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => switchContactTab(e.target.dataset.target));
     });
-
-    // Abbrechen Button im Modal
+    
+    // Formular zum Hinzufügen
+    document.getElementById('addContactForm')?.addEventListener('submit', handleAddContact);
+    
+    // Abbrechen Button
     document.getElementById('cancelSelectionBtn')?.addEventListener('click', closeContactsModal);
 
-    // Bestätigen Button im Modal
+    // Bestätigen Button
     document.getElementById('confirmSelectionBtn')?.addEventListener('click', handleConfirmSelection);
-    
+
+    // Suchfelder (Filtern bei Tipp-Eingabe)
+    document.getElementById('manageSearch')?.addEventListener('input', () => renderContactLists(document.getElementById('manageSearch').value));
+    document.getElementById('selectSearch')?.addEventListener('input', () => renderContactSelectionList(document.getElementById('selectSearch').value));
+
     
     // --- STANDARD APP EVENTS ---
     
@@ -128,13 +138,17 @@ function setupUIEvents() {
     // QR Code
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
         const text = document.getElementById('messageOutput').value;
-        if(!text) return alert("Bitte erst Text verschlüsseln!");
+        if(!text) return showAppStatus("Bitte erst Text verschlüsseln!", 'error');
         showQRModal(text);
     });
 
     document.getElementById('closeQrBtn')?.addEventListener('click', () => {
         document.getElementById('qrModal').classList.remove('active');
     });
+
+    // Nach dem Laden der Events: Initiale Listen-Generierung
+    renderContactLists(); 
+    renderContactSelectionList();
 }
 
 // ================================================================
@@ -405,69 +419,151 @@ async function handleLogout() {
 // ================================================================
 
 function saveContacts() {
+    // Kontakte speichern und sortieren (nach Name)
+    contacts.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
     localStorage.setItem('sm_contacts', JSON.stringify(contacts));
     renderContactLists(); // Listen nach Speichern neu zeichnen
 }
 
-function renderContactLists() {
+// Rendert die Liste im 'Verwalten' Tab (Manage)
+function renderContactLists(searchTerm = '') {
     const manageList = document.getElementById('contactList');
-    const selectList = document.getElementById('selectContactList');
+    if (!manageList) return;
+
+    // Filter und Sortierung
+    const normalizedTerm = searchTerm.toLowerCase().trim();
+    let filteredContacts = contacts.slice(); 
+
+    if (normalizedTerm) {
+        filteredContacts = filteredContacts.filter(c => 
+            c.name.toLowerCase().includes(normalizedTerm) || 
+            c.id.toLowerCase().includes(normalizedTerm) ||
+            (c.group && c.group.toLowerCase().includes(normalizedTerm))
+        );
+    }
     
-    if (!manageList || !selectList) return;
-
-    // Listen leeren
     manageList.innerHTML = '';
-    selectList.innerHTML = '';
 
-    if (contacts.length === 0) {
-        manageList.innerHTML = '<li style="color: #777; text-align: center;">(Noch keine Kontakte gespeichert)</li>';
-        selectList.innerHTML = '<li style="color: #777; text-align: center;">(Bitte Kontakte im Tab "Verwalten" hinzufügen)</li>';
+    if (filteredContacts.length === 0) {
+        manageList.innerHTML = `<li style="color: #777; text-align: center;">${normalizedTerm ? 'Keine Treffer.' : '(Noch keine Kontakte gespeichert)'}</li>`;
         return;
     }
 
-    contacts.forEach(contact => {
-        // Liste "Verwalten" (mit Lösch-Button)
+    filteredContacts.forEach(contact => {
+        // Nur Name und Gruppen-Zuordnung anzeigen (Benutzer-ID aus Datenschutzgründen weggelassen)
         const manageItem = document.createElement('li');
         manageItem.innerHTML = `
-            <span style="font-weight: bold;">${contact.name}</span>
-            <span class="contact-info" style="color: #ccc;">${contact.id}</span>
+            <span style="font-weight: bold; flex-grow: 1;">${contact.name}</span>
+            <span style="color: #999; font-size: 0.8rem; margin-right: 15px;">${contact.group || 'Keine Gruppe'}</span>
             <button class="delete-btn" data-id="${contact.id}" onclick="window.handleDeleteContact(this)">Löschen</button>
         `;
         manageList.appendChild(manageItem);
-
-        // Liste "Auswählen" (mit Checkbox)
-        const selectItem = document.createElement('li');
-        selectItem.innerHTML = `
-            <label style="display: flex; gap: 10px; cursor: pointer; flex-grow: 1; align-items: center;">
-                <input type="checkbox" data-id="${contact.id}" value="${contact.id}" style="width: 18px; height: 18px; border: 1px solid var(--accent-blue);">
-                <span style="color: var(--text-main);">${contact.name}</span>
-            </label>
-            <span class="contact-info" style="color: #777; font-size: 0.8rem;">${contact.id}</span>
-        `;
-        selectList.appendChild(selectItem);
     });
 
-    // Globale Funktion für Lösch-Button (wird über onclick im HTML gerufen)
+    // Globale Funktion für Lösch-Button
     window.handleDeleteContact = (btn) => {
         const idToDelete = btn.dataset.id;
         if (confirm(`Soll der Kontakt "${idToDelete}" wirklich gelöscht werden?`)) {
             contacts = contacts.filter(c => c.id !== idToDelete);
             saveContacts();
+            showAppStatus(`Kontakt erfolgreich gelöscht.`, 'success');
         }
     };
 }
+
+
+// Rendert die Liste im 'Auswählen' Tab (Select)
+function renderContactSelectionList(searchTerm = '') {
+    const selectList = document.getElementById('selectContactList');
+    if (!selectList) return;
+
+    const normalizedTerm = searchTerm.toLowerCase().trim();
+    selectList.innerHTML = '';
+    
+    // Gruppierung und Kontakte zusammenführen
+    let itemsToDisplay = [];
+    
+    // Zuerst Gruppen (Wenn nicht gesucht wird)
+    if (!normalizedTerm) {
+        contactGroups.forEach(group => {
+             itemsToDisplay.push({ type: 'group', name: group.name, id: group.id, memberIds: contacts.filter(c => c.group === group.name).map(c => c.id) });
+        });
+    }
+
+    // Dann Kontakte
+    contacts.forEach(contact => {
+        if (!normalizedTerm || 
+            contact.name.toLowerCase().includes(normalizedTerm) || 
+            (contact.group && contact.group.toLowerCase().includes(normalizedTerm))
+           ) {
+            itemsToDisplay.push({ type: 'contact', name: contact.name, id: contact.id, group: contact.group });
+        }
+    });
+
+
+    itemsToDisplay.forEach(item => {
+        const selectItem = document.createElement('li');
+        
+        if (item.type === 'group') {
+            // GRUPPE: Zum Anklicken, wählt alle Mitglieder
+            selectItem.innerHTML = `
+                <label style="display: flex; gap: 10px; cursor: pointer; flex-grow: 1; align-items: center; padding: 5px 0;">
+                    <input type="checkbox" class="group-checkbox" data-group="${item.id}" data-member-ids="${item.memberIds.join(',')}" style="width: 18px; height: 18px;">
+                    <span style="color: var(--accent-blue); font-weight: bold;">[GRUPPE] ${item.name}</span>
+                </label>
+            `;
+            // Event Listener für Gruppen-Checkbox
+            selectItem.querySelector('.group-checkbox').addEventListener('change', (e) => toggleGroupSelection(e.target, item.id));
+
+        } else {
+            // KONTAKT: Individuelle Auswahl
+            selectItem.innerHTML = `
+                <label style="display: flex; gap: 10px; cursor: pointer; flex-grow: 1; align-items: center;">
+                    <input type="checkbox" class="contact-checkbox" data-id="${item.id}" value="${item.id}" data-group="${item.group}" style="width: 18px; height: 18px; border: 1px solid var(--accent-blue);">
+                    <span style="color: var(--text-main);">${item.name}</span>
+                </label>
+                <span style="color: #777; font-size: 0.8rem;">(${item.group || 'Einzel'})</span>
+            `;
+        }
+        selectList.appendChild(selectItem);
+    });
+}
+
+function toggleGroupSelection(checkbox, groupId) {
+    // Holt die IDs der Gruppenmitglieder
+    const memberIdsString = checkbox.dataset.memberIds;
+    if (!memberIdsString) return;
+    
+    const memberIds = memberIdsString.split(',');
+    
+    memberIds.forEach(id => {
+        const memberCheckbox = document.querySelector(`#selectContactList input[data-id="${id}"].contact-checkbox`);
+        if (memberCheckbox) {
+            memberCheckbox.checked = checkbox.checked;
+        }
+    });
+}
+
+
+// --- MODAL UND TAB FUNKTIONEN ---
 
 function openContactsModal(initialTab = 'manageTab') {
     const modal = document.getElementById('contactsModal');
     if (!modal) return;
     
-    renderContactLists(); // Vor dem Öffnen Listen aktualisieren
+    // Beide Listen rendern
+    renderContactLists(); 
+    renderContactSelectionList(); 
+    
     switchContactTab(initialTab);
     modal.classList.add('active');
 }
 
 function closeContactsModal() {
     document.getElementById('contactsModal')?.classList.remove('active');
+    // Suchfelder leeren, damit sie beim nächsten Mal nicht gefiltert sind
+    document.getElementById('manageSearch').value = '';
+    document.getElementById('selectSearch').value = '';
 }
 
 function switchContactTab(targetId) {
@@ -484,29 +580,30 @@ function handleAddContact(e) {
     const idInput = document.getElementById('newContactID');
 
     const name = nameInput.value.trim();
-    const id = idInput.value.trim();
+    const id = idInput.value.trim(); // Die Benutzer-ID
 
     if (name.length < 3 || id.length < 3) {
-        alert("Name und Benutzer-ID müssen mindestens 3 Zeichen lang sein.");
+        showAppStatus("Alias und Benutzer-ID müssen mindestens 3 Zeichen lang sein.", 'error');
         return;
     }
     if (contacts.some(c => c.id.toLowerCase() === id.toLowerCase())) {
-        alert(`Kontakt mit der ID "${id}" existiert bereits.`);
+        showAppStatus(`Kontakt mit der ID "${id}" existiert bereits.`, 'error');
         return;
     }
 
-    contacts.push({ name: name, id: id });
-    contacts.sort((a, b) => a.name.localeCompare(b.name));
+    // Fügt den Kontakt hinzu (Gruppe für Demo fix auf 'Freunde')
+    contacts.push({ name: name, id: id, group: "Freunde" }); 
     saveContacts();
 
     nameInput.value = '';
     idInput.value = '';
     
-    alert(`Kontakt "${name}" erfolgreich hinzugefügt.`);
+    showAppStatus(`Kontakt "${name}" erfolgreich hinzugefügt und der Gruppe 'Freunde' zugeordnet.`, 'success');
 }
 
 function handleConfirmSelection() {
-    const selectedCheckboxes = document.querySelectorAll('#selectContactList input[type="checkbox"]:checked');
+    // Sucht nur Checkboxen vom Typ 'contact-checkbox', um Gruppen-Checkboxen zu ignorieren
+    const selectedCheckboxes = document.querySelectorAll('#selectContactList input.contact-checkbox:checked');
     const recipientInput = document.getElementById('recipientName');
     
     if (!recipientInput) {
@@ -516,13 +613,17 @@ function handleConfirmSelection() {
     
     let selectedIDs = [];
     selectedCheckboxes.forEach(cb => {
-        selectedIDs.push(cb.value);
+        // Verhindert doppelte IDs (auch wenn das HTML dies schon verhindern sollte)
+        if (!selectedIDs.includes(cb.value)) {
+            selectedIDs.push(cb.value);
+        }
     });
     
     // IDs als Komma-getrennten String in das Empfängerfeld einfügen
     recipientInput.value = selectedIDs.join(', ');
     
     closeContactsModal();
+    showAppStatus(`Empfängerliste mit ${selectedIDs.length} Kontakten aktualisiert.`, 'success');
 }
 
 // ================================================================
@@ -548,8 +649,35 @@ function showSection(id) {
     }
 }
 
+function showAppStatus(msg, type = 'success') {
+    const container = document.getElementById('globalStatusContainer');
+    const msgElement = document.createElement('div');
+    
+    if (!container) {
+        // Fallback, falls der Container fehlt
+        if (type === 'error') alert("FEHLER: " + msg); else alert("INFO: " + msg);
+        return;
+    }
+    
+    msgElement.textContent = msg;
+    msgElement.className = `app-status-msg ${type}`;
+    
+    container.prepend(msgElement);
+    requestAnimationFrame(() => {
+        msgElement.classList.add('active');
+    });
+
+    // Nach 5 Sekunden ausblenden und entfernen
+    setTimeout(() => {
+        msgElement.classList.remove('active');
+        setTimeout(() => { msgElement.remove(); }, 500); 
+    }, 5000);
+}
+
+// Bestehende showStatus Funktion für Formular-spezifische Meldungen beibehalten
 function showStatus(elementId, msg, type) {
     const el = document.getElementById(elementId);
+    if (!el) return;
     el.textContent = msg;
     el.style.display = 'block';
     el.style.color = type === 'error' ? '#ff3333' : '#00ff41';
