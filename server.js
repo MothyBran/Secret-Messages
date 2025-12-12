@@ -27,8 +27,21 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "https://js.stripe.com"],
-      scriptSrcElem: ["'self'", "https://js.stripe.com"],
+      
+      // WICHTIG: Hier müssen die QR-Code Bibliotheken erlaubt werden!
+      scriptSrc: [
+          "'self'", 
+          "https://js.stripe.com", 
+          "https://cdnjs.cloudflare.com", 
+          "https://unpkg.com"
+      ],
+      scriptSrcElem: [
+          "'self'", 
+          "https://js.stripe.com", 
+          "https://cdnjs.cloudflare.com", 
+          "https://unpkg.com"
+      ],
+      
       frameSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
