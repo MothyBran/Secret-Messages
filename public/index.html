@@ -12,7 +12,7 @@
         :root {
             --bg-dark: #050505;
             --bg-panel: #0f1215;
-            --accent-blue: #00BFFF; /* Dein gewünschtes Hellblau */
+            --accent-blue: #00BFFF;
             --accent-glow: rgba(0, 191, 255, 0.3);
             --text-main: #e0e0e0;
             --text-muted: #8899a6;
@@ -35,41 +35,17 @@
             flex-direction: column;
         }
 
-        /* === HINTERGRUND EFFEKT (Subtiles Gitter) === */
         .bg-grid {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-image: 
                 linear-gradient(rgba(0, 191, 255, 0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0, 191, 255, 0.03) 1px, transparent 1px);
             background-size: 30px 30px;
-            z-index: -1;
-            pointer-events: none;
+            z-index: -1; pointer-events: none;
         }
-
-        /* === LANDSCAPE WARNUNG (Mobile) === */
-        @media screen and (orientation: landscape) and (max-width: 900px) {
-            .landscape-warning {
-                display: flex !important;
-            }
-        }
-        .landscape-warning {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-dark);
-            z-index: 9999;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-        }
-        .rotate-icon { font-size: 3rem; margin-bottom: 20px; color: var(--accent-blue); animation: rotate 2s infinite; }
-        @keyframes rotate { 0% { transform: rotate(0deg); } 25% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
 
         /* === UI KOMPONENTEN === */
-        input, textarea, button { font-family: 'Roboto Mono', monospace; outline: none; }
+        input, textarea, button, select { font-family: 'Roboto Mono', monospace; outline: none; }
         
         .btn {
             background: rgba(0, 191, 255, 0.1);
@@ -85,330 +61,206 @@
         }
         .btn:active { transform: scale(0.98); }
         .btn-primary { 
-            background: var(--accent-blue); 
-            color: #000; 
+            background: var(--accent-blue); color: #000; 
             box-shadow: 0 0 15px var(--accent-glow);
         }
         .btn-danger { border-color: var(--error-red); color: var(--error-red); background: rgba(255,50,50,0.05); }
 
         /* === HEADER === */
         header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 15px 20px;
-            background: rgba(15, 18, 21, 0.9);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 15px 20px; background: rgba(15, 18, 21, 0.9);
             border-bottom: 1px solid var(--border-color);
-            backdrop-filter: blur(10px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;
         }
-
-        .menu-btn {
-            background: none; border: none; color: var(--accent-blue);
-            font-size: 1.5rem; cursor: pointer;
-        }
-
-        .app-logo {
-            font-weight: 700; font-size: 1.2rem; letter-spacing: 2px;
-            display: flex; align-items: center; gap: 10px;
-        }
+        .menu-btn { background: none; border: none; color: var(--accent-blue); font-size: 1.5rem; cursor: pointer; }
+        .app-logo { font-weight: 700; font-size: 1.2rem; letter-spacing: 2px; display: flex; align-items: center; gap: 10px; }
         .shield-icon { width: 24px; height: 24px; fill: var(--accent-blue); }
 
-        /* === MODE SWITCH (Oben Rechts) === */
+        /* === MODE SWITCH === */
         .mode-switch-container {
-            position: relative;
-            display: inline-block;
-            width: 70px;  /* Breiter für Icons */
-            height: 34px; /* Höher */
-            background-color: #1a1a1a; /* Dunkle "Spur" */
-            border-radius: 17px; /* Stark abgerundet */
-            border: 1px solid #333;
-            overflow: hidden;
-            cursor: pointer;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+            position: relative; display: inline-block; width: 70px; height: 34px;
+            background-color: #1a1a1a; border-radius: 17px; border: 1px solid #333; cursor: pointer;
         }
-
-        /* Die Icons im Hintergrund (Pseudo-Elemente des Labels) */
-        .mode-switch-container::before,
-        .mode-switch-container::after {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%); /* Vertikal zentrieren */
-            font-size: 18px;
-            z-index: 0; /* Liegen HINTER dem Slider */
-            transition: all 0.3s ease;
-            opacity: 0.5; /* Etwas gedimmt wenn inaktiv */
-            filter: grayscale(100%);
-        }
-
-        /* Linkes Icon (Offenes Schloss 🔓) 
-           - Wird verdeckt, wenn Slider links ist (Verschlüsseln-Modus) */
-        .mode-switch-container::before {
-            content: '🔓'; /* Unicode Icon */
-            left: 8px;
-        }
-
-        /* Rechtes Icon (Geschlossenes Schloss 🔒) 
-           - Wird verdeckt, wenn Slider rechts ist (Entschlüsseln-Modus) */
-        .mode-switch-container::after {
-            content: '🔒'; /* Unicode Icon */
-            right: 8px;
-        }
-
-        /* Die Checkbox selbst (unsichtbar) */
-        .mode-checkbox { 
-            opacity: 0; width: 0; height: 0; position: absolute;
-        }
-
-        /* Der Schieberegler (Slider), der die Icons verdeckt */
+        .mode-switch-container::before { content: '🔓'; position: absolute; top: 50%; left: 8px; transform: translateY(-50%); font-size: 18px; opacity: 0.5; filter: grayscale(100%); transition: 0.3s; }
+        .mode-switch-container::after { content: '🔒'; position: absolute; top: 50%; right: 8px; transform: translateY(-50%); font-size: 18px; opacity: 0.5; filter: grayscale(100%); transition: 0.3s; }
+        .mode-checkbox { opacity: 0; width: 0; height: 0; position: absolute; }
         .mode-slider {
-            position: absolute;
-            top: 3px; left: 3px;
-            width: 26px; height: 26px;
-            /* Beginnt als Akzentfarbe (Blau) */
-            background-color: var(--accent-blue);
-            border-radius: 50%; /* Kreisrund */
-            z-index: 1; /* Liegt VOR den Icons */
-            transition: transform 0.4s cubic-bezier(0.7, -0.4, 0.4, 1.4), background-color 0.3s; /* Cooler "Bounce" Effekt */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+            background-color: var(--accent-blue); border-radius: 50%; transition: transform 0.4s cubic-bezier(0.7, -0.4, 0.4, 1.4);
         }
+        .mode-checkbox:checked + .mode-slider { transform: translateX(36px); }
+        .mode-switch-container:has(.mode-checkbox:checked)::before { opacity: 1; filter: grayscale(0%); color: var(--accent-blue); }
+        .mode-switch-container:has(.mode-checkbox:not(:checked))::after { opacity: 1; filter: grayscale(0%); color: var(--accent-blue); }
 
-        /* === ZUSTAND: ENTSCHLÜSSELN (Checked) === */
-        
-        /* 1. Slider nach rechts bewegen und Farbe anpassen (optional) */
-        .mode-checkbox:checked + .mode-slider {
-            /* Nach rechts schieben (Containerbreite - Sliderbreite - Rand*2) */
-            transform: translateX(36px); 
-            /* Optional: Farbe auch hier auf Blau lassen, da die ganze Seite blau wird */
-            background-color: var(--accent-blue); 
-        }
-
-        /* OPTIONAL: Das jeweils SICHTBARE Icon zum Leuchten bringen (benötigt moderne Browser) */
-        /* Wenn Schalter RECHTS ist (Entschlüsseln), leuchtet das LINKE Icon (Offen) */
-        .mode-switch-container:has(.mode-checkbox:checked)::before {
-            opacity: 1;
-            filter: grayscale(0%) drop-shadow(0 0 5px var(--accent-blue));
-            color: var(--accent-blue);
-        }
-        /* Wenn Schalter LINKS ist (Verschlüsseln), leuchtet das RECHTE Icon (Geschlossen) */
-        .mode-switch-container:has(.mode-checkbox:not(:checked))::after {
-            opacity: 1;
-            filter: grayscale(0%) drop-shadow(0 0 5px var(--accent-blue));
-            color: var(--accent-blue);
-        }
-        
-        /* Wenn gecheckt (Decrypt Mode) */
-        .mode-checkbox:checked + .mode-slider { background-color: var(--accent-blue); }
-        .mode-checkbox:checked + .mode-slider:before { transform: translateX(24px); background-color: #fff; }
-
-        /* === SIDEBAR (Menü) === */
+        /* === SIDEBAR (Hauptmenü) === */
         .sidebar {
-            position: fixed; top: 0; left: 0;
-            width: var(--sidebar-width); height: 100%;
-            background: var(--bg-panel);
-            border-right: 1px solid var(--accent-blue);
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-            z-index: 200;
-            display: flex; flex-direction: column;
-            padding-top: 60px;
+            position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100%;
+            background: var(--bg-panel); border-right: 1px solid var(--accent-blue);
+            transform: translateX(-100%); transition: transform 0.3s ease; z-index: 200;
+            display: flex; flex-direction: column; padding-top: 60px;
         }
         .sidebar.active { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.8); }
         .sidebar-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 150;
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.3s;
+            background: rgba(0,0,0,0.7); z-index: 150; opacity: 0; pointer-events: none; transition: opacity 0.3s;
         }
         .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
-        
         .sidebar-item {
-            padding: 15px 25px;
-            border-bottom: 1px solid #222;
-            color: var(--text-main);
-            text-decoration: none;
-            display: flex; align-items: center; gap: 10px;
-            transition: 0.2s;
+            padding: 15px 25px; border-bottom: 1px solid #222; color: var(--text-main); text-decoration: none; display: flex; align-items: center; gap: 10px; transition: 0.2s;
         }
         .sidebar-item:hover { background: rgba(0, 191, 255, 0.05); padding-left: 30px; color: var(--accent-blue); }
-        .user-badge {
-            padding: 20px;
-            background: linear-gradient(180deg, rgba(0,191,255,0.1), transparent);
-            border-bottom: 1px solid var(--accent-blue);
-            margin-bottom: 10px;
+
+        /* === KONTAKT-SIDEBAR (Slide-In von links, überlappt Menü) === */
+        #contactSidebar {
+            position: fixed; top: 0; left: 0; 
+            width: 100%; max-width: 450px; /* Breiter für die Tabelle */
+            height: 100%;
+            background: var(--bg-panel); 
+            border-right: 2px solid var(--accent-blue);
+            transform: translateX(-100%); 
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); 
+            z-index: 300; /* Höher als Sidebar (200) */
+            display: flex; flex-direction: column;
+            box-shadow: 10px 0 50px rgba(0,0,0,0.9);
+        }
+        #contactSidebar.active { transform: translateX(0); }
+
+        .cs-header {
+            padding: 15px; background: rgba(0,0,0,0.3); border-bottom: 1px solid #333;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .cs-close-btn {
+            background: none; border: none; color: #777; font-size: 1.5rem; cursor: pointer; padding: 0 10px;
+        }
+        .cs-close-btn:hover { color: var(--error-red); }
+
+        .cs-content {
+            flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column;
         }
 
-        /* === MAIN CONTENT === */
-        .main-container {
-            flex: 1;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+        .cs-table-header {
+            display: flex; justify-content: space-between; padding: 10px 5px;
+            border-bottom: 2px solid var(--accent-blue); margin-top: 10px;
+            font-size: 0.8rem; text-transform: uppercase; color: var(--accent-blue); font-weight: bold;
+        }
+        .cs-col { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
+        .cs-col:hover { color: #fff; }
+
+        .cs-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 5px; border-bottom: 1px solid #222; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .cs-row:hover { background: rgba(255,255,255,0.03); }
+        .cs-row.selected { background: rgba(0, 191, 255, 0.15); border-left: 3px solid var(--accent-blue); }
+        .cs-row.edit-mode-active { border-left: 3px solid #ffa500; } /* Orange für Edit Mode */
+
+        .cs-footer {
+            padding: 15px; border-top: 1px solid #333; background: rgba(0,0,0,0.5);
+            display: flex; gap: 10px;
         }
 
-        /* SECTION: LOGIN / ACTIVATION / APP */
+        /* Group Checkbox Area (Select Mode) */
+        .group-select-container {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 10px;
+            background: rgba(0,0,0,0.2); border: 1px solid #333; border-radius: 4px;
+        }
+        .group-tag {
+            font-size: 0.8rem; padding: 4px 8px; background: #222; border-radius: 4px; border: 1px solid #444;
+            cursor: pointer; display: flex; align-items: center; gap: 5px;
+        }
+        .group-tag.active { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+        /* === EDIT MODAL (Zentriert) === */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px);
+        }
+        .modal.active { display: flex; }
+        .modal-box {
+            background: var(--bg-panel); padding: 25px; width: 90%; max-width: 400px;
+            border: 1px solid var(--accent-blue); box-shadow: 0 0 30px rgba(0,191,255,0.2);
+        }
+
+        /* === STATUS & INPUTS === */
         .section { display: none; animation: fadeIn 0.4s ease; }
         .section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* INPUT GROUPS */
-        .input-group { position: relative; margin-bottom: 15px; }
-        .input-label {
-            display: block; font-size: 0.75rem; color: var(--accent-blue);
-            margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;
-        }
+        .input-group { margin-bottom: 15px; }
+        .input-label { display: block; font-size: 0.75rem; color: var(--accent-blue); margin-bottom: 5px; text-transform: uppercase; }
         .input-field {
-            width: 100%;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid #333;
-            border-left: 3px solid #333;
-            color: #fff;
-            padding: 12px;
-            font-size: 1rem;
-            transition: 0.3s;
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid #333; border-left: 3px solid #333;
+            color: #fff; padding: 12px; font-size: 1rem; transition: 0.3s;
         }
-        .input-field:focus {
-            border-color: var(--accent-blue);
-            border-left-color: var(--accent-blue);
-            box-shadow: -5px 0 10px -5px var(--accent-glow);
+        .input-field:focus { border-color: var(--accent-blue); border-left-color: var(--accent-blue); }
+        .code-input { letter-spacing: 8px; font-size: 1.2rem; text-align: center; }
+
+        .app-status-msg {
+            position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            padding: 12px 20px; border: 1px solid; background: var(--bg-panel); z-index: 2000;
+            opacity: 0; transition: 0.5s; pointer-events: none;
         }
-
-        /* 5-Digit Code Special Styling */
-        .code-input {
-            letter-spacing: 8px; font-size: 1.2rem; text-align: center;
-        }
-
-        /* === STATUS & FOOTER === */
-        .status-msg {
-            padding: 10px; margin-top: 10px; border-radius: 4px;
-            font-size: 0.9rem; text-align: center; display: none;
-        }
-        
-        footer {
-            margin-top: auto;
-            padding: 20px;
-            text-align: center;
-            font-size: 0.8rem;
-            color: #444;
-            border-top: 1px solid #111;
-        }
-
-        /* === QR CODE MODAL === */
-        .modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 1000;
-            justify-content: center; align-items: center;
-            flex-direction: column;
-        }
-        .modal.active { display: flex; }
-        .qr-placeholder {
-            width: 250px; height: 250px; background: #fff; margin: 20px;
-            display: flex; justify-content: center; align-items: center;
-            color: #000;
-        }
-
-        /* === GLOBALE STATUSMELDUNGEN (NEU) === */
-#globalStatusContainer {
-    position: fixed;
-    top: 60px; /* Unter dem Header */
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 500;
-    width: 90%;
-    max-width: 400px;
-}
-.app-status-msg {
-    padding: 12px 20px;
-    margin-bottom: 10px;
-    border: 1px solid;
-    font-size: 0.9rem;
-    text-align: center;
-    background: var(--bg-panel);
-    color: var(--text-main);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-    opacity: 0;
-    transition: opacity 0.5s, transform 0.5s;
-    transform: translateY(-20px);
-}
-.app-status-msg.active {
-    opacity: 1;
-    transform: translateY(0);
-}
-.app-status-msg.success { border-color: var(--success-green); color: var(--success-green); }
-.app-status-msg.error { border-color: var(--error-red); color: var(--error-red); }
-
-/* === KONTAKTVERZEICHNIS MODAL STYLES === */
-.modal-content {
-    background-color: var(--bg-panel);
-    margin: auto;
-    padding: 20px;
-    border: 1px solid var(--accent-blue);
-    width: 90%;
-    max-width: 550px; 
-    box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
-    position: relative;
-}
-
-/* Tabs */
-.tabs { display: flex; justify-content: center; border-bottom: 1px solid #333; }
-.tab-btn {
-    background: none; border: none; padding: 10px 15px; color: #777; cursor: pointer; transition: color 0.3s;
-    font-family: 'Rajdhani', sans-serif; font-weight: bold; text-transform: uppercase;
-}
-.tab-btn.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); }
-.tab-content { display: none; padding-top: 15px; }
-.tab-content.active { display: block; }
-
-/* Listen-Styling */
-#contactList li, #selectContactList li {
-    display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222;
-    font-family: 'Roboto Mono', monospace;
-}
-#contactList li:last-child, #selectContactList li:last-child { border-bottom: none; }
-.delete-btn {
-    background: none; border: 1px solid var(--error-red); color: var(--error-red); padding: 3px 8px; cursor: pointer;
-    font-size: 0.7rem; transition: 0.2s; text-transform: uppercase;
-}
-.delete-btn:hover { background: var(--error-red); color: white; }
+        .app-status-msg.active { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .app-status-msg.success { border-color: var(--success-green); color: var(--success-green); }
+        .app-status-msg.error { border-color: var(--error-red); color: var(--error-red); }
 
     </style>
 </head>
 <body>
 
     <div class="bg-grid"></div>
-
     <div id="globalStatusContainer"></div>
-
-    <div class="landscape-warning">
-        <div class="rotate-icon">↻</div>
-        <h2>SYSTEM LOCKED</h2>
-        <p>Sicherheitsprotokoll erfordert Hochformat.</p>
-        <p>Bitte Gerät drehen.</p>
-    </div>
-
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
-        <nav class="sidebar" id="sidebar">
-            <div class="user-badge">
-                <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">Gast</h3>
-                <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
+
+    <nav class="sidebar" id="sidebar">
+        <div style="padding: 20px; background: linear-gradient(180deg, rgba(0,191,255,0.1), transparent); border-bottom: 1px solid var(--accent-blue); margin-bottom: 10px;">
+            <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">Gast</h3>
+            <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
+        </div>
+        <a href="store.html" class="sidebar-item">🛒 Lizenz Shop</a>
+        <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;">📇 Kontaktverzeichnis</a>
+        <a href="mailto:support@secret-messages.com" class="sidebar-item">🆘 Support</a>
+        <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="margin-top:auto; display:none;">🔒 Abmelden</a>
+    </nav>
+
+    <div id="contactSidebar">
+        <div class="cs-header">
+            <button class="cs-close-btn" id="closeContactSidebar">←</button>
+            <h3 style="color: var(--accent-blue); letter-spacing: 2px;">KONTAKTE</h3>
+            <div style="width: 24px;"></div> </div>
+
+        <div class="cs-content">
+            <input type="text" id="contactSearch" class="input-field" placeholder="Suche..." style="margin-bottom: 15px;">
+            
+            <div id="groupSelectionArea" class="group-select-container" style="display:none;">
+                <small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen:</small>
+                </div>
+
+            <div class="cs-table-header">
+                <span class="cs-col" id="sortByName" style="flex: 2;">Empfänger ↕</span>
+                <span class="cs-col" id="sortByGroup" style="flex: 1; text-align: right;">Gruppe ↕</span>
             </div>
+
+            <div id="contactListBody" style="display: flex; flex-direction: column;">
+                </div>
             
-            <a href="store.html" class="sidebar-item" id="navShop">🛒 Lizenz Shop</a>
-        
-            <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;">📇 Kontaktverzeichnis</a>
-            
-            <a href="mailto:support@secret-messages.com" class="sidebar-item" id="navSupport">🆘 Support</a>
-            
-            <a href="#" class="sidebar-item auth-only" id="navDelete" style="color: var(--error-red); margin-top: auto; display:none;">⚠️ Konto löschen</a>
-            <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
-        </nav>
+            <div id="emptyContactMsg" style="text-align: center; color: #666; padding: 20px; display: none;">
+                Keine Kontakte gefunden.
+            </div>
+        </div>
+
+        <div class="cs-footer" id="csFooterManage" style="display: none;">
+            <button class="btn" id="btnEditToggle" style="flex: 1; border-color: #ffa500; color: #ffa500;">✎ Bearbeiten</button>
+            <button class="btn btn-primary" id="btnAddContactOpen" style="flex: 1;">+ Hinzufügen</button>
+        </div>
+
+        <div class="cs-footer" id="csFooterSelect" style="display: none;">
+            <button class="btn" id="btnCancelSelect" style="flex: 1; border-color: #555; color: #fff;">Abbrechen</button>
+            <button class="btn btn-primary" id="btnConfirmSelect" style="flex: 1;">Übernehmen</button>
+        </div>
+    </div>
 
     <header>
         <button class="menu-btn" id="menuToggle">☰</button>
@@ -416,14 +268,13 @@
             <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
             <span>SECURE APP</span>
         </div>
-        
         <label class="mode-switch-container" id="headerSwitchWrapper" style="display:none;">
             <input type="checkbox" class="mode-checkbox" id="modeSwitch">
             <span class="mode-slider"></span>
         </label>
     </header>
 
-    <div class="main-container">
+    <div style="flex: 1; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%;">
 
         <div id="loginSection" class="section active">
             <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
@@ -436,39 +287,23 @@
                     <label class="input-label">Zugangscode</label>
                     <input type="password" id="accessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">
-                    <span id="loginBtnText">VERBINDUNG HERSTELLEN</span>
-                </button>
+                <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
             </form>
             <div style="text-align:center; margin-top:20px;">
                 <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>
             </div>
-            <div id="loginStatus" class="status-msg"></div>
+            <div id="loginStatus" class="app-status-msg"></div>
         </div>
 
         <div id="activationSection" class="section">
             <h2 style="text-align:center; margin-bottom:20px;">LIZENZIERUNG</h2>
             <form id="activationForm">
-                <div class="input-group">
-                    <label class="input-label">Lizenz-Key</label>
-                    <input type="text" id="licenseKey" class="input-field" placeholder="XXXXX-XXXXX-XXXXX" required>
-                </div>
-                <div class="input-group">
-                    <label class="input-label">Neuer Benutzername</label>
-                    <input type="text" id="newUsername" class="input-field" required>
-                </div>
-                <div class="input-group">
-                    <label class="input-label">Neuer Zugangscode (5 Stellen)</label>
-                    <input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" inputmode="numeric" required>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%" id="activateBtn">
-                    <span id="activateBtnText">LIZENZ BINDEN</span>
-                </button>
+                <div class="input-group"><label class="input-label">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
+                <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
+                <div class="input-group"><label class="input-label">Neuer Code (5)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
+                <button type="submit" class="btn btn-primary" style="width:100%">LIZENZ BINDEN</button>
             </form>
-            <div style="text-align:center; margin-top:15px;">
-                <button class="btn" id="showLoginLink" style="border:none; background:none; font-size:0.8rem;">Zurück</button>
-            </div>
-            <div id="activationStatus" class="status-msg"></div>
+            <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;">Zurück</button></div>
         </div>
 
         <div id="mainSection" class="section">
@@ -480,7 +315,7 @@
             <div class="input-group" id="recipientGroup">
                 <label class="input-label">Empfänger ID's</label>
                 <div style="display:flex; gap:5px;">
-                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB,...">
+                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB...">
                     <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
                 </div>
             </div>
@@ -497,12 +332,10 @@
 
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button id="actionBtn" class="btn btn-primary">🔒 DATEN VERSCHLÜSSELN</button>
-                
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <button id="copyBtn" class="btn">📋 KOPIEREN</button>
                     <button id="clearFieldsBtn" class="btn btn-danger">🧹 LEEREN</button>
                 </div>
-
                 <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
                 <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
             </div>
@@ -515,196 +348,40 @@
 
     </div>
 
-    <footer>
-        <div style="max-width: 600px; margin: 0 auto; text-align: left;">
-            
-            <details style="margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">
-                <summary style="cursor:pointer; color:var(--accent-blue); outline:none; font-weight:bold;">
-                    ℹ️ ANLEITUNG & HILFE
-                </summary>
-                
-                <div style="margin-top:15px; color:#ccc; font-size: 0.85rem; line-height: 1.6;">
-                    <strong style="color:var(--accent-blue);">1. Nachricht Verschlüsseln:</strong>
-                    <ol style="margin-left: 20px; margin-bottom: 10px;">
-                        <li>Gib deinen Text in das Hauptfeld ein.</li>
-                        <li>Wähle einen <strong>5-stelligen Code</strong> (diesen musst du dem Empfänger mitteilen!).</li>
-                        <li>Optional: Gib Empfänger an (Komma getrennt). Lässt du es leer, kann jeder mit dem Code lesen.</li>
-                        <li>Klicke auf <strong>VERSCHLÜSSELN</strong>.</li>
-                        <li>Kopiere das Ergebnis oder zeige den QR-Code.</li>
-                    </ol>
-
-                    <strong style="color:#00ff41;">2. Nachricht Entschlüsseln:</strong>
-                    <ol style="margin-left: 20px;">
-                        <li>Schalte oben rechts auf <strong>"ENTSCHLÜSSELN"</strong> um.</li>
-                        <li>Füge den Geheimtext ein oder scanne den QR-Code.</li>
-                        <li>Gib den vereinbarten <strong>5-stelligen Code</strong> ein.</li>
-                        <li>Klicke auf den Button. War der Code korrekt, erscheint der Klartext.</li>
-                    </ol>
-                </div>
-            </details>
-
-            <div style="text-align: center; color: #555; font-size: 0.75rem; margin-top: 20px;">
-                <p style="margin-bottom: 5px;">
-                    <strong>Secure App Corp.</strong><br>
-                    IT-Security & Encryption Solutions<br>
-                    Musterstraße 1, 10115 Berlin
-                </p>
-                <p>
-                    <a href="#" style="color:#666; text-decoration:none;">Impressum</a> | 
-                    <a href="#" style="color:#666; text-decoration:none;">Datenschutz</a> | 
-                    <a href="mailto:support@secret-messages.com" style="color:#666; text-decoration:none;">Support</a>
-                </p>
-                <p style="margin-top: 10px; opacity: 0.5;">
-                    &copy; 2025 Secure App Corp. All rights reserved.<br>
-                    Engine: AES-256-GCM + 4-Layer Obfuscation
-                </p>
-            </div>
-        </div>
-    </footer>
-
     <div id="qrModal" class="modal">
         <h3 style="margin-bottom:20px; color: var(--accent-blue);">SECURE QR</h3>
-        <div class="qr-placeholder" id="qrDisplay" style="background: white; padding: 10px;">
-            </div>
-        <br>
-        <button class="btn" id="closeQrBtn">SCHLIESSEN</button>
+        <div style="background:white; padding:10px; color:black;" id="qrDisplay"></div>
+        <br><button class="btn" id="closeQrBtn">SCHLIESSEN</button>
     </div>
 
-    <div id="contactsModal" class="modal">
-        <div class="modal-content">
-            <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;">📞 Kontaktverzeichnis</h3>
-            
-            <div class="tabs">
-                <button class="tab-btn active" data-target="manageTab">Verwalten & Gruppen</button>
-                <button class="tab-btn" data-target="selectTab">Empfänger wählen (Senden)</button>
-            </div>
-    
-            <div id="manageTab" class="tab-content active">
-                
-                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Kontakt hinzufügen</h4>
-                <form id="addContactForm" style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <input type="text" id="newContactName" class="input-field" placeholder="Alias (z.B. Anna)" style="width: 35%;">
-                    <input type="text" id="newContactID" class="input-field" placeholder="Benutzername / ID des Kontakts" style="flex-grow: 1;">
-                    <button type="submit" class="btn" style="width: auto; padding: 10px;">➕</button>
-                </form>
-                
-                <h4 style="color: #ccc; margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Deine Kontakte</h4>
-                
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <input type="text" id="manageSearch" class="input-field" placeholder="Suchen / Sortieren (Name/Gruppe)" style="flex-grow: 1;">
+    <div id="contactEditModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;" id="modalTitle">Kontakt hinzufügen</h3>
+            <form id="contactForm">
+                <div class="input-group">
+                    <label class="input-label">Empfänger (Alias)</label>
+                    <input type="text" id="inputName" class="input-field" placeholder="Name (optional)">
+                    <small style="color:#666; font-size:0.7rem;">Wenn leer, wird ID verwendet.</small>
                 </div>
-    
-                <ul id="contactList" style="list-style: none; padding: 0; max-height: 250px; overflow-y: auto; border: 1px solid #111; padding: 10px;">
-                    </ul>
-            </div>
-    
-            <div id="selectTab" class="tab-content">
-                 <h4 style="color: var(--accent-blue); margin-bottom: 15px; border-bottom: 1px solid #111; padding-bottom: 5px;">Empfänger wählen</h4>
-                 
-                 <input type="text" id="selectSearch" class="input-field" placeholder="Kontakte / Gruppen suchen..." style="margin-bottom: 15px;">
-    
-                <ul id="selectContactList" style="list-style: none; padding: 0; max-height: 300px; overflow-y: auto; border: 1px solid #111; padding: 10px;">
-                    </ul>
-                
-                <div style="margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px;">
-                    <button class="btn" id="confirmSelectionBtn" style="background: var(--accent-blue); color: #000;">BESTÄTIGEN</button>
-                    <button class="btn" id="cancelSelectionBtn" style="background: #333; color: #fff; border: 1px solid #555;">ABBRECHEN</button>
+                <div class="input-group">
+                    <label class="input-label">Benutzer-ID (Pflicht)</label>
+                    <input type="text" id="inputID" class="input-field" placeholder="Exakter DB Username" required>
                 </div>
-            </div>
+                <div class="input-group">
+                    <label class="input-label">Gruppe</label>
+                    <input type="text" id="inputGroup" class="input-field" list="groupSuggestions" placeholder="Gruppe wählen oder eingeben">
+                    <datalist id="groupSuggestions"></datalist>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" class="btn" id="btnCancelEdit" style="flex:1; border-color:#555; color:#aaa;">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveContact" style="flex:1;">Speichern</button>
+                </div>
+                
+                <button type="button" id="btnDeleteContact" class="btn btn-danger" style="width:100%; margin-top:10px; display:none;">Löschen</button>
+            </form>
         </div>
     </div>
-
-<style>
-    /* ... (dein bestehendes CSS) ... */
-
-    /* Generic Modal Style (Sollte bei dir schon existieren, falls nicht, hinzufügen) */
-    .modal {
-        display: none;
-        position: fixed;
-        z-index: 1000;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-        background-color: rgba(0,0,0,0.8);
-        align-items: center;
-        justify-content: center;
-        backdrop-filter: blur(5px);
-    }
-    .modal.active {
-        display: flex;
-    }
-    .modal-content {
-        background-color: var(--bg-panel);
-        margin: auto;
-        padding: 20px;
-        border: 1px solid var(--accent-blue);
-        width: 90%;
-        max-width: 500px; /* Begrenzung der Breite */
-        box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
-        position: relative;
-    }
-
-    /* Tabs */
-    
-    .tabs {
-        display: flex;
-        justify-content: center;
-        border-bottom: 1px solid #333;
-    }
-    .tab-btn {
-        background: none;
-        border: none;
-        padding: 10px 15px;
-        color: #777;
-        cursor: pointer;
-        transition: color 0.3s;
-        font-family: 'Rajdhani', sans-serif;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
-    .tab-btn.active {
-        color: var(--accent-blue);
-        border-bottom: 2px solid var(--accent-blue);
-    }
-    .tab-content {
-        display: none;
-        padding-top: 15px;
-    }
-    .tab-content.active {
-        display: block;
-    }
-
-    /* Kontaktliste */
-    #contactList li, #selectContactList li {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #222;
-    }
-    #contactList li:last-child, #selectContactList li:last-child {
-        border-bottom: none;
-    }
-    .contact-info {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 0.9rem;
-    }
-    .delete-btn {
-        background: none;
-        border: 1px solid var(--error-red);
-        color: var(--error-red);
-        padding: 3px 8px;
-        cursor: pointer;
-        font-size: 0.7rem;
-        transition: 0.2s;
-    }
-    .delete-btn:hover {
-        background: var(--error-red);
-        color: white;
-    }
-</style>
 
     <script type="module" src="app.js"></script>
 </body>
