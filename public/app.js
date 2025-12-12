@@ -214,6 +214,7 @@ function updateAppMode(mode) {
 // ================================================================
 
 async function handleMainAction() {
+    // 1. Tastatur schließen
     if (document.activeElement) document.activeElement.blur();
 
     const code = document.getElementById('messageCode').value;
@@ -231,11 +232,11 @@ async function handleMainAction() {
         let result = "";
 
         if (currentMode === 'encrypt') {
-            // VERSCHLÜSSELN
+            // --- VERSCHLÜSSELN ---
             const recipientInput = document.getElementById('recipientName').value;
             let recipientIDs = [];
 
-            // Nur wenn etwas eingegeben wurde, erstellen wir eine Liste
+            // Nur wenn wirklich Text drin steht (und nicht nur Leerzeichen), ist es eine User-Verschlüsselung
             if (recipientInput && recipientInput.trim().length > 0) {
                 recipientIDs = recipientInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
                 
@@ -244,13 +245,14 @@ async function handleMainAction() {
                     recipientIDs.push(currentUser);
                 }
             } 
-            // WICHTIG: Wenn das Feld leer ist, bleibt recipientIDs = [] 
-            // -> cryptoLayers erstellt dann automatisch einen "Public Slot"
+            // WICHTIG: Wenn recipientIDs leer bleibt [], erstellt cryptoLayers.js automatisch einen "Public Slot"
 
+            console.log("Verschlüssele für:", recipientIDs.length === 0 ? "JEDEN (Public)" : recipientIDs);
             result = await encryptFull(text, code, recipientIDs);
 
         } else {
-            // ENTSCHLÜSSELN
+            // --- ENTSCHLÜSSELN ---
+            console.log("Entschlüssele als:", currentUser);
             result = await decryptFull(text, code, currentUser);
         }
 
@@ -260,12 +262,20 @@ async function handleMainAction() {
         output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     } catch (err) {
-        console.error(err);
-        if(err.message.includes("FEHLER")) {
-            alert("Zugriff verweigert! Code falsch oder Sie sind nicht berechtigt.");
+        console.error("Vorgang fehlgeschlagen:", err);
+        
+        // Erweiterte Fehleranzeige für besseres Debugging
+        let errorMsg = err.message || "Unbekannter Fehler";
+        
+        if (errorMsg.includes("Format")) {
+            alert("Fehler: Das Nachrichtenformat ist ungültig. (Alte Version?)");
+        } else if (errorMsg.includes("Code") || errorMsg.includes("Berechtigung") || errorMsg.includes("Key")) {
+             alert("Zugriff verweigert!\n\nGründe:\n1. Falscher 5-stelliger Code\n2. Nachricht ist nicht für Sie bestimmt\n3. Nachricht wurde manipuliert");
         } else {
-            alert("Fehler bei der Verarbeitung. Bitte prüfen Sie die Eingaben.");
+             // Zeigt den echten technischen Fehler an, falls es etwas anderes ist
+             alert("Systemfehler: " + errorMsg);
         }
+
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
