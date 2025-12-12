@@ -120,24 +120,85 @@
         .mode-switch-container {
             position: relative;
             display: inline-block;
-            width: 50px; height: 26px;
+            width: 70px;  /* Breiter für Icons */
+            height: 34px; /* Höher */
+            background-color: #1a1a1a; /* Dunkle "Spur" */
+            border-radius: 17px; /* Stark abgerundet */
+            border: 1px solid #333;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
         }
-        .mode-checkbox { opacity: 0; width: 0; height: 0; }
+
+        /* Die Icons im Hintergrund (Pseudo-Elemente des Labels) */
+        .mode-switch-container::before,
+        .mode-switch-container::after {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%); /* Vertikal zentrieren */
+            font-size: 18px;
+            z-index: 0; /* Liegen HINTER dem Slider */
+            transition: all 0.3s ease;
+            opacity: 0.5; /* Etwas gedimmt wenn inaktiv */
+            filter: grayscale(100%);
+        }
+
+        /* Linkes Icon (Offenes Schloss 🔓) 
+           - Wird verdeckt, wenn Slider links ist (Verschlüsseln-Modus) */
+        .mode-switch-container::before {
+            content: '🔓'; /* Unicode Icon */
+            left: 8px;
+        }
+
+        /* Rechtes Icon (Geschlossenes Schloss 🔒) 
+           - Wird verdeckt, wenn Slider rechts ist (Entschlüsseln-Modus) */
+        .mode-switch-container::after {
+            content: '🔒'; /* Unicode Icon */
+            right: 8px;
+        }
+
+        /* Die Checkbox selbst (unsichtbar) */
+        .mode-checkbox { 
+            opacity: 0; width: 0; height: 0; position: absolute;
+        }
+
+        /* Der Schieberegler (Slider), der die Icons verdeckt */
         .mode-slider {
-            position: absolute; cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333;
-            transition: .4s;
-            border-radius: 4px;
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 26px; height: 26px;
+            /* Beginnt als Akzentfarbe (Blau) */
+            background-color: var(--accent-blue);
+            border-radius: 50%; /* Kreisrund */
+            z-index: 1; /* Liegt VOR den Icons */
+            transition: transform 0.4s cubic-bezier(0.7, -0.4, 0.4, 1.4), background-color 0.3s; /* Cooler "Bounce" Effekt */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
-        .mode-slider:before {
-            position: absolute; content: "";
-            height: 18px; width: 18px;
-            left: 4px; bottom: 4px;
-            background-color: var(--text-muted);
-            transition: .4s;
-            border-radius: 2px;
+
+        /* === ZUSTAND: ENTSCHLÜSSELN (Checked) === */
+        
+        /* 1. Slider nach rechts bewegen und Farbe anpassen (optional) */
+        .mode-checkbox:checked + .mode-slider {
+            /* Nach rechts schieben (Containerbreite - Sliderbreite - Rand*2) */
+            transform: translateX(36px); 
+            /* Optional: Farbe auch hier auf Blau lassen, da die ganze Seite blau wird */
+            background-color: var(--accent-blue); 
         }
+
+        /* OPTIONAL: Das jeweils SICHTBARE Icon zum Leuchten bringen (benötigt moderne Browser) */
+        /* Wenn Schalter RECHTS ist (Entschlüsseln), leuchtet das LINKE Icon (Offen) */
+        .mode-switch-container:has(.mode-checkbox:checked)::before {
+            opacity: 1;
+            filter: grayscale(0%) drop-shadow(0 0 5px var(--accent-blue));
+            color: var(--accent-blue);
+        }
+        /* Wenn Schalter LINKS ist (Verschlüsseln), leuchtet das RECHTE Icon (Geschlossen) */
+        .mode-switch-container:has(.mode-checkbox:not(:checked))::after {
+            opacity: 1;
+            filter: grayscale(0%) drop-shadow(0 0 5px var(--accent-blue));
+            color: var(--accent-blue);
+        }
+        
         /* Wenn gecheckt (Decrypt Mode) */
         .mode-checkbox:checked + .mode-slider { background-color: var(--accent-blue); }
         .mode-checkbox:checked + .mode-slider:before { transform: translateX(24px); background-color: #fff; }
