@@ -35,16 +35,25 @@ async function importKeyFromPass(passString, uniqueSaltID) {
         "raw", textEnc.encode(passString), { name: "PBKDF2" }, false, ["deriveKey"]
     );
 
-    // 2. Erstelle ein komplexes Salt (Wie in der alten Version, aber dynamisch)
-    // Wir kombinieren einen festen App-Salt mit der User-ID (oder Public-Salt)
-    const combinedSalt = "SECRET_MSG_V2_SALT_LAYER_" + uniqueSaltID.trim().toLowerCase();
+    let finalSaltPart;
 
-    // 3. PBKDF2 Ableitung (100.000 Iterationen für maximale Sicherheit gegen Brute-Force)
+    // FIX: Wenn es der Public Salt ist, diesen GENAU so verwenden (kein lowerCase/trim)
+    if (uniqueSaltID === "PUBLIC_GLOBAL_SALT") {
+        finalSaltPart = "PUBLIC_GLOBAL_SALT";
+    } else {
+        // Für alle User-IDs: Bereinigen (trimmen und lowercase)
+        finalSaltPart = uniqueSaltID.trim().toLowerCase();
+    }
+    
+    // Wir verwenden denselben App-Salt-Prefix, um Rainbow-Tables zu verhindern
+    const combinedSalt = "SECRET_MSG_V2_SALT_LAYER_" + finalSaltPart; 
+
+    // 3. PBKDF2 Ableitung (100.000 Iterationen)
     return window.crypto.subtle.deriveKey(
         { 
             name: "PBKDF2", 
             salt: textEnc.encode(combinedSalt), 
-            iterations: 100000, // Hochgesetzt auf 100k (wie in deiner alten Version)
+            iterations: 100000, 
             hash: "SHA-256" 
         },
         keyMaterial, 
