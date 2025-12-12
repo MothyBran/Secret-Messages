@@ -270,7 +270,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             success: true, 
             token, 
             username: user.username,
-            expiresAt: user.expires_at // <--- Das fehlte vorher!
+            expiresAt: user.expires_at || 'lifetime'
         });
 
     } catch (err) {
