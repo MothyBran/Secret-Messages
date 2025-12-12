@@ -311,8 +311,9 @@ async function handleLogin(e) {
             currentUser = data.username;
             localStorage.setItem('sm_token', authToken);
             localStorage.setItem('sm_user', currentUser);
+            localStorage.setItem('sm_exp', expiry);
             
-            updateSidebarInfo(currentUser, "Verbunden");
+            updateSidebarInfo(currentUser, expiry);
             showSection('mainSection');
         } else {
             showStatus('loginStatus', data.error, 'error');
@@ -404,6 +405,31 @@ function showStatus(elementId, msg, type) {
     setTimeout(() => el.style.display = 'none', 5000);
 }
 
+// Berechnet die verbleibende Zeit bis zum Ablaufdatum
+function formatLicenseDuration(expiryDateString) {
+    if (!expiryDateString) return "Unbekannt";
+    
+    // Prüfen auf "Unlimited" Keywords (falls vom Server kommend)
+    if (expiryDateString === 'lifetime' || expiryDateString.includes('9999')) {
+        return "♾️ UNLIMITED";
+    }
+
+    const now = new Date();
+    const expiry = new Date(expiryDateString);
+    const diffMs = expiry - now;
+
+    if (diffMs <= 0) return "❌ ABGELAUFEN";
+
+    // Umrechnung
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 365) return "♾️ > 1 Jahr";
+    if (days > 0) return `⏳ ${days} Tag(e)`;
+    if (hours > 0) return `⏳ ${hours} Std.`;
+    return "⏳ < 1 Std.";
+}
+
 function copyToClipboard() {
     const output = document.getElementById('messageOutput');
     output.select();
@@ -424,19 +450,36 @@ function getDeviceId() {
     return id;
 }
 
-function updateSidebarInfo(user, status) {
-    // Texte aktualisieren
-    document.getElementById('sidebarUser').textContent = user || 'Gast';
-    document.getElementById('sidebarLicense').textContent = status || 'Nicht verbunden';
-
-    // Elemente holen, die nur für eingeloggte User sind
-    const authElements = document.querySelectorAll('.auth-only');
-
-    if (user) {
-        // USER IST EINGELOGGT -> Buttons anzeigen
-        authElements.forEach(el => el.style.display = 'flex'); // oder 'block'
+function updateSidebarInfo(user, statusOrDate) {
+    const userLabel = document.getElementById('sidebarUser');
+    const licenseLabel = document.getElementById('sidebarLicense');
+    
+    userLabel.textContent = user || 'Gast';
+    
+    // Logik: Wenn User eingeloggt ist, zeigen wir den Countdown
+    if (user && statusOrDate) {
+        // Wir gehen davon aus, dass statusOrDate jetzt das Datum ist (oder "Unlimited")
+        // Falls es nur ein Status-Text wie "Verbunden" ist, zeigen wir den an.
+        // Aber unser Ziel ist das Datum.
+        
+        // Check: Ist es ein Datum?
+        if (statusOrDate.includes('-') || statusOrDate.includes(':') || !isNaN(Date.parse(statusOrDate))) {
+             licenseLabel.textContent = "LIZENZ: " + formatLicenseDuration(statusOrDate);
+             licenseLabel.style.color = "var(--accent-blue)";
+        } else {
+             // Fallback für alte Aufrufe
+             licenseLabel.textContent = statusOrDate;
+        }
     } else {
-        // GAST / LOGOUT -> Buttons verstecken
+        licenseLabel.textContent = "Nicht verbunden";
+        licenseLabel.style.color = "var(--text-muted)";
+    }
+
+    // Elemente für eingeloggte User schalten
+    const authElements = document.querySelectorAll('.auth-only');
+    if (user) {
+        authElements.forEach(el => el.style.display = 'flex');
+    } else {
         authElements.forEach(el => el.style.display = 'none');
     }
 }
@@ -457,6 +500,7 @@ async function checkExistingSession() {
             if (data.valid) {
                 authToken = token;
                 currentUser = user;
+                const expiry = localStorage.getItem('sm_exp');
                 updateSidebarInfo(user, "Online");
                 showSection('mainSection');
                 return;
