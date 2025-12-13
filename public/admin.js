@@ -1,67 +1,71 @@
-// admin.js - Admin Panel Logic (Complete)
+// admin.js - Admin Panel Logic (Complete & Fixed)
 
 const API_BASE = '/api/admin';
 let adminPassword = '';
 
-// Lokale Datenspeicher für Suche & Edit
+// Lokale Datenspeicher
 let allUsers = [];
 let allKeys = [];
 let allPurchases = [];
 
-// ==========================================
-// 1. INIT & EVENT LISTENERS
-// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Session Check
     const storedPw = sessionStorage.getItem('sm_admin_pw');
-    if(storedPw) {
-        adminPassword = storedPw;
-        initDashboard();
-    }
+    if(storedPw) { adminPassword = storedPw; initDashboard(); }
 
-    // Login Form
     document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         adminPassword = document.getElementById('adminPasswordInput').value;
         initDashboard();
     });
 
-    // Logout
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         sessionStorage.removeItem('sm_admin_pw');
         location.reload();
     });
 
-    // Buttons Actions
     document.getElementById('generateBtn')?.addEventListener('click', generateKeys);
     document.getElementById('saveLicenseBtn')?.addEventListener('click', saveLicenseChanges);
 
-    // FILTER LOGIK (Live Suche)
+    // --- FILTER LISTENERS ---
+    
+    // 1. User Suche
     document.getElementById('searchUser')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
-        // Filter User
         const filtered = allUsers.filter(u => 
             (u.username && u.username.toLowerCase().includes(term)) || 
             String(u.id).includes(term)
         );
         renderUsersTable(filtered);
     });
+
+    // 2. Key Suche
+    document.getElementById('searchKey')?.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = allKeys.filter(k => 
+            (k.key_code && k.key_code.toLowerCase().includes(term)) ||
+            (k.product_code && k.product_code.toLowerCase().includes(term)) ||
+            (k.user_id && String(k.user_id).includes(term))
+        );
+        renderKeysTable(filtered);
+    });
+
+    // 3. Käufe Suche
+    document.getElementById('searchPurchase')?.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = allPurchases.filter(p => 
+            (p.email && p.email.toLowerCase().includes(term)) ||
+            (p.id && p.id.toLowerCase().includes(term))
+        );
+        renderPurchasesTable(filtered);
+    });
 });
 
-// ==========================================
-// 2. DASHBOARD START & AUTH
-// ==========================================
-
 function getHeaders() {
-    return { 
-        'Content-Type': 'application/json', 
-        'x-admin-password': adminPassword 
-    };
+    return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
 }
 
 async function initDashboard() {
     try {
-        // Wir prüfen Login über den Stats Endpoint
         const res = await fetch(`${API_BASE}/stats`, { headers: getHeaders() });
         const data = await res.json();
         
@@ -69,32 +73,24 @@ async function initDashboard() {
             sessionStorage.setItem('sm_admin_pw', adminPassword);
             document.getElementById('login-view').style.display = 'none';
             document.getElementById('dashboard-view').style.display = 'block';
-            
             renderStats(data.stats);
-            
-            // Alles laden
             loadUsers();
             loadKeys();
-            loadPurchases(); // <--- DAS HAT GEFEHLT
+            loadPurchases();
         } else {
             alert("Passwort falsch.");
         }
-    } catch(e) {
-        console.error(e);
-        alert("Server nicht erreichbar.");
-    }
+    } catch(e) { console.error(e); alert("Server nicht erreichbar."); }
 }
 
-// ==========================================
-// 3. LOAD DATA (Global Functions)
-// ==========================================
+// --- LOADERS ---
 
 window.loadUsers = async function() {
     try {
         const res = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
         allUsers = await res.json();
         renderUsersTable(allUsers);
-    } catch(e) { console.error("Users Error", e); }
+    } catch(e) {}
 };
 
 window.loadKeys = async function() {
@@ -102,7 +98,7 @@ window.loadKeys = async function() {
         const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
         allKeys = await res.json();
         renderKeysTable(allKeys);
-    } catch(e) { console.error("Keys Error", e); }
+    } catch(e) {}
 };
 
 window.loadPurchases = async function() {
@@ -110,18 +106,14 @@ window.loadPurchases = async function() {
         const res = await fetch(`${API_BASE}/purchases`, { headers: getHeaders() });
         allPurchases = await res.json();
         renderPurchasesTable(allPurchases);
-    } catch(e) { console.error("Purchases Error", e); }
+    } catch(e) {}
 };
 
-// ==========================================
-// 4. RENDER TABELLEN
-// ==========================================
+// --- RENDERERS ---
 
 function renderStats(stats) {
     if(!stats) return;
-    // Elemente füllen falls vorhanden
     const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-    
     setVal('stUsersActive', stats.users_active);
     setVal('stUsersBlocked', stats.users_blocked);
     setVal('stKeysActive', stats.keys_active);
@@ -134,16 +126,10 @@ function renderUsersTable(users) {
     const tbody = document.getElementById('usersTableBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-
     users.forEach(u => {
         const tr = document.createElement('tr');
-        
-        const status = u.is_blocked ? 
-            '<span style="color:var(--error-red); font-weight:bold;">GESPERRT</span>' : 
-            '<span style="color:var(--success-green);">AKTIV</span>';
-            
+        const status = u.is_blocked ? '<span style="color:var(--error-red); font-weight:bold;">GESPERRT</span>' : '<span style="color:var(--success-green);">AKTIV</span>';
         const deviceIcon = u.allowed_device_id ? '📱' : '⚪';
-
         tr.innerHTML = `
             <td>#${u.id}</td>
             <td style="font-weight:bold; color:#fff;">${u.username}</td>
@@ -152,10 +138,8 @@ function renderUsersTable(users) {
             <td style="text-align:center;">${deviceIcon}</td>
             <td>
                 <div style="display:flex; gap:10px;">
-                    <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Gerät entkoppeln" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📱</button>
-                    <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Blockieren" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">
-                        ${u.is_blocked ? '🔓' : '🛑'}
-                    </button>
+                    <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Reset Device" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📱</button>
+                    <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Block" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">${u.is_blocked ? '🔓' : '🛑'}</button>
                 </div>
             </td>
         `;
@@ -167,23 +151,23 @@ function renderKeysTable(keys) {
     const tbody = document.getElementById('keysTableBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-
     keys.forEach(k => {
         const tr = document.createElement('tr');
-        
         let status = '<span style="color:#888;">Frei</span>';
         const now = new Date();
         const exp = k.expires_at ? new Date(k.expires_at) : null;
-
         if (exp && exp < now) status = '<span style="color:var(--error-red);">Abgelaufen</span>';
         else if (k.user_id || k.is_active) status = '<span style="color:var(--success-green);">Aktiv</span>';
-
+        
         const expiry = k.expires_at ? new Date(k.expires_at).toLocaleDateString('de-DE') : 'Lifetime';
+        // NEU: User ID Spalte
+        const userIdDisplay = k.user_id ? `<span style="color:var(--accent-blue); font-weight:bold;">#${k.user_id}</span>` : '-';
 
         tr.innerHTML = `
             <td style="font-family:'Roboto Mono'">${k.key_code}</td>
             <td>${k.product_code || 'std'}</td>
             <td>${status}</td>
+            <td>${userIdDisplay}</td>
             <td>${new Date(k.created_at).toLocaleDateString('de-DE')}</td>
             <td>${expiry}</td>
             <td>
@@ -198,7 +182,6 @@ function renderPurchasesTable(purchases) {
     const tbody = document.getElementById('purchasesTableBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-
     purchases.forEach(p => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -212,18 +195,14 @@ function renderPurchasesTable(purchases) {
     });
 }
 
-// ==========================================
-// 5. ACTIONS (Buttons)
-// ==========================================
+// --- ACTIONS ---
 
-// Geräte Reset
 window.resetDevice = async function(id) {
     if(!confirm(`Gerätebindung für User #${id} löschen?`)) return;
     await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
     loadUsers();
 };
 
-// User Sperren
 window.toggleUserBlock = async function(id, isBlocked) {
     if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
     const endpoint = isBlocked ? 'unblock-user' : 'block-user';
@@ -231,11 +210,9 @@ window.toggleUserBlock = async function(id, isBlocked) {
     loadUsers();
 };
 
-// Generator
 async function generateKeys() {
     const duration = document.getElementById('genDuration').value;
     const count = document.getElementById('genCount').value || 1;
-    
     try {
         const res = await fetch(`${API_BASE}/generate-keys`, {
             method: 'POST',
@@ -243,7 +220,6 @@ async function generateKeys() {
             body: JSON.stringify({ product: duration, count: count })
         });
         const data = await res.json();
-        
         if(data.success) {
             const area = document.getElementById('newKeysArea');
             if(area) {
@@ -251,15 +227,13 @@ async function generateKeys() {
                 area.textContent = data.keys.join('\n');
             }
             loadKeys(); 
-            // Stats aktualisieren (optional)
             initDashboard(); 
         } else {
-            alert("Fehler: " + data.error);
+            alert("Fehler: " + (data.error || 'Unbekannt'));
         }
     } catch(e) { alert("Fehler beim Generieren."); }
 }
 
-// --- EDIT LICENSE ---
 let currentEditingKeyId = null;
 
 window.openEditLicenseModal = function(id) {
@@ -281,7 +255,6 @@ window.openEditLicenseModal = function(id) {
         document.getElementById('editExpiryDate').value = '';
         document.getElementById('editExpiryTime').value = '';
     }
-    
     document.getElementById('editLicenseModal').style.display = 'flex';
 };
 
@@ -311,7 +284,7 @@ async function saveLicenseChanges() {
         if(res.ok) {
             document.getElementById('editLicenseModal').style.display = 'none';
             loadKeys();
-            loadUsers();
+            loadUsers(); // User refresh wichtig für Bindung
             alert("Gespeichert.");
         } else {
             alert("Fehler beim Speichern.");
