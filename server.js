@@ -453,165 +453,171 @@ app.post('/api/auth/validate', async (req, res) => {
 
 
 // ==================================================================
-// 4. ADMIN DASHBOARD ROUTES (NEW & FIXED)
+// 4. ADMIN DASHBOARD ROUTES (UPDATED)
 // ==================================================================
 
 // Middleware für Admin Routes
 const requireAdmin = (req, res, next) => {
-    const { password } = req.body;
-    if (password !== ADMIN_PASSWORD) return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
+    const { password } = req.headers['x-admin-password']; // Header bevorzugen
+    // Fallback auf Body (für alte Versionen)
+    const pass = password || req.body.password || req.headers['x-admin-password'];
+    
+    if (pass !== ADMIN_PASSWORD) return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
     next();
 };
 
-// A) STATS
-app.post('/api/admin/stats', requireAdmin, async (req, res) => {
+// A) EXTENDED STATS
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
-        const usersCount = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
-        const keysCount = await dbQuery(`SELECT COUNT(*) as c FROM license_keys`);
-        const sessionsCount = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`);
+        const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")';
+        
+        // 1. User Stats
+        const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
+        const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'true' : '1'}`);
+        
+        // 2. Key Stats
+        // Aktiv = is_active true AND expires_at > now
+        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'} AND (expires_at IS NULL OR expires_at > ${now})`);
+        const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
+        
+        // 3. Financial Stats (aus payments Tabelle)
+        const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
+        const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
         
         res.json({
             success: true,
             stats: {
-                activeUsers: usersCount.rows[0].c,
-                totalKeys: keysCount.rows[0].c,
-                activeSessions: sessionsCount.rows[0].c,
-                recentRegistrations: 0 // Optional
+                users_active: activeUsers.rows[0].c,
+                users_blocked: blockedUsers.rows[0].c,
+                keys_active: activeKeys.rows[0].c,
+                keys_expired: expiredKeys.rows[0].c,
+                purchases_count: totalPurchases.rows[0].c,
+                revenue_total: (totalRevenue.rows[0].s || 0) // Cent Betrag
             }
         });
     } catch (e) {
-        console.error(e);
+        console.error("Stats Error:", e);
         res.json({ success: false, error: 'DB Error' });
     }
 });
 
-// B) USERS (Fixed Joins)
-app.post('/api/admin/users', requireAdmin, async (req, res) => {
+// B) KEYS (GET & UPDATE)
+app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
-        const sql = `
-            SELECT u.id, u.username, u.is_blocked, u.registered_at, u.last_login, u.is_online, u.allowed_device_id, -- <--- HINZUGEFÜGT
-                   k.key_code 
-            FROM users u
-            LEFT JOIN license_keys k ON u.license_key_id = k.id
-            ORDER BY u.registered_at DESC LIMIT 100
-        `;
-        const result = await dbQuery(sql);
-        
-        const users = result.rows.map(r => ({
-            id: r.id,
-            username: r.username,
-            name: r.username, 
-            license_key: r.key_code,
-            key_code: r.key_code, 
-            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1),
-            is_online: isPostgreSQL ? r.is_online : (r.is_online === 1),
-            registered_at: r.registered_at,
-            last_login: r.last_login,
-            allowed_device_id: r.allowed_device_id // <--- HINZUGEFÜGT
-        }));
-
-        res.json({ success: true, users });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
-
-// C) GENERATE KEYS (Fixed Loop)
-app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
-    try {
-        const { count, product } = req.body;
-        const qty = parseInt(count) || 1;
-        const keys = [];
-
-        for(let i=0; i<qty; i++) {
-            // Generate Code
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let s = '';
-            for(let j=0; j<15; j++) s += chars[Math.floor(Math.random() * chars.length)];
-            const code = s.match(/.{1,5}/g).join('-');
-            const hash = await bcrypt.hash(code, 10);
-            
-            // Calc Expiry
-            let expiresAt = null;
-            const now = new Date();
-            if(product === '1m') expiresAt = new Date(now.setMonth(now.getMonth()+1));
-            if(product === '3m') expiresAt = new Date(now.setMonth(now.getMonth()+3));
-            if(product === '12m') expiresAt = new Date(now.setFullYear(now.getFullYear()+1));
-
-            const isoExp = expiresAt ? expiresAt.toISOString() : null;
-
-            await dbQuery(
-                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at) 
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                // FIX: `product_code` wird direkt als `$3` übergeben
-                [code, hash, product, (isPostgreSQL?false:0), new Date().toISOString(), isoExp]
-            );
-          
-            keys.push(code);
-        }
-        res.json({ success: true, keys });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ success: false, error: 'Gen Error' });
-    }
-});
-
-// D) ALL KEYS (Filtered)
-app.post('/api/admin/keys', requireAdmin, async (req, res) => {
-    try {
-        const { filter } = req.body;
-        console.log(`🔍 Admin lädt Keys (Filter: ${filter})...`);
-
-        let where = "";
-        // SQL-Datumskonvertierung ist je nach DB kritisch.
-        const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")'; 
-        
-        if (filter === 'active') where = `WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`;
-        if (filter === 'inactive') where = `WHERE is_active = ${isPostgreSQL ? 'false' : '0'}`;
-        
-        // FIX: Abgelaufene Keys werden anhand des expires_at Datums geprüft.
-        if (filter === 'expired') where = `WHERE expires_at IS NOT NULL AND expires_at < ${now}`;
-
-        // Wir nutzen die korrekten Spaltennamen product_code und expires_at.
-        // Das Backend muss den `username` über einen JOIN aus der `users` Tabelle holen, da er nicht in `license_keys` steht.
-        // WICHTIG: Laut deinem Schema steht der Username NICHT in license_keys! (Siehe unten).
-        
+        // JOIN mit users, um die User ID zu bekommen
         const sql = `
             SELECT k.id, k.key_code, k.product_code, k.is_active, k.created_at, k.activated_at, k.expires_at,
-                   u.username
+                   u.username, u.id as user_id
             FROM license_keys k
-            LEFT JOIN users u ON u.license_key_id = k.id -- JOIN, um den Usernamen zu bekommen
-            ${where}
+            LEFT JOIN users u ON u.license_key_id = k.id 
             ORDER BY k.created_at DESC 
-            LIMIT 100
+            LIMIT 200
         `;
-
         const result = await dbQuery(sql);
-        console.log(`✅ ${result.rows.length} Keys gefunden.`);
         
-        // Daten mappen für Frontend
         const keys = result.rows.map(r => ({
             id: r.id,
             key_code: r.key_code,
-            product_code: r.product_code, // Korrekter Spaltenname
+            product_code: r.product_code,
             is_active: isPostgreSQL ? r.is_active : (r.is_active === 1), 
-            username: r.username || '—', // Kommt vom JOIN
+            username: r.username,
+            user_id: r.user_id, // <--- WICHTIG: Die User ID
             created_at: r.created_at,
             activated_at: r.activated_at,
             expires_at: r.expires_at
         }));
 
-        res.json({ success: true, keys });
+        res.json(keys);
     } catch (e) {
-        console.error("❌ Fehler beim Laden der Keys:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Key Update (Edit Mode)
+app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
+    const keyId = req.params.id;
+    const { expires_at, user_id } = req.body; // user_id kann eine ID sein oder leer (unbind)
+
+    try {
+        // 1. Key Daten aktualisieren (Typ auf 'man' setzen)
+        await dbQuery(
+            `UPDATE license_keys SET expires_at = $1, product_code = 'man' WHERE id = $2`,
+            [expires_at || null, keyId]
+        );
+
+        // 2. User Verknüpfung behandeln
+        // Zuerst: Alte Verknüpfung lösen (Sicherheitshalber)
+        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
+
+        // Dann: Neue Verknüpfung setzen (wenn User ID angegeben)
+        if (user_id) {
+            // Prüfen ob User existiert
+            const userCheck = await dbQuery(`SELECT id, username FROM users WHERE id = $1`, [user_id]);
+            if (userCheck.rows.length > 0) {
+                const u = userCheck.rows[0];
+                // User mit Key verknüpfen
+                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
+                // Auch den Username im Key cachen (für Anzeige-Konsistenz)
+                await dbQuery(`UPDATE license_keys SET username = $1, is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, NOW()) WHERE id = $2`, [u.username, keyId]);
+            }
+        } else {
+            // Wenn User ID leer ist -> Key "Freigeben" (optional, oder nur User entfernen)
+            await dbQuery(`UPDATE license_keys SET username = NULL WHERE id = $1`, [keyId]);
+        }
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error("Update Key Error:", e);
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
-app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
-    await dbQuery('DELETE FROM license_keys WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
+// C) USERS
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT u.*, k.key_code 
+            FROM users u
+            LEFT JOIN license_keys k ON u.license_key_id = k.id
+            ORDER BY u.registered_at DESC LIMIT 100
+        `;
+        const result = await dbQuery(sql);
+        // Mapping fixen für boolesche Werte
+        const users = result.rows.map(r => ({
+            ...r,
+            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1),
+            is_online: isPostgreSQL ? r.is_online : (r.is_online === 1)
+        }));
+        res.json(users);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// D) PURCHASES (Full Table Data)
+app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
+    try {
+        const sql = `SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`;
+        const result = await dbQuery(sql);
+        
+        const purchases = result.rows.map(r => {
+            let meta = {};
+            try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata; } catch(e){}
+            return {
+                id: r.payment_id,
+                email: meta.customer_email || '?',
+                product: meta.product_type || '?',
+                amount: r.amount,
+                currency: r.currency,
+                date: r.completed_at,
+                status: r.status
+            };
+        });
+        res.json(purchases);
+    } catch (e) {
+        console.error(e);
+        res.json([]);
+    }
 });
 
 // E) PURCHASES (Reading from Metadata for better details)
