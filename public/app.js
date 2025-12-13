@@ -396,27 +396,38 @@ async function handleLogin(e) {
         });
         const data = await res.json();
         if (data.success) {
-            authToken = data.token; currentUser = data.username;
-            localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
-
+            authToken = data.token;
+            currentUser = data.username;
+            
+            // Fallback Datum, falls keins kommt (z.B. alter Admin Account)
+            const expiry = data.expiresAt || "2099-12-31"; 
+            
             localStorage.setItem('sm_token', authToken);
             localStorage.setItem('sm_user', currentUser);
             localStorage.setItem('sm_exp', expiry);
             
-            updateSidebarInfo(currentUser, expiry); showSection('mainSection');
-
+            updateSidebarInfo(currentUser, expiry);
+            
+            // --- KORREKTUR: HIER PRÜFEN WIR JETZT AUF ABLAUF ---
             if (checkLicenseExpiry(expiry)) {
+                // Lizenz abgelaufen -> Zeige Verlängerungs-Seite
+                showAppStatus("Lizenz ist abgelaufen.", 'error');
                 document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
                 document.getElementById('renewalSection').style.display = 'block';
                 
-                document.getElementById('logoutLinkRenewal').onclick = (e) => {
-                     e.preventDefault(); handleLogout(); 
-                };
+                // Logout Link im Renewal Screen aktivieren
+                const renewalLogout = document.getElementById('logoutLinkRenewal');
+                if(renewalLogout) {
+                    renewalLogout.onclick = (e) => { e.preventDefault(); handleLogout(); };
+                }
             } else {
+                // Alles okay -> Zeige Hauptanwendung
                 showSection('mainSection');
             }
-            
-        } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+
+        } else {
+            showStatus('loginStatus', data.error || 'Login fehlgeschlagen', 'error');
+        }
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
 
