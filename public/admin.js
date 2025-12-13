@@ -8,6 +8,156 @@ let allUsers = [];
 let allKeys = [];
 let allPurchases = [];
 
+// Helper für Headers
+function getHeaders() {
+    return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
+}
+
+// Global functions must be attached to window for HTML onclick attributes to work
+window.loadUsers = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
+        allUsers = await res.json();
+        renderUsersTable(allUsers);
+    } catch(e) { console.error("Load Users Failed", e); }
+};
+
+window.loadKeys = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
+        allKeys = await res.json();
+        renderKeysTable(allKeys);
+    } catch(e) { console.error("Load Keys Failed", e); }
+};
+
+window.loadPurchases = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/purchases`, { headers: getHeaders() });
+        allPurchases = await res.json();
+        renderPurchasesTable(allPurchases);
+    } catch(e) { console.error("Load Purchases Failed", e); }
+};
+
+window.resetDevice = async function(id) {
+    if(!confirm(`Gerätebindung für User #${id} löschen?`)) return;
+    await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
+    window.loadUsers();
+};
+
+window.toggleUserBlock = async function(id, isBlocked) {
+    if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
+    const endpoint = isBlocked ? 'unblock-user' : 'block-user';
+    await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
+    window.loadUsers();
+};
+
+let currentEditingKeyId = null;
+
+window.openEditLicenseModal = function(id) {
+    const key = allKeys.find(k => k.id === id);
+    if(!key) return;
+
+    currentEditingKeyId = key.id;
+    document.getElementById('editKeyId').value = key.id;
+    document.getElementById('editKeyCode').value = key.key_code;
+    document.getElementById('editUserId').value = key.user_id || ''; // Populate User ID
+
+    if(key.expires_at) {
+        const d = new Date(key.expires_at);
+        if(!isNaN(d.getTime())) {
+             document.getElementById('editExpiryDate').value = d.toISOString().split('T')[0];
+             const hh = String(d.getHours()).padStart(2, '0');
+             const mm = String(d.getMinutes()).padStart(2, '0');
+             document.getElementById('editExpiryTime').value = `${hh}:${mm}`;
+        } else {
+             document.getElementById('editExpiryDate').value = '';
+             document.getElementById('editExpiryTime').value = '';
+        }
+    } else {
+        document.getElementById('editExpiryDate').value = '';
+        document.getElementById('editExpiryTime').value = '';
+    }
+    document.getElementById('editLicenseModal').style.display = 'flex';
+};
+
+async function saveLicenseChanges() {
+    if(!currentEditingKeyId) return;
+
+    const dateStr = document.getElementById('editExpiryDate').value;
+    const timeStr = document.getElementById('editExpiryTime').value || '23:59';
+    const userId = document.getElementById('editUserId').value.trim();
+
+    let finalIsoString = null;
+    if(dateStr) {
+        finalIsoString = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+    }
+
+    const payload = {
+        expires_at: finalIsoString,
+        user_id: userId || null // Send user_id
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/keys/${currentEditingKeyId}`, {
+            method: 'PUT', headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if(res.ok) {
+            document.getElementById('editLicenseModal').style.display = 'none';
+            window.loadKeys();
+            window.loadUsers(); // User refresh wichtig für Bindung
+            alert("Gespeichert.");
+        } else {
+            alert("Fehler beim Speichern.");
+        }
+    } catch(e) { alert("Serverfehler."); }
+}
+
+async function generateKeys() {
+    const duration = document.getElementById('genDuration').value;
+    const count = document.getElementById('genCount').value || 1;
+    try {
+        const res = await fetch(`${API_BASE}/generate-keys`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ productCode: duration, count: count }) // FIXED: product -> productCode matching backend
+        });
+        const data = await res.json();
+        if(data.success) {
+            const area = document.getElementById('newKeysArea');
+            if(area) {
+                area.style.display = 'block';
+                area.textContent = data.keys.join('\n');
+            }
+            window.loadKeys();
+            initDashboard();
+        } else {
+            alert("Fehler: " + (data.error || 'Unbekannt'));
+        }
+    } catch(e) { alert("Fehler beim Generieren."); }
+}
+
+async function initDashboard() {
+    try {
+        const res = await fetch(`${API_BASE}/stats`, { headers: getHeaders() });
+        const data = await res.json();
+
+        if(data.success) {
+            sessionStorage.setItem('sm_admin_pw', adminPassword);
+            document.getElementById('login-view').style.display = 'none';
+            document.getElementById('dashboard-view').style.display = 'block';
+            renderStats(data.stats);
+            window.loadUsers();
+            window.loadKeys();
+            window.loadPurchases();
+        } else {
+            alert("Passwort falsch.");
+        }
+    } catch(e) { console.error(e); alert("Server nicht erreichbar."); }
+}
+
+// DOM Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     const storedPw = sessionStorage.getItem('sm_admin_pw');
     if(storedPw) { adminPassword = storedPw; initDashboard(); }
@@ -25,10 +175,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('generateBtn')?.addEventListener('click', generateKeys);
     document.getElementById('saveLicenseBtn')?.addEventListener('click', saveLicenseChanges);
+    document.getElementById('cancelLicenseBtn')?.addEventListener('click', () => {
+        document.getElementById('editLicenseModal').style.display = 'none';
+    });
+
+    // Refresh Buttons (Using IDs from HTML update)
+    document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
+    document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
+    document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
 
     // --- FILTER LISTENERS ---
-    
-    // 1. User Suche
     document.getElementById('searchUser')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
         const filtered = allUsers.filter(u => 
@@ -38,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderUsersTable(filtered);
     });
 
-    // 2. Key Suche
     document.getElementById('searchKey')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
         const filtered = allKeys.filter(k => 
@@ -49,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderKeysTable(filtered);
     });
 
-    // 3. Käufe Suche
     document.getElementById('searchPurchase')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
         const filtered = allPurchases.filter(p => 
@@ -59,55 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPurchasesTable(filtered);
     });
 });
-
-function getHeaders() {
-    return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
-}
-
-async function initDashboard() {
-    try {
-        const res = await fetch(`${API_BASE}/stats`, { headers: getHeaders() });
-        const data = await res.json();
-        
-        if(data.success) {
-            sessionStorage.setItem('sm_admin_pw', adminPassword);
-            document.getElementById('login-view').style.display = 'none';
-            document.getElementById('dashboard-view').style.display = 'block';
-            renderStats(data.stats);
-            loadUsers();
-            loadKeys();
-            loadPurchases();
-        } else {
-            alert("Passwort falsch.");
-        }
-    } catch(e) { console.error(e); alert("Server nicht erreichbar."); }
-}
-
-// --- LOADERS ---
-
-window.loadUsers = async function() {
-    try {
-        const res = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
-        allUsers = await res.json();
-        renderUsersTable(allUsers);
-    } catch(e) {}
-};
-
-window.loadKeys = async function() {
-    try {
-        const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
-        allKeys = await res.json();
-        renderKeysTable(allKeys);
-    } catch(e) {}
-};
-
-window.loadPurchases = async function() {
-    try {
-        const res = await fetch(`${API_BASE}/purchases`, { headers: getHeaders() });
-        allPurchases = await res.json();
-        renderPurchasesTable(allPurchases);
-    } catch(e) {}
-};
 
 // --- RENDERERS ---
 
@@ -130,6 +235,7 @@ function renderUsersTable(users) {
         const tr = document.createElement('tr');
         const status = u.is_blocked ? '<span style="color:var(--error-red); font-weight:bold;">GESPERRT</span>' : '<span style="color:var(--success-green);">AKTIV</span>';
         const deviceIcon = u.allowed_device_id ? '📱' : '⚪';
+        // Note: onclick uses global window functions now
         tr.innerHTML = `
             <td>#${u.id}</td>
             <td style="font-weight:bold; color:#fff;">${u.username}</td>
@@ -160,7 +266,6 @@ function renderKeysTable(keys) {
         else if (k.user_id || k.is_active) status = '<span style="color:var(--success-green);">Aktiv</span>';
         
         const expiry = k.expires_at ? new Date(k.expires_at).toLocaleDateString('de-DE') : 'Lifetime';
-        // NEU: User ID Spalte
         const userIdDisplay = k.user_id ? `<span style="color:var(--accent-blue); font-weight:bold;">#${k.user_id}</span>` : '-';
 
         tr.innerHTML = `
@@ -193,101 +298,4 @@ function renderPurchasesTable(purchases) {
         `;
         tbody.appendChild(tr);
     });
-}
-
-// --- ACTIONS ---
-
-window.resetDevice = async function(id) {
-    if(!confirm(`Gerätebindung für User #${id} löschen?`)) return;
-    await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
-    loadUsers();
-};
-
-window.toggleUserBlock = async function(id, isBlocked) {
-    if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
-    const endpoint = isBlocked ? 'unblock-user' : 'block-user';
-    await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
-    loadUsers();
-};
-
-async function generateKeys() {
-    const duration = document.getElementById('genDuration').value;
-    const count = document.getElementById('genCount').value || 1;
-    try {
-        const res = await fetch(`${API_BASE}/generate-keys`, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify({ product: duration, count: count })
-        });
-        const data = await res.json();
-        if(data.success) {
-            const area = document.getElementById('newKeysArea');
-            if(area) {
-                area.style.display = 'block';
-                area.textContent = data.keys.join('\n');
-            }
-            loadKeys(); 
-            initDashboard(); 
-        } else {
-            alert("Fehler: " + (data.error || 'Unbekannt'));
-        }
-    } catch(e) { alert("Fehler beim Generieren."); }
-}
-
-let currentEditingKeyId = null;
-
-window.openEditLicenseModal = function(id) {
-    const key = allKeys.find(k => k.id === id);
-    if(!key) return;
-
-    currentEditingKeyId = key.id;
-    document.getElementById('editKeyId').value = key.id;
-    document.getElementById('editKeyCode').value = key.key_code;
-    document.getElementById('editUserId').value = key.user_id || '';
-    
-    if(key.expires_at) {
-        const d = new Date(key.expires_at);
-        document.getElementById('editExpiryDate').value = d.toISOString().split('T')[0];
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        document.getElementById('editExpiryTime').value = `${hh}:${mm}`;
-    } else {
-        document.getElementById('editExpiryDate').value = '';
-        document.getElementById('editExpiryTime').value = '';
-    }
-    document.getElementById('editLicenseModal').style.display = 'flex';
-};
-
-async function saveLicenseChanges() {
-    if(!currentEditingKeyId) return;
-    
-    const dateStr = document.getElementById('editExpiryDate').value;
-    const timeStr = document.getElementById('editExpiryTime').value || '23:59';
-    const userId = document.getElementById('editUserId').value.trim();
-
-    let finalIsoString = null;
-    if(dateStr) {
-        finalIsoString = new Date(`${dateStr}T${timeStr}:00`).toISOString();
-    }
-
-    const payload = {
-        expires_at: finalIsoString,
-        user_id: userId || null
-    };
-
-    try {
-        const res = await fetch(`${API_BASE}/keys/${currentEditingKeyId}`, {
-            method: 'PUT', headers: getHeaders(),
-            body: JSON.stringify(payload)
-        });
-        
-        if(res.ok) {
-            document.getElementById('editLicenseModal').style.display = 'none';
-            loadKeys();
-            loadUsers(); // User refresh wichtig für Bindung
-            alert("Gespeichert.");
-        } else {
-            alert("Fehler beim Speichern.");
-        }
-    } catch(e) { alert("Serverfehler."); }
 }

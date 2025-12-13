@@ -120,7 +120,7 @@
         <div class="section">
             <div class="section-header">
                 <h3>👥 Benutzer</h3>
-                <button class="btn" onclick="loadUsers()">Refresh</button>
+                <button class="btn" id="refreshUsersBtn">Refresh</button>
             </div>
             <input type="text" id="searchUser" class="input-field" placeholder="Benutzer suchen (Name oder ID)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
@@ -143,7 +143,7 @@
         <div class="section">
             <div class="section-header">
                 <h3>🗝️ Lizenzen</h3>
-                <button class="btn" onclick="loadKeys()">Refresh</button>
+                <button class="btn" id="refreshKeysBtn">Refresh</button>
             </div>
             <input type="text" id="searchKey" class="input-field" placeholder="Lizenzen suchen (Key, Produkt, User)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
@@ -166,7 +166,7 @@
         <div class="section">
             <div class="section-header">
                 <h3>💳 Letzte Käufe</h3>
-                <button class="btn" onclick="loadPurchases()">Refresh</button>
+                <button class="btn" id="refreshPurchasesBtn">Refresh</button>
             </div>
             <input type="text" id="searchPurchase" class="input-field" placeholder="Käufe suchen (E-Mail, ID)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
@@ -206,7 +206,7 @@
 
             <div style="display:flex; gap:10px;">
                 <button id="saveLicenseBtn" class="btn" style="flex:1;">Speichern</button>
-                <button class="btn" onclick="document.getElementById('editLicenseModal').style.display='none'" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn" id="cancelLicenseBtn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
             </div>
         </div>
     </div>
