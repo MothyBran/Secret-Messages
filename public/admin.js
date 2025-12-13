@@ -57,13 +57,43 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 
 async function initDashboard() {
-    const headers = { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
+    // 1. Passwort prüfen
+    if (!adminPassword) {
+        // Fallback: Versuchen das Passwort aus dem Inputfeld zu holen, falls Variable leer
+        const inputPw = document.getElementById('adminPasswordInput');
+        if (inputPw) adminPassword = inputPw.value;
+    }
+
+    if (!adminPassword) {
+        alert("Bitte Passwort eingeben.");
+        return;
+    }
+
+    // 2. Header setzen (OHNE Content-Type, da GET Request!)
+    const headers = { 
+        'x-admin-password': adminPassword 
+    };
+
+    console.log("Sende Admin-Login Anfrage..."); // Debugging
+
     try {
-        // Auth Check via Stats
+        // Auth Check via Stats Endpoint
         const res = await fetch(`${API_BASE}/stats`, { headers });
+        
+        // HTTP Status prüfen bevor wir JSON parsen
+        if (res.status === 403) {
+            alert("Login fehlgeschlagen: Passwort falsch.");
+            return;
+        }
+        
+        if (!res.ok) {
+            throw new Error(`Server Status: ${res.status}`);
+        }
+
         const data = await res.json();
         
         if(data.success) {
+            console.log("Admin Login erfolgreich!");
             sessionStorage.setItem('sm_admin_pw', adminPassword);
             document.getElementById('login-view').style.display = 'none';
             document.getElementById('dashboard-view').style.display = 'block';
@@ -75,16 +105,12 @@ async function initDashboard() {
             loadKeys();
             loadPurchases();
         } else {
-            alert("Login fehlgeschlagen. Falsches Passwort.");
+            alert("Login fehlgeschlagen.");
         }
     } catch(e) {
-        console.error(e);
-        alert("Server nicht erreichbar.");
+        console.error("Dashboard Init Error:", e);
+        alert("Fehler beim Verbinden: " + e.message);
     }
-}
-
-function getHeaders() {
-    return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
 }
 
 // ==========================================
