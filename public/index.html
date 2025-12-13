@@ -265,6 +265,27 @@
             <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;">Zurück</button></div>
         </div>
 
+        <div id="renewalSection" class="section">
+            <h2 style="color:var(--error-red); margin-bottom:20px; text-align:center;">LIZENZ ABGELAUFEN</h2>
+            <p style="text-align:center; color:#ccc; margin-bottom:30px;">
+                Deine Lizenz ist abgelaufen. Bitte verlängere deinen Zugang, um die Dienste weiter zu nutzen.
+                Dein Account und deine ID bleiben erhalten.
+            </p>
+
+            <div style="display:grid; gap:15px; margin-bottom:30px;">
+                <div class="btn" style="border-color:var(--accent-blue); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('1m')">
+                    <div style="font-size:1.2rem; color:var(--accent-blue); font-weight:bold;">1 MONAT</div>
+                    <div style="font-size:0.9rem; color:#888;">1.99 EUR</div>
+                </div>
+                <div class="btn" style="border-color:var(--success-green); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('12m')">
+                    <div style="font-size:1.2rem; color:var(--success-green); font-weight:bold;">12 MONATE</div>
+                    <div style="font-size:0.9rem; color:#888;">14.99 EUR (Best Value)</div>
+                </div>
+            </div>
+
+            <button id="logoutBtnRenewal" class="btn" style="width:100%; border-color:#555; color:#aaa;">Abmelden</button>
+        </div>
+
         <div id="mainSection" class="section">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
                 <h3 id="modeTitle" style="color:var(--accent-blue);">VERSCHLÜSSELUNG</h3>

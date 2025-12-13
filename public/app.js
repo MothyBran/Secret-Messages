@@ -78,6 +78,7 @@ function setupUIEvents() {
     });
 
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
+    document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
     // --- NAVIGATION & SEITEN (FIXED) ---
     
@@ -398,6 +399,17 @@ async function handleLogin(e) {
         if (data.success) {
             authToken = data.token; currentUser = data.username;
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
+
+            // Expiry Check
+            if(data.expiresAt && data.expiresAt !== 'lifetime') {
+                const expDate = new Date(String(data.expiresAt).replace(' ', 'T'));
+                if(expDate < new Date()) {
+                    updateSidebarInfo(currentUser, data.expiresAt);
+                    showRenewalScreen();
+                    return;
+                }
+            }
+
             updateSidebarInfo(currentUser); showSection('mainSection');
         } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
@@ -542,6 +554,16 @@ async function checkExistingSession() {
                     localStorage.setItem('sm_exp', finalExpiry);
                 }
 
+                // Expiry Check
+                if(finalExpiry && finalExpiry !== 'lifetime') {
+                    const expDate = new Date(String(finalExpiry).replace(' ', 'T'));
+                    if(expDate < new Date()) {
+                        updateSidebarInfo(user, finalExpiry);
+                        showRenewalScreen();
+                        return;
+                    }
+                }
+
                 updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
                 return;
@@ -553,6 +575,50 @@ async function checkExistingSession() {
     // Fallback: Login anzeigen
     showSection('loginSection');
 }
+
+function showRenewalScreen() {
+    showSection('renewalSection');
+    // Hide contacts and encryption mode if they were visible
+    const wrapper = document.getElementById('headerSwitchWrapper');
+    if(wrapper) wrapper.style.display = 'none';
+}
+
+// Make globally available for onclick in HTML
+window.startRenewal = async function(planType) {
+    if(!authToken) return showAppStatus("Bitte erst einloggen", 'error');
+
+    const btn = event.currentTarget;
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+
+    try {
+        const res = await fetch('/api/create-checkout-session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}` // Token mitsenden
+            },
+            body: JSON.stringify({
+                product_type: planType,
+                is_renewal: true
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.checkout_url) {
+            window.location.href = data.checkout_url;
+        } else {
+            showAppStatus(data.error || "Fehler beim Checkout", 'error');
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    } catch(e) {
+        showAppStatus("Verbindungsfehler", 'error');
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+    }
+};
 
 function showAppStatus(msg, type='success') {
     const d=document.createElement('div'); d.className=`app-status-msg ${type}`; d.textContent=msg;
