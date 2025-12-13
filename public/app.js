@@ -578,3 +578,66 @@ function startQRScanner() {
     qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (txt)=>{stopQRScanner(); document.getElementById('messageInput').value=txt; showAppStatus("QR erkannt!");}, ()=>{}).catch(e=>{document.getElementById('qr-reader').innerHTML="Kamera Fehler";});
 }
 function stopQRScanner() { document.getElementById('qrScannerModal').classList.remove('active'); if(qrScan) qrScan.stop().catch(()=>{}); }
+
+// ================================================================
+// LIZENZ VERLÄNGERUNG LOGIK
+// ================================================================
+
+function checkLicenseExpiry(expiryDateString) {
+    if (!expiryDateString) return false; // Keine Daten = Annehmen, dass gültig oder Gast
+    if (expiryDateString === 'lifetime' || expiryDateString.includes('9999')) return false;
+
+    const now = new Date();
+    // String bereinigen (SQL Format Fix)
+    const cleanDateStr = String(expiryDateString).replace(' ', 'T');
+    const expiry = new Date(cleanDateStr);
+
+    if (isNaN(expiry.getTime())) return false; // Datum ungültig = Ignorieren
+
+    // Puffer von z.B. 0 Sekunden (sofort abgelaufen)
+    if (now > expiry) {
+        return true; // JA, ist abgelaufen
+    }
+    return false;
+}
+
+async function startRenewal(plan) {
+    const btn = document.activeElement;
+    if(btn) {
+        btn.textContent = "⏳ ...";
+        btn.disabled = true;
+    }
+
+    try {
+        // Wir nutzen den existierenden Token, damit der Server weiß, WELCHEN Key er verlängern muss
+        const response = await fetch(`${API_BASE}/create-checkout-session`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}` // Token mitsenden!
+            },
+            body: JSON.stringify({ 
+                product_type: plan, 
+                is_renewal: true // Flag für den Server
+            })
+        });
+
+        const data = await response.json();
+        if (data.success && data.checkout_url) {
+            window.location.href = data.checkout_url;
+        } else {
+            alert("Fehler beim Starten der Zahlung: " + (data.error || "Unbekannt"));
+            if(btn) {
+                btn.textContent = "Verlängern";
+                btn.disabled = false;
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Verbindungsfehler.");
+        if(btn) {
+            btn.textContent = "Verlängern";
+            btn.disabled = false;
+        }
+    }
+}
