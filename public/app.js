@@ -456,16 +456,104 @@ async function handleMainAction() {
 }
 
 function getDeviceId() { let id=localStorage.getItem('sm_id'); if(!id){id='dev-'+Date.now();localStorage.setItem('sm_id',id);} return id; }
-function updateSidebarInfo(u) { 
-    document.getElementById('sidebarUser').textContent = u||'Gast'; 
-    document.getElementById('sidebarLicense').textContent = u?'LIZENZ: Aktiv':'Nicht verbunden';
-    document.querySelectorAll('.auth-only').forEach(e=>e.style.display=u?'flex':'none');
+function updateSidebarInfo(user, expiryData) {
+    const userLabel = document.getElementById('sidebarUser');
+    const licenseLabel = document.getElementById('sidebarLicense');
+    const authElements = document.querySelectorAll('.auth-only');
+
+    // 1. User Name setzen
+    if (userLabel) userLabel.textContent = user || 'Gast';
+
+    // 2. Lizenz-Anzeige Logik
+    if (user && licenseLabel) {
+        // Aufräumen: Falls "undefined" oder "null" als String gespeichert wurde
+        if (expiryData === 'undefined' || expiryData === 'null') expiryData = null;
+
+        // Fall A: Lifetime / Unlimited
+        if (expiryData === 'lifetime' || String(expiryData).toLowerCase().includes('unlimited')) {
+            licenseLabel.textContent = "LIZENZ: UNLIMITED";
+            licenseLabel.style.color = "#00ff41"; 
+        } 
+        // Fall B: Datum vorhanden
+        else if (expiryData) {
+            try {
+                // Versuch das Datum zu reparieren (SQL Timestamp zu ISO)
+                let cleanDateStr = String(expiryData).replace(' ', 'T'); 
+                
+                const dateObj = new Date(cleanDateStr);
+                
+                // Ist das Datum gültig?
+                if (!isNaN(dateObj.getTime())) {
+                    const dateStr = dateObj.toLocaleDateString('de-DE', {
+                        day: '2-digit', month: '2-digit', year: 'numeric'
+                    });
+                    licenseLabel.textContent = "LIZENZ: gültig bis " + dateStr;
+                    licenseLabel.style.color = "var(--accent-blue)";
+                } else {
+                    // Fallback nur wenn Datum wirklich kaputt ist
+                    console.warn("Ungültiges Datum erkannt:", expiryData);
+                    licenseLabel.textContent = "LIZENZ: Aktiv";
+                    licenseLabel.style.color = "var(--text-main)";
+                }
+            } catch (e) {
+                licenseLabel.textContent = "LIZENZ: Aktiv";
+            }
+        } else {
+            // Fall C: Keine Daten (z.B. alter Account ohne Key)
+            licenseLabel.textContent = "LIZENZ: Unbekannt";
+            licenseLabel.style.color = "#888";
+        }
+    } else if (licenseLabel) {
+        // Nicht eingeloggt
+        licenseLabel.textContent = "Nicht verbunden";
+        licenseLabel.style.color = "#888";
+    }
+
+    // 3. Menü-Buttons ein-/ausblenden
+    authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
 }
+
 async function checkExistingSession() {
-    const t=localStorage.getItem('sm_token'), u=localStorage.getItem('sm_user');
-    if(t&&u) { authToken=t; currentUser=u; updateSidebarInfo(u); showSection('mainSection'); } 
-    else showSection('loginSection');
+    const token = localStorage.getItem('sm_token');
+    const user = localStorage.getItem('sm_user');
+    let savedExpiry = localStorage.getItem('sm_exp'); 
+    
+    if (token && user) {
+        try {
+            const res = await fetch(`${API_BASE}/auth/validate`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ token })
+            });
+            const data = await res.json();
+            
+            if (data.valid) {
+                authToken = token;
+                currentUser = user;
+                
+                // WICHTIG: Server-Datum hat Vorrang vor LocalStorage!
+                let finalExpiry = data.expiresAt;
+                
+                // Wenn Server nichts liefert (null), schauen wir ob wir lokal was haben oder setzen Fallback
+                if (!finalExpiry) {
+                    finalExpiry = savedExpiry || 'lifetime'; 
+                } else {
+                    // Neues Datum vom Server speichern
+                    localStorage.setItem('sm_exp', finalExpiry);
+                }
+
+                updateSidebarInfo(user, finalExpiry);
+                showSection('mainSection');
+                return;
+            }
+        } catch(e) {
+            console.log("Session Check fehlgeschlagen", e);
+        }
+    }
+    // Fallback: Login anzeigen
+    showSection('loginSection');
 }
+
 function showAppStatus(msg, type='success') {
     const d=document.createElement('div'); d.className=`app-status-msg ${type}`; d.textContent=msg;
     document.getElementById('globalStatusContainer').appendChild(d);
