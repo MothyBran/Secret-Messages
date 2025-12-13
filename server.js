@@ -1,5 +1,7 @@
-// server.js - Secret Messages Backend (Full Version)
-// Enthält Auth, Payment Integration und das neue Admin Dashboard
+// ==================================================================
+// SERVER.JS - SECRET MESSAGES BACKEND (FULL V2)
+// Enthält: Auth, Admin-Dashboard, Shop, Lizenz-Verlängerung
+// ==================================================================
 
 const express = require('express');
 const bcrypt = require('bcrypt');
@@ -11,14 +13,97 @@ const path = require('path');
 const crypto = require('crypto');
 require('dotenv').config();
 
-// Payment Routes importieren
-const paymentRoutes = require('./payment.js');
+// STRIPE INIT
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
+// APP SETUP
 const app = express();
+const PORT = process.env.PORT || 3000;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const isPostgreSQL = Boolean(process.env.DATABASE_URL);
+
 app.set('trust proxy', 1);
 
 // ==================================================================
-// 1. MIDDLEWARE
+// 1. DATENBANK VERBINDUNG
+// ==================================================================
+let dbQuery;
+
+if (isPostgreSQL) {
+    // --- POSTGRESQL ---
+    const { Pool } = require('pg');
+    const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+    });
+    console.log("✅ Datenbank: PostgreSQL verbunden.");
+
+    dbQuery = async (text, params) => pool.query(text, params);
+} else {
+    // --- SQLITE (Lokal) ---
+    const sqlite3 = require('sqlite3').verbose();
+    const db = new sqlite3.Database('./database.sqlite');
+    console.log("✅ Datenbank: SQLite (lokal) verbunden.");
+
+    // Initialisierung der Tabellen
+    db.serialize(() => {
+        // Users Tabelle
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            access_code_hash TEXT,
+            license_key_id INTEGER,
+            is_blocked BOOLEAN DEFAULT 0,
+            allowed_device_id TEXT,
+            registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME
+        )`);
+
+        // Lizenz Keys Tabelle
+        db.run(`CREATE TABLE IF NOT EXISTS license_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key_code TEXT UNIQUE,
+            key_hash TEXT,
+            product_code TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            activated_at DATETIME,
+            expires_at DATETIME,
+            username TEXT
+        )`);
+
+        // Payments Tabelle
+        db.run(`CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payment_id TEXT,
+            amount INTEGER,
+            currency TEXT,
+            status TEXT,
+            metadata TEXT,
+            completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            stripe_session_id TEXT
+        )`);
+    });
+
+    // Wrapper für Async/Await
+    dbQuery = (text, params = []) => {
+        return new Promise((resolve, reject) => {
+            // Einfache Query Unterscheidung für SELECT vs INSERT/UPDATE
+            if (text.trim().toUpperCase().startsWith('SELECT')) {
+                db.all(text, params, (err, rows) => {
+                    if (err) reject(err); else resolve({ rows });
+                });
+            } else {
+                db.run(text, params, function (err) {
+                    if (err) reject(err); else resolve({ rows: [], lastID: this.lastID, changes: this.changes });
+                });
+            }
+        });
+    };
+}
+
+// ==================================================================
+// 2. MIDDLEWARE & SECURITY
 // ==================================================================
 
 app.use(helmet({
@@ -27,218 +112,36 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      
-      // WICHTIG: Hier müssen die QR-Code Bibliotheken erlaubt werden!
-      scriptSrc: [
-          "'self'", 
-          "https://js.stripe.com", 
-          "https://cdnjs.cloudflare.com", 
-          "https://unpkg.com"
-      ],
-      scriptSrcElem: [
-          "'self'", 
-          "https://js.stripe.com", 
-          "https://cdnjs.cloudflare.com", 
-          "https://unpkg.com"
-      ],
-      
+      scriptSrc: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcElem: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       frameSrc: ["'self'", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
     }
   }
 }));
 
 app.use(cors());
-
-// ==================================================================
-// RATE LIMITER DEFINITION (Fehlte vorher)
-// ==================================================================
-const rateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 Minuten
-    max: 100, // Maximal 100 Anfragen pro IP
-    message: { error: "Zu viele Anfragen, bitte versuchen Sie es später erneut." }
-});
-
-// Raw Body für Stripe Webhooks, JSON für alles andere
-app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-
+app.use(express.json());
 app.use(express.static('public'));
 
-// Logging Middleware
-app.use((req, res, next) => {
-    // console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
+// Rate Limiter für Auth Routes
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 Min
+    max: 100, // Max 100 Requests pro IP
+    message: { error: "Zu viele Anfragen. Bitte warten." }
 });
 
-// Environment Variables
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const DATABASE_URL = process.env.DATABASE_URL;
-
 // ==================================================================
-// 2. DATABASE SETUP (PostgreSQL + SQLite Fallback)
+// 3. AUTHENTIFIZIERUNG (LOGIN / REGISTER)
 // ==================================================================
 
-let db, isPostgreSQL = false;
-let dbQuery; // Wrapper für einheitliche Abfragen
-
-const initializeDatabase = async () => {
-    console.log('🔧 Initializing Database...');
-    
-    if (DATABASE_URL && DATABASE_URL.includes('postgresql')) {
-        console.log('📡 PostgreSQL detected');
-        isPostgreSQL = true;
-        const { Pool } = require('pg');
-        db = new Pool({
-            connectionString: DATABASE_URL,
-            ssl: { rejectUnauthorized: false }
-        });
-        
-        // Postgres Wrapper
-        dbQuery = async (text, params) => await db.query(text, params);
-        
-        await createTables();
-    } else {
-        console.log('📁 Using SQLite (local)');
-        const sqlite3 = require('sqlite3').verbose();
-        db = new sqlite3.Database('./secret_messages.db');
-        
-        // SQLite Wrapper (Promise-based)
-        dbQuery = (text, params = []) => {
-            return new Promise((resolve, reject) => {
-                // SQLite nutzt ? statt $1, $2
-                // Einfacher Regex-Replace für Kompatibilität (Vorsicht bei Strings!)
-                const sql = text.replace(/\$\d+/g, '?');
-                
-                if (text.trim().toUpperCase().startsWith('SELECT')) {
-                    db.all(sql, params, (err, rows) => {
-                        if (err) reject(err);
-                        else resolve({ rows: rows, rowCount: rows.length });
-                    });
-                } else {
-                    db.run(sql, params, function(err) {
-                        if (err) reject(err);
-                        else resolve({ rows: [], rowCount: this.changes, lastID: this.lastID });
-                    });
-                }
-            });
-        };
-        
-        createTables();
-    }
-};
-
-const createTables = async () => {
-    try {
-        // Users
-        await dbQuery(`CREATE TABLE IF NOT EXISTS users (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            username VARCHAR(50) UNIQUE,
-            access_code_hash TEXT,
-            license_key_id INTEGER,
-            allowed_device_id TEXT,  -- <--- NEUE SPALTE FÜR GERÄTE-ID
-            registered_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            last_login ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            is_online ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}
-        )`);
-
-        // License Keys
-        await dbQuery(`CREATE TABLE IF NOT EXISTS license_keys (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            key_code VARCHAR(17) UNIQUE NOT NULL,
-            key_hash TEXT NOT NULL,
-            product_code VARCHAR(10), 
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            activated_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}, 
-            is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            username VARCHAR(50), 
-            activated_ip VARCHAR(50) 
-        )`);
-
-        // Payments (WICHTIG für Admin Panel)
-        await dbQuery(`CREATE TABLE IF NOT EXISTS payments (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            payment_id VARCHAR(100),
-            amount INTEGER,
-            currency VARCHAR(10),
-            status VARCHAR(20),
-            payment_method VARCHAR(50),
-            completed_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            metadata TEXT
-        )`);
-
-        // Purchases (Alte Tabelle, behalten wir für Kompatibilität)
-        await dbQuery(`CREATE TABLE IF NOT EXISTS purchases (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            buyer VARCHAR(100),
-            license VARCHAR(50),
-            price REAL,
-            date ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
-        )`);
-
-        console.log('✅ Tables checked/created');
-    } catch (e) {
-        console.error("Table creation error:", e);
-    }
-};
-
-initializeDatabase();
-
-// ==================================================================
-// 3. AUTHENTICATION & APP ROUTES
-// ==================================================================
-
-// Middleware: Token Check (FIXED: Jetzt asynchron und prüft Sperr-Status)
-async function authenticateUser(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Kein Token' });
-
-    jwt.verify(token, JWT_SECRET, async (err, user) => { // Beachten Sie das async hier
-        if (err) return res.status(403).json({ error: 'Token ungültig' });
-        
-        try {
-            // Holt den aktuellen is_blocked Status
-            const userResult = await dbQuery("SELECT is_blocked FROM users WHERE id = $1", [user.id]);
-            const dbUser = userResult.rows[0];
-
-            // *******************************************************
-            // PRÜFUNG: Wenn User nicht existiert ODER gesperrt ist
-            // *******************************************************
-            if (!dbUser || dbUser.is_blocked) {
-                console.log(`Zugriff verweigert (gesperrt/gelöscht) für User ID: ${user.id}`);
-                // 403 Forbidden
-                return res.status(403).json({ 
-                    error: "Ihr Konto wurde gesperrt. Bitte kontaktieren Sie den Support." 
-                });
-            }
-
-            // Wenn der User existiert und nicht gesperrt ist:
-            req.user = user;
-            next();
-            
-        } catch (dbError) {
-            console.error("DB-Fehler bei Token-Prüfung:", dbError);
-            return res.status(500).json({ error: 'Interner Serverfehler bei der Authentifizierung.' });
-        }
-    });
-}
-
-// Login Route (Korrigiert)
-app.post('/api/auth/login', rateLimiter, async (req, res) => {
+// LOGIN (Mit Lizenz-Check & Device Lock)
+app.post('/api/auth/login', authLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;
         
-        // 1. User UND Lizenz-Infos abrufen (JOIN)
-        // Wir holen uns direkt das 'expires_at' aus der license_keys Tabelle
+        // 1. User & Lizenz-Status holen (LEFT JOIN für Ablaufdatum)
         const userRes = await dbQuery(`
             SELECT u.*, l.expires_at 
             FROM users u
@@ -252,175 +155,50 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
 
         const user = userRes.rows[0];
 
-        // 2. Zugangscode prüfen (Hash Vergleich)
+        // 2. Code prüfen
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
-        if (!match) {
-            return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
-        }
+        if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
 
-        // 3. Geräte-Bindung prüfen
+        // 3. Status prüfen (Blockiert?)
+        const isBlocked = (user.is_blocked === true || user.is_blocked === 1);
+        if (isBlocked) return res.status(403).json({ success: false, error: "Account ist gesperrt." });
+
+        // 4. Gerätebindung prüfen
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            return res.status(403).json({ success: false, error: "Dieses Gerät ist nicht für den Account autorisiert." });
+            return res.status(403).json({ success: false, error: "Dieses Gerät ist nicht autorisiert." });
         }
-
-        // Falls noch kein Gerät gebunden ist (erster Login), binden wir es jetzt
+        
+        // Erste Bindung
         if (!user.allowed_device_id) {
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
         }
 
-        // 4. Token erstellen
+        // 5. Token erstellen
         const token = jwt.sign(
             { id: user.id, username: user.username }, 
             process.env.JWT_SECRET || 'secret_fallback_key', 
             { expiresIn: '24h' }
         );
 
-        // 5. Update: Letzter Login
-        await dbQuery("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
+        // 6. Last Login setzen
+        const updateSql = isPostgreSQL ? "UPDATE users SET last_login = NOW() WHERE id = $1" : "UPDATE users SET last_login = datetime('now') WHERE id = $1";
+        await dbQuery(updateSql, [user.id]);
 
-        // 6. ERFOLG: Wir senden jetzt auch das Ablaufdatum mit!
+        // ERFOLG
         res.json({ 
             success: true, 
             token, 
             username: user.username,
-            expiresAt: user.expires_at || 'lifetime'
+            expiresAt: user.expires_at 
         });
 
     } catch (err) {
         console.error("Login Error:", err);
-        res.status(500).json({ success: false, error: "Serverfehler" });
+        res.status(500).json({ success: false, error: "Serverfehler beim Login" });
     }
 });
 
-// Logout
-app.post('/api/auth/logout', authenticateUser, async (req, res) => {
-    try {
-        await dbQuery('UPDATE users SET is_online = $1 WHERE id = $2', 
-            [(isPostgreSQL ? false : 0), req.user.id]);
-        res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: 'Logout Fehler' }); }
-});
-
-// Activate License (Register)
-app.post('/api/auth/activate', async (req, res) => {
-    const { licenseKey, username, accessCode, deviceId } = req.body; // <--- deviceId kommt vom Frontend
-
-    if (!deviceId) return res.status(400).json({ error: 'Geräte-ID fehlt. Bitte Seite neu laden.' });
-    
-    try {
-        // ... (Key und User Checks wie vorher) ...
-        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
-        const key = keyRes.rows[0];
-        if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
-        if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
-        
-        const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
-        if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
-
-        // User erstellen MIT Device ID Binding
-        const hash = await bcrypt.hash(accessCode, 10);
-        await dbQuery(
-            'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)',
-            [username, hash, key.id, deviceId, new Date().toISOString()]
-        );
-        
-        // Key updaten
-        await dbQuery(
-            'UPDATE license_keys SET is_active = $1, activated_at = $2, username = $3 WHERE id = $4',
-            [(isPostgreSQL ? true : 1), new Date().toISOString(), username, key.id]
-        );
-
-        res.json({ success: true });
-
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Aktivierung fehlgeschlagen' });
-    }
-});
-
-// Check Access (Frontend Ping)
-app.get('/api/checkAccess', authenticateUser, async (req, res) => {
-    try {
-        const userRes = await dbQuery('SELECT * FROM users WHERE id = $1', [req.user.id]);
-        const user = userRes.rows[0];
-        if (!user) return res.json({ status: 'banned' });
-
-        const blocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
-        if (blocked) return res.json({ status: 'banned' });
-
-        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
-        const key = keyRes.rows[0];
-        
-        if (key && key.expires_at) {
-            if (new Date(key.expires_at) < new Date()) return res.json({ status: 'expired' });
-        }
-
-        res.json({ status: 'active' });
-    } catch (e) {
-        res.status(500).json({ error: 'Error' });
-    }
-});
-
-app.post('/api/users/exists', authenticateUser, async (req, res) => {
-    try {
-        const { targetUsername } = req.body;
-        
-        if (!targetUsername) return res.json({ exists: false });
-
-        // Wir trimmen Leerzeichen weg, um Fehler bei Copy-Paste zu vermeiden
-        const searchName = targetUsername.trim();
-
-        console.log(`🔎 Suche User (Strikt): '${searchName}'`);
-
-        // 1. Wir holen den User NUR anhand des Namens (Case-Sensitive!)
-        // Wir holen auch 'is_blocked', um es im Server-Log zu sehen.
-        const query = `SELECT id, username, is_blocked FROM users WHERE username = $1`;
-        
-        const result = await dbQuery(query, [searchName]);
-
-        // A) User gar nicht gefunden
-        if (result.rows.length === 0) {
-            console.log(`❌ Datenbank meldet: Kein Eintrag für '${searchName}' gefunden.`);
-            return res.json({ exists: false });
-        }
-
-        const user = result.rows[0];
-        console.log(`✅ User gefunden. ID: ${user.id}, Blocked-Status in DB: ${user.is_blocked}`);
-
-        // B) User gefunden -> Jetzt prüfen wir, ob er blockiert ist
-        // Wir prüfen tolerant auf 'true', 1 oder '1'
-        const isBlocked = (user.is_blocked === true || user.is_blocked === 1 || user.is_blocked === '1');
-
-        if (isBlocked) {
-            console.log(`⛔ User existiert, ist aber blockiert.`);
-            return res.json({ exists: false }); // Wir sagen "existiert nicht", um keine Infos preiszugeben
-        }
-
-        // C) Alles OK
-        console.log(`👍 User gültig und verfügbar.`);
-        res.json({ exists: true });
-
-    } catch (e) {
-        console.error("User Check Error:", e);
-        res.status(500).json({ error: "Serverfehler beim Prüfen des Benutzers" });
-    }
-});
-
-// Delete Account
-app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
-    try {
-        // Erst Key deaktivieren
-        await dbQuery('UPDATE license_keys SET is_active = $1, username = NULL WHERE id = (SELECT license_key_id FROM users WHERE id = $2)',
-            [(isPostgreSQL ? false : 0), req.user.id]);
-        // Dann User löschen
-        await dbQuery('DELETE FROM users WHERE id = $1', [req.user.id]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: 'Fehler beim Löschen' });
-    }
-});
-
-// Validate Token
+// VALIDATE SESSION (Prüft Token & Status)
 app.post('/api/auth/validate', async (req, res) => {
     const { token } = req.body;
     if (!token) return res.json({ valid: false });
@@ -428,7 +206,7 @@ app.post('/api/auth/validate', async (req, res) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
         
-        // Prüfen ob User noch existiert und Lizenzstatus holen
+        // Prüfen ob User noch existiert und nicht gesperrt ist
         const userRes = await dbQuery(`
             SELECT u.*, l.expires_at 
             FROM users u
@@ -437,11 +215,14 @@ app.post('/api/auth/validate', async (req, res) => {
         `, [decoded.id]);
         
         if (userRes.rows.length > 0) {
-            // Token ist valide, wir senden aktuelle Daten zurück
+            const u = userRes.rows[0];
+            const isBlocked = (u.is_blocked === true || u.is_blocked === 1);
+            if(isBlocked) return res.json({ valid: false });
+
             res.json({ 
                 valid: true, 
-                username: userRes.rows[0].username,
-                expiresAt: userRes.rows[0].expires_at // <--- Auch beim Refresh aktualisieren
+                username: u.username,
+                expiresAt: u.expires_at 
             });
         } else {
             res.json({ valid: false });
@@ -451,36 +232,82 @@ app.post('/api/auth/validate', async (req, res) => {
     }
 });
 
+// ACCOUNT LÖSCHEN (Self-Service)
+app.delete('/api/auth/delete-account', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if(!token) return res.status(401).json({error: "No Token"});
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
+        await dbQuery("DELETE FROM users WHERE id = $1", [decoded.id]);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ success: false, error: "Löschen fehlgeschlagen" });
+    }
+});
+
+// REGISTER (Optional/Aktivierung via Frontend)
+app.post('/api/auth/register', authLimiter, async (req, res) => {
+    try {
+        const { username, accessCode, licenseKey } = req.body;
+        
+        // User Check
+        const check = await dbQuery("SELECT id FROM users WHERE username = $1", [username]);
+        if (check.rows.length > 0) return res.status(400).json({ success: false, error: "Name vergeben" });
+
+        // Hash
+        const hash = await bcrypt.hash(accessCode, 10);
+
+        // Lizenz Check
+        let licenseKeyId = null;
+        if (licenseKey) {
+            const keyRes = await dbQuery("SELECT id FROM license_keys WHERE key_code = $1 AND is_active = true", [licenseKey]);
+            if (keyRes.rows.length > 0) {
+                licenseKeyId = keyRes.rows[0].id;
+                // Key als "benutzt" markieren
+                await dbQuery("UPDATE license_keys SET username = $1, activated_at = CURRENT_TIMESTAMP WHERE id = $2", [username, licenseKeyId]);
+            } else {
+                return res.status(400).json({ success: false, error: "Ungültiger Lizenzschlüssel" });
+            }
+        }
+
+        // Insert
+        const sql = isPostgreSQL 
+            ? "INSERT INTO users (username, access_code_hash, license_key_id, registered_at) VALUES ($1, $2, $3, NOW()) RETURNING id"
+            : "INSERT INTO users (username, access_code_hash, license_key_id, registered_at) VALUES ($1, $2, $3, datetime('now'))";
+        
+        await dbQuery(sql, [username, hash, licenseKeyId]);
+        res.json({ success: true });
+
+    } catch (e) {
+        console.error("Register Error:", e);
+        res.status(500).json({ success: false, error: "Fehler bei Registrierung" });
+    }
+});
 
 // ==================================================================
-// 4. ADMIN DASHBOARD ROUTES (UPDATED)
+// 4. ADMIN DASHBOARD ROUTES
 // ==================================================================
 
-// Middleware für Admin Routes
+// Admin Middleware
 const requireAdmin = (req, res, next) => {
-    const { password } = req.headers['x-admin-password']; // Header bevorzugen
-    // Fallback auf Body (für alte Versionen)
-    const pass = password || req.body.password || req.headers['x-admin-password'];
-    
+    const pass = req.headers['x-admin-password'] || req.body.password;
     if (pass !== ADMIN_PASSWORD) return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
     next();
 };
 
-// A) EXTENDED STATS
+// STATS
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
         const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")';
         
-        // 1. User Stats
-        const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
-        const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'true' : '1'}`);
+        const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = 0 OR is_blocked = false`);
+        const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = 1 OR is_blocked = true`);
         
-        // 2. Key Stats
-        // Aktiv = is_active true AND expires_at > now
-        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'} AND (expires_at IS NULL OR expires_at > ${now})`);
+        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = 1 OR is_active = true`);
         const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
         
-        // 3. Financial Stats (aus payments Tabelle)
         const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
         
@@ -492,117 +319,97 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
                 keys_active: activeKeys.rows[0].c,
                 keys_expired: expiredKeys.rows[0].c,
                 purchases_count: totalPurchases.rows[0].c,
-                revenue_total: (totalRevenue.rows[0].s || 0) // Cent Betrag
+                revenue_total: (totalRevenue.rows[0].s || 0)
             }
         });
-    } catch (e) {
-        console.error("Stats Error:", e);
-        res.json({ success: false, error: 'DB Error' });
-    }
+    } catch (e) { res.json({ success: false }); }
 });
 
-// B) KEYS (GET & UPDATE)
+// KEYS MANAGEMENT
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
-        // JOIN mit users, um die User ID zu bekommen
-        const sql = `
-            SELECT k.id, k.key_code, k.product_code, k.is_active, k.created_at, k.activated_at, k.expires_at,
-                   u.username, u.id as user_id
-            FROM license_keys k
+        const result = await dbQuery(`
+            SELECT k.*, u.id as user_id 
+            FROM license_keys k 
             LEFT JOIN users u ON u.license_key_id = k.id 
-            ORDER BY k.created_at DESC 
-            LIMIT 200
-        `;
-        const result = await dbQuery(sql);
-        
-        const keys = result.rows.map(r => ({
-            id: r.id,
-            key_code: r.key_code,
-            product_code: r.product_code,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1), 
-            username: r.username,
-            user_id: r.user_id, // <--- WICHTIG: Die User ID
-            created_at: r.created_at,
-            activated_at: r.activated_at,
-            expires_at: r.expires_at
-        }));
-
-        res.json(keys);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+            ORDER BY k.created_at DESC LIMIT 200
+        `);
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Key Update (Edit Mode)
+app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
+    try {
+        const { product, count } = req.body;
+        const newKeys = [];
+        for(let i=0; i<(count || 1); i++) {
+            const keyRaw = crypto.randomBytes(16).toString('hex').toUpperCase().match(/.{4}/g).join('-');
+            const keyHash = await bcrypt.hash(keyRaw, 10);
+            await dbQuery("INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, true)", [keyRaw, keyHash, product]);
+            newKeys.push(keyRaw);
+        }
+        res.json({ success: true, keys: newKeys });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
-    const { expires_at, user_id } = req.body; // user_id kann eine ID sein oder leer (unbind)
-
+    const { expires_at, user_id } = req.body;
     try {
-        // 1. Key Daten aktualisieren (Typ auf 'man' setzen)
-        await dbQuery(
-            `UPDATE license_keys SET expires_at = $1, product_code = 'man' WHERE id = $2`,
-            [expires_at || null, keyId]
-        );
-
-        // 2. User Verknüpfung behandeln
-        // Zuerst: Alte Verknüpfung lösen (Sicherheitshalber)
-        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
-
-        // Dann: Neue Verknüpfung setzen (wenn User ID angegeben)
+        await dbQuery("UPDATE license_keys SET expires_at = $1 WHERE id = $2", [expires_at || null, keyId]);
+        
+        // User Verknüpfung aktualisieren
+        await dbQuery("UPDATE users SET license_key_id = NULL WHERE license_key_id = $1", [keyId]);
         if (user_id) {
-            // Prüfen ob User existiert
-            const userCheck = await dbQuery(`SELECT id, username FROM users WHERE id = $1`, [user_id]);
-            if (userCheck.rows.length > 0) {
-                const u = userCheck.rows[0];
-                // User mit Key verknüpfen
-                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
-                // Auch den Username im Key cachen (für Anzeige-Konsistenz)
-                await dbQuery(`UPDATE license_keys SET username = $1, is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, NOW()) WHERE id = $2`, [u.username, keyId]);
-            }
-        } else {
-            // Wenn User ID leer ist -> Key "Freigeben" (optional, oder nur User entfernen)
-            await dbQuery(`UPDATE license_keys SET username = NULL WHERE id = $1`, [keyId]);
+             await dbQuery("UPDATE users SET license_key_id = $1 WHERE id = $2", [keyId, user_id]);
         }
-
         res.json({ success: true });
-    } catch (e) {
-        console.error("Update Key Error:", e);
-        res.status(500).json({ success: false, error: e.message });
-    }
+    } catch (e) { res.status(500).json({ success: false }); }
 });
 
-// C) USERS
+// USER MANAGEMENT
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
-        const sql = `
+        const result = await dbQuery(`
             SELECT u.*, k.key_code 
             FROM users u
             LEFT JOIN license_keys k ON u.license_key_id = k.id
             ORDER BY u.registered_at DESC LIMIT 100
-        `;
-        const result = await dbQuery(sql);
-        // Mapping fixen für boolesche Werte
-        const users = result.rows.map(r => ({
-            ...r,
-            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1),
-            is_online: isPostgreSQL ? r.is_online : (r.is_online === 1)
-        }));
+        `);
+        // Boolean Normalisierung
+        const users = result.rows.map(u => ({...u, is_blocked: (u.is_blocked===1 || u.is_blocked===true)}));
         res.json(users);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// D) PURCHASES (Full Table Data)
+app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery("UPDATE users SET is_blocked = $1 WHERE id = $2", [isPostgreSQL ? 'true' : 1, req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery("UPDATE users SET is_blocked = $1 WHERE id = $2", [isPostgreSQL ? 'false' : 0, req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// PURCHASES
 app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`;
-        const result = await dbQuery(sql);
-        
+        const result = await dbQuery("SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100");
         const purchases = result.rows.map(r => {
             let meta = {};
-            try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata; } catch(e){}
+            try { meta = JSON.parse(r.metadata); } catch(e){}
             return {
                 id: r.payment_id,
                 email: meta.customer_email || '?',
@@ -614,244 +421,42 @@ app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
             };
         });
         res.json(purchases);
-    } catch (e) {
-        console.error(e);
-        res.json([]);
-    }
-});
-
-// E) PURCHASES (Reading from Metadata for better details)
-app.post('/api/admin/purchases', requireAdmin, async (req, res) => {
-    try {
-        // Wir holen Daten aus der 'payments' Tabelle, die wir in confirm-session füllen
-        const sql = `
-            SELECT payment_id, amount, currency, status, completed_at, metadata
-            FROM payments ORDER BY completed_at DESC LIMIT 100
-        `;
-        const result = await dbQuery(sql);
-        
-        const purchases = result.rows.map(r => {
-            let meta = {};
-            try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata; } catch(e){}
-            
-            return {
-                id: r.payment_id,
-                email: meta.email || '?',
-                amount: r.amount,
-                currency: r.currency,
-                date: r.completed_at,
-                keys: meta.keys_generated || [],
-                status: r.status
-            };
-        });
-        
-        res.json({ success: true, purchases });
-    } catch (e) {
-        console.error(e);
-        // Fallback: Leere Liste statt Error, damit UI nicht crasht
-        res.json({ success: true, purchases: [] });
-    }
-});
-
-// User Actions (Block/Unblock)
-app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
-    try {
-        const userId = req.params.id;
-
-        // 1. Benutzer sperren
-        await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [userId]);
-
-        // 2. WICHTIG: Alle aktiven Sitzungen des Benutzers sofort beenden (Logout erzwingen)
-        // Wir löschen alle Token aus der user_sessions Tabelle für diesen User.
-        await dbQuery("DELETE FROM user_sessions WHERE user_id = $1", [userId]);
-
-        res.json({ success: true, message: 'User blockiert und abgemeldet.' });
-    } catch (e) {
-        // ... (Fehlerbehandlung)
-    }
-});
-
-app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
-    await dbQuery(`UPDATE users SET is_blocked = ${isPostgreSQL ? 'false' : '0'} WHERE id = $1`, [req.params.id]);
-    res.json({ success: true });
-});
-
-// Device connection Reset
-app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
-    try {
-        // Setzt die Geräte-ID auf NULL, damit das nächste Gerät, das sich einloggt, als neues Standardgerät gilt
-        // ODER du löschst es, damit der User sich beim nächsten Login neu binden muss (dazu müsste Login-Logik "update device if null" erlauben)
-        // Einfacher: Wir setzen es auf NULL. Der User muss uns dann kontaktieren.
-        // Bessere UX: Wir löschen es. Beim nächsten Login des Users speichern wir die NEUE Device ID.
-        
-        // Logik für Server.js Login Anpassung (Optional für Auto-Rebind):
-        // if (user.allowed_device_id === null) { update user set allowed_device_id = newDeviceId }
-        
-        // Für jetzt einfach löschen:
-        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false });
-    }
+    } catch (e) { res.json([]); }
 });
 
 // ==================================================================
-// ADMIN API ROUTES (Fehlte wahrscheinlich)
+// 5. PAYMENT & RENEWAL ROUTES
 // ==================================================================
 
-// Middleware: Prüft das Admin Passwort aus Railway Variables
-const adminAuth = (req, res, next) => {
-    const sentPassword = req.headers['x-admin-password'];
-    // Hier holen wir das Passwort aus den Railway Variables
-    const realPassword = process.env.ADMIN_PASSWORD || 'admin123'; // Fallback falls Variable fehlt
-
-    if (sentPassword === realPassword) {
-        next(); // Passwort stimmt -> Weiter
-    } else {
-        res.status(401).json({ error: "Falsches Admin Passwort" });
-    }
-};
-
-// Route: Alle User laden
-app.get('/api/admin/users', adminAuth, async (req, res) => {
-    try {
-        const result = await dbQuery("SELECT * FROM users ORDER BY id DESC");
-        res.json(result.rows);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Route: User Blockieren/Entsperren
-app.post('/api/admin/users/:id/block', adminAuth, async (req, res) => {
-    try {
-        const { block } = req.body; // true oder false
-        await dbQuery("UPDATE users SET is_blocked = $1 WHERE id = $2", [block, req.params.id]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Route: Gerätebindung aufheben (Reset Device)
-app.post('/api/admin/users/:id/reset-device', adminAuth, async (req, res) => {
-    try {
-        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Route: Alle Keys laden
-app.get('/api/admin/keys', adminAuth, async (req, res) => {
-    try {
-        const result = await dbQuery("SELECT * FROM license_keys ORDER BY created_at DESC");
-        res.json(result.rows);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Route: Neue Keys generieren
-app.post('/api/admin/generate-keys', adminAuth, async (req, res) => {
-    try {
-        const { productCode, count } = req.body; 
-        const amount = parseInt(count) || 1;
-        const newKeys = [];
-
-        // Dauer berechnen
-        let durationDays = 30;
-        if(productCode === '3m') durationDays = 90;
-        if(productCode === '12m') durationDays = 365;
-        if(productCode === 'unlimited') durationDays = 99999; // Lifetime
-
-        // Loop zum Erstellen
-        for(let i=0; i < amount; i++) {
-            // Zufälliger Key XXXX-XXXX-XXXX-XXXX
-            const keyRaw = crypto.randomBytes(8).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
-            
-            // Hash erstellen (für die DB)
-            const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            
-            // Ablaufdatum berechnen (ab Aktivierung, hier setzen wir es aber erst bei Aktivierung)
-            // ABER: In diesem Admin-Tool generieren wir "frische" Keys.
-            // In der DB speichern wir NULL bei activated_at.
-            
-            await dbQuery(`
-                INSERT INTO license_keys (key_code, key_hash, product_code, is_active)
-                VALUES ($1, $2, $3, true)
-            `, [keyRaw, keyHash, productCode]); // Wir speichern keyRaw hier nur zur Anzeige, normalerweise hash!
-            // Hinweis: Für Admin Generierung speichern wir oft den Raw Key, damit du ihn kopieren kannst.
-            // Falls deine DB Struktur 'key_code' als Klartext erlaubt:
-            
-            newKeys.push(keyRaw);
-        }
-
-        res.json({ success: true, keys: newKeys });
-
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Fehler beim Generieren" });
-    }
-});
-
-// ==================================================================
-// PAYMENTS STRIPE
-// ==================================================================
-
-app.use('/api', paymentRoutes);
-
-// ==================================================================
-// 5. PAYMENT & RENEWAL ROUTES (FIXED)
-// ==================================================================
-
-// A) CHECKOUT SESSION ERSTELLEN (Für Shop & Verlängerung)
+// CHECKOUT SESSION
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
         const { product_type, customer_email, is_renewal } = req.body;
         
-        // Preise (in Cent)
         const prices = {
             '1m': 199, '3m': 449, '12m': 1499, 'unlimited': 4999,
             'bundle_1m_2': 379, 'bundle_3m_2': 799, 'bundle_3m_5': 1999, 'bundle_1y_10': 12999
         };
-        
         const price = prices[product_type];
-        if (!price) return res.status(400).json({ error: 'Ungültiges Produkt' });
+        if (!price) return res.status(400).json({ error: 'Produkt ungültig' });
 
-        // Metadaten vorbereiten
-        let metadata = { 
-            product_type,
-            type: 'new_license' // Standard: Neuer Key
-        };
+        let metadata = { product_type, type: 'new_license' };
 
-        // --- RENEWAL LOGIK (Verlängerung) ---
+        // Renewal Logic
         if (is_renewal) {
-            // Wir müssen den User identifizieren (über den Auth Header Token)
             const authHeader = req.headers['authorization'];
             const token = authHeader && authHeader.split(' ')[1];
+            if (!token) return res.status(401).json({ error: 'Auth erforderlich' });
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
+            const userRes = await dbQuery("SELECT license_key_id FROM users WHERE id = $1", [decoded.id]);
             
-            if (!token) return res.status(401).json({ error: 'Kein Login-Token gefunden.' });
-
-            try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
-                // Hole User und seine Lizenz Key ID
-                const userRes = await dbQuery("SELECT license_key_id FROM users WHERE id = $1", [decoded.id]);
-                
-                if (userRes.rows.length === 0 || !userRes.rows[0].license_key_id) {
-                    return res.status(400).json({ error: 'Keine verknüpfte Lizenz zum Verlängern gefunden.' });
-                }
-
-                metadata.type = 'renewal';
-                metadata.license_key_id = userRes.rows[0].license_key_id; // ID zum Updaten speichern
-                metadata.user_id = decoded.id; // Optional für Logs
-
-            } catch (e) {
-                return res.status(403).json({ error: 'Token ungültig.' });
+            if (userRes.rows.length === 0 || !userRes.rows[0].license_key_id) {
+                return res.status(400).json({ error: 'Keine Lizenz zum Verlängern' });
             }
+            metadata.type = 'renewal';
+            metadata.license_key_id = userRes.rows[0].license_key_id;
         } else {
-            // Standard Shop Kauf (Neue Lizenz)
             metadata.customer_email = customer_email;
         }
 
@@ -860,113 +465,90 @@ app.post('/api/create-checkout-session', async (req, res) => {
             line_items: [{
                 price_data: {
                     currency: 'eur',
-                    product_data: { 
-                        name: is_renewal ? `Lizenzverlängerung (${product_type})` : `Secure License (${product_type})` 
-                    },
+                    product_data: { name: is_renewal ? `Verlängerung (${product_type})` : `Lizenz (${product_type})` },
                     unit_amount: price,
                 },
                 quantity: 1,
             }],
             mode: 'payment',
-            metadata: metadata, // WICHTIG: Hier stehen die Infos für später
+            metadata: metadata,
             success_url: `${req.protocol}://${req.get('host')}/store.html?session_id={CHECKOUT_SESSION_ID}&success=true`,
             cancel_url: `${req.protocol}://${req.get('host')}/store.html?canceled=true`,
         });
 
         res.json({ success: true, checkout_url: session.url });
     } catch (e) {
-        console.error("Stripe Error:", e);
+        console.error(e);
         res.status(500).json({ error: e.message });
     }
 });
 
-
-// B) ORDER STATUS / FULFILLMENT (Verlängert Key oder erstellt neuen)
+// ORDER STATUS (FULFILLMENT)
 app.get('/api/order-status', async (req, res) => {
     const { session_id } = req.query;
     if (!session_id) return res.json({ success: false });
 
     try {
         const session = await stripe.checkout.sessions.retrieve(session_id);
-        
         if (session.payment_status === 'paid') {
             
-            // Prüfen ob Zahlung schon verarbeitet wurde
-            const checkPay = await dbQuery("SELECT id FROM payments WHERE stripe_session_id = $1", [session_id]);
-            
-            if (checkPay.rows.length === 0) {
-                // 1. Zahlung speichern
-                const meta = session.metadata || {};
-                await dbQuery(
-                    "INSERT INTO payments (stripe_session_id, amount, currency, status, metadata) VALUES ($1, $2, $3, $4, $5)",
-                    [session.id, session.amount_total, session.currency, 'completed', JSON.stringify(meta)]
-                );
-
-                // --- WEICHE: RENEWAL vs. NEUER KEY ---
-                
-                if (meta.type === 'renewal' && meta.license_key_id) {
-                    // === FALL A: VERLÄNGERUNG ===
-                    const durationMap = { 
-                        '1m': 1, '3m': 3, '12m': 12, 'unlimited': 999 
-                    };
-                    const months = durationMap[meta.product_type] || 1;
-                    
-                    // SQL Update für PostgreSQL oder SQLite
-                    const updateSQL = isPostgreSQL 
-                        ? `UPDATE license_keys SET expires_at = (CASE WHEN expires_at > NOW() THEN expires_at ELSE NOW() END) + interval '${months} month', is_active = true WHERE id = $1`
-                        : `UPDATE license_keys SET expires_at = datetime((CASE WHEN expires_at > datetime('now') THEN expires_at ELSE datetime('now') END), '+${months} months'), is_active = 1 WHERE id = $1`;
-
-                    await dbQuery(updateSQL, [meta.license_key_id]);
-                    
-                    return res.json({ success: true, status: 'completed', renewed: true });
-
-                } else {
-                    // === FALL B: NEUER KEY (SHOP) ===
-                    // (Dies ist die Logik, die in deiner alten server.js für neue Keys war)
-                    const productMap = {
-                        '1m': '1m', '3m': '3m', '12m': '12m', 'unlimited': 'unlimited',
-                        'bundle_1m_2': '1m', 'bundle_3m_2': '3m', 'bundle_3m_5': '3m', 'bundle_1y_10': '12m'
-                    };
-                    
-                    const countMap = {
-                        'bundle_1m_2': 2, 'bundle_3m_2': 2, 'bundle_3m_5': 5, 'bundle_1y_10': 10
-                    };
-
-                    const finalProduct = productMap[meta.product_type] || '1m';
-                    const count = countMap[meta.product_type] || 1;
-                    const newKeys = [];
-
-                    for(let i=0; i<count; i++) {
-                         // Key Generierung (identisch zu deiner generate-keys Logik)
-                         const keyRaw = crypto.randomBytes(16).toString('hex').toUpperCase().match(/.{4}/g).join('-');
-                         const keyHash = await bcrypt.hash(keyRaw, 10);
-                         
-                         // Berechnung Ablaufdatum (Standard: ab Aktivierung, hier NULL lassen)
-                         // oder direkt setzen wenn gewünscht. Wir lassen es auf Aktivierung warten.
-                         await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, true)`, [keyRaw, keyHash, finalProduct]);
-                         newKeys.push(keyRaw);
-                    }
-                    
-                    return res.json({ success: true, status: 'completed', keys: newKeys });
-                }
+            // Doppel-Check verhindern
+            const check = await dbQuery("SELECT id FROM payments WHERE stripe_session_id = $1", [session_id]);
+            if (check.rows.length > 0) {
+                return res.json({ success: true, status: 'completed', message: 'Already processed' });
             }
-            return res.json({ success: true, status: 'completed', message: "Already processed" });
+
+            // Zahlung speichern
+            const meta = session.metadata || {};
+            await dbQuery(
+                "INSERT INTO payments (stripe_session_id, amount, currency, status, metadata) VALUES ($1, $2, $3, $4, $5)",
+                [session.id, session.amount_total, session.currency, 'completed', JSON.stringify(meta)]
+            );
+
+            // A) RENEWAL
+            if (meta.type === 'renewal' && meta.license_key_id) {
+                const map = { '1m': 1, '3m': 3, '12m': 12, 'unlimited': 999 };
+                const months = map[meta.product_type] || 1;
+                
+                // Datum SQL (Postgres vs SQLite)
+                const updateSQL = isPostgreSQL 
+                    ? `UPDATE license_keys SET expires_at = (CASE WHEN expires_at > NOW() THEN expires_at ELSE NOW() END) + interval '${months} month', is_active = true WHERE id = $1`
+                    : `UPDATE license_keys SET expires_at = datetime((CASE WHEN expires_at > datetime('now') THEN expires_at ELSE datetime('now') END), '+${months} months'), is_active = 1 WHERE id = $1`;
+
+                await dbQuery(updateSQL, [meta.license_key_id]);
+                return res.json({ success: true, status: 'completed', renewed: true });
+            } 
+            
+            // B) NEUE KEYS
+            else {
+                const countMap = { 'bundle_1m_2': 2, 'bundle_3m_2': 2, 'bundle_3m_5': 5, 'bundle_1y_10': 10 };
+                const count = countMap[meta.product_type] || 1;
+                const newKeys = [];
+
+                for(let i=0; i<count; i++) {
+                     const keyRaw = crypto.randomBytes(16).toString('hex').toUpperCase().match(/.{4}/g).join('-');
+                     const keyHash = await bcrypt.hash(keyRaw, 10);
+                     await dbQuery("INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, true)", [keyRaw, keyHash, meta.product_type]);
+                     newKeys.push(keyRaw);
+                }
+                return res.json({ success: true, status: 'completed', keys: newKeys });
+            }
         }
         res.json({ success: true, status: session.payment_status });
-
     } catch (e) {
-        console.error("Order Status Error:", e);
         res.status(500).json({ error: e.message });
     }
 });
 
+
 // ==================================================================
-// 6. START
+// 6. SERVER START
 // ==================================================================
 
+// Routen für Frontend Pages
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on Port ${PORT}`);
+    console.log(`🚀 Server läuft auf Port ${PORT} | DB: ${isPostgreSQL ? 'PostgreSQL' : 'SQLite'}`);
 });
