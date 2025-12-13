@@ -16,13 +16,13 @@ require('dotenv').config();
 // STRIPE INIT
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// APP SETUP
 const app = express();
+app.set('trust proxy', 1);
+
+// VARIABLES
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const isPostgreSQL = Boolean(process.env.DATABASE_URL);
-
-app.set('trust proxy', 1);
 
 // ==================================================================
 // 1. DATENBANK VERBINDUNG
