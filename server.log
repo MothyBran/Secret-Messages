@@ -1,0 +1,8 @@
+
+> secret-messages-backend@2.0.0 start
+> node server.js
+
+🔧 Initializing Database...
+📁 Using SQLite (local)
+🚀 Server running on Port 3000
+✅ Tables checked/created
