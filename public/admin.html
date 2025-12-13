@@ -122,7 +122,7 @@
                 <h3>👥 Benutzer</h3>
                 <button class="btn" onclick="loadUsers()">Refresh</button>
             </div>
-            <input type="text" id="searchUser" class="input-field" placeholder="Benutzer suchen..." style="margin-bottom:15px;">
+            <input type="text" id="searchUser" class="input-field" placeholder="Benutzer suchen (Name oder ID)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
                 <table id="usersTable">
                     <thead>
@@ -145,6 +145,7 @@
                 <h3>🗝️ Lizenzen</h3>
                 <button class="btn" onclick="loadKeys()">Refresh</button>
             </div>
+            <input type="text" id="searchKey" class="input-field" placeholder="Lizenzen suchen (Key, Produkt, User)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
                 <table id="keysTable">
                     <thead>
@@ -152,7 +153,7 @@
                             <th>Key</th>
                             <th>Produkt</th>
                             <th>Status</th>
-                            <th>Erstellt</th>
+                            <th>User ID</th> <th>Erstellt</th>
                             <th>Ablauf</th>
                             <th>Edit</th>
                         </tr>
@@ -167,6 +168,7 @@
                 <h3>💳 Letzte Käufe</h3>
                 <button class="btn" onclick="loadPurchases()">Refresh</button>
             </div>
+            <input type="text" id="searchPurchase" class="input-field" placeholder="Käufe suchen (E-Mail, ID)..." style="margin-bottom:15px;">
             <div style="overflow-x:auto;">
                 <table id="purchasesTable">
                     <thead>
