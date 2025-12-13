@@ -398,7 +398,24 @@ async function handleLogin(e) {
         if (data.success) {
             authToken = data.token; currentUser = data.username;
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
-            updateSidebarInfo(currentUser); showSection('mainSection');
+
+            localStorage.setItem('sm_token', authToken);
+            localStorage.setItem('sm_user', currentUser);
+            localStorage.setItem('sm_exp', expiry);
+            
+            updateSidebarInfo(currentUser, expiry); showSection('mainSection');
+
+            if (checkLicenseExpiry(expiry)) {
+                document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+                document.getElementById('renewalSection').style.display = 'block';
+                
+                document.getElementById('logoutLinkRenewal').onclick = (e) => {
+                     e.preventDefault(); handleLogout(); 
+                };
+            } else {
+                showSection('mainSection');
+            }
+            
         } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
@@ -541,6 +558,22 @@ async function checkExistingSession() {
                     // Neues Datum vom Server speichern
                     localStorage.setItem('sm_exp', finalExpiry);
                 }
+
+                if (checkLicenseExpiry(finalExpiry)) {
+                    showAppStatus("Lizenz ist abgelaufen.", 'error');
+                    // Zeige NICHT mainSection, sondern renewalSection
+                    document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+                    document.getElementById('renewalSection').style.display = 'block';
+                    
+                    // Sidebar Logout Button auf Renewal Link mappen
+                    document.getElementById('logoutLinkRenewal').onclick = (e) => {
+                         e.preventDefault(); handleLogout(); 
+                    };
+                } else {
+                    // Alles gut -> Main Section
+                    showSection('mainSection');
+                }
+                return;
 
                 updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
