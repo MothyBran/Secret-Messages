@@ -20,7 +20,7 @@ app.set('trust proxy', 1);
 
 // VARIABLES
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = 'admin123';
 const isPostgreSQL = Boolean(process.env.DATABASE_URL);
 
 // ==================================================================
