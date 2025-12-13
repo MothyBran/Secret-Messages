@@ -166,7 +166,7 @@ async function pollPaymentStatus(sessionId) {
   const keysArea = document.getElementById("keys-output-area");
 
   let attempts = 0;
-  const maxAttempts = 30; // 60 Sekunden Timeout (30 * 2s)
+  const maxAttempts = 30; // 60 Sekunden Timeout
 
   const check = async () => {
     attempts++;
@@ -181,24 +181,40 @@ async function pollPaymentStatus(sessionId) {
         processingDiv.style.display = "none";
         successDiv.style.display = "block";
         
-        // Keys anzeigen
+        // FALL A: Lizenz-Verlängerung (Vom Server gemeldet via "renewed: true")
+        if (data.renewed) {
+             keysArea.innerHTML = `
+                <div style="text-align:center; padding:20px; border:1px solid var(--success-green); border-radius:5px; background:rgba(0,255,65,0.05);">
+                    <h3 style="color:var(--success-green); margin-bottom:10px;">✅ VERLÄNGERUNG ERFOLGREICH!</h3>
+                    <p style="color:#fff;">Ihre Lizenz wurde sofort aktualisiert.</p>
+                    <p style="color:#ccc; font-size:0.9rem; margin-top:10px;">
+                        Sie können zum Login zurückkehren.
+                    </p>
+                    <a href="/" class="btn" style="margin-top:20px; display:inline-block; text-decoration:none; background:var(--accent-blue); color:black;">ZUR APP</a>
+                </div>
+             `;
+             return; // Fertig
+        }
+
+        // FALL B: Neuer Kauf (Keys anzeigen)
         if (data.keys && data.keys.length > 0) {
            renderKeys(data.keys, keysArea);
         } else {
-           keysArea.innerHTML = "<p>Zahlung erfolgreich, aber keine Keys gefunden. Bitte E-Mail prüfen.</p>";
+           // Fallback, falls Keys per Mail kommen oder Server keine schickt
+           keysArea.innerHTML = "<p>Zahlung erfolgreich verarbeitet. Bitte prüfen Sie Ihre E-Mails.</p>";
         }
         return; // Polling beenden
 
       } else if (data.status === 'processing' || !data.status) {
         // --- NOCH WARTEN ---
         if (attempts < maxAttempts) {
-           setTimeout(check, 2000); // Alle 2 Sekunden erneut prüfen
+           setTimeout(check, 2000); // Weiter warten
         } else {
-           throw new Error("Zeitüberschreitung. Die Bestätigung dauert länger als erwartet.");
+           throw new Error("Zeitüberschreitung. Bitte E-Mail prüfen.");
         }
 
       } else {
-        // --- FEHLER VOM SERVER ---
+        // --- FEHLER ---
         throw new Error("Zahlungsstatus: " + data.status);
       }
 
@@ -210,7 +226,7 @@ async function pollPaymentStatus(sessionId) {
     }
   };
 
-  // Start Polling
+  // Start
   check();
 }
 
