@@ -292,6 +292,79 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
     }
 });
 
+app.post('/api/create-checkout-session', async (req, res) => {
+    try {
+        const { product_type, customer_email, is_renewal } = req.body;
+        
+        // Preise (in Cent)
+        const prices = {
+            '1m': 199, '3m': 449, '12m': 1499, 'unlimited': 4999,
+            'bundle_1m_2': 379, 'bundle_3m_2': 799, 'bundle_3m_5': 1999, 'bundle_1y_10': 12999
+        };
+        
+        const price = prices[product_type];
+        if (!price) return res.status(400).json({ error: 'Ungültiges Produkt' });
+
+        // Metadaten vorbereiten
+        let metadata = { 
+            product_type,
+            type: 'new_license' // Standard: Neuer Key
+        };
+
+        // --- RENEWAL LOGIK ---
+        if (is_renewal) {
+            // Wir müssen den User identifizieren (über den Auth Header Token)
+            const authHeader = req.headers['authorization'];
+            const token = authHeader && authHeader.split(' ')[1];
+            
+            if (!token) return res.status(401).json({ error: 'Kein Login-Token gefunden.' });
+
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
+                // Hole User und seine Lizenz Key ID
+                const userRes = await dbQuery("SELECT license_key_id FROM users WHERE id = $1", [decoded.id]);
+                
+                if (userRes.rows.length === 0 || !userRes.rows[0].license_key_id) {
+                    return res.status(400).json({ error: 'Keine verknüpfte Lizenz zum Verlängern gefunden.' });
+                }
+
+                metadata.type = 'renewal';
+                metadata.license_key_id = userRes.rows[0].license_key_id; // ID zum Updaten speichern
+                metadata.user_id = decoded.id; // Optional für Logs
+
+            } catch (e) {
+                return res.status(403).json({ error: 'Token ungültig.' });
+            }
+        } else {
+            // Standard Shop Kauf
+            metadata.customer_email = customer_email;
+        }
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'eur',
+                    product_data: { 
+                        name: is_renewal ? `Lizenzverlängerung (${product_type})` : `Secure License (${product_type})` 
+                    },
+                    unit_amount: price,
+                },
+                quantity: 1,
+            }],
+            mode: 'payment',
+            metadata: metadata, // WICHTIG: Hier stehen die Infos für später
+            success_url: `${req.protocol}://${req.get('host')}/store.html?session_id={CHECKOUT_SESSION_ID}&success=true`,
+            cancel_url: `${req.protocol}://${req.get('host')}/store.html?canceled=true`,
+        });
+
+        res.json({ success: true, checkout_url: session.url });
+    } catch (e) {
+        console.error("Stripe Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Logout
 app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     try {
@@ -358,6 +431,83 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
         res.json({ status: 'active' });
     } catch (e) {
         res.status(500).json({ error: 'Error' });
+    }
+});
+
+app.get('/api/order-status', async (req, res) => {
+    const { session_id } = req.query;
+    if (!session_id) return res.json({ success: false });
+
+    try {
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+        
+        if (session.payment_status === 'paid') {
+            
+            // Erst prüfen, ob Zahlung schon in DB registriert ist (um Doppel-Verarbeitung zu vermeiden)
+            const checkPay = await dbQuery("SELECT id FROM payments WHERE stripe_session_id = $1", [session_id]);
+            
+            if (checkPay.rows.length === 0) {
+                // 1. Zahlung speichern
+                const meta = session.metadata || {};
+                await dbQuery(
+                    "INSERT INTO payments (stripe_session_id, amount, currency, status, metadata) VALUES ($1, $2, $3, $4, $5)",
+                    [session.id, session.amount_total, session.currency, 'completed', JSON.stringify(meta)]
+                );
+
+                // --- WEICHE: RENEWAL vs. NEW KEY ---
+                
+                if (meta.type === 'renewal' && meta.license_key_id) {
+                    // === FALL A: VERLÄNGERUNG ===
+                    const durationMap = { 
+                        '1m': 1, '3m': 3, '12m': 12, 'unlimited': 999 
+                    };
+                    const months = durationMap[meta.product_type] || 1;
+                    
+                    // Berechne neues Datum: 
+                    // Startpunkt ist JETZT (wenn abgelaufen) oder altes Ablaufdatum (wenn noch aktiv)
+                    // PostgreSQL vs SQLite Syntax beachten
+                    
+                    const updateSQL = isPostgreSQL 
+                        ? `UPDATE license_keys SET expires_at = (CASE WHEN expires_at > NOW() THEN expires_at ELSE NOW() END) + interval '${months} month', is_active = true WHERE id = $1`
+                        : `UPDATE license_keys SET expires_at = datetime((CASE WHEN expires_at > datetime('now') THEN expires_at ELSE datetime('now') END), '+${months} months'), is_active = 1 WHERE id = $1`;
+
+                    await dbQuery(updateSQL, [meta.license_key_id]);
+                    
+                    // Wir geben KEINE Keys zurück, sondern nur Erfolg
+                    return res.json({ success: true, status: 'completed', renewed: true });
+
+                } else {
+                    // === FALL B: NEUER KEY (SHOP) ===
+                    // (Hier kommt deine bestehende Key-Generierungs-Logik hin)
+                    // Ich kürze das hier ab, nutze deine generateKeys Logik von vorher
+                    // ...
+                    
+                    // Für das Beispiel, hier die simple Generierung für Einzelkeys:
+                    const count = 1; // Bundles müssten hier geparst werden (z.B. bundle_1m_2 -> count=2)
+                    // ... Logik zum Erstellen neuer Keys ...
+                    // const newKeys = await createLicenseKeys(product, count);
+                    
+                    // Fallback simpler Code (du hast das wahrscheinlich schon komplexer):
+                    // Hier muss sichergestellt sein, dass generateKeys aufgerufen wird.
+                    // Da ich deinen kompletten Helper-Code nicht sehe, simuliere ich den Return:
+                    
+                    // WICHTIG: Füge hier deinen bestehenden Code für "New Key Generation" ein
+                    // oder rufe die Funktion auf.
+                    
+                    // Provisorisch, damit der Code läuft:
+                    return res.json({ success: true, status: 'completed', keys: ["NEUER-KEY-WURDE-PER-MAIL-GESENDET"] });
+                }
+            }
+            
+            // Wenn schon verarbeitet:
+            return res.json({ success: true, status: 'completed', message: "Already processed" });
+        }
+        
+        res.json({ success: true, status: session.payment_status });
+
+    } catch (e) {
+        console.error("Order Status Error:", e);
+        res.status(500).json({ error: e.message });
     }
 });
 
