@@ -188,11 +188,23 @@ async function pollPaymentStatus(sessionId) {
                     <h3 style="color:var(--success-green); margin-bottom:10px;">✅ VERLÄNGERUNG ERFOLGREICH!</h3>
                     <p style="color:#fff;">Ihre Lizenz wurde sofort aktualisiert.</p>
                     <p style="color:#ccc; font-size:0.9rem; margin-top:10px;">
-                        Sie können zum Login zurückkehren.
+                        Sie können das Tool nun nahtlos weiternutzen.
                     </p>
                     <a href="/" class="btn" style="margin-top:20px; display:inline-block; text-decoration:none; background:var(--accent-blue); color:black;">ZUR APP</a>
                 </div>
              `;
+             // Hide the intro text "Vielen Dank. Hier sind Ihre Zugangsdaten:"
+             const introEl = document.querySelector("#status-success > p:first-of-type");
+             if(introEl) introEl.style.display = 'none';
+
+             // Hide the default "Copy & Save" warning below
+             const warningEl = document.querySelector("#status-success > p[style*='color: #ffcc00']");
+             if(warningEl) warningEl.style.display = 'none';
+
+             // Hide the default buttons below
+             const btnsEl = document.querySelector("#status-success > div[style*='margin-top:30px']");
+             if(btnsEl) btnsEl.style.display = 'none';
+
              return; // Fertig
         }
 

@@ -36,7 +36,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.get('action') === 'activate') {
         showSection('activationSection');
     } else {
-        checkExistingSession();
+        // Standard-Start: Prüfen ob Session existiert, sonst Login zeigen (nicht Activation!)
+        const token = localStorage.getItem('sm_token');
+        if (token) {
+            checkExistingSession();
+        } else {
+            showSection('loginSection');
+        }
     }
 
     setupIdleTimer();
@@ -665,13 +671,17 @@ async function checkExistingSession() {
                 updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
                 return;
+            } else {
+                // Token invalid or blocked -> Logout
+                handleLogout();
             }
         } catch(e) {
             console.log("Session Check fehlgeschlagen", e);
+            showSection('loginSection');
         }
+    } else {
+        showSection('loginSection');
     }
-    // Fallback: Login anzeigen
-    showSection('loginSection');
 }
 
 function showRenewalScreen() {

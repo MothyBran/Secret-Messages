@@ -271,6 +271,7 @@ router.get("/order-status", async (req, res) => {
         success: true, 
         status: 'completed', 
         keys: data.keys_generated,
+        renewed: (data.type === 'renewal'),
         customer_email: session.customer_email
       });
     } else {
