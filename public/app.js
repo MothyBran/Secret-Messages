@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         checkExistingSession();
     }
+
+    setupIdleTimer();
 });
 
 // ================================================================
@@ -458,6 +460,11 @@ function updateAppMode(mode) {
 async function handleMainAction() {
     const code = document.getElementById('messageCode').value; const text = document.getElementById('messageInput').value;
     if (!text || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
+
+    // Pre-Action Check: Server Validierung
+    const isValid = await validateSessionStrict();
+    if (!isValid) return; // validateSessionStrict handles logout or redirect
+
     const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
     try {
         let res = "";
@@ -492,6 +499,70 @@ async function generateDeviceFingerprint() {
     } catch(e) {
         let id = localStorage.getItem('sm_id_fb');
         if(!id){id='dev-fb-'+Date.now();localStorage.setItem('sm_id_fb',id);} return id;
+    }
+}
+
+let idleTimer;
+const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 Minuten
+
+function setupIdleTimer() {
+    window.onload = resetIdleTimer;
+    window.onmousemove = resetIdleTimer;
+    window.onmousedown = resetIdleTimer;
+    window.ontouchstart = resetIdleTimer;
+    window.onclick = resetIdleTimer;
+    window.onkeypress = resetIdleTimer;
+    window.addEventListener('scroll', resetIdleTimer, true);
+}
+
+function resetIdleTimer() {
+    if (!currentUser) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        if(currentUser) {
+            alert("Automatische Abmeldung wegen Inaktivität.");
+            handleLogout();
+        }
+    }, IDLE_TIMEOUT);
+}
+
+async function validateSessionStrict() {
+    if (!authToken) {
+        handleLogout();
+        return false;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/auth/validate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ token: authToken })
+        });
+        const data = await res.json();
+
+        if (!data.valid) {
+            if (data.reason === 'blocked') {
+                alert("Sitzung beendet: Konto wurde gesperrt.");
+                handleLogout();
+                return false;
+            } else if (data.reason === 'expired') {
+                showRenewalScreen();
+                // Optional: Update sidebar text if needed, but renewal screen is enough
+                return false;
+            } else {
+                // Invalid token / user not found
+                alert("Sitzung abgelaufen.");
+                handleLogout();
+                return false;
+            }
+        }
+        return true;
+    } catch (e) {
+        console.error("Validation Check Failed", e);
+        // On network error, we might choose to fail safe or allow.
+        // Security requirement says "If Server responds with false...".
+        // If network error, maybe let user know.
+        showAppStatus("Verbindung prüfen...", 'error');
+        return false;
     }
 }
 

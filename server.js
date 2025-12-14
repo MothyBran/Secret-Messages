@@ -285,12 +285,31 @@ app.post('/api/auth/validate', async (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const userRes = await dbQuery(`SELECT u.*, l.expires_at FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
+
         if (userRes.rows.length > 0) {
-            res.json({ valid: true, username: userRes.rows[0].username, expiresAt: userRes.rows[0].expires_at });
+            const user = userRes.rows[0];
+            const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+
+            if (isBlocked) {
+                return res.json({ valid: false, reason: 'blocked' });
+            }
+
+            // Check Expiration
+            let isExpired = false;
+            if (user.expires_at) {
+                const expDate = new Date(user.expires_at);
+                if (expDate < new Date()) isExpired = true;
+            }
+
+            if (isExpired) {
+                return res.json({ valid: false, reason: 'expired', expiresAt: user.expires_at });
+            }
+
+            res.json({ valid: true, username: user.username, expiresAt: user.expires_at });
         } else {
-            res.json({ valid: false });
+            res.json({ valid: false, reason: 'user_not_found' });
         }
-    } catch (e) { res.json({ valid: false }); }
+    } catch (e) { res.json({ valid: false, reason: 'invalid_token' }); }
 });
 
 // ==================================================================
