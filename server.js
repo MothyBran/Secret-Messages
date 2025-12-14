@@ -197,7 +197,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        await dbQuery("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
+        await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
         res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime' });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
