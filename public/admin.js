@@ -88,7 +88,8 @@ window.openEditLicenseModal = function(id) {
     document.getElementById('editLicenseModal').style.display = 'flex';
 };
 
-async function saveLicenseChanges() {
+window.saveLicenseChanges = async function() {
+    console.log("Funktion aufgerufen: saveLicenseChanges");
     if(!currentEditingKeyId) return;
 
     const dateStr = document.getElementById('editExpiryDate').value;
@@ -122,7 +123,8 @@ async function saveLicenseChanges() {
     } catch(e) { alert("Serverfehler."); }
 }
 
-async function generateKeys() {
+window.generateKeys = async function() {
+    console.log("Funktion aufgerufen: generateKeys");
     const duration = document.getElementById('genDuration').value;
     const count = document.getElementById('genCount').value || 1;
     try {
@@ -181,8 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
         location.reload();
     });
 
-    document.getElementById('generateBtn')?.addEventListener('click', generateKeys);
-    document.getElementById('saveLicenseBtn')?.addEventListener('click', saveLicenseChanges);
+    document.getElementById('generateBtn')?.addEventListener('click', window.generateKeys);
+    document.getElementById('saveLicenseBtn')?.addEventListener('click', window.saveLicenseChanges);
     document.getElementById('cancelLicenseBtn')?.addEventListener('click', () => {
         document.getElementById('editLicenseModal').style.display = 'none';
     });
