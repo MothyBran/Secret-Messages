@@ -1,5 +1,7 @@
 // app.js - Frontend Logic (Final Polish: Custom Delete Modal & Fixed Navigation)
 
+const APP_VERSION = 'v1.01';
+
 import { encryptFull, decryptFull } from './cryptoLayers.js';
 
 // ================================================================
@@ -24,6 +26,9 @@ let sortDir = 'asc';
 // ================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    const verEl = document.getElementById('appVersion');
+    if(verEl) verEl.textContent = APP_VERSION;
+
     setupUIEvents();
     
     // URL Check (Kauf-Rückkehr)
@@ -390,10 +395,11 @@ function confirmSelection() {
 async function handleLogin(e) {
     e.preventDefault();
     const u = document.getElementById('username').value; const c = document.getElementById('accessCode').value;
+    const devId = await generateDeviceFingerprint();
     try {
         const res = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username:u, accessCode:c, deviceId:getDeviceId() })
+            body: JSON.stringify({ username:u, accessCode:c, deviceId:devId })
         });
         const data = await res.json();
         if (data.success) {
@@ -410,14 +416,15 @@ async function handleLogin(e) {
                 }
             }
 
-            updateSidebarInfo(currentUser); showSection('mainSection');
+            updateSidebarInfo(currentUser, data.expiresAt); showSection('mainSection');
         } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
 
 async function handleActivation(e) {
     e.preventDefault();
-    const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: getDeviceId() };
+    const devId = await generateDeviceFingerprint();
+    const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
     try {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
@@ -467,7 +474,27 @@ async function handleMainAction() {
     } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
 }
 
-function getDeviceId() { let id=localStorage.getItem('sm_id'); if(!id){id='dev-'+Date.now();localStorage.setItem('sm_id',id);} return id; }
+async function generateDeviceFingerprint() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200; canvas.height = 50;
+        ctx.textBaseline = "top"; ctx.font = "14px 'Arial'"; ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#f60"; ctx.fillRect(125,1,62,20);
+        ctx.fillStyle = "#069"; ctx.fillText("SecureMsg_v1", 2, 15);
+        ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("Fingerprint", 4, 17);
+        const canvasData = canvas.toDataURL();
+        const baseString = canvasData + navigator.userAgent + screen.width + "x" + screen.height + new Date().getTimezoneOffset();
+        const msgBuffer = new TextEncoder().encode(baseString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return "dev-" + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    } catch(e) {
+        let id = localStorage.getItem('sm_id_fb');
+        if(!id){id='dev-fb-'+Date.now();localStorage.setItem('sm_id_fb',id);} return id;
+    }
+}
+
 function updateSidebarInfo(user, expiryData) {
     const userLabel = document.getElementById('sidebarUser');
     const licenseLabel = document.getElementById('sidebarLicense');
