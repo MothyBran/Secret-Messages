@@ -425,7 +425,16 @@ async function handleLogin(e) {
             }
 
             updateSidebarInfo(currentUser, data.expiresAt); showSection('mainSection');
-        } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+        } else {
+            // Handle specific blocked error
+            if (data.error === "ACCOUNT_BLOCKED") {
+                document.getElementById('accessCode').value = ''; // Clear sensitive data
+                localStorage.removeItem('sm_token'); // Ensure no token is kept
+                showSection('blockedSection');
+            } else {
+                showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+            }
+        }
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
 
