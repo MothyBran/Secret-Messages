@@ -1,5 +1,7 @@
 // admin.js - Admin Panel Logic (Complete & Fixed)
 
+console.log("🚀 ADMIN.JS GELADEN");
+
 const API_BASE = '/api/admin';
 let adminPassword = '';
 
@@ -15,6 +17,7 @@ function getHeaders() {
 
 // Global functions must be attached to window for HTML onclick attributes to work
 window.loadUsers = async function() {
+    console.log("Funktion aufgerufen: loadUsers");
     try {
         const res = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
         allUsers = await res.json();
@@ -23,6 +26,7 @@ window.loadUsers = async function() {
 };
 
 window.loadKeys = async function() {
+    console.log("Funktion aufgerufen: loadKeys");
     try {
         const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
         allKeys = await res.json();
@@ -31,6 +35,7 @@ window.loadKeys = async function() {
 };
 
 window.loadPurchases = async function() {
+    console.log("Funktion aufgerufen: loadPurchases");
     try {
         const res = await fetch(`${API_BASE}/purchases`, { headers: getHeaders() });
         allPurchases = await res.json();
@@ -39,12 +44,14 @@ window.loadPurchases = async function() {
 };
 
 window.resetDevice = async function(id) {
+    console.log("Funktion aufgerufen: resetDevice");
     if(!confirm(`Gerätebindung für User #${id} löschen?`)) return;
     await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
     window.loadUsers();
 };
 
 window.toggleUserBlock = async function(id, isBlocked) {
+    console.log("Funktion aufgerufen: toggleUserBlock");
     if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
     const endpoint = isBlocked ? 'unblock-user' : 'block-user';
     await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
@@ -54,6 +61,7 @@ window.toggleUserBlock = async function(id, isBlocked) {
 let currentEditingKeyId = null;
 
 window.openEditLicenseModal = function(id) {
+    console.log("Funktion aufgerufen: openEditLicenseModal");
     const key = allKeys.find(k => k.id === id);
     if(!key) return;
 

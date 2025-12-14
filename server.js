@@ -26,8 +26,9 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
-      scriptSrcElem: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
