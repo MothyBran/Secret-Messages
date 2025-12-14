@@ -457,7 +457,7 @@ async function handleMainAction() {
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
             if(!rIds.includes(currentUser)) rIds.push(currentUser);
-            res = await encryptFull(text, code, rIds);
+            res = await encryptFull(text, code, rIds, currentUser);
         } else {
             res = await decryptFull(text, code, currentUser);
         }
