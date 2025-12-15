@@ -36,7 +36,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.get('action') === 'activate') {
         showSection('activationSection');
     } else {
-        checkExistingSession();
+        // Standard-Start: Prüfen ob Session existiert, sonst Login zeigen (nicht Activation!)
+        const token = localStorage.getItem('sm_token');
+        if (token) {
+            checkExistingSession();
+        } else {
+            showSection('loginSection');
+        }
     }
 
     setupIdleTimer();
@@ -419,7 +425,16 @@ async function handleLogin(e) {
             }
 
             updateSidebarInfo(currentUser, data.expiresAt); showSection('mainSection');
-        } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+        } else {
+            // Handle specific blocked error
+            if (data.error === "ACCOUNT_BLOCKED") {
+                document.getElementById('accessCode').value = ''; // Clear sensitive data
+                localStorage.removeItem('sm_token'); // Ensure no token is kept
+                showSection('blockedSection');
+            } else {
+                showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+            }
+        }
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
 
@@ -665,13 +680,17 @@ async function checkExistingSession() {
                 updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
                 return;
+            } else {
+                // Token invalid or blocked -> Logout
+                handleLogout();
             }
         } catch(e) {
             console.log("Session Check fehlgeschlagen", e);
+            showSection('loginSection');
         }
+    } else {
+        showSection('loginSection');
     }
-    // Fallback: Login anzeigen
-    showSection('loginSection');
 }
 
 function showRenewalScreen() {

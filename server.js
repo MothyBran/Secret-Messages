@@ -190,6 +190,12 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
 
+        // HARD LOGIN BLOCK
+        const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+        if (isBlocked) {
+            return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
+        }
+
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
         }

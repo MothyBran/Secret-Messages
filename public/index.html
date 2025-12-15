@@ -289,6 +289,21 @@
             <button id="logoutBtnRenewal" class="btn" style="width:100%; border-color:#555; color:#aaa;">Abmelden</button>
         </div>
 
+        <div id="blockedSection" class="section">
+            <div style="border: 1px solid var(--error-red); background: rgba(255, 50, 50, 0.05); padding: 30px; border-radius: 8px; box-shadow: 0 0 30px rgba(255, 50, 50, 0.1); text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🔒</div>
+                <h2 style="color: var(--error-red); margin-bottom: 20px; letter-spacing: 2px;">ZUGANG GESPERRT</h2>
+                <p style="color: #ccc; margin-bottom: 10px; font-size: 1.1rem;">
+                    Ihr Zugang wurde administrativ gesperrt.<br>
+                    Eine Anmeldung ist nicht mehr möglich.
+                </p>
+                <p style="color: #888; font-size: 0.9rem; margin-bottom: 30px;">
+                    Für weitere Informationen kontaktieren Sie bitte den Support.
+                </p>
+                <button onclick="window.location.reload()" class="btn" style="border-color: #555; color: #aaa; width: 100%;">Zurück</button>
+            </div>
+        </div>
+
         <div id="mainSection" class="section">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
                 <h3 id="modeTitle" style="color:var(--accent-blue);">VERSCHLÜSSELUNG</h3>
