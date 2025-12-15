@@ -93,6 +93,25 @@ function setupUIEvents() {
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
     document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
+    // --- LOGO KLICK LOGIK (NEU) ---
+    document.querySelector('.app-logo')?.addEventListener('click', () => {
+        // Prüfen ob eingeloggt (Token existiert)
+        const isLoggedIn = !!authToken;
+
+        if (!isLoggedIn) {
+            // FALL A: Nicht eingeloggt
+            // Check if on login or activation section
+            const loginActive = document.getElementById('loginSection').classList.contains('active');
+            const activationActive = document.getElementById('activationSection').classList.contains('active');
+
+            if (loginActive || activationActive) {
+                window.location.href = 'landing.html';
+            }
+        } else {
+            // FALL B: Eingeloggt -> Nichts tun (user intent: safe, no exit)
+        }
+    });
+
     // --- NAVIGATION & SEITEN (FIXED) ---
     
     // Funktion für "Zurück zur App"

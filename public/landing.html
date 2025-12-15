@@ -385,5 +385,34 @@ const key = await window.crypto.subtle.importKey(
         </div>
     </footer>
 
+    <!-- COOKIE BANNER -->
+    <div id="cookieBanner" style="display:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:350px; background:#0f1215; border:1px solid var(--accent-blue); padding:20px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+        <h4 style="color:#fff; margin-bottom:10px; font-size:1rem;">Datenschutz & Cookies</h4>
+        <p style="font-size:0.8rem; color:#ccc; line-height:1.5; margin-bottom:15px;">
+            Wir nutzen Cookies, um die Funktionalität (z.B. Login-Status) zu gewährleisten. Es werden keine Tracking- oder Werbe-Cookies gesetzt.
+            <br><a href="#" style="color:var(--accent-blue); text-decoration:none;">Datenschutz</a> &bull; <a href="#" style="color:var(--accent-blue); text-decoration:none;">Impressum</a>
+        </p>
+        <div style="display:flex; gap:10px;">
+            <button id="cookieAcceptAll" class="btn btn-primary" style="flex:1; padding:8px; font-size:0.8rem;">Alles Akzeptieren</button>
+            <button id="cookieAcceptEssential" class="btn" style="flex:1; padding:8px; font-size:0.8rem; background:transparent; border-color:#555; color:#ccc;">Nur Essenzielle</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('cookieConsent')) {
+                document.getElementById('cookieBanner').style.display = 'block';
+            }
+
+            function closeBanner() {
+                localStorage.setItem('cookieConsent', 'true');
+                document.getElementById('cookieBanner').style.display = 'none';
+            }
+
+            document.getElementById('cookieAcceptAll').addEventListener('click', closeBanner);
+            document.getElementById('cookieAcceptEssential').addEventListener('click', closeBanner);
+        });
+    </script>
+
 </body>
 </html>
