@@ -480,9 +480,14 @@ async function handleActivation(e) {
     try {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
-        if(d.success) { alert("Erfolg! Einloggen."); showSection('loginSection'); document.getElementById('username').value = payload.username; } 
-        else showAppStatus(d.error, 'error');
-    } catch(e) { showAppStatus("Fehler", 'error'); }
+        if(d.success) {
+            alert("Account erfolgreich aktiviert! Du kannst dich jetzt einloggen.");
+            showSection('loginSection');
+            document.getElementById('username').value = payload.username;
+        } else {
+            showAppStatus(d.error || "Aktivierung fehlgeschlagen", 'error');
+        }
+    } catch(e) { showAppStatus("Fehler bei der Aktivierung", 'error'); }
 }
 
 async function handleLogout() {
