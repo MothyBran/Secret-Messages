@@ -389,6 +389,19 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
+    const keyId = req.params.id;
+    try {
+        // 1. Verknüpfung bei Usern lösen, die diesen Key nutzen
+        await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
+        // 2. Key löschen
+        await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message });
+    }
+});
+
 app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
     try {
         const { productCode, count } = req.body;
