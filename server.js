@@ -364,6 +364,15 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
+    try {
+        const id = req.params.id;
+        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [id]);
+        await dbQuery(`DELETE FROM license_keys WHERE id = $1`, [id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: "Löschen fehlgeschlagen" }); }
+});
+
 app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
     try {
         const { productCode, count } = req.body;
