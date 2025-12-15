@@ -411,7 +411,8 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         const amount = parseInt(count) || 1;
         const newKeys = [];
         for(let i=0; i < amount; i++) {
-            const keyRaw = crypto.randomBytes(8).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+            // Generate 6 bytes = 12 hex chars -> "XXXX-XXXX-XXXX" (14 chars)
+            const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
             // FIX: Use parameter for boolean to support SQLite (no literal 'true') and set default to false/inactive
             await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, $4)`,
