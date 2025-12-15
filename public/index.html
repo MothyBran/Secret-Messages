@@ -166,6 +166,16 @@
         #qrDisplay { width: 200px; height: 200px; margin: 0 auto 20px auto; border: 5px solid white; background: white; display: flex; justify-content: center; align-items: center; }
         #qrDisplay img { max-width: 100%; }
         #qr-reader { width: 100%; min-height: 300px; background: #000; border: 1px solid #333; }
+
+        /* === FAQ ACCORDION === */
+        details { background: rgba(255,255,255,0.03); border: 1px solid #333; border-radius: 8px; margin-bottom: 8px; transition: border-color 0.2s; }
+        details:hover { border-color: var(--accent-blue); }
+        summary { padding: 15px; cursor: pointer; font-weight: 600; outline: none; list-style: none; position: relative; padding-right: 40px; }
+        summary::-webkit-details-marker { display: none; }
+        summary::after { content: '+'; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: var(--accent-blue); font-size: 1.2rem; transition: transform 0.2s; }
+        details[open] summary::after { transform: rotate(45deg); }
+        .faq-content { padding: 15px; color: #aaa; line-height: 1.6; border-top: 1px solid #333; }
+        .faq-content strong { color: var(--text-main); }
     </style>
 </head>
 <body>
@@ -185,6 +195,10 @@
         
         <a href="#" class="sidebar-item" id="navGuide">📖 Anleitung</a>
         <a href="#" class="sidebar-item" id="navInfo">ℹ️ Info & Sicherheit</a>
+        <a href="#" class="sidebar-item" id="faqBtn">
+            <svg style="width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            FAQ / Hilfe
+        </a>
         <a href="mailto:support@secret-messages.com" class="sidebar-item">🆘 Support</a>
 
         <div style="margin-top: auto;"></div>
@@ -501,6 +515,83 @@
             <div style="display:flex; gap:10px;">
                 <button class="btn" id="btnCancelDelete" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
                 <button class="btn btn-danger" id="btnConfirmDelete" style="flex:1; background:rgba(255,0,0,0.2);">Endgültig Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="faqModal" class="modal">
+        <div class="modal-box" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding-bottom: 15px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: var(--accent-blue); margin: 0;">Häufig gestellte Fragen</h3>
+                <button id="closeFaqBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">✕</button>
+            </div>
+            <div style="overflow-y: auto; padding-right: 5px;">
+                <h5 style="color: var(--text-muted); margin: 15px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">App-Installation (PWA) & Updates</h5>
+                <details>
+                    <summary>Kann ich Secure Messages als App installieren?</summary>
+                    <div class="faq-content">
+                        Ja! Secure Messages ist eine Progressive Web App (PWA). Sie können das Tool direkt installieren – ohne App Store.
+                        <br><br>
+                        <strong>iOS (iPhone/iPad):</strong> In Safari auf 'Teilen' (Viereck mit Pfeil) tippen -> 'Zum Home-Bildschirm'.<br>
+                        <strong>Android (Chrome):</strong> Oben rechts Menü (3 Punkte) -> 'App installieren'.<br>
+                        <strong>Desktop (Windows/Mac):</strong> In der Adressleiste rechts auf das Installieren-Symbol klicken.
+                    </div>
+                </details>
+                <details>
+                    <summary>Muss ich Updates herunterladen?</summary>
+                    <div class="faq-content">Nein. Sie nutzen automatisch immer die aktuellste Version, sobald Sie die Seite neu laden.</div>
+                </details>
+
+                <h5 style="color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">Login & Technische Probleme</h5>
+                <details>
+                    <summary>Fehlermeldung: 'Gerät nicht autorisiert' - Login fehlgeschlagen.</summary>
+                    <div class="faq-content">
+                        Unser Sicherheitssystem erkennt Ihr Gerät nicht wieder. Ursachen: Anderes Gerät genutzt, Browser-Cache gelöscht, anderer Browser oder Inkognito-Modus.<br>
+                        <strong>Lösung:</strong> Stellen Sie den ursprünglichen Zustand wieder her. Falls das nicht geht, kontaktieren Sie den Support.
+                    </div>
+                </details>
+                <details>
+                    <summary>Kann ich meine Lizenz gleichzeitig auf Handy und Laptop nutzen?</summary>
+                    <div class="faq-content">Nein. Eine Lizenz ist kryptografisch an ein einziges Gerät gebunden. Für die Nutzung auf mehreren Geräten benötigen Sie separate Lizenzen.</div>
+                </details>
+
+                <h5 style="color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">Lizenzen & Business (B2B)</h5>
+                <details>
+                    <summary>Ich brauche mehr Lizenzen / Unlimited-Paket.</summary>
+                    <div class="faq-content">Wir bieten maßgeschneiderte Lösungen für Unternehmen und Großabnehmer. Wenn Sie größere Bündel oder eine Unlimited-Flotten-Lizenz benötigen, kontaktieren Sie bitte den Support für ein individuelles Angebot.</div>
+                </details>
+                <details>
+                    <summary>Wie verlängere ich meine Lizenz?</summary>
+                    <div class="faq-content">Loggen Sie sich einfach ein. Wenn die Lizenz abgelaufen ist, werden Sie automatisch zum Verlängerungs-Screen geleitet. Ihr Benutzername bleibt erhalten.</div>
+                </details>
+                <details>
+                    <summary>Erhalte ich eine Rechnung?</summary>
+                    <div class="faq-content">Ja, Sie erhalten den Beleg automatisch per E-Mail von unserem Zahlungsdienstleister Stripe.</div>
+                </details>
+
+                <h5 style="color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">Nutzung & Versand</h5>
+                <details>
+                    <summary>Wie versende ich die Nachricht?</summary>
+                    <div class="faq-content">Sobald der Text verschlüsselt ist, kopieren Sie ihn (oder den QR-Code) und versenden ihn über einen beliebigen Kanal (WhatsApp, E-Mail, Signal, etc.). Der Transportweg ist egal, da der Inhalt sicher ist.</div>
+                </details>
+                <details>
+                    <summary>Braucht der Empfänger auch die App?</summary>
+                    <div class="faq-content">Ja. Der Empfänger muss sich ebenfalls einloggen, um die Nachricht zu entschlüsseln. Zudem muss er den 5-stelligen Code kennen und von Ihnen als Empfänger autorisiert worden sein.</div>
+                </details>
+                <details>
+                    <summary>Funktioniert das Tool offline?</summary>
+                    <div class="faq-content">Ja. Die Verschlüsselung passiert lokal in Ihrem Browser. Internet ist nur für den Login nötig.</div>
+                </details>
+
+                <h5 style="color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">Sicherheit</h5>
+                <details>
+                    <summary>Habe meinen 5-stelligen Code vergessen.</summary>
+                    <div class="faq-content">Dann ist die Nachricht verloren. Wir speichern Ihren Code nicht (Zero Knowledge) und können ihn nicht wiederherstellen.</div>
+                </details>
+                <details>
+                    <summary>Wie lösche ich meinen Account?</summary>
+                    <div class="faq-content">Da wir keine persönlichen Daten speichern, gibt es keinen Account zu löschen. Entfernen Sie einfach Ihre Browserdaten, um die Verknüpfung aufzuheben.</div>
+                </details>
             </div>
         </div>
     </div>

@@ -90,6 +90,22 @@ function setupUIEvents() {
         e.preventDefault(); toggleMainMenu(true); showSection('infoSection');
     });
 
+    // FAQ Handler
+    document.getElementById('faqBtn')?.addEventListener('click', (e) => {
+        e.preventDefault(); toggleMainMenu(true);
+        document.getElementById('faqModal').classList.add('active');
+    });
+    document.getElementById('closeFaqBtn')?.addEventListener('click', () => {
+        document.getElementById('faqModal').classList.remove('active');
+    });
+
+    // Close FAQ when clicking outside (on the backdrop)
+    document.getElementById('faqModal')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('faqModal')) {
+            document.getElementById('faqModal').classList.remove('active');
+        }
+    });
+
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
     document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
