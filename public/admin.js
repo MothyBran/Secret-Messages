@@ -148,7 +148,12 @@ window.saveLicenseChanges = async function() {
             window.loadUsers();
             window.showMessage("Erfolg", "Änderungen gespeichert.");
         } else {
-            window.showMessage("Fehler", "Fehler beim Speichern.", true);
+            try {
+                const errData = await res.json();
+                window.showMessage("Fehler", errData.error || "Speichern fehlgeschlagen.", true);
+            } catch(e) {
+                window.showMessage("Fehler", "Unbekannter Serverfehler (Status " + res.status + ")", true);
+            }
         }
     } catch(e) { window.showMessage("Fehler", "Serverfehler: " + e.message, true); }
 }
@@ -175,7 +180,7 @@ window.generateKeys = async function() {
         const res = await fetch(`${API_BASE}/generate-keys`, {
             method: 'POST',
             headers: getHeaders(),
-            body: JSON.stringify({ product: duration, count: count })
+            body: JSON.stringify({ productCode: duration, count: count })
         });
         const data = await res.json();
         if(data.success) {
