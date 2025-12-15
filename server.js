@@ -230,18 +230,52 @@ app.post('/api/auth/activate', async (req, res) => {
         const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
+        // CALCULATE EXPIRATION based on product_code
+        let expiresAt = null;
+        const now = new Date();
+        const pc = (key.product_code || '').toLowerCase();
+
+        if (pc === '1m') {
+            now.setMonth(now.getMonth() + 1);
+            expiresAt = now.toISOString();
+        } else if (pc === '3m') {
+            now.setMonth(now.getMonth() + 3);
+            expiresAt = now.toISOString();
+        } else if (pc === '12m') {
+            now.setFullYear(now.getFullYear() + 1);
+            expiresAt = now.toISOString();
+        } else {
+            // 'unlimited' or unknown -> null (Lifetime)
+            expiresAt = null;
+        }
+
         const hash = await bcrypt.hash(accessCode, 10);
-        await dbQuery(
-            'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)',
+
+        // 1. Insert User
+        const insertUser = await dbQuery(
+            'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [username, hash, key.id, deviceId, new Date().toISOString()]
         );
         
+        // Handle different return types (SQLite vs PG)
+        let newUserId = null;
+        if(insertUser.rows && insertUser.rows.length > 0) {
+            newUserId = insertUser.rows[0].id; // PG
+        } else if (insertUser.lastID) {
+            newUserId = insertUser.lastID; // SQLite
+        }
+
+        // 2. Update License Key
         await dbQuery(
-            'UPDATE license_keys SET is_active = $1, activated_at = $2, username = $3 WHERE id = $4',
-            [(isPostgreSQL ? true : 1), new Date().toISOString(), username, key.id]
+            'UPDATE license_keys SET is_active = $1, activated_at = $2, username = $3, expires_at = $4 WHERE id = $5',
+            [(isPostgreSQL ? true : 1), new Date().toISOString(), username, expiresAt, key.id]
         );
+
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Aktivierung fehlgeschlagen' }); }
+    } catch (e) {
+        console.error("Activation Error:", e);
+        res.status(500).json({ error: 'Aktivierung fehlgeschlagen' });
+    }
 });
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
