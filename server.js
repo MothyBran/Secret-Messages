@@ -380,7 +380,10 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
             if (userCheck.rows.length > 0) {
                 const u = userCheck.rows[0];
                 await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
-                await dbQuery(`UPDATE license_keys SET username = $1, is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, NOW()) WHERE id = $2`, [u.username, keyId]);
+                // Use explicit activated_at if null, otherwise keep existing.
+                // SQLite doesn't support NOW()
+                const now = new Date().toISOString();
+                await dbQuery(`UPDATE license_keys SET username = $1, is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $3) WHERE id = $2`, [u.username, keyId, now]);
             }
         } else {
             await dbQuery(`UPDATE license_keys SET username = NULL WHERE id = $1`, [keyId]);
@@ -410,11 +413,16 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         for(let i=0; i < amount; i++) {
             const keyRaw = crypto.randomBytes(8).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, true)`, [keyRaw, keyHash, productCode]);
+            // FIX: Use parameter for boolean to support SQLite (no literal 'true') and set default to false/inactive
+            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, $4)`,
+                [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0)]);
             newKeys.push(keyRaw);
         }
         res.json({ success: true, keys: newKeys });
-    } catch (e) { res.status(500).json({ error: "Fehler" }); }
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Fehler beim Generieren: " + e.message });
+    }
 });
 
 // USERS
