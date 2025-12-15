@@ -46,6 +46,25 @@
         p { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 20px; }
         .tech-font { font-family: 'Roboto Mono', monospace; font-size: 0.9rem; }
 
+        /* Animation Classes */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s ease;
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+        .floating-anim {
+            animation: floating 6s ease-in-out infinite;
+        }
+
         /* Buttons */
         .btn {
             display: inline-block;
@@ -77,7 +96,7 @@
             position: fixed; top: 0; left: 0; width: 100%;
             padding: 20px 0;
             background: rgba(5, 5, 5, 0.8);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(15px);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             z-index: 1000;
         }
@@ -99,41 +118,12 @@
             margin-left: auto;
             margin-right: auto;
         }
-        .mockup-placeholder {
+        .hero-image {
             width: 100%;
-            height: 450px;
-            background: #080808;
-            border: 1px solid #333;
             border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             box-shadow: 0 0 80px rgba(0,191,255,0.05);
-            position: relative;
-            overflow: hidden;
-            padding: 20px;
+            border: 1px solid #333;
         }
-        .mockup-glow {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 120%; height: 120%;
-            background: radial-gradient(circle, rgba(0,191,255,0.15) 0%, transparent 60%);
-            z-index: -1;
-        }
-        /* Mockup UI CSS */
-        .mockup-ui { width: 90%; height: 90%; background: #0f1215; border: 1px solid #222; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .ui-header { background: #1a1d21; padding: 12px; display: flex; gap: 6px; border-bottom: 1px solid #222; }
-        .ui-dot { width: 10px; height: 10px; border-radius: 50%; background: #333; }
-        .ui-dot:nth-child(1) { background: #ff5f56; }
-        .ui-dot:nth-child(2) { background: #ffbd2e; }
-        .ui-dot:nth-child(3) { background: #27c93f; }
-        .ui-body { flex: 1; padding: 30px; display: flex; flex-direction: column; gap: 20px; position: relative; }
-        .ui-msg { padding: 15px 20px; border-radius: 8px; font-size: 0.95rem; max-width: 80%; line-height: 1.4; }
-        .ui-msg.sent { align-self: flex-end; background: rgba(0, 191, 255, 0.15); color: #fff; border: 1px solid var(--accent-blue); border-bottom-right-radius: 0; }
-        .ui-msg.received { align-self: flex-start; background: #1a1d21; color: #888; border: 1px solid #333; border-bottom-left-radius: 0; }
-        .ui-input { margin-top: auto; background: #111; border: 1px solid #333; padding: 15px; border-radius: 6px; color: #555; font-family: 'Roboto Mono', monospace; font-size: 0.8rem; display: flex; justify-content: space-between; }
-
 
         /* Feature Grid */
         .grid-section { background: #080a0c; border-top: 1px solid #222; border-bottom: 1px solid #222; }
@@ -142,9 +132,13 @@
             background: rgba(255,255,255,0.02);
             padding: 30px;
             border: 1px solid #222;
-            transition: transform 0.3s;
+            transition: all 0.3s;
         }
-        .feature-card:hover { transform: translateY(-5px); border-color: var(--accent-blue); }
+        .feature-card:hover {
+            transform: scale(1.02);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px rgba(0,191,255,0.15);
+        }
         .feature-icon { margin-bottom: 20px; }
         .feature-icon svg { width: 40px; height: 40px; fill: var(--accent-blue); }
 
@@ -153,39 +147,74 @@
         .deep-dive-content { flex: 1; min-width: 300px; }
         .deep-dive-visual {
             flex: 1; min-width: 300px; height: 300px;
-            background: rgba(0,0,0,0.5); border: 1px solid var(--accent-blue);
+            border: 1px solid var(--accent-blue);
             display: flex; align-items: center; justify-content: center;
             position: relative;
-        }
-        .code-block {
-            font-family: 'Roboto Mono', monospace;
-            color: var(--accent-blue);
-            font-size: 0.85rem;
-            padding: 25px;
             background: #000;
-            width: 100%; height: 100%;
             overflow: hidden;
-            opacity: 0.9;
-            line-height: 1.5;
+        }
+        .feature-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         /* Use Cases */
+        .use-cases {
+            background: url('global-network.jpg') center center no-repeat;
+            background-size: cover;
+            position: relative;
+        }
+        .use-cases::before {
+            content: "";
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5,5,5,0.85);
+            z-index: 0;
+        }
+        .use-cases .container { position: relative; z-index: 1; }
         .use-cases .grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
         .use-case-card { text-align: center; }
 
         /* Footer */
         footer { padding: 50px 0; border-top: 1px solid #222; text-align: center; color: #666; font-size: 0.9rem; }
-        footer a { color: #888; text-decoration: none; margin: 0 10px; transition: color 0.2s; }
+        footer a { color: #888; text-decoration: none; margin: 0 10px; transition: color 0.2s; cursor: pointer; }
         footer a:hover { color: var(--accent-blue); }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(15px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .modal.active { display: flex; opacity: 1; }
+        .modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--accent-blue);
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,191,255,0.1);
+        }
+        .modal-close {
+            position: absolute; top: 15px; right: 15px;
+            background: none; border: none; color: #fff;
+            font-size: 1.5rem; cursor: pointer;
+        }
 
         /* Responsive */
         @media (max-width: 768px) {
             h1 { font-size: 2.5rem; }
             h2 { font-size: 2rem; }
             .hero { padding-top: 120px; }
-            .mockup-placeholder { height: 350px; }
-            .ui-body { padding: 15px; }
-            .ui-msg { font-size: 0.8rem; padding: 10px; }
         }
     </style>
 </head>
@@ -202,44 +231,19 @@
         </div>
     </header>
 
-    <section class="hero">
+    <section class="hero reveal">
         <div class="container">
             <h1>Nachrichten sicher verschlüsseln.<br>Überall versenden.</h1>
             <p>Militärstandard Verschlüsselung (AES-GCM). Keine Datenspeicherung.<br>Deine Geheimnisse gehören nur dir.</p>
-            <a href="index.html" class="btn btn-primary">Ab 1,99€ Loslegen</a>
+            <a href="store.html" class="btn btn-primary">Ab 1,99€ Loslegen</a>
 
             <div class="hero-visual">
-                <div class="mockup-glow"></div>
-                <div class="mockup-placeholder">
-                    <div class="mockup-ui">
-                        <div class="ui-header">
-                            <div class="ui-dot"></div>
-                            <div class="ui-dot"></div>
-                            <div class="ui-dot"></div>
-                        </div>
-                        <div class="ui-body">
-                            <div class="ui-msg sent">Sende geheimen Code für Projekt Alpha: 48921</div>
-                            <div class="ui-msg received">
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <svg viewBox="0 0 24 24" style="width:16px; height:16px; fill:#888;"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                                    Verschlüsselte Nachricht
-                                </div>
-                                <div style="font-family:'Roboto Mono'; font-size:0.75rem; margin-top:5px; opacity:0.7;">
-                                    U2FsdGVkX195y...
-                                </div>
-                            </div>
-                            <div class="ui-input">
-                                <span>Nachricht eingeben...</span>
-                                <span style="color:var(--accent-blue)">SEND</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <img src="hero-secure-vault.jpg" alt="Secure Digital Vault" class="hero-image floating-anim">
             </div>
         </div>
     </section>
 
-    <section class="grid-section">
+    <section class="grid-section reveal">
         <div class="container">
             <h2>Maximale Sicherheit, minimale Spuren.</h2>
             <div class="grid">
@@ -276,27 +280,26 @@
                         <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
                     </div>
                     <h3>Empfänger- & Geräte-Schutz</h3>
-                    <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem fest verknüpften Gerät entschlüsseln. Abfangen zwecklos.</p>
+                    <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem fest verknüpften Gerät entschlüsseln.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
                     </div>
                     <h3>Diebstahlschutz inklusive</h3>
-                    <p>Gerät verloren oder Account gehackt? Deine Geheimnisse bleiben sicher. Da wir keine Nachrichten speichern, finden Angreifer: Nichts. Sensible Infos gelangen niemals an Dritte.</p>
+                    <p>Gerät verloren? Account gehackt? Da wir keine Nachrichten speichern, finden Angreifer nichts. Sensible Infos gelangen niemals an Dritte.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section>
+    <section class="reveal">
         <div class="container deep-dive">
             <div class="deep-dive-content">
                 <h2>Mathematisch unknackbar.</h2>
-                <p>Es ist nicht "nur" AES. Die Sicherheit entsteht aus der Kombination von <strong>5-stelligem Geheimcode</strong>, spezifischer <strong>Empfänger-ID</strong> und kryptografischer <strong>Geräte-Bindung</strong>.</p>
+                <p>Es ist nicht nur AES. Die Sicherheit entsteht aus der Kombination von <strong>5-stelligem Geheimcode</strong>, spezifischer <strong>Empfänger-ID</strong> und kryptografischer <strong>Geräte-Bindung</strong>.</p>
                 <p class="tech-font" style="margin-top:20px;">
-                    Jede Verschlüsselung ist ein mathematisches Unikat. Sie basiert auf der komplexen Verknüpfung von Schlüssel, Empfänger-ID, Geräte-Signatur und dem Nachrichtentext.
-                    Das macht das System sicherer als herkömmliche Standard-Verschlüsselung, da ein Abfangen der Nachricht wertlos ist, wenn man nicht das richtige Gerät UND den Code hat.
+                    Jede Verschlüsselung ist ein mathematisches Unikat. Sie basiert auf der komplexen Verknüpfung von Schlüssel, Empfänger, Geräte-Signatur und Text. Das macht das System sicherer als herkömmliche Standards: Ein Abfangen der Daten ist wertlos, wenn man nicht physisch das richtige Gerät UND den Code besitzt.
                 </p>
                 <ul class="tech-font" style="list-style: none; color: var(--text-muted); margin-top: 20px;">
                     <li style="margin-bottom: 10px;">✓ AES-256-GCM Encryption</li>
@@ -305,55 +308,40 @@
                 </ul>
             </div>
             <div class="deep-dive-visual">
-                <div class="code-block">
-const algorithm = {
-    name: "AES-GCM",
-    iv: iv, // 12 bytes
-    tagLength: 128
-};
-
-const key = await window.crypto.subtle.importKey(
-    "raw",
-    derivedKey,
-    "AES-GCM",
-    false,
-    ["encrypt", "decrypt"]
-);
-// Encrypted locally.
-                </div>
+                <img src="encryption-layers.jpg" alt="Encryption Layers" class="feature-image">
             </div>
         </div>
     </section>
 
-    <section>
+    <section class="reveal">
         <div class="container">
             <h2>So funktioniert der Zugang</h2>
             <div class="grid">
                 <div class="feature-card">
                     <div style="font-size: 3rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 10px;">01</div>
                     <h3>Lizenz wählen</h3>
-                    <p>Kein Abo-Falle. Keine automatische Verlängerung. Du kaufst Zeitguthaben (1 Monat bis Lifetime) einmalig.</p>
+                    <p>Kein Abo-Zwang. Einmaliges Zeitguthaben kaufen.</p>
                 </div>
                 <div class="feature-card">
                     <div style="font-size: 3rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 10px;">02</div>
                     <h3>Anonyme Registrierung</h3>
-                    <p>Keine Datenkrake. Erstelle einen Account ohne E-Mail-Zwang.</p>
+                    <p>Keine E-Mail oder Telefonnummer nötig.</p>
                 </div>
                 <div class="feature-card">
                     <div style="font-size: 3rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 10px;">03</div>
                     <h3>Auto-Binding</h3>
-                    <p>Dein Gerät wird beim ersten Login automatisch kryptografisch an dein Konto gebunden.</p>
+                    <p>Kryptografische Verknüpfung mit deinem Gerät.</p>
                 </div>
                 <div class="feature-card">
                     <div style="font-size: 3rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 10px;">04</div>
                     <h3>Flexibilität</h3>
-                    <p>Lizenz abgelaufen? Verlängere sie manuell oder upgrade auf Unlimited. Du hast die Kontrolle.</p>
+                    <p>Jederzeit verlängern oder auf Unlimited upgraden.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="grid-section use-cases">
+    <section class="grid-section use-cases reveal">
         <div class="container">
             <h2>Für wen ist Secure Msg?</h2>
             <div class="grid">
@@ -377,8 +365,8 @@ const key = await window.crypto.subtle.importKey(
         <div class="container">
             <div class="logo" style="justify-content: center; margin-bottom: 20px; opacity: 0.5;">SECURE MSG</div>
             <p style="margin-bottom: 30px;">
-                <a href="#">Impressum</a>
-                <a href="#">Datenschutz</a>
+                <a onclick="openModal('imprintModal')">Impressum</a>
+                <a onclick="openModal('privacyModal')">Datenschutz</a>
                 <a href="mailto:support@secret-messages.com">Kontakt</a>
             </p>
             <p>&copy; 2025 Secure Messages. All rights reserved.</p>
@@ -390,7 +378,7 @@ const key = await window.crypto.subtle.importKey(
         <h4 style="color:#fff; margin-bottom:10px; font-size:1rem;">Datenschutz & Cookies</h4>
         <p style="font-size:0.8rem; color:#ccc; line-height:1.5; margin-bottom:15px;">
             Wir nutzen Cookies, um die Funktionalität (z.B. Login-Status) zu gewährleisten. Es werden keine Tracking- oder Werbe-Cookies gesetzt.
-            <br><a href="#" style="color:var(--accent-blue); text-decoration:none;">Datenschutz</a> &bull; <a href="#" style="color:var(--accent-blue); text-decoration:none;">Impressum</a>
+            <br><a onclick="openModal('privacyModal')" style="color:var(--accent-blue); text-decoration:none; cursor:pointer;">Datenschutz</a> &bull; <a onclick="openModal('imprintModal')" style="color:var(--accent-blue); text-decoration:none; cursor:pointer;">Impressum</a>
         </p>
         <div style="display:flex; gap:10px;">
             <button id="cookieAcceptAll" class="btn btn-primary" style="flex:1; padding:8px; font-size:0.8rem;">Alles Akzeptieren</button>
@@ -398,7 +386,54 @@ const key = await window.crypto.subtle.importKey(
         </div>
     </div>
 
+    <!-- IMPRESSUM MODAL -->
+    <div id="imprintModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('imprintModal')">×</button>
+            <h2 style="font-size:1.8rem; color:var(--accent-blue); margin-bottom:20px;">Impressum</h2>
+            <div style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <p>Angaben gemäß § 5 TMG</p><br>
+                <p><strong>Betreiber:</strong><br>Secure App Corp.<br>Musterstraße 1, 10115 Berlin, Deutschland</p><br>
+                <p><strong>Kontakt:</strong><br>E-Mail: support@secure-messages.com</p><br>
+                <p><strong>Register:</strong><br>Amtsgericht Berlin-Charlottenburg, HRB 123456</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRIVACY MODAL -->
+    <div id="privacyModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('privacyModal')">×</button>
+            <h2 style="font-size:1.8rem; color:var(--accent-blue); margin-bottom:20px;">Datenschutz</h2>
+            <div style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h4 style="color:#fff; margin-bottom:5px;">1. Zero Knowledge Prinzip</h4>
+                <p style="margin-bottom:15px;">Wir haben technisch keine Möglichkeit, Ihre verschlüsselten Inhalte einzusehen. Nachrichten werden nicht auf unseren Servern gespeichert.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">2. Datenerfassung</h4>
+                <p style="margin-bottom:15px;">Wir erheben nur Daten zur Vertragsabwicklung (via Stripe) und technische Metadaten (Browser-Fingerprint zur Lizenz-Validierung).</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">3. Lokale Speicherung</h4>
+                <p style="margin-bottom:15px;">Ihre ID und Keys liegen ausschließlich im LocalStorage Ihres Geräts.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">4. Weitergabe</h4>
+                <p>Keine Weitergabe an Dritte, außer zur Zahlungsabwicklung zwingend erforderlich.</p>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // === SCROLL REVEAL ===
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // === COOKIE BANNER ===
         document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem('cookieConsent')) {
                 document.getElementById('cookieBanner').style.display = 'block';
@@ -412,6 +447,21 @@ const key = await window.crypto.subtle.importKey(
             document.getElementById('cookieAcceptAll').addEventListener('click', closeBanner);
             document.getElementById('cookieAcceptEssential').addEventListener('click', closeBanner);
         });
+
+        // === MODALS ===
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // Close on background click
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
     </script>
 
 </body>
