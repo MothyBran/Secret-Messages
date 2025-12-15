@@ -15,47 +15,77 @@ function getHeaders() {
     return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
 }
 
+// --- HELPERS (MODALS & FEEDBACK) ---
+let confirmCallback = null;
+
+window.showConfirm = function(message, onConfirm) {
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmModal').style.display = 'flex';
+    confirmCallback = onConfirm;
+};
+
+window.showMessage = function(title, message, isError = false) {
+    const t = document.getElementById('msgTitle');
+    t.textContent = title;
+    t.style.color = isError ? 'var(--error-red)' : 'var(--accent-blue)';
+    document.getElementById('msgText').textContent = message;
+    document.getElementById('messageModal').style.display = 'flex';
+};
+
 // Global functions must be attached to window for HTML onclick attributes to work
 window.loadUsers = async function() {
     console.log("Funktion aufgerufen: loadUsers");
+    const btn = document.getElementById('refreshUsersBtn');
+    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
         const res = await fetch(`${API_BASE}/users`, { headers: getHeaders() });
         allUsers = await res.json();
         renderUsersTable(allUsers);
     } catch(e) { console.error("Load Users Failed", e); }
+    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
 window.loadKeys = async function() {
     console.log("Funktion aufgerufen: loadKeys");
+    const btn = document.getElementById('refreshKeysBtn');
+    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
         const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
         allKeys = await res.json();
         renderKeysTable(allKeys);
     } catch(e) { console.error("Load Keys Failed", e); }
+    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
 window.loadPurchases = async function() {
     console.log("Funktion aufgerufen: loadPurchases");
+    const btn = document.getElementById('refreshPurchasesBtn');
+    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
         const res = await fetch(`${API_BASE}/purchases`, { headers: getHeaders() });
         allPurchases = await res.json();
         renderPurchasesTable(allPurchases);
     } catch(e) { console.error("Load Purchases Failed", e); }
+    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
-window.resetDevice = async function(id) {
+window.resetDevice = function(id) {
     console.log("Funktion aufgerufen: resetDevice");
-    if(!confirm(`Gerätebindung für User #${id} löschen?`)) return;
-    await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
-    window.loadUsers();
+    window.showConfirm(`Gerätebindung für User #${id} löschen?`, async () => {
+        await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
+        window.loadUsers();
+        window.showMessage("Erfolg", "Gerät zurückgesetzt.");
+    });
 };
 
-window.toggleUserBlock = async function(id, isBlocked) {
+window.toggleUserBlock = function(id, isBlocked) {
     console.log("Funktion aufgerufen: toggleUserBlock");
-    if(!confirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`)) return;
-    const endpoint = isBlocked ? 'unblock-user' : 'block-user';
-    await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
-    window.loadUsers();
+    window.showConfirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`, async () => {
+        const endpoint = isBlocked ? 'unblock-user' : 'block-user';
+        await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
+        window.loadUsers();
+        window.showMessage("Info", `Benutzer ${isBlocked ? 'entsperrt' : 'gesperrt'}.`);
+    });
 };
 
 let currentEditingKeyId = null;
@@ -103,7 +133,7 @@ window.saveLicenseChanges = async function() {
 
     const payload = {
         expires_at: finalIsoString,
-        user_id: userId || null // Send user_id
+        user_id: userId ? parseInt(userId) : null
     };
 
     try {
@@ -115,13 +145,27 @@ window.saveLicenseChanges = async function() {
         if(res.ok) {
             document.getElementById('editLicenseModal').style.display = 'none';
             window.loadKeys();
-            window.loadUsers(); // User refresh wichtig für Bindung
-            alert("Gespeichert.");
+            window.loadUsers();
+            window.showMessage("Erfolg", "Änderungen gespeichert.");
         } else {
-            alert("Fehler beim Speichern.");
+            window.showMessage("Fehler", "Fehler beim Speichern.", true);
         }
-    } catch(e) { alert("Serverfehler."); }
+    } catch(e) { window.showMessage("Fehler", "Serverfehler: " + e.message, true); }
 }
+
+window.deleteKey = function(id) {
+    window.showConfirm("Lizenz wirklich unwiderruflich löschen?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/keys/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.loadKeys();
+                window.showMessage("Gelöscht", "Lizenz wurde entfernt.");
+            } else {
+                window.showMessage("Fehler", "Konnte nicht löschen.", true);
+            }
+        } catch(e) { window.showMessage("Fehler", "Netzwerkfehler.", true); }
+    });
+};
 
 window.generateKeys = async function() {
     console.log("Funktion aufgerufen: generateKeys");
@@ -131,7 +175,7 @@ window.generateKeys = async function() {
         const res = await fetch(`${API_BASE}/generate-keys`, {
             method: 'POST',
             headers: getHeaders(),
-            body: JSON.stringify({ productCode: duration, count: count }) // FIXED: product -> productCode matching backend
+            body: JSON.stringify({ product: duration, count: count })
         });
         const data = await res.json();
         if(data.success) {
@@ -141,11 +185,11 @@ window.generateKeys = async function() {
                 area.textContent = data.keys.join('\n');
             }
             window.loadKeys();
-            initDashboard();
+            window.showMessage("Erfolg", "Keys generiert.");
         } else {
-            alert("Fehler: " + (data.error || 'Unbekannt'));
+            window.showMessage("Fehler", data.error || 'Unbekannt', true);
         }
-    } catch(e) { alert("Fehler beim Generieren."); }
+    } catch(e) { window.showMessage("Fehler", "Fehler beim Generieren.", true); }
 }
 
 async function initDashboard() {
@@ -193,6 +237,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
     document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
+
+    // Modal Events
+    document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
+        if(confirmCallback) confirmCallback();
+        document.getElementById('confirmModal').style.display = 'none';
+        confirmCallback = null;
+    });
+    document.getElementById('btnConfirmNo')?.addEventListener('click', () => {
+        document.getElementById('confirmModal').style.display = 'none';
+        confirmCallback = null;
+    });
+    document.getElementById('btnMsgOk')?.addEventListener('click', () => {
+        document.getElementById('messageModal').style.display = 'none';
+    });
 
     // --- FILTER LISTENERS ---
     document.getElementById('searchUser')?.addEventListener('input', (e) => {
@@ -287,6 +345,7 @@ function renderKeysTable(keys) {
             <td>${expiry}</td>
             <td>
                  <button class="btn-icon" onclick="openEditLicenseModal(${k.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">⚙️</button>
+                 <button class="btn-icon" onclick="deleteKey('${k.id}')" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);
