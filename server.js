@@ -196,6 +196,11 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
 
+        // LICENSE CHECK (Security Fix)
+        if (!user.license_key_id) {
+            return res.status(403).json({ success: false, error: "Keine gültige Lizenz verknüpft" });
+        }
+
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
         }
@@ -332,6 +337,11 @@ app.post('/api/auth/validate', async (req, res) => {
 
             if (isBlocked) {
                 return res.json({ valid: false, reason: 'blocked' });
+            }
+
+            // LICENSE CHECK (Security Fix)
+            if (!user.license_key_id) {
+                return res.json({ valid: false, reason: 'no_license' });
             }
 
             // Check Expiration
