@@ -338,7 +338,12 @@ function renderKeysTable(keys) {
         if (exp && exp < now) status = '<span style="color:var(--error-red);">Abgelaufen</span>';
         else if (k.user_id || k.is_active) status = '<span style="color:var(--success-green);">Aktiv</span>';
         
-        const expiry = k.expires_at ? new Date(k.expires_at).toLocaleDateString('de-DE') : 'Lifetime';
+        let expiry = '-';
+        if (k.expires_at) {
+            expiry = new Date(k.expires_at).toLocaleDateString('de-DE');
+        } else if (k.is_active) {
+            expiry = 'Lifetime';
+        }
         const userIdDisplay = k.user_id ? `<span style="color:var(--accent-blue); font-weight:bold;">#${k.user_id}</span>` : '-';
 
         tr.innerHTML = `
