@@ -4,6 +4,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
@@ -65,10 +66,31 @@ function addDays(iso, days) {
 // 1. Session erstellen (Frontend ruft dies auf)
 router.post("/create-checkout-session", async (req, res) => {
   try {
-    const { product_type, customer_email } = req.body;
+    const { product_type, customer_email, is_renewal } = req.body;
     const product = PRICES[product_type];
     
     if (!product) return res.status(400).json({ error: 'Invalid product' });
+
+    let licenseKeyId = null;
+    let type = 'new';
+
+    // RENEWAL LOGIC
+    if (is_renewal) {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Renewal requires auth' });
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const userRes = await pool.query('SELECT license_key_id FROM users WHERE id = $1', [decoded.id]);
+            if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+            licenseKeyId = userRes.rows[0].license_key_id;
+            type = 'renewal';
+        } catch (e) {
+            return res.status(403).json({ error: 'Invalid token' });
+        }
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -86,7 +108,9 @@ router.post("/create-checkout-session", async (req, res) => {
         metadata: {
           product_type, // Wichtig für den Webhook später
           duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
-          key_count: String(product.keyCount)
+          key_count: String(product.keyCount),
+          type: type,
+          license_key_id: licenseKeyId ? String(licenseKeyId) : ''
         }
       },
       // Wir leiten den User zurück zur Store-Seite mit der Session ID
@@ -127,7 +151,7 @@ router.post('/webhook', async (req, res) => {
 
 // Logik für erfolgreiche Zahlung (ausgelagert)
 async function handleSuccessfulPayment(intent) {
-  const { product_type, duration_days, key_count } = intent.metadata;
+  const { product_type, duration_days, key_count, type, license_key_id } = intent.metadata;
   
   // 1. Prüfen ob wir diese Zahlung schon bearbeitet haben (Idempotency)
   const existing = await pool.query('SELECT id FROM payments WHERE payment_id = $1', [intent.id]);
@@ -137,32 +161,56 @@ async function handleSuccessfulPayment(intent) {
   }
 
   const durationDays = duration_days === 'null' ? null : Number(duration_days);
-  const count = Number(key_count) || 1;
   const createdAt = new Date().toISOString();
-  const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
+
   const keys = [];
 
-  // 2. Keys generieren und speichern
-  for (let i = 0; i < count; i++) {
-    const code = generateKeyCode();
-    const hash = crypto.createHash('sha256').update(code).digest('hex'); // Hash für DB
-    
-    // In DB speichern
-    await pool.query(
-      `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [code, hash, createdAt, expiresAt, false, product_type] // is_active = false bis Aktivierung durch User
-    );
-    keys.push(code);
+  // UPDATE VS INSERT LOGIC
+  if (type === 'renewal' && license_key_id) {
+      console.log(`🔄 RENEWAL START for Key ID: ${license_key_id}`);
+
+      // Bestehenden Key holen
+      const keyRes = await pool.query('SELECT * FROM license_keys WHERE id = $1', [license_key_id]);
+      if (keyRes.rows.length > 0) {
+          const key = keyRes.rows[0];
+
+          // Neues Ablaufdatum berechnen
+          let baseDate = new Date();
+          if (key.expires_at && new Date(key.expires_at) > baseDate) {
+              baseDate = new Date(key.expires_at); // Wenn noch gültig, addiere oben drauf
+          }
+          const newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
+
+          // Update
+          await pool.query(
+              `UPDATE license_keys SET expires_at = $1, is_active = $2 WHERE id = $3`,
+              [newExpiresAt, (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? true : 1), license_key_id]
+          );
+
+          console.log(`✅ Lizenz verlängert bis ${newExpiresAt}`);
+      } else {
+          console.error("❌ Renewal failed: Key not found");
+      }
+  } else {
+      // NORMALER KAUF (NEUE KEYS)
+      const count = Number(key_count) || 1;
+      const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
+
+      for (let i = 0; i < count; i++) {
+        const code = generateKeyCode();
+        const hash = crypto.createHash('sha256').update(code).digest('hex'); // Hash für DB
+
+        // In DB speichern
+        await pool.query(
+          `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [code, hash, createdAt, expiresAt, false, product_type] // is_active = false bis Aktivierung durch User
+        );
+        keys.push(code);
+      }
   }
 
   // 3. Zahlung protokollieren
-  // E-Mail aus dem Intent holen (oder aus charges objekt falls nötig)
-  // Hinweis: Bei payment_intent.succeeded ist die Email oft im verknüpften Charge-Objekt oder Customer.
-  // Wir verlassen uns hier darauf, dass Stripe die Email im Dashboard oder Metadaten speichert, 
-  // oder wir senden die Keys an die Email, die beim Checkout angegeben wurde.
-  
-  // Wir speichern die generierten Keys in der Payment Metadata Spalte, damit das Frontend sie abrufen kann
   await pool.query(
     `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
      VALUES ($1, $2, $3, $4, $5, NOW(), $6)`,
@@ -174,7 +222,8 @@ async function handleSuccessfulPayment(intent) {
       'stripe', 
       JSON.stringify({ 
         product_type, 
-        keys_generated: keys, // Wichtig: Hier speichern wir die Klartext-Keys einmalig zugeordnet zur Session
+        keys_generated: keys,
+        type: type || 'new',
         email: intent.receipt_email 
       }) 
     ]
@@ -222,6 +271,7 @@ router.get("/order-status", async (req, res) => {
         success: true, 
         status: 'completed', 
         keys: data.keys_generated,
+        renewed: (data.type === 'renewal'),
         customer_email: session.customer_email
       });
     } else {

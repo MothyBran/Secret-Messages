@@ -26,8 +26,9 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
-      scriptSrcElem: ["'self'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
@@ -189,6 +190,12 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
 
+        // HARD LOGIN BLOCK
+        const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+        if (isBlocked) {
+            return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
+        }
+
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
         }
@@ -197,7 +204,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-        await dbQuery("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
+        await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
         res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime' });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
@@ -284,12 +291,31 @@ app.post('/api/auth/validate', async (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const userRes = await dbQuery(`SELECT u.*, l.expires_at FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
+
         if (userRes.rows.length > 0) {
-            res.json({ valid: true, username: userRes.rows[0].username, expiresAt: userRes.rows[0].expires_at });
+            const user = userRes.rows[0];
+            const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+
+            if (isBlocked) {
+                return res.json({ valid: false, reason: 'blocked' });
+            }
+
+            // Check Expiration
+            let isExpired = false;
+            if (user.expires_at) {
+                const expDate = new Date(user.expires_at);
+                if (expDate < new Date()) isExpired = true;
+            }
+
+            if (isExpired) {
+                return res.json({ valid: false, reason: 'expired', expiresAt: user.expires_at });
+            }
+
+            res.json({ valid: true, username: user.username, expiresAt: user.expires_at });
         } else {
-            res.json({ valid: false });
+            res.json({ valid: false, reason: 'user_not_found' });
         }
-    } catch (e) { res.json({ valid: false }); }
+    } catch (e) { res.json({ valid: false, reason: 'invalid_token' }); }
 });
 
 // ==================================================================

@@ -1,5 +1,7 @@
 // app.js - Frontend Logic (Final Polish: Custom Delete Modal & Fixed Navigation)
 
+const APP_VERSION = 'v1.01';
+
 import { encryptFull, decryptFull } from './cryptoLayers.js';
 
 // ================================================================
@@ -24,6 +26,9 @@ let sortDir = 'asc';
 // ================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    const verEl = document.getElementById('appVersion');
+    if(verEl) verEl.textContent = APP_VERSION;
+
     setupUIEvents();
     
     // URL Check (Kauf-Rückkehr)
@@ -31,8 +36,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.get('action') === 'activate') {
         showSection('activationSection');
     } else {
-        checkExistingSession();
+        // Standard-Start: Prüfen ob Session existiert, sonst Login zeigen (nicht Activation!)
+        const token = localStorage.getItem('sm_token');
+        if (token) {
+            checkExistingSession();
+        } else {
+            showSection('loginSection');
+        }
     }
+
+    setupIdleTimer();
 });
 
 // ================================================================
@@ -409,10 +422,11 @@ function confirmSelection() {
 async function handleLogin(e) {
     e.preventDefault();
     const u = document.getElementById('username').value; const c = document.getElementById('accessCode').value;
+    const devId = await generateDeviceFingerprint();
     try {
         const res = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username:u, accessCode:c, deviceId:getDeviceId() })
+            body: JSON.stringify({ username:u, accessCode:c, deviceId:devId })
         });
         const data = await res.json();
         if (data.success) {
@@ -429,14 +443,24 @@ async function handleLogin(e) {
                 }
             }
 
-            updateSidebarInfo(currentUser); showSection('mainSection');
-        } else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+            updateSidebarInfo(currentUser, data.expiresAt); showSection('mainSection');
+        } else {
+            // Handle specific blocked error
+            if (data.error === "ACCOUNT_BLOCKED") {
+                document.getElementById('accessCode').value = ''; // Clear sensitive data
+                localStorage.removeItem('sm_token'); // Ensure no token is kept
+                showSection('blockedSection');
+            } else {
+                showAppStatus(data.error || "Login fehlgeschlagen", 'error');
+            }
+        }
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
 }
 
 async function handleActivation(e) {
     e.preventDefault();
-    const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: getDeviceId() };
+    const devId = await generateDeviceFingerprint();
+    const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
     try {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
@@ -470,13 +494,18 @@ function updateAppMode(mode) {
 async function handleMainAction() {
     const code = document.getElementById('messageCode').value; const text = document.getElementById('messageInput').value;
     if (!text || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
+
+    // Pre-Action Check: Server Validierung
+    const isValid = await validateSessionStrict();
+    if (!isValid) return; // validateSessionStrict handles logout or redirect
+
     const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
     try {
         let res = "";
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
             if(!rIds.includes(currentUser)) rIds.push(currentUser);
-            res = await encryptFull(text, code, rIds);
+            res = await encryptFull(text, code, rIds, currentUser);
         } else {
             res = await decryptFull(text, code, currentUser);
         }
@@ -486,7 +515,91 @@ async function handleMainAction() {
     } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
 }
 
-function getDeviceId() { let id=localStorage.getItem('sm_id'); if(!id){id='dev-'+Date.now();localStorage.setItem('sm_id',id);} return id; }
+async function generateDeviceFingerprint() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200; canvas.height = 50;
+        ctx.textBaseline = "top"; ctx.font = "14px 'Arial'"; ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#f60"; ctx.fillRect(125,1,62,20);
+        ctx.fillStyle = "#069"; ctx.fillText("SecureMsg_v1", 2, 15);
+        ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("Fingerprint", 4, 17);
+        const canvasData = canvas.toDataURL();
+        const baseString = canvasData + navigator.userAgent + screen.width + "x" + screen.height + new Date().getTimezoneOffset();
+        const msgBuffer = new TextEncoder().encode(baseString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return "dev-" + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    } catch(e) {
+        let id = localStorage.getItem('sm_id_fb');
+        if(!id){id='dev-fb-'+Date.now();localStorage.setItem('sm_id_fb',id);} return id;
+    }
+}
+
+let idleTimer;
+const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 Minuten
+
+function setupIdleTimer() {
+    window.onload = resetIdleTimer;
+    window.onmousemove = resetIdleTimer;
+    window.onmousedown = resetIdleTimer;
+    window.ontouchstart = resetIdleTimer;
+    window.onclick = resetIdleTimer;
+    window.onkeypress = resetIdleTimer;
+    window.addEventListener('scroll', resetIdleTimer, true);
+}
+
+function resetIdleTimer() {
+    if (!currentUser) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        if(currentUser) {
+            alert("Automatische Abmeldung wegen Inaktivität.");
+            handleLogout();
+        }
+    }, IDLE_TIMEOUT);
+}
+
+async function validateSessionStrict() {
+    if (!authToken) {
+        handleLogout();
+        return false;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/auth/validate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ token: authToken })
+        });
+        const data = await res.json();
+
+        if (!data.valid) {
+            if (data.reason === 'blocked') {
+                alert("Sitzung beendet: Konto wurde gesperrt.");
+                handleLogout();
+                return false;
+            } else if (data.reason === 'expired') {
+                showRenewalScreen();
+                // Optional: Update sidebar text if needed, but renewal screen is enough
+                return false;
+            } else {
+                // Invalid token / user not found
+                alert("Sitzung abgelaufen.");
+                handleLogout();
+                return false;
+            }
+        }
+        return true;
+    } catch (e) {
+        console.error("Validation Check Failed", e);
+        // On network error, we might choose to fail safe or allow.
+        // Security requirement says "If Server responds with false...".
+        // If network error, maybe let user know.
+        showAppStatus("Verbindung prüfen...", 'error');
+        return false;
+    }
+}
+
 function updateSidebarInfo(user, expiryData) {
     const userLabel = document.getElementById('sidebarUser');
     const licenseLabel = document.getElementById('sidebarLicense');
@@ -586,13 +699,17 @@ async function checkExistingSession() {
                 updateSidebarInfo(user, finalExpiry);
                 showSection('mainSection');
                 return;
+            } else {
+                // Token invalid or blocked -> Logout
+                handleLogout();
             }
         } catch(e) {
             console.log("Session Check fehlgeschlagen", e);
+            showSection('loginSection');
         }
+    } else {
+        showSection('loginSection');
     }
-    // Fallback: Login anzeigen
-    showSection('loginSection');
 }
 
 function showRenewalScreen() {
