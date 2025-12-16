@@ -449,6 +449,14 @@ async function handleLogin(e) {
             authToken = data.token; currentUser = data.username;
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
 
+            // License Missing Check
+            if (data.hasLicense === false) {
+                updateSidebarInfo(currentUser, null);
+                alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
+                showRenewalScreen();
+                return;
+            }
+
             // Expiry Check
             if(data.expiresAt && data.expiresAt !== 'lifetime') {
                 const expDate = new Date(String(data.expiresAt).replace(' ', 'T'));
@@ -601,7 +609,10 @@ async function validateSessionStrict() {
                 return false;
             } else if (data.reason === 'expired') {
                 showRenewalScreen();
-                // Optional: Update sidebar text if needed, but renewal screen is enough
+                return false;
+            } else if (data.reason === 'no_license') {
+                alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
+                showRenewalScreen();
                 return false;
             } else {
                 // Invalid token / user not found
@@ -721,8 +732,15 @@ async function checkExistingSession() {
                 showSection('mainSection');
                 return;
             } else {
-                // Token invalid or blocked -> Logout
-                handleLogout();
+                if (data.reason === 'no_license') {
+                    alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
+                    authToken = token; // Needed for renewal call
+                    currentUser = user;
+                    showRenewalScreen();
+                } else {
+                    // Token invalid or blocked -> Logout
+                    handleLogout();
+                }
             }
         } catch(e) {
             console.log("Session Check fehlgeschlagen", e);

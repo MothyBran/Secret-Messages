@@ -196,10 +196,8 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
 
-        // LICENSE CHECK (Security Fix)
-        if (!user.license_key_id) {
-            return res.status(403).json({ success: false, error: "Keine gültige Lizenz verknüpft" });
-        }
+        // LICENSE CHECK REMOVED from strict block.
+        // User is allowed to get token, but frontend will handle "no license" state.
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
@@ -211,7 +209,13 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
-        res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime' });
+        res.json({
+            success: true,
+            token,
+            username: user.username,
+            expiresAt: user.expires_at || 'lifetime',
+            hasLicense: !!user.license_key_id
+        });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
@@ -415,23 +419,47 @@ app.get('/api/admin/keys', requireAdmin, async (req, res) => {
 
 app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
-    const { expires_at, user_id } = req.body;
+    const { expires_at, user_id, product_code } = req.body;
     try {
-        await dbQuery(`UPDATE license_keys SET expires_at = $1, product_code = 'man' WHERE id = $2`, [expires_at || null, keyId]);
-        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
-        if (user_id) {
-            const userCheck = await dbQuery(`SELECT id, username FROM users WHERE id = $1`, [user_id]);
-            if (userCheck.rows.length > 0) {
-                const u = userCheck.rows[0];
-                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
-                // Use explicit activated_at if null, otherwise keep existing.
-                // SQLite doesn't support NOW()
-                const now = new Date().toISOString();
-                await dbQuery(`UPDATE license_keys SET username = $1, is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $3) WHERE id = $2`, [u.username, keyId, now]);
-            }
-        } else {
-            await dbQuery(`UPDATE license_keys SET username = NULL WHERE id = $1`, [keyId]);
+        // 1. Basic Key Update (Expiry, Product Code) - NO USERNAME, NO USER_ID (Schema relies on users table for link)
+        // Note: product_code defaults to existing if not provided, or can be updated if sent.
+        // If product_code is sent, update it. If not, keep it (by not setting it? or coalesce).
+        // Since SQL requires values, and we don't know current value easily without fetch,
+        // we assume if it's undefined we shouldn't overwrite it OR we set it to 'man' as logic before?
+        // Original code had `product_code = 'man'` hardcoded.
+        // User instruction: "product_code (falls gesendet)".
+
+        let updateSql = `UPDATE license_keys SET expires_at = $1`;
+        const params = [expires_at || null];
+        let pIndex = 2;
+
+        if (product_code) {
+            updateSql += `, product_code = $${pIndex}`;
+            params.push(product_code);
+            pIndex++;
         }
+
+        updateSql += ` WHERE id = $${pIndex}`;
+        params.push(keyId);
+
+        await dbQuery(updateSql, params);
+
+        // 2. Clear old link in USERS (where license_key_id = keyId)
+        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
+
+        if (user_id) {
+            const userCheck = await dbQuery(`SELECT id FROM users WHERE id = $1`, [user_id]);
+            if (userCheck.rows.length > 0) {
+                // Link new user
+                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
+
+                // Update KEY active state (NO username update)
+                const now = new Date().toISOString();
+                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
+            }
+        }
+        // Note: No else block needed to set username=NULL since we don't use username column anymore.
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
