@@ -11,6 +11,7 @@ import { encryptFull, decryptFull } from './cryptoLayers.js';
 const API_BASE = '/api';
 let currentUser = null;
 let authToken = null;
+let currentAttachmentBase64 = null;
 let currentMode = 'encrypt'; 
 
 // Kontakt State
@@ -201,14 +202,41 @@ function setupUIEvents() {
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
     document.getElementById('btnDeleteContact')?.addEventListener('click', deleteContact);
 
-    // File Attachment Logic
-    document.getElementById('fileInput')?.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileInfo').style.display = 'flex';
-        }
-    });
+    // --- DATEI UPLOAD LOGIK ---
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Limit: 5MB
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Datei ist zu groß! Maximum sind 5MB.");
+                this.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                currentAttachmentBase64 = evt.target.result; // Base64 speichern
+
+                // UI Update
+                const infoDiv = document.getElementById('fileInfo');
+                const nameSpan = document.getElementById('fileName');
+                const textArea = document.getElementById('messageInput');
+
+                if(infoDiv && nameSpan) {
+                    infoDiv.style.display = 'flex';
+                    nameSpan.textContent = "📎 Anhang: " + file.name;
+                }
+                if(textArea) {
+                    textArea.value = "[Datei angehängt: " + file.name + "]";
+                    textArea.disabled = true;
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 }
 
 // ================================================================
@@ -773,11 +801,14 @@ function showRenewalScreen() {
 
 // Make globally available for onclick in HTML
 window.clearAttachment = function() {
-    const fileInput = document.getElementById('fileInput');
-    const fileInfo = document.getElementById('fileInfo');
-    if(fileInput) fileInput.value = '';
-    if(fileInfo) fileInfo.style.display = 'none';
-}
+    document.getElementById('fileInput').value = '';
+    currentAttachmentBase64 = null;
+    document.getElementById('fileInfo').style.display = 'none';
+    const textArea = document.getElementById('messageInput');
+    textArea.disabled = false;
+    textArea.value = '';
+    textArea.focus();
+};
 
 window.startRenewal = async function(planType) {
     if(!authToken) return showAppStatus("Bitte erst einloggen", 'error');
