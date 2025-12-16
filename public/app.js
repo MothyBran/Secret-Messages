@@ -237,7 +237,11 @@ async function performAccountDeletion() {
         
         if(d.success) {
             alert("Dein Account wurde erfolgreich gelöscht.");
-            handleLogout();
+            // Remove token and reload to force Login Screen
+            localStorage.removeItem('sm_token');
+            localStorage.removeItem('sm_user');
+            localStorage.removeItem('sm_contacts');
+            window.location.reload();
         } else {
             showAppStatus(d.error || "Fehler beim Löschen", 'error');
         }

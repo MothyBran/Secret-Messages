@@ -141,6 +141,14 @@ const createTables = async () => {
             metadata TEXT
         )`);
 
+        await dbQuery(`CREATE TABLE IF NOT EXISTS account_deletions (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            username VARCHAR(50),
+            license_key_code VARCHAR(50),
+            reason TEXT,
+            deleted_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
+        )`);
+
         console.log('✅ Tables checked/created');
     } catch (e) { console.error("Table creation error:", e); }
 };
@@ -321,11 +329,35 @@ app.post('/api/users/exists', authenticateUser, async (req, res) => {
 
 app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
     try {
-        await dbQuery('UPDATE license_keys SET is_active = $1, username = NULL WHERE id = (SELECT license_key_id FROM users WHERE id = $2)',
-            [(isPostgreSQL ? false : 0), req.user.id]);
+        // 1. User Info & License ID
+        const userRes = await dbQuery('SELECT username, license_key_id FROM users WHERE id = $1', [req.user.id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User nicht gefunden" });
+        const user = userRes.rows[0];
+
+        // 2. Get License Code
+        let licenseCode = 'UNKNOWN';
+        if (user.license_key_id) {
+            const keyRes = await dbQuery('SELECT key_code FROM license_keys WHERE id = $1', [user.license_key_id]);
+            if (keyRes.rows.length > 0) licenseCode = keyRes.rows[0].key_code;
+        }
+
+        // 3. Archive
+        await dbQuery('INSERT INTO account_deletions (username, license_key_code, reason, deleted_at) VALUES ($1, $2, $3, $4)',
+            [user.username, licenseCode, 'user_request', new Date().toISOString()]);
+
+        // 4. Delete User
         await dbQuery('DELETE FROM users WHERE id = $1', [req.user.id]);
+
+        // 5. Delete License Key
+        if (user.license_key_id) {
+            await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
+        }
+
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: 'Fehler' }); }
+    } catch (e) {
+        console.error("Delete Account Error:", e);
+        res.status(500).json({ error: 'Fehler beim Löschen des Accounts.' });
+    }
 });
 
 app.post('/api/auth/validate', async (req, res) => {
