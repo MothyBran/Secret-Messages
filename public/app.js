@@ -200,6 +200,15 @@ function setupUIEvents() {
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
     document.getElementById('btnDeleteContact')?.addEventListener('click', deleteContact);
+
+    // File Attachment Logic
+    document.getElementById('fileInput')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileInfo').style.display = 'flex';
+        }
+    });
 }
 
 // ================================================================
@@ -763,6 +772,13 @@ function showRenewalScreen() {
 }
 
 // Make globally available for onclick in HTML
+window.clearAttachment = function() {
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    if(fileInput) fileInput.value = '';
+    if(fileInfo) fileInfo.style.display = 'none';
+}
+
 window.startRenewal = async function(planType) {
     if(!authToken) return showAppStatus("Bitte erst einloggen", 'error');
 
