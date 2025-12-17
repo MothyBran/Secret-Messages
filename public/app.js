@@ -216,22 +216,34 @@ function setupUIEvents() {
                 return;
             }
 
+            // UI Update: Show Spinner immediately
+            const infoDiv = document.getElementById('fileInfo');
+            const nameSpan = document.getElementById('fileName');
+            const spinner = document.getElementById('fileSpinner');
+            const check = document.getElementById('fileCheck');
+            const textArea = document.getElementById('messageInput');
+
+            if (infoDiv) infoDiv.style.display = 'flex';
+            if (spinner) spinner.style.display = 'inline-block';
+            if (check) check.style.display = 'none';
+            if (nameSpan) nameSpan.textContent = "Lade " + file.name + "...";
+
+            if (textArea) {
+                textArea.disabled = true;
+                textArea.value = "Lade Datei...";
+            }
+
             const reader = new FileReader();
             reader.onload = function(evt) {
                 currentAttachmentBase64 = evt.target.result; // Base64 speichern
 
-                // UI Update
-                const infoDiv = document.getElementById('fileInfo');
-                const nameSpan = document.getElementById('fileName');
-                const textArea = document.getElementById('messageInput');
+                // UI Update: Show Checkmark
+                if (spinner) spinner.style.display = 'none';
+                if (check) check.style.display = 'inline-block';
+                if (nameSpan) nameSpan.textContent = "📎 " + file.name;
 
-                if(infoDiv && nameSpan) {
-                    infoDiv.style.display = 'flex';
-                    nameSpan.textContent = "📎 Anhang: " + file.name;
-                }
-                if(textArea) {
-                    textArea.value = "[Datei angehängt: " + file.name + "]";
-                    textArea.disabled = true;
+                if (textArea) {
+                    textArea.value = "[Datei bereit zur Verschlüsselung]";
                 }
             };
             reader.readAsDataURL(file);
@@ -558,12 +570,26 @@ function updateAppMode(mode) {
     document.getElementById('recipientGroup').style.display = isDec ? 'none' : 'block';
     document.getElementById('qrScanBtn').style.display = isDec ? 'block' : 'none';
     document.getElementById('qrGenBtn').style.display = isDec ? 'none' : 'block';
-    document.getElementById('messageInput').value = ''; document.getElementById('messageOutput').value = ''; document.getElementById('outputGroup').style.display = 'none';
+
+    // Attachment Button Logic
+    const attachBtn = document.getElementById('attachmentBtn');
+    if (attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
+
+    document.getElementById('messageInput').value = '';
+    document.getElementById('messageOutput').value = '';
+    document.getElementById('outputGroup').style.display = 'none';
 }
 
 async function handleMainAction() {
-    const code = document.getElementById('messageCode').value; const text = document.getElementById('messageInput').value;
-    if (!text || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
+    const code = document.getElementById('messageCode').value;
+    let payload = document.getElementById('messageInput').value;
+
+    // Logic Fix: Prioritize Attachment
+    if (currentMode === 'encrypt' && currentAttachmentBase64) {
+        payload = currentAttachmentBase64;
+    }
+
+    if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
 
     // Pre-Action Check: Server Validierung
     const isValid = await validateSessionStrict();
@@ -575,14 +601,85 @@ async function handleMainAction() {
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
             if(!rIds.includes(currentUser)) rIds.push(currentUser);
-            res = await encryptFull(text, code, rIds, currentUser);
+            res = await encryptFull(payload, code, rIds, currentUser);
+
+             // Show encrypted text result
+             const textOut = document.getElementById('messageOutput');
+             const mediaOut = document.getElementById('mediaOutput');
+             if(textOut) {
+                 textOut.value = res;
+                 textOut.style.display = 'block';
+             }
+             if(mediaOut) mediaOut.style.display = 'none';
+
         } else {
-            res = await decryptFull(text, code, currentUser);
+            res = await decryptFull(payload, code, currentUser);
+            renderDecryptedOutput(res);
         }
-        document.getElementById('messageOutput').value = res;
         document.getElementById('outputGroup').style.display = 'block';
         setTimeout(() => document.getElementById('outputGroup').scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
     } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
+}
+
+function renderDecryptedOutput(res) {
+    const textArea = document.getElementById('messageOutput');
+    const mediaDiv = document.getElementById('mediaOutput');
+
+    mediaDiv.innerHTML = ''; // Clear previous media
+
+    if (res.startsWith('data:image')) {
+        // IMAGE MODE
+        textArea.style.display = 'none';
+        mediaDiv.style.display = 'flex';
+
+        const img = document.createElement('img');
+        img.src = res;
+        img.style.maxWidth = '100%';
+        img.style.border = '1px solid #333';
+        img.style.borderRadius = '4px';
+
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'btn';
+        dlBtn.textContent = '💾 Bild speichern';
+        dlBtn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = res;
+            a.download = `secure-image-${Date.now()}.png`; // or jpg detection?
+            a.click();
+        };
+
+        mediaDiv.appendChild(img);
+        mediaDiv.appendChild(dlBtn);
+
+    } else if (res.startsWith('data:application/pdf')) {
+        // PDF MODE
+        textArea.style.display = 'none';
+        mediaDiv.style.display = 'flex';
+
+        const icon = document.createElement('div');
+        icon.innerHTML = '📄 PDF DOKUMENT';
+        icon.style.fontSize = '1.2rem';
+        icon.style.color = 'var(--accent-blue)';
+
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'btn';
+        dlBtn.textContent = '⬇ PDF Herunterladen';
+        dlBtn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = res;
+            a.download = `secure-document-${Date.now()}.pdf`;
+            a.click();
+        };
+
+        mediaDiv.appendChild(icon);
+        mediaDiv.appendChild(dlBtn);
+
+    } else {
+        // TEXT MODE
+        textArea.style.display = 'block';
+        mediaDiv.style.display = 'none';
+        textArea.value = res;
+    }
 }
 
 async function generateDeviceFingerprint() {
@@ -804,6 +901,11 @@ window.clearAttachment = function() {
     document.getElementById('fileInput').value = '';
     currentAttachmentBase64 = null;
     document.getElementById('fileInfo').style.display = 'none';
+
+    // Reset Status Icons
+    document.getElementById('fileSpinner').style.display = 'none';
+    document.getElementById('fileCheck').style.display = 'none';
+
     const textArea = document.getElementById('messageInput');
     textArea.disabled = false;
     textArea.value = '';
@@ -851,7 +953,14 @@ function showAppStatus(msg, type='success') {
     document.getElementById('globalStatusContainer').appendChild(d);
     requestAnimationFrame(()=>d.classList.add('active')); setTimeout(()=>{d.classList.remove('active');setTimeout(()=>d.remove(),500)},4000);
 }
-function clearAllFields() { document.getElementById('messageInput').value=''; document.getElementById('messageOutput').value=''; document.getElementById('messageCode').value=''; document.getElementById('recipientName').value=''; document.getElementById('outputGroup').style.display='none'; }
+function clearAllFields() {
+    document.getElementById('messageInput').value='';
+    document.getElementById('messageOutput').value='';
+    document.getElementById('messageCode').value='';
+    document.getElementById('recipientName').value='';
+    document.getElementById('outputGroup').style.display='none';
+    if (window.clearAttachment) window.clearAttachment();
+}
 function copyToClipboard() { const el=document.getElementById('messageOutput'); el.select(); navigator.clipboard.writeText(el.value); showAppStatus("Kopiert!", 'success'); }
 
 // QR

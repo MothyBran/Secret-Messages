@@ -167,6 +167,17 @@
         #qrDisplay img { max-width: 100%; }
         #qr-reader { width: 100%; min-height: 300px; background: #000; border: 1px solid #333; }
 
+        /* === SPINNER === */
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(0, 191, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--accent-blue);
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         /* === FAQ ACCORDION === */
         details { background: rgba(255,255,255,0.03); border: 1px solid #333; border-radius: 8px; margin-bottom: 8px; transition: border-color 0.2s; }
         details:hover { border-color: var(--accent-blue); }
@@ -351,6 +362,8 @@
             </div>
 
             <div id="fileInfo" style="display: none; align-items: center; gap: 10px; margin-top: -10px; margin-bottom: 15px; color: #00BFFF; font-size: 0.9rem;">
+                <span id="fileSpinner" class="spinner" style="display: none;"></span>
+                <span id="fileCheck" style="display: none; color: var(--success-green); font-weight: bold;">✓</span>
                 <span id="fileName"></span>
                 <button onclick="clearAttachment()" style="background: none; border: none; color: #ff3333; cursor: pointer; font-weight: bold;">(Löschen ✖)</button>
             </div>
@@ -362,6 +375,7 @@
             <div class="input-group" id="outputGroup" style="display:none; margin-bottom:20px; border-top:1px solid #333; padding-top:15px;">
                 <label class="input-label">Ergebnis</label>
                 <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue); font-weight: bold;"></textarea>
+                <div id="mediaOutput" style="display:none; flex-direction:column; gap:10px; align-items:center; margin-top:10px;"></div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:10px;">
