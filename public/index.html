@@ -359,6 +359,8 @@
                 </label>
 
                 <input type="file" id="fileInput" accept="image/*,application/pdf" style="display: none;">
+                <input type="file" id="txtFileInput" accept=".txt" style="display: none;">
+                <div id="importFeedback" style="font-size: 0.8rem; color: var(--accent-blue); margin-top: 5px; display:none;"></div>
             </div>
 
             <div id="fileInfo" style="display: none; align-items: center; gap: 10px; margin-top: -10px; margin-bottom: 15px; color: #00BFFF; font-size: 0.9rem;">
@@ -385,7 +387,10 @@
                 </div>
                 
                 <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
+                <button id="saveTxtBtn" class="btn" style="display:none;">💾 ALS .TXT SPEICHERN</button>
+
                 <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
+                <button id="uploadTxtBtn" class="btn" style="display:none;">📂 .TXT DATEI HOCHLADEN</button>
             </div>
         </div>
 
