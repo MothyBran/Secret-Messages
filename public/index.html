@@ -11,6 +11,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     
+    <script>
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+    </script>
+
     <style>
         :root {
             --bg-dark: #050505;
@@ -288,7 +294,15 @@
                 <div class="input-group"><label class="input-label">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
                 <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
                 <div class="input-group"><label class="input-label">Neuer Code (5)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
-                <button type="submit" class="btn btn-primary" style="width:100%">LIZENZ BINDEN</button>
+
+                <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; color: #ccc;">
+                    <input type="checkbox" id="agbCheck" style="margin-top: 3px;">
+                    <label for="agbCheck" style="line-height: 1.4;">
+                        Ich akzeptiere die <a onclick="openModal('agbModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">AGB</a> und bestätige, den Dienst nicht für illegale Zwecke zu nutzen. Ich habe die <a onclick="openModal('privacyModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">Datenschutzhinweise</a> gelesen.
+                    </label>
+                </div>
+
+                <button type="submit" id="activateBtn" class="btn btn-primary" style="width:100%" disabled>LIZENZ BINDEN</button>
             </form>
             <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;">Zurück</button></div>
         </div>
@@ -478,6 +492,11 @@
             <div>
                 Support: <a href="mailto:support@secure-msg.app" style="color:var(--accent-blue); text-decoration:none;">support@secure-msg.app</a>
             </div>
+            <div style="margin-top:10px; font-size: 0.75rem;">
+                <a onclick="openModal('imprintModal')" style="cursor:pointer; margin:0 5px; color:#777;">Impressum</a> |
+                <a onclick="openModal('privacyModal')" style="cursor:pointer; margin:0 5px; color:#777;">Datenschutz</a> |
+                <a onclick="openModal('agbModal')" style="cursor:pointer; margin:0 5px; color:#777;">AGB</a>
+            </div>
             <div style="margin-top:10px;">
                 &copy; 2025 Secure Messages. All rights reserved.
             </div>
@@ -490,6 +509,85 @@
             <div style="display: flex; gap: 10px;">
                 <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;">Schließen</button>
                 <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEGAL MODALS -->
+    <div id="imprintModal" class="modal">
+        <div class="modal-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+                <h3 style="color:var(--accent-blue); margin:0;">Impressum</h3>
+                <button onclick="document.getElementById('imprintModal').classList.remove('active')" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
+            </div>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <p><strong>Angaben gemäß § 5 TMG</strong></p>
+                <p style="margin-bottom: 15px;">
+                    Secure Messages<br>
+                    [VORNAME NACHNAME]<br>
+                    [STRASSE HAUSNUMMER]<br>
+                    [PLZ STADT]<br>
+                    Deutschland
+                </p>
+                <p style="margin-bottom: 15px;"><strong>Kontakt:</strong><br>
+                E-Mail: support@secure-msg.app<br>
+                Web: www.secure-msg.app</p>
+                <p style="margin-bottom: 15px;"><strong>Umsatzsteuer-ID:</strong><br>
+                [UST-ID falls vorhanden, sonst Zeile löschen]</p>
+                <p style="margin-bottom: 15px;"><strong>Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV:</strong><br>
+                [VORNAME NACHNAME]<br>
+                [ADRESSE WIE OBEN]</p>
+                <p><strong>EU-Streitschlichtung:</strong><br>
+                Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
+                <a href="https://ec.europa.eu/consumers/odr/" target="_blank" style="color:var(--accent-blue);">https://ec.europa.eu/consumers/odr/</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="privacyModal" class="modal">
+        <div class="modal-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+                <h3 style="color:var(--accent-blue); margin:0;">Datenschutz</h3>
+                <button onclick="document.getElementById('privacyModal').classList.remove('active')" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
+            </div>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h4 style="color:#fff; margin-bottom:5px;">1. Zero-Knowledge-Prinzip</h4>
+                <p style="margin-bottom:15px;">Sicherheit durch Technik: Die Verschlüsselung Ihrer Daten erfolgt ausschließlich lokal in Ihrem Browser. Wir haben technisch keine Möglichkeit, Ihre Inhalte einzusehen oder Passcodes wiederherzustellen.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">2. Verantwortliche Stelle</h4>
+                <p style="margin-bottom:15px;">Verantwortlich ist der Betreiber von Secure Messages (siehe Impressum). Kontakt: support@secure-msg.app</p>
+                <h4 style="color:#fff; margin-bottom:5px;">3. Datenerfassung & Hosting</h4>
+                <p style="margin-bottom:15px;"><strong>Hosting:</strong> Diese App wird bei Railway (USA) gehostet. Es werden technisch notwendige Server-Log-Files (IP-Adresse, Zeitstempel) erfasst.<br>
+                <strong>LocalStorage:</strong> Wir speichern Sitzungs-Daten und Einstellungen lokal auf Ihrem Gerät. Diese Daten verbleiben dort und werden nicht zu Werbezwecken ausgewertet.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">4. Zahlungsabwicklung & E-Mail</h4>
+                <p style="margin-bottom:15px;"><strong>Stripe:</strong> Zur Abwicklung von Käufen nutzen wir Stripe. Wir speichern keine Kreditkartendaten. Stripe übermittelt uns lediglich Ihren Zahlungsstatus und Ihre E-Mail-Adresse.<br>
+                <strong>Google Workspace:</strong> Der Versand von Lizenz-E-Mails erfolgt über die Server von Google. Ihre E-Mail-Adresse wird nur für diesen Zweck verarbeitet.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">5. Ihre Rechte</h4>
+                <p>Sie haben das Recht auf Auskunft, Berichtigung und Löschung Ihrer Daten gemäß DSGVO.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="agbModal" class="modal">
+        <div class="modal-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+                <h3 style="color:var(--accent-blue); margin:0;">AGB & Richtlinien</h3>
+                <button onclick="document.getElementById('agbModal').classList.remove('active')" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
+            </div>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h4 style="color:#fff; margin-bottom:5px;">1. Nutzungsverbote (Acceptable Use Policy)</h4>
+                <p style="margin-bottom:5px;">Es ist ausdrücklich untersagt, diesen Dienst für illegale Aktivitäten zu nutzen. Dazu zählen insbesondere:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Verbreitung von Schadsoftware (Viren, Ransomware).</li>
+                    <li>Handel mit illegalen Gütern oder Substanzen.</li>
+                    <li>Terroristische Aktivitäten, Gewaltverherrlichung oder Volksverhetzung.</li>
+                    <li>Verletzung von Urheberrechten oder Persönlichkeitsrechten.</li>
+                </ul>
+                <h4 style="color:#fff; margin-bottom:5px;">2. Haftungsausschluss</h4>
+                <p style="margin-bottom:15px;">Da wir aufgrund der Verschlüsselung keine Kenntnis von Nutzerinhalten haben, übernehmen wir <strong>keine Haftung</strong> für die über den Dienst verschlüsselten oder verbreiteten Daten. Für alle Inhalte ist ausschließlich der absendende Nutzer verantwortlich.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">3. Ausschlussrecht & Sperrung</h4>
+                <p style="margin-bottom:15px;">Wir behalten uns vor, Nutzer bei begründetem Verdacht auf Missbrauch oder Verstoß gegen diese Richtlinien <strong>sofort und ohne Vorankündigung zu sperren</strong>. In diesem Fall erfolgt <strong>keine Erstattung</strong> gezahlter Beträge.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">4. Eigenverantwortung bei Schlüsseln</h4>
+                <p>Der Nutzer ist allein für die Sicherung seines 5-stelligen Codes verantwortlich. Bei Verlust des Codes sind die Daten unwiederbringlich verloren; eine Wiederherstellung durch uns ist technisch unmöglich.</p>
             </div>
         </div>
     </div>

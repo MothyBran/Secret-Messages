@@ -186,6 +186,12 @@ function setupUIEvents() {
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
 
+    // AGB Checkbox Logic
+    document.getElementById('agbCheck')?.addEventListener('change', (e) => {
+        const btn = document.getElementById('activateBtn');
+        if (btn) btn.disabled = !e.target.checked;
+    });
+
     // QR
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
         const text = document.getElementById('messageOutput').value;
@@ -547,6 +553,12 @@ async function handleLogin(e) {
 
 async function handleActivation(e) {
     e.preventDefault();
+
+    if (!document.getElementById('agbCheck').checked) {
+        alert("Bitte akzeptieren Sie die AGB und Nutzungsbedingungen.");
+        return;
+    }
+
     const devId = await generateDeviceFingerprint();
     const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
     try {
