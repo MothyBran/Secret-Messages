@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
+const { sendLicenseEmail } = require('./email/mailer');
 
 const router = express.Router();
 
@@ -104,6 +105,14 @@ router.post("/create-checkout-session", async (req, res) => {
         },
         quantity: 1
       }],
+      // Add metadata to session as well, so we can access it in checkout.session.completed
+      metadata: {
+        product_type,
+        duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
+        key_count: String(product.keyCount),
+        type: type,
+        license_key_id: licenseKeyId ? String(licenseKeyId) : ''
+      },
       payment_intent_data: {
         metadata: {
           product_type, // Wichtig für den Webhook später
@@ -139,22 +148,31 @@ router.post('/webhook', async (req, res) => {
   }
 
   // Handle the event
-  if (event.type === 'payment_intent.succeeded') {
-    const paymentIntent = event.data.object;
-    console.log(`💰 Zahlung erhalten: ${paymentIntent.id}`);
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    console.log(`💰 Session abgeschlossen: ${session.id}`);
     
-    await handleSuccessfulPayment(paymentIntent);
+    // Use session object which has customer_details.email
+    await handleSuccessfulPayment(session);
+  } else if (event.type === 'payment_intent.succeeded') {
+     // Legacy/Backup handler - usually checkout.session.completed is better for Checkout
+     console.log(`ℹ️ Payment Intent succeeded: ${event.data.object.id}`);
   }
 
   res.json({received: true});
 });
 
 // Logik für erfolgreiche Zahlung (ausgelagert)
-async function handleSuccessfulPayment(intent) {
-  const { product_type, duration_days, key_count, type, license_key_id } = intent.metadata;
+async function handleSuccessfulPayment(session) {
+  // Extract data from Session (not PaymentIntent)
+  const { product_type, duration_days, key_count, type, license_key_id } = session.metadata;
   
+  // Use payment_intent ID as the unique identifier for our DB
+  // session.payment_intent is the ID string
+  const paymentId = session.payment_intent;
+
   // 1. Prüfen ob wir diese Zahlung schon bearbeitet haben (Idempotency)
-  const existing = await pool.query('SELECT id FROM payments WHERE payment_id = $1', [intent.id]);
+  const existing = await pool.query('SELECT id FROM payments WHERE payment_id = $1', [paymentId]);
   if (existing.rows && existing.rows.length > 0) {
     console.log('⚠️ Zahlung bereits verarbeitet.');
     return;
@@ -215,33 +233,28 @@ async function handleSuccessfulPayment(intent) {
     `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
      VALUES ($1, $2, $3, $4, $5, NOW(), $6)`,
     [
-      intent.id, 
-      intent.amount, 
-      intent.currency, 
+      paymentId,
+      session.amount_total,
+      session.currency,
       'completed', 
       'stripe', 
       JSON.stringify({ 
         product_type, 
         keys_generated: keys,
         type: type || 'new',
-        email: intent.receipt_email 
+        email: session.customer_details ? session.customer_details.email : null
       }) 
     ]
   );
 
-  console.log(`✅ ${keys.length} Keys generiert für Payment ${intent.id}`);
+  console.log(`✅ ${keys.length} Keys generiert für Payment ${paymentId}`);
 
-  // 4. E-Mail Versand (Optional)
-  if (intent.receipt_email) {
-     try {
-         const emailService = require('./email/templates'); // Pfad ggf. anpassen
-         await emailService.sendKeyDeliveryEmail(intent.receipt_email, keys, {
-             amount: intent.amount,
-             product_type
-         });
-     } catch (e) {
-         console.error("Email Versand Fehler:", e);
-     }
+  // 4. E-Mail Versand
+  const customerEmail = session.customer_details ? session.customer_details.email : null;
+  if (customerEmail) {
+      // keys is an array of strings like ["XXXX-XXXX-XXXX", ...]
+      // We pass it directly; the mailer handles arrays.
+      await sendLicenseEmail(customerEmail, keys, product_type);
   }
 }
 
