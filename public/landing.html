@@ -341,6 +341,7 @@
             <p style="margin-bottom: 30px;">
                 <a onclick="openModal('imprintModal')">Impressum</a>
                 <a onclick="openModal('privacyModal')">Datenschutz</a>
+                <a onclick="openModal('agbModal')">AGB & Richtlinien</a>
                 <a href="mailto:support@secure-msg.app">Kontakt</a>
             </p>
             <p>&copy; 2025 Secure Messages. All rights reserved.</p>
@@ -364,12 +365,31 @@
     <div id="imprintModal" class="modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('imprintModal')">×</button>
-            <h2 style="font-size:1.8rem; color:var(--accent-blue); margin-bottom:20px;">Impressum</h2>
-            <div style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
-                <p>Angaben gemäß § 5 TMG</p><br>
-                <p><strong>Betreiber:</strong><br>Secure App Corp.<br>Musterstraße 1, 10115 Berlin, Deutschland</p><br>
-                <p><strong>Kontakt:</strong><br>E-Mail: support@secure-msg.app</p><br>
-                <p><strong>Register:</strong><br>Amtsgericht Berlin-Charlottenburg, HRB 123456</p>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h3 style="font-size:1.5rem; color:var(--accent-blue); margin-bottom:15px;">Impressum</h3>
+                <p><strong>Angaben gemäß § 5 TMG</strong></p>
+                <p style="margin-bottom: 15px;">
+                    Secure Messages<br>
+                    [VORNAME NACHNAME]<br>
+                    [STRASSE HAUSNUMMER]<br>
+                    [PLZ STADT]<br>
+                    Deutschland
+                </p>
+
+                <p style="margin-bottom: 15px;"><strong>Kontakt:</strong><br>
+                E-Mail: support@secure-msg.app<br>
+                Web: www.secure-msg.app</p>
+
+                <p style="margin-bottom: 15px;"><strong>Umsatzsteuer-ID:</strong><br>
+                [UST-ID falls vorhanden, sonst Zeile löschen]</p>
+
+                <p style="margin-bottom: 15px;"><strong>Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV:</strong><br>
+                [VORNAME NACHNAME]<br>
+                [ADRESSE WIE OBEN]</p>
+
+                <p><strong>EU-Streitschlichtung:</strong><br>
+                Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
+                <a href="https://ec.europa.eu/consumers/odr/" target="_blank" style="color:var(--accent-blue);">https://ec.europa.eu/consumers/odr/</a>.</p>
             </div>
         </div>
     </div>
@@ -378,19 +398,53 @@
     <div id="privacyModal" class="modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal('privacyModal')">×</button>
-            <h2 style="font-size:1.8rem; color:var(--accent-blue); margin-bottom:20px;">Datenschutz</h2>
-            <div style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
-                <h4 style="color:#fff; margin-bottom:5px;">1. Zero Knowledge Prinzip</h4>
-                <p style="margin-bottom:15px;">Wir haben technisch keine Möglichkeit, Ihre verschlüsselten Inhalte einzusehen. Nachrichten werden nicht auf unseren Servern gespeichert.</p>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h3 style="font-size:1.5rem; color:var(--accent-blue); margin-bottom:15px;">Datenschutzerklärung (DSGVO)</h3>
 
-                <h4 style="color:#fff; margin-bottom:5px;">2. Datenerfassung</h4>
-                <p style="margin-bottom:15px;">Wir erheben nur Daten zur Vertragsabwicklung (via Stripe) und technische Metadaten (Browser-Fingerprint zur Lizenz-Validierung).</p>
+                <h4 style="color:#fff; margin-bottom:5px;">1. Zero-Knowledge-Prinzip</h4>
+                <p style="margin-bottom:15px;">Sicherheit durch Technik: Die Verschlüsselung Ihrer Daten erfolgt ausschließlich lokal in Ihrem Browser. Wir haben technisch keine Möglichkeit, Ihre Inhalte einzusehen oder Passcodes wiederherzustellen.</p>
 
-                <h4 style="color:#fff; margin-bottom:5px;">3. Lokale Speicherung</h4>
-                <p style="margin-bottom:15px;">Ihre ID und Keys liegen ausschließlich im LocalStorage Ihres Geräts.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">2. Verantwortliche Stelle</h4>
+                <p style="margin-bottom:15px;">Verantwortlich ist der Betreiber von Secure Messages (siehe Impressum). Kontakt: support@secure-msg.app</p>
 
-                <h4 style="color:#fff; margin-bottom:5px;">4. Weitergabe</h4>
-                <p>Keine Weitergabe an Dritte, außer zur Zahlungsabwicklung zwingend erforderlich.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">3. Datenerfassung & Hosting</h4>
+                <p style="margin-bottom:15px;"><strong>Hosting:</strong> Diese App wird bei Railway (USA) gehostet. Es werden technisch notwendige Server-Log-Files (IP-Adresse, Zeitstempel) erfasst.<br>
+                <strong>LocalStorage:</strong> Wir speichern Sitzungs-Daten und Einstellungen lokal auf Ihrem Gerät. Diese Daten verbleiben dort und werden nicht zu Werbezwecken ausgewertet.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">4. Zahlungsabwicklung & E-Mail</h4>
+                <p style="margin-bottom:15px;"><strong>Stripe:</strong> Zur Abwicklung von Käufen nutzen wir Stripe. Wir speichern keine Kreditkartendaten. Stripe übermittelt uns lediglich Ihren Zahlungsstatus und Ihre E-Mail-Adresse.<br>
+                <strong>Google Workspace:</strong> Der Versand von Lizenz-E-Mails erfolgt über die Server von Google. Ihre E-Mail-Adresse wird nur für diesen Zweck verarbeitet.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">5. Ihre Rechte</h4>
+                <p>Sie haben das Recht auf Auskunft, Berichtigung und Löschung Ihrer Daten gemäß DSGVO.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AGB MODAL -->
+    <div id="agbModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('agbModal')">×</button>
+            <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
+                <h3 style="font-size:1.5rem; color:var(--accent-blue); margin-bottom:15px;">Allgemeine Geschäftsbedingungen & Nutzungsregeln</h3>
+
+                <h4 style="color:#fff; margin-bottom:5px;">1. Nutzungsverbote (Acceptable Use Policy)</h4>
+                <p style="margin-bottom:5px;">Es ist ausdrücklich untersagt, diesen Dienst für illegale Aktivitäten zu nutzen. Dazu zählen insbesondere:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Verbreitung von Schadsoftware (Viren, Ransomware).</li>
+                    <li>Handel mit illegalen Gütern oder Substanzen.</li>
+                    <li>Terroristische Aktivitäten, Gewaltverherrlichung oder Volksverhetzung.</li>
+                    <li>Verletzung von Urheberrechten oder Persönlichkeitsrechten.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">2. Haftungsausschluss</h4>
+                <p style="margin-bottom:15px;">Da wir aufgrund der Verschlüsselung keine Kenntnis von Nutzerinhalten haben, übernehmen wir <strong>keine Haftung</strong> für die über den Dienst verschlüsselten oder verbreiteten Daten. Für alle Inhalte ist ausschließlich der absendende Nutzer verantwortlich.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">3. Ausschlussrecht & Sperrung</h4>
+                <p style="margin-bottom:15px;">Wir behalten uns vor, Nutzer bei begründetem Verdacht auf Missbrauch oder Verstoß gegen diese Richtlinien <strong>sofort und ohne Vorankündigung zu sperren</strong>. In diesem Fall erfolgt <strong>keine Erstattung</strong> gezahlter Beträge.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">4. Eigenverantwortung bei Schlüsseln</h4>
+                <p>Der Nutzer ist allein für die Sicherung seines 5-stelligen Codes verantwortlich. Bei Verlust des Codes sind die Daten unwiederbringlich verloren; eine Wiederherstellung durch uns ist technisch unmöglich.</p>
             </div>
         </div>
     </div>
