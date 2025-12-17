@@ -114,8 +114,8 @@ router.post("/create-checkout-session", async (req, res) => {
         }
       },
       // Wir leiten den User zurück zur Store-Seite mit der Session ID
-      success_url: `${process.env.FRONTEND_URL}/store.html?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/store.html?canceled=true`
+      success_url: `${process.env.FRONTEND_URL}/shop?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL}/shop?canceled=true`
     });
 
     res.json({ success: true, checkout_url: session.url });
