@@ -169,6 +169,17 @@ function setupUIEvents() {
     document.getElementById('copyBtn')?.addEventListener('click', copyToClipboard);
     document.getElementById('clearFieldsBtn')?.addEventListener('click', clearAllFields);
 
+    document.getElementById('saveTxtBtn')?.addEventListener('click', () => {
+        const content = document.getElementById('messageOutput').value;
+        if(content) downloadTxtFile(content);
+    });
+
+    document.getElementById('uploadTxtBtn')?.addEventListener('click', () => {
+        document.getElementById('txtFileInput').click();
+    });
+
+    document.getElementById('txtFileInput')?.addEventListener('change', handleTxtImport);
+
     // Forms
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('activationForm')?.addEventListener('submit', handleActivation);
@@ -568,13 +579,21 @@ function updateAppMode(mode) {
     if(isDec) { btn.style.border='1px solid var(--accent-blue)'; btn.style.color='var(--accent-blue)'; } else { btn.style.border=''; btn.style.color=''; }
     document.getElementById('textLabel').textContent = isDec ? 'Verschlüsselter Text' : 'Nachrichteneingabe (Klartext)';
     document.getElementById('recipientGroup').style.display = isDec ? 'none' : 'block';
+
+    // Output Buttons
     document.getElementById('qrScanBtn').style.display = isDec ? 'block' : 'none';
     document.getElementById('qrGenBtn').style.display = isDec ? 'none' : 'block';
+    document.getElementById('saveTxtBtn').style.display = 'none'; // Reset to hidden
+
+    // Import Button
+    document.getElementById('uploadTxtBtn').style.display = isDec ? 'block' : 'none';
 
     // Attachment Button Logic
     const attachBtn = document.getElementById('attachmentBtn');
     if (attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
 
+    // Clear input/output on mode switch
+    clearAllFields();
     document.getElementById('messageInput').value = '';
     document.getElementById('messageOutput').value = '';
     document.getElementById('outputGroup').style.display = 'none';
@@ -611,6 +630,15 @@ async function handleMainAction() {
                  textOut.style.display = 'block';
              }
              if(mediaOut) mediaOut.style.display = 'none';
+
+             // Check length for TXT vs QR
+             if (res.length > 9999) {
+                 document.getElementById('qrGenBtn').style.display = 'none';
+                 document.getElementById('saveTxtBtn').style.display = 'block';
+             } else {
+                 document.getElementById('qrGenBtn').style.display = 'block';
+                 document.getElementById('saveTxtBtn').style.display = 'none';
+             }
 
         } else {
             res = await decryptFull(payload, code, currentUser);
@@ -959,9 +987,54 @@ function clearAllFields() {
     document.getElementById('messageCode').value='';
     document.getElementById('recipientName').value='';
     document.getElementById('outputGroup').style.display='none';
+    document.getElementById('importFeedback').style.display = 'none';
+    document.getElementById('importFeedback').textContent = '';
+    document.getElementById('txtFileInput').value = '';
+
     if (window.clearAttachment) window.clearAttachment();
+
+    // Reset output buttons if in encrypt mode
+    if (currentMode === 'encrypt') {
+        document.getElementById('qrGenBtn').style.display = 'block';
+        document.getElementById('saveTxtBtn').style.display = 'none';
+    }
 }
 function copyToClipboard() { const el=document.getElementById('messageOutput'); el.select(); navigator.clipboard.writeText(el.value); showAppStatus("Kopiert!", 'success'); }
+
+function downloadTxtFile(content) {
+    // Filename: SECURE_MSG_[FIRST_5_CHARS].txt
+    const hashPart = content.substring(0, 5);
+    const filename = `SECURE_MSG_${hashPart}.txt`;
+
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+
+function handleTxtImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type !== "text/plain" && !file.name.endsWith('.txt')) {
+        alert("Bitte nur .txt Dateien verwenden.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const content = evt.target.result;
+        document.getElementById('messageInput').value = content;
+
+        const fb = document.getElementById('importFeedback');
+        fb.textContent = `Importiert: ${file.name}`;
+        fb.style.display = 'block';
+    };
+    reader.readAsText(file);
+}
 
 // QR
 function showQRModal(text) {
