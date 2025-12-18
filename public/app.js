@@ -590,6 +590,11 @@ async function handleLogout() {
 }
 
 function updateAppMode(mode) {
+    // Force blur to prevent keyboard from popping up on mobile
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
+
     currentMode = mode;
     const isDec = (mode === 'decrypt');
     document.getElementById('modeTitle').textContent = isDec ? 'ENTSCHLÜSSELUNG' : 'VERSCHLÜSSELUNG';
@@ -983,7 +988,6 @@ window.clearAttachment = function() {
     const textArea = document.getElementById('messageInput');
     textArea.disabled = false;
     textArea.value = '';
-    textArea.focus();
 };
 
 window.startRenewal = async function(planType) {
