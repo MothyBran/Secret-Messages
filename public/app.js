@@ -361,14 +361,10 @@ function closeContactSidebar() {
     document.getElementById('sidebarOverlay').classList.remove('active');
 }
 
-function getUniqueGroups() {
-    return [...new Set(contacts.map(c => c.group).filter(g => g && g.trim().length > 0))].sort((a, b) => a.localeCompare(b));
-}
-
 function renderGroupTags() {
     const area = document.getElementById('groupSelectionArea');
     area.innerHTML = '<small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen:</small>';
-    const groups = getUniqueGroups();
+    const groups = [...new Set(contacts.map(c => c.group).filter(g => g))].sort();
     if (groups.length === 0) { area.innerHTML += '<span style="color:#555; font-size:0.8rem;">Keine Gruppen.</span>'; return; }
 
     groups.forEach(g => {
@@ -446,7 +442,7 @@ function openEditModal(contact = null) {
     const btnDel = document.getElementById('btnDeleteContact');
     document.getElementById('contactForm').reset();
     const dl = document.getElementById('groupSuggestions'); dl.innerHTML = '';
-    getUniqueGroups().forEach(g => dl.appendChild(new Option(g, g)));
+    [...new Set(contacts.map(c => c.group).filter(g => g))].forEach(g => dl.appendChild(new Option(g,g)));
 
     if (contact) {
         document.getElementById('modalTitle').textContent = 'Kontakt bearbeiten';
