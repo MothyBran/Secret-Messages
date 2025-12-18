@@ -295,6 +295,14 @@
                 <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
                 <div class="input-group"><label class="input-label">Neuer Zugangscode (5-Stellig)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
 
+                <div class="input-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label class="input-label">Neuen Zugangscode wiederholen</label>
+                        <span id="codeMismatchWarning" style="color:var(--error-red); font-size:0.8rem; display:none; font-weight:bold;">Code nicht identisch</span>
+                    </div>
+                    <input type="text" id="newAccessCodeRepeat" class="input-field code-input" maxlength="5" required>
+                </div>
+
                 <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; color: #ccc;">
                     <input type="checkbox" id="agbCheck" style="margin-top: 3px;">
                     <label for="agbCheck" style="line-height: 1.4;">
@@ -305,6 +313,10 @@
                 <button type="submit" id="activateBtn" class="btn btn-primary" style="width:100%" disabled>LIZENZ BINDEN</button>
             </form>
             <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;">Zurück</button></div>
+
+            <div style="margin-top:20px; padding:15px; border:1px solid #333; background:rgba(255,255,0,0.05); border-radius:4px; font-size:0.8rem; color:#ccc; line-height: 1.4;">
+                ⚠️ Achtung: Der Zugangscode kann nicht wiederhergestellt werden. Notieren Sie sich Ihre Zugangsdaten daher sicher. Ohne Zugangscode kein Zugriff auf Ihre Daten!
+            </div>
         </div>
 
         <div id="renewalSection" class="section">

@@ -186,11 +186,12 @@ function setupUIEvents() {
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
 
+    // Activation Code Validation
+    document.getElementById('newAccessCode')?.addEventListener('input', validateActivationInputs);
+    document.getElementById('newAccessCodeRepeat')?.addEventListener('input', validateActivationInputs);
+
     // AGB Checkbox Logic
-    document.getElementById('agbCheck')?.addEventListener('change', (e) => {
-        const btn = document.getElementById('activateBtn');
-        if (btn) btn.disabled = !e.target.checked;
-    });
+    document.getElementById('agbCheck')?.addEventListener('change', validateActivationInputs);
 
     // QR
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
@@ -559,6 +560,14 @@ async function handleActivation(e) {
         return;
     }
 
+    const code1 = document.getElementById('newAccessCode').value;
+    const code2 = document.getElementById('newAccessCodeRepeat').value;
+
+    if (code1 !== code2) {
+        alert("Die Zugangscodes stimmen nicht überein!");
+        return;
+    }
+
     const devId = await generateDeviceFingerprint();
     const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
     try {
@@ -807,6 +816,31 @@ async function validateSessionStrict() {
         // If network error, maybe let user know.
         showAppStatus("Verbindung prüfen...", 'error');
         return false;
+    }
+}
+
+function validateActivationInputs() {
+    const code1 = document.getElementById('newAccessCode').value;
+    const code2 = document.getElementById('newAccessCodeRepeat').value;
+    const agbChecked = document.getElementById('agbCheck').checked;
+    const btn = document.getElementById('activateBtn');
+    const warning = document.getElementById('codeMismatchWarning');
+
+    // Show warning if codes mismatch (only if repeat field is not empty)
+    if (code2.length > 0 && code1 !== code2) {
+        warning.style.display = 'block';
+    } else {
+        warning.style.display = 'none';
+    }
+
+    // Enable button conditions
+    const codesMatch = (code1 === code2);
+    const codeValid = (code1.length === 5);
+
+    if (agbChecked && codesMatch && codeValid) {
+        btn.disabled = false;
+    } else {
+        btn.disabled = true;
     }
 }
 
