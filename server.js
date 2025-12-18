@@ -289,8 +289,8 @@ app.post('/api/auth/activate', async (req, res) => {
 
         // 2. Update License Key
         await dbQuery(
-            'UPDATE license_keys SET is_active = $1, activated_at = $2, username = $3, expires_at = $4 WHERE id = $5',
-            [(isPostgreSQL ? true : 1), new Date().toISOString(), username, expiresAt, key.id]
+            'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4',
+            [(isPostgreSQL ? true : 1), new Date().toISOString(), expiresAt, key.id]
         );
 
         res.json({ success: true });
