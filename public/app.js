@@ -987,7 +987,6 @@ window.clearAttachment = function() {
     const textArea = document.getElementById('messageInput');
     textArea.disabled = false;
     textArea.value = '';
-    textArea.focus();
 };
 
 window.startRenewal = async function(planType) {
