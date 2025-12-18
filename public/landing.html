@@ -210,8 +210,107 @@
             font-size: 1.5rem; cursor: pointer;
         }
 
+        /* App Showcase / Carousel */
+        .app-showcase {
+            background: #0b0d10;
+            position: relative;
+            overflow: hidden;
+        }
+        .carousel-container {
+            position: relative;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 60px; /* Space for arrows */
+        }
+        .carousel-main {
+            position: relative;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            margin-bottom: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            background: #000;
+            border: 1px solid #333;
+        }
+        .carousel-image {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+            padding: 10px;
+        }
+        .carousel-image.active {
+            opacity: 1;
+            z-index: 10;
+        }
+        .carousel-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(15, 18, 21, 0.8);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            z-index: 20;
+            transition: all 0.2s;
+            font-size: 1.5rem;
+            user-select: none;
+        }
+        .carousel-nav:hover {
+            background: var(--accent-blue);
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .nav-prev { left: 0; }
+        .nav-next { right: 0; }
+
+        .carousel-captions {
+            position: relative;
+            min-height: 100px;
+            text-align: center;
+        }
+        .caption-item {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            opacity: 0;
+            transition: all 0.5s ease;
+            transform: translateY(10px);
+            pointer-events: none;
+        }
+        .caption-item.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        .caption-item p {
+            font-size: 1.2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            color: var(--text-main);
+        }
+        .caption-highlight {
+            color: #fff;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+            display: block;
+            margin-bottom: 5px;
+            font-size: 1.3rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
+            .carousel-container { padding: 0; }
+            .carousel-nav { width: 36px; height: 36px; font-size: 1.2rem; }
+            .nav-prev { left: 10px; }
+            .nav-next { right: 10px; }
+
             h1 { font-size: 2.5rem; }
             h2 { font-size: 2rem; }
             .hero { padding-top: 120px; }
@@ -289,6 +388,22 @@
                     <h3>Diebstahlschutz inklusive</h3>
                     <p>Gerät verloren? Account gehackt? Da wir keine Nachrichten speichern, finden Angreifer nichts. Sensible Infos gelangen niemals an Dritte.</p>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="app-showcase reveal">
+        <div class="container">
+            <h2>App Einblick</h2>
+            <div class="carousel-container">
+                <div class="carousel-nav nav-prev" id="prevBtn">&#8592;</div>
+                <div class="carousel-main" id="carouselImages">
+                    <!-- Images will be injected here -->
+                </div>
+                <div class="carousel-nav nav-next" id="nextBtn">&#8594;</div>
+            </div>
+            <div class="carousel-captions" id="carouselCaptions">
+                <!-- Captions will be injected here -->
             </div>
         </div>
     </section>
@@ -450,6 +565,97 @@
     </div>
 
     <script>
+        // === APP CAROUSEL ===
+        document.addEventListener('DOMContentLoaded', () => {
+            const carouselData = [
+                {
+                    img: 'text-verschluesselung.png',
+                    title: 'Maximale Sicherheit bei der Eingabe:',
+                    desc: 'Ihr Text wird lokal mit einem 5-stelligen Muster und ausgewählten Empfängern verschlüsselt.'
+                },
+                {
+                    img: 'qr-code-ansicht.png',
+                    title: 'Einfacher und diskreter Versand:',
+                    desc: 'Das Ergebnis ist ein kompakter QR-Code, bereit zum sicheren Teilen über jeden beliebigen Kanal.'
+                },
+                {
+                    img: 'text-entschluesselung.png',
+                    title: 'Nur für autorisierte Augen:',
+                    desc: 'Die Rückwandlung in lesbaren Text gelingt nur mit dem exakt gleichen 5-stelligen Zugangscode.'
+                },
+                {
+                    img: 'bild-entschluesselt.png',
+                    title: 'Mehr als nur Text:',
+                    desc: 'Auch sensible Dateien wie Bilder oder PDFs werden sicher direkt im Browser wieder sichtbar gemacht.'
+                },
+                {
+                    img: 'kontakte-verzeichnis.png',
+                    title: 'Lokales Adressbuch:',
+                    desc: 'Verwalten Sie vertrauenswürdige Empfänger-IDs sicher auf Ihrem Gerät für einen schnellen und unkomplizierten Zugriff.'
+                }
+            ];
+
+            const carouselImages = document.getElementById('carouselImages');
+            const carouselCaptions = document.getElementById('carouselCaptions');
+            let currentIndex = 0;
+
+            if (carouselImages && carouselCaptions) {
+                // Initialize
+                carouselData.forEach((item, index) => {
+                    // Image
+                    const img = document.createElement('img');
+                    img.src = `assets/screenshots/${item.img}`;
+                    img.alt = item.title;
+                    img.className = `carousel-image ${index === 0 ? 'active' : ''}`;
+                    carouselImages.appendChild(img);
+
+                    // Caption
+                    const caption = document.createElement('div');
+                    caption.className = `caption-item ${index === 0 ? 'active' : ''}`;
+                    caption.innerHTML = `
+                        <span class="caption-highlight">${item.title}</span>
+                        <p>${item.desc}</p>
+                    `;
+                    carouselCaptions.appendChild(caption);
+                });
+
+                let isAnimating = false;
+
+                function updateCarousel(newIndex) {
+                    if (isAnimating) return;
+
+                    const images = document.querySelectorAll('.carousel-image');
+                    const captions = document.querySelectorAll('.caption-item');
+
+                    if (images.length === 0) return;
+
+                    // 1. Fade out current
+                    images[currentIndex].classList.remove('active');
+                    captions[currentIndex].classList.remove('active');
+
+                    isAnimating = true;
+
+                    // 2. Wait for fade out, then fade in new
+                    setTimeout(() => {
+                        currentIndex = newIndex;
+                        if (currentIndex < 0) currentIndex = images.length - 1;
+                        if (currentIndex >= images.length) currentIndex = 0;
+
+                        images[currentIndex].classList.add('active');
+                        captions[currentIndex].classList.add('active');
+
+                        // Reset lock after fade in starts (transition time is 0.6s)
+                        setTimeout(() => {
+                            isAnimating = false;
+                        }, 100);
+                    }, 600); // Wait 0.6s (matches CSS transition)
+                }
+
+                document.getElementById('prevBtn').addEventListener('click', () => updateCarousel(currentIndex - 1));
+                document.getElementById('nextBtn').addEventListener('click', () => updateCarousel(currentIndex + 1));
+            }
+        });
+
         // === SCROLL REVEAL ===
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
