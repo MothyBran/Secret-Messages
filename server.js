@@ -269,8 +269,13 @@ app.post('/api/auth/activate', async (req, res) => {
         const hash = await bcrypt.hash(accessCode, 10);
 
         // 1. Insert User
+        let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)';
+        if (isPostgreSQL) {
+            insertSql += ' RETURNING id';
+        }
+
         const insertUser = await dbQuery(
-            'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            insertSql,
             [username, hash, key.id, deviceId, new Date().toISOString()]
         );
         

@@ -574,7 +574,7 @@ async function handleActivation(e) {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
         if(d.success) {
-            alert("Account erfolgreich aktiviert! Du kannst dich jetzt einloggen.");
+            showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success');
             showSection('loginSection');
             document.getElementById('username').value = payload.username;
         } else {
