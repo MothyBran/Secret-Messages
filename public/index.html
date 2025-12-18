@@ -293,7 +293,7 @@
             <form id="activationForm">
                 <div class="input-group"><label class="input-label">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
                 <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
-                <div class="input-group"><label class="input-label">Neuer Code (5)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
+                <div class="input-group"><label class="input-label">Neuer Zugangscode (5-Stellig)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
 
                 <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; color: #ccc;">
                     <input type="checkbox" id="agbCheck" style="margin-top: 3px;">
@@ -319,9 +319,17 @@
                     <div style="font-size:1.2rem; color:var(--accent-blue); font-weight:bold;">1 MONAT</div>
                     <div style="font-size:0.9rem; color:#888;">1.99 EUR</div>
                 </div>
-                <div class="btn" style="border-color:var(--success-green); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('12m')">
-                    <div style="font-size:1.2rem; color:var(--success-green); font-weight:bold;">12 MONATE</div>
-                    <div style="font-size:0.9rem; color:#888;">14.99 EUR (Best Value)</div>
+                <div class="btn" style="border-color:var(--accent-blue); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('3m')">
+                    <div style="font-size:1.2rem; color:var(--accent-blue); font-weight:bold;">3 MONATE</div>
+                    <div style="font-size:0.9rem; color:#888;">4.95 EUR (-17%)</div>
+                </div>
+                <div class="btn" style="border-color:var(--accent-blue); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('12m')">
+                    <div style="font-size:1.2rem; color:var(--accent-blue); font-weight:bold;">12 MONATE</div>
+                    <div style="font-size:0.9rem; color:#888;">17.90 EUR (-25% Best Value)</div>
+                </div>
+                <div class="btn" style="border-color:var(--success-green); padding:15px; text-align:center; cursor:pointer;" onclick="window.startRenewal('unl')">
+                    <div style="font-size:1.2rem; color:var(--success-green); font-weight:bold;">Unlimited Access</div>
+                    <div style="font-size:0.9rem; color:#888;">59.99 EUR (LIFETIME)</div>
                 </div>
             </div>
 
@@ -416,10 +424,10 @@
                 <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
                     <li>Wähle oben rechts den Modus <b>VERSCHLÜSSELN</b> (Slider Links).</li>
                     <li>Wähle Empfänger aus (Klick auf 📇) oder gib User-IDs ein.</li>
-                    <li>Gib einen <b>5-stelligen Code</b> ein (nur Zahlen).</li>
-                    <li>Tippe deine Nachricht ein.</li>
+                    <li>Gib einen <b>5-stelligen Code</b> ein (nur Zahlen). <b>Ohne diesen Code können die Daten niemals wiederhergestellt werden.</b></li>
+                    <li>Tippe deinen Text ein oder laden Sie eine Datei (Bild oder PDF-Dokument) über die 📎 hoch</li>
                     <li>Klicke auf <b>DATEN VERSCHLÜSSELN</b>.</li>
-                    <li>Nutze "Kopieren" oder "QR-Code", um das Ergebnis zu versenden.</li>
+                    <li>Nutze "Kopieren" oder "Als QR-Code Anzeigen" bzw. "Als .TXT Speichern", um das Ergebnis anschließend über einen beliebigen Kanal zu versenden.</li>
                 </ol>
             </div>
 
@@ -427,10 +435,10 @@
                 <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">2. Entschlüsseln</h3>
                 <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
                     <li>Wechsle oben rechts auf <b>ENTSCHLÜSSELN</b> (Slider Rechts).</li>
-                    <li>Füge den Geheimtext ein oder scanne einen QR-Code.</li>
+                    <li>Füge den Geheimtext ein oder scanne einen QR-Code bzw. lade die Verschlüsselte .TXT-Datei hoch</li>
                     <li>Gib den vereinbarten <b>5-stelligen Code</b> ein.</li>
                     <li>Klicke auf <b>ENTSCHLÜSSELN</b>.</li>
-                    <li>Wenn du berechtigt bist (Empfänger passt), erscheint der Klartext.</li>
+                    <li>Wenn du berechtigt bist (Empfänger passt), erscheint der Klartext oder das Bild bzw. die entschlüsselte PDF-Datei.</li>
                 </ol>
             </div>
 
@@ -710,17 +718,26 @@
                 </details>
                 <details>
                     <summary>Funktioniert das Tool offline?</summary>
-                    <div class="faq-content">Ja. Die Verschlüsselung passiert lokal in Ihrem Browser. Internet ist nur für den Login nötig.</div>
+                    <div class="faq-content">Nein. Zwar findet die eigentliche Verschlüsselung aus Sicherheitsgründen lokal auf Ihrem Endgerät statt (Client-Side-Encryption), jedoch ist für das Login sowie für jede Ver- und Entschlüsselung eine aktive Internetverbindung erforderlich.
+                    Dies dient der Echtzeit-Validierung Ihrer Lizenz und der Sicherstellung der Integrität des Verschlüsselungsprotokolls.</div>
                 </details>
 
                 <h5 style="color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">Sicherheit</h5>
                 <details>
-                    <summary>Habe meinen 5-stelligen Code vergessen.</summary>
+                    <summary>ch habe meinen Benutzernamen oder meinen Zugangscode vergessen. Was kann ich tun?</summary>
+                    <div class="faq-content">Hier müssen wir zwischen den beiden Zugangsdaten unterscheiden: 
+                        <b>Benutzername vergessen:</b> Sollten Sie Ihren Benutzernamen vergessen haben, wenden Sie sich bitte an unseren Support unter support@secure-msg.app. Wenn Sie Ihre Identität (z. B. durch die bei Stripe hinterlegte E-Mail-Adresse oder eine Transaktions-ID) glaubhaft nachweisen können, teilen wir Ihnen Ihren Benutzernamen mit.
+                        <b>Zugangscode vergessen:</b> Der 5-stellige Zugangscode ist das Herzstück Ihrer Verschlüsselung. Aufgrund unseres Zero-Knowledge-Sicherheitskonzepts wird dieser Code niemals an unsere Server übertragen oder dort gespeichert. Er existiert ausschließlich in Ihrem Kopf (oder an einem von Ihnen sicher verwahrten Ort).
+                        <b>Wichtig: Aus technischen Gründen ist es uns absolut unmöglich, Ihren Zugangscode zurückzusetzen oder auszulesen. Wenn Sie diesen Code verlieren, können Ihre bereits verschlüsselten Nachrichten und Dateien von niemandem – auch nicht von uns – wiederhergestellt werden. Wir empfehlen dringend, den Code sicher zu notieren oder in einem Passwort-Manager zu speichern.</b></div>
+                </details>
+                <details>
+                    <summary>Ich habe meinen 5-stelligen Code vergessen.</summary>
                     <div class="faq-content">Dann ist die Nachricht verloren. Wir speichern Ihren Code nicht (Zero Knowledge) und können ihn nicht wiederherstellen.</div>
                 </details>
                 <details>
                     <summary>Wie lösche ich meinen Account?</summary>
-                    <div class="faq-content">Da wir keine persönlichen Daten speichern, gibt es keinen Account zu löschen. Entfernen Sie einfach Ihre Browserdaten, um die Verknüpfung aufzuheben.</div>
+                    <div class="faq-content">Sie können Ihren Account jederzeit direkt in der App über den Menüpunkt "Zugang löschen" entfernen. Sollten Sie keinen Zugriff mehr auf Ihren Account haben, wenden Sie sich bitte an unseren Support unter support@secure-msg.app. 
+                        <b>Wichtig: Durch die Löschung werden akke kryptografischen Verknüpfungen unwiderruflich zerstört. Das Entschlüsseln eigener sowie an Sie adressierte Nachrichten wird danach technisch nicht mehr möglich sein. Sichern Sie wichtige Daten daher vor der Löschung.</b></div>
                 </details>
             </div>
         </div>
