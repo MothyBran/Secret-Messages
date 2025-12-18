@@ -296,7 +296,7 @@ app.post('/api/auth/activate', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         console.error("Activation Error:", e);
-        res.status(500).json({ error: 'Aktivierung fehlgeschlagen' });
+        res.status(500).json({ error: 'Aktivierung fehlgeschlagen: ' + e.message });
     }
 });
 
