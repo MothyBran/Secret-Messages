@@ -1056,7 +1056,7 @@ async function handleSupportSubmit(e) {
                 btn.textContent = "Nachricht Senden";
             }, 3000);
         } else {
-            alert("Fehler: " + (data.error || "Versand fehlgeschlagen."));
+            alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
             allFields.forEach(f => f.disabled = false);
             btn.textContent = oldText;
         }
@@ -1064,7 +1064,7 @@ async function handleSupportSubmit(e) {
         if (err.name === 'AbortError') {
             alert("Server antwortet nicht. Bitte schreiben Sie direkt an support@secure-msg.app");
         } else {
-            alert("Versand fehlgeschlagen. Bitte prüfen Sie Ihre Verbindung oder schreiben Sie uns direkt per Mail.");
+            alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
         }
         allFields.forEach(f => f.disabled = false);
         btn.textContent = oldText;

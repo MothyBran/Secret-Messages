@@ -187,8 +187,9 @@ app.post('/api/support', rateLimiter, async (req, res) => {
                 pass: process.env.EMAIL_PASS
             },
             // Timeout settings to prevent hanging indefinitely
-            connectionTimeout: 5000,
-            socketTimeout: 5000
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 10000
         });
 
         const receiver = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
@@ -221,7 +222,8 @@ app.post('/api/support', rateLimiter, async (req, res) => {
         return res.status(200).json({ success: true });
 
     } catch (error) {
-        console.log(`>> Fehler bei SMTP: ${error.message}`);
+        console.error(`>> Fehler bei SMTP: ${error.message}`);
+        console.error(error); // Log full error object
         return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
     }
 });
