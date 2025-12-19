@@ -187,6 +187,32 @@ initializeDatabase();
 
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
 
+// SMTP CONFIGURATION (Google Workspace / Gmail)
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // Must be false for port 587
+    requireTLS: true, // Force encryption via STARTTLS
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: false
+    },
+    family: 4 // Force IPv4
+});
+
+// SMTP CONNECTION TEST
+transporter.verify((error, success) => {
+    if (error) {
+        console.error(">> SMTP Verify fehlgeschlagen:", error);
+    } else {
+        console.log(">> SMTP Server ist bereit");
+    }
+});
+
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
     console.log(`>> Anfrage erhalten für: ${req.body.email}`);
@@ -197,26 +223,12 @@ app.post('/api/support', rateLimiter, async (req, res) => {
     }
 
     try {
-        console.log(">> SMTP Verbindung wird aufgebaut...");
-
-        const transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            },
-            // Timeout settings to prevent hanging indefinitely
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 10000
-        });
+        console.log(">> Sende Support-Email...");
 
         const receiver = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
 
         const mailOptions = {
-            from: `"Support Form" <${process.env.EMAIL_USER}>`,
+            from: process.env.EMAIL_USER,
             to: receiver,
             replyTo: email,
             subject: `[SUPPORT] ${subject}`,
@@ -234,7 +246,7 @@ app.post('/api/support', rateLimiter, async (req, res) => {
         // Enforce a hard timeout using Promise.race just in case nodemailer hangs
         const sendPromise = transporter.sendMail(mailOptions);
         const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('SMTP Timeout')), 8000)
+            setTimeout(() => reject(new Error('SMTP Timeout')), 20000)
         );
 
         const info = await Promise.race([sendPromise, timeoutPromise]);
