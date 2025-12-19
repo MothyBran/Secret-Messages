@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Payment Routes
@@ -158,6 +159,52 @@ initializeDatabase();
 // ==================================================================
 // 3. AUTHENTICATION & APP ROUTES
 // ==================================================================
+
+// SUPPORT ENDPOINT
+app.post('/api/support', rateLimiter, async (req, res) => {
+    const { username, subject, email, message } = req.body;
+
+    if (!email || !message || !subject) {
+        return res.status(400).json({ success: false, error: 'Bitte alle Pflichtfelder ausfüllen.' });
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true, // true for 465, false for other ports
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        const receiver = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
+
+        const mailOptions = {
+            from: `"Support Form" <${process.env.EMAIL_USER}>`,
+            to: receiver,
+            replyTo: email,
+            subject: `[SUPPORT] ${subject}`,
+            text: `Neue Support-Anfrage\n\nVon: ${username || 'Gast'}\nEmail: ${email}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
+            html: `
+                <h3>Neue Support-Anfrage</h3>
+                <p><strong>Von:</strong> ${username || 'Gast'}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Betreff:</strong> ${subject}</p>
+                <hr>
+                <p style="white-space: pre-wrap;">${message}</p>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true });
+
+    } catch (error) {
+        console.error("Support Mail Error:", error);
+        res.status(500).json({ success: false, error: "Versand fehlgeschlagen. Bitte versuchen Sie es später erneut." });
+    }
+});
 
 async function authenticateUser(req, res, next) {
     const authHeader = req.headers['authorization'];
