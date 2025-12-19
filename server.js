@@ -192,22 +192,23 @@ const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // Must be false for port 587
-    requireTLS: true, // Force encryption via STARTTLS
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        minVersion: 'TLSv1.2',
+        ciphers: 'SSLv3',
         rejectUnauthorized: false
     },
-    family: 4 // Force IPv4
+    family: 4, // Force IPv4
+    connectionTimeout: 20000,
+    greetingTimeout: 20000
 });
 
 // SMTP CONNECTION TEST
 transporter.verify((error, success) => {
     if (error) {
-        console.error(">> SMTP Verify fehlgeschlagen:", error);
+        console.error("SMTP Verify Error:", JSON.stringify(error));
     } else {
         console.log(">> SMTP Server ist bereit");
     }
@@ -243,13 +244,7 @@ app.post('/api/support', rateLimiter, async (req, res) => {
             `
         };
 
-        // Enforce a hard timeout using Promise.race just in case nodemailer hangs
-        const sendPromise = transporter.sendMail(mailOptions);
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('SMTP Timeout')), 20000)
-        );
-
-        const info = await Promise.race([sendPromise, timeoutPromise]);
+        const info = await transporter.sendMail(mailOptions);
 
         console.log(`>> Email erfolgreich: ${info.messageId}`);
         return res.status(200).json({ success: true });
