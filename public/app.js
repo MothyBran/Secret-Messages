@@ -1017,20 +1017,39 @@ function handleSupportSubmit(e) {
     const btn = e.target.querySelector('button[type="submit"]');
     const oldText = btn.textContent;
 
-    // Visual Feedback (Simulation eines API Calls)
-    btn.textContent = "Sende...";
+    btn.textContent = "Wird gesendet...";
     btn.disabled = true;
 
-    // Simulate Network Delay
-    setTimeout(() => {
-        showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
+    const payload = {
+        username: document.getElementById('supportUsername').value,
+        subject: document.getElementById('supportSubject').value,
+        email: document.getElementById('supportEmail').value,
+        message: document.getElementById('supportMessage').value
+    };
 
-        // Reset & Close
+    try {
+        const res = await fetch(`${API_BASE}/support`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
+            e.target.reset();
+            setTimeout(() => {
+                document.getElementById('supportModal').classList.remove('active');
+            }, 3000);
+        } else {
+            alert("Fehler: " + (data.error || "Versand fehlgeschlagen."));
+        }
+    } catch (err) {
+        alert("Versand fehlgeschlagen. Bitte prüfen Sie Ihre Verbindung oder schreiben Sie uns direkt per Mail.");
+    } finally {
         btn.textContent = oldText;
         btn.disabled = false;
-        e.target.reset();
-        document.getElementById('supportModal').classList.remove('active');
-    }, 1500);
+    }
 }
 
 // Make globally available for onclick in HTML
