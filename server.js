@@ -37,7 +37,11 @@ app.use(helmet({
   }
 }));
 
-app.use(cors());
+app.use(cors({
+    origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+}));
 
 const rateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -160,9 +164,11 @@ initializeDatabase();
 // 3. AUTHENTICATION & APP ROUTES
 // ==================================================================
 
+app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
+
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
-    console.log("API: Support-Anfrage eingegangen");
+    console.log(`>> Anfrage erhalten für: ${req.body.email}`);
     const { username, subject, email, message } = req.body;
 
     if (!email || !message || !subject) {
@@ -170,7 +176,8 @@ app.post('/api/support', rateLimiter, async (req, res) => {
     }
 
     try {
-        console.log("Versand startet...");
+        console.log(">> SMTP Verbindung wird aufgebaut...");
+
         const transporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
             port: 465,
@@ -178,7 +185,10 @@ app.post('/api/support', rateLimiter, async (req, res) => {
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
-            }
+            },
+            // Timeout settings to prevent hanging indefinitely
+            connectionTimeout: 5000,
+            socketTimeout: 5000
         });
 
         const receiver = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
@@ -199,13 +209,20 @@ app.post('/api/support', rateLimiter, async (req, res) => {
             `
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Support Email sent: ${info.messageId}`);
-        res.json({ success: true });
+        // Enforce a hard timeout using Promise.race just in case nodemailer hangs
+        const sendPromise = transporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('SMTP Timeout')), 8000)
+        );
+
+        const info = await Promise.race([sendPromise, timeoutPromise]);
+
+        console.log(`>> Email erfolgreich: ${info.messageId}`);
+        return res.status(200).json({ success: true });
 
     } catch (error) {
-        console.error("Support Mail Error:", error);
-        res.status(500).json({ success: false, error: "Versand fehlgeschlagen. Bitte versuchen Sie es später erneut." });
+        console.log(`>> Fehler bei SMTP: ${error.message}`);
+        return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
     }
 });
 
