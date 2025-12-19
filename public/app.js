@@ -1012,7 +1012,7 @@ function openSupportModal() {
     modal.classList.add('active');
 }
 
-function handleSupportSubmit(e) {
+async function handleSupportSubmit(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
     const oldText = btn.textContent;
