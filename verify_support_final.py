@@ -4,41 +4,42 @@ import time
 def run():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1280, 'height': 1200})
+        context = browser.new_context(viewport={'width': 1280, 'height': 800})
         page = context.new_page()
 
         # 1. Open App
         page.goto("http://localhost:3000/app")
 
-        # 2. Open Sidebar & Support Modal
-        page.wait_for_selector("#menuToggle")
+        # 2. Open Support Modal
         page.click("#menuToggle")
         time.sleep(0.5)
         page.click("#navSupport")
         time.sleep(0.5)
 
-        # 3. Privacy Modal Z-Index Check
-        page.click("#supportForm a[onclick*='privacyModal']")
-        time.sleep(0.5)
-        page.screenshot(path="/home/jules/verification/privacy_overlay.png")
-        print("Screenshot: privacy_overlay.png")
-        page.click("#privacyModal button")
-        time.sleep(0.5)
+        # 3. Fill Form
+        page.fill("#supportUsername", "ResponseTest")
+        page.fill("#supportSubject", "Response Check")
+        page.fill("#supportEmail", "response@test.com")
+        page.fill("#supportMessage", "Checking if loading state resolves.")
 
-        # 4. Fill & Submit (Lock Check)
-        page.fill("#supportUsername", "LockTest")
-        page.fill("#supportSubject", "Locking")
-        page.fill("#supportEmail", "lock@test.com")
-        page.fill("#supportMessage", "Testing UI Lock.")
-
+        # 4. Submit
         page.click("#supportForm button[type='submit']")
-        page.screenshot(path="/home/jules/verification/support_locked.png")
-        print("Screenshot: support_locked.png")
 
-        # 5. Wait for Error (Unlock Check)
+        # 5. Check if disabled immediately
+        if not page.is_disabled("#supportMessage"):
+            print("Error: Field not disabled on submit")
+
+        # 6. Wait for response (Error expected due to missing credentials, but response must come)
+        # The alert will appear. We want to verify the form unlocks.
         time.sleep(5)
-        page.screenshot(path="/home/jules/verification/support_error_unlocked.png")
-        print("Screenshot: support_error_unlocked.png")
+
+        # 7. Check if enabled again
+        if page.is_enabled("#supportMessage"):
+            print("Verified: Form unlocked after server response.")
+        else:
+            print("Error: Form still locked!")
+
+        page.screenshot(path="/home/jules/verification/support_response_handled.png")
 
         browser.close()
 

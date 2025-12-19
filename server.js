@@ -162,6 +162,7 @@ initializeDatabase();
 
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
+    console.log("API: Support-Anfrage eingegangen");
     const { username, subject, email, message } = req.body;
 
     if (!email || !message || !subject) {
@@ -169,10 +170,11 @@ app.post('/api/support', rateLimiter, async (req, res) => {
     }
 
     try {
+        console.log("Versand startet...");
         const transporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
             port: 465,
-            secure: true, // true for 465, false for other ports
+            secure: true,
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
