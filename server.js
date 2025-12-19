@@ -197,12 +197,14 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        ciphers: 'SSLv3',
+        // SSLv3 entfernen! Google verlangt moderne TLS-Standards.
+        minVersion: 'TLSv1.2',
         rejectUnauthorized: false
     },
     family: 4, // Force IPv4
-    connectionTimeout: 20000,
-    greetingTimeout: 20000
+    connectionTimeout: 20000, // 20 Sekunden für den Verbindungsaufbau
+    greetingTimeout: 20000,
+    socketTimeout: 25000
 });
 
 // SMTP CONNECTION TEST

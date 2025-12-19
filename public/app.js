@@ -1033,7 +1033,7 @@ async function handleSupportSubmit(e) {
     try {
         // Timeout Logic (10s)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
 
         const res = await fetch('/api/support', {
             method: 'POST',
