@@ -197,7 +197,8 @@ app.post('/api/support', rateLimiter, async (req, res) => {
             `
         };
 
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`Support Email sent: ${info.messageId}`);
         res.json({ success: true });
 
     } catch (error) {

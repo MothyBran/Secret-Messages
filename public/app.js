@@ -1014,11 +1014,14 @@ function openSupportModal() {
 
 async function handleSupportSubmit(e) {
     e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    const allFields = form.querySelectorAll('input, textarea, button');
     const oldText = btn.textContent;
 
+    // 1. Lock UI
     btn.textContent = "Wird gesendet...";
-    btn.disabled = true;
+    allFields.forEach(f => f.disabled = true);
 
     const payload = {
         username: document.getElementById('supportUsername').value,
@@ -1037,18 +1040,25 @@ async function handleSupportSubmit(e) {
 
         if (data.success) {
             showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
-            e.target.reset();
+            // Form stays locked until close
             setTimeout(() => {
                 document.getElementById('supportModal').classList.remove('active');
+                // Optional: Reset form state after close if needed for next time
+                e.target.reset();
+                allFields.forEach(f => f.disabled = false);
+                btn.textContent = "Nachricht Senden";
             }, 3000);
         } else {
             alert("Fehler: " + (data.error || "Versand fehlgeschlagen."));
+            // Unlock on error
+            allFields.forEach(f => f.disabled = false);
+            btn.textContent = oldText;
         }
     } catch (err) {
         alert("Versand fehlgeschlagen. Bitte prüfen Sie Ihre Verbindung oder schreiben Sie uns direkt per Mail.");
-    } finally {
+        // Unlock on error
+        allFields.forEach(f => f.disabled = false);
         btn.textContent = oldText;
-        btn.disabled = false;
     }
 }
 
