@@ -154,7 +154,17 @@
         /* Legal Modals must be higher than Support Modal */
         #privacyModal, #imprintModal, #agbModal { z-index: 1050; }
         .modal.active { display: flex; }
-        .modal-box { background: var(--bg-panel); padding: 25px; width: 90%; max-width: 400px; border: 1px solid var(--accent-blue); box-shadow: 0 0 30px rgba(0,191,255,0.2); }
+        .modal-box {
+            background: var(--bg-panel);
+            padding: 25px;
+            width: 90%;
+            max-width: 400px;
+            border: 1px solid var(--accent-blue);
+            box-shadow: 0 0 30px rgba(0,191,255,0.2);
+            max-height: 90vh;
+            overflow-y: auto;
+            margin: 20px auto;
+        }
 
         .section { display: none; animation: fadeIn 0.4s ease; }
         .section.active { display: block; }
