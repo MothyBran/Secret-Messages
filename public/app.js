@@ -107,6 +107,20 @@ function setupUIEvents() {
         }
     });
 
+    // --- SUPPORT MODAL LOGIK ---
+    document.getElementById('navSupport')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMainMenu(true);
+        openSupportModal();
+    });
+
+    document.getElementById('closeSupportBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('supportModal').classList.remove('active');
+    });
+
+    document.getElementById('supportForm')?.addEventListener('submit', handleSupportSubmit);
+
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
     document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
@@ -973,6 +987,50 @@ function showRenewalScreen() {
     // Hide contacts and encryption mode if they were visible
     const wrapper = document.getElementById('headerSwitchWrapper');
     if(wrapper) wrapper.style.display = 'none';
+}
+
+function openSupportModal() {
+    const modal = document.getElementById('supportModal');
+    const userField = document.getElementById('supportUsername');
+
+    // Reset fields
+    document.getElementById('supportForm').reset();
+
+    if (currentUser) {
+        // Fall: Eingeloggt
+        userField.value = currentUser;
+        userField.readOnly = true;
+        userField.style.opacity = '0.7';
+    } else {
+        // Fall: Nicht eingeloggt
+        userField.value = '';
+        userField.readOnly = false;
+        userField.style.opacity = '1';
+        userField.placeholder = "Benutzername oder ID (falls bekannt)";
+    }
+
+    modal.classList.add('active');
+}
+
+function handleSupportSubmit(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const oldText = btn.textContent;
+
+    // Visual Feedback (Simulation eines API Calls)
+    btn.textContent = "Sende...";
+    btn.disabled = true;
+
+    // Simulate Network Delay
+    setTimeout(() => {
+        showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
+
+        // Reset & Close
+        btn.textContent = oldText;
+        btn.disabled = false;
+        e.target.reset();
+        document.getElementById('supportModal').classList.remove('active');
+    }, 1500);
 }
 
 // Make globally available for onclick in HTML
