@@ -193,6 +193,24 @@
         details[open] summary::after { transform: rotate(45deg); }
         .faq-content { padding: 15px; color: #aaa; line-height: 1.6; border-top: 1px solid #333; }
         .faq-content strong { color: var(--text-main); }
+
+        /* === SUPPORT MODAL === */
+        .support-info-block {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .security-banner {
+            background: rgba(255, 50, 50, 0.1);
+            border-left: 3px solid var(--error-red);
+            color: #ffaaaa;
+            padding: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -216,7 +234,7 @@
             <svg style="width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             FAQ / Hilfe
         </a>
-        <a href="mailto:support@secure-msg.app" class="sidebar-item">🆘 Support</a>
+        <a href="#" class="sidebar-item" id="navSupport">🆘 Support</a>
 
         <div style="margin-top: auto;"></div>
 
@@ -752,6 +770,62 @@
                         <b>Wichtig: Durch die Löschung werden alle kryptografischen Verknüpfungen unwiderruflich zerstört. Das Entschlüsseln eigener sowie an Sie adressierte Nachrichten wird danach technisch nicht mehr möglich sein. Sichern Sie wichtige Daten daher vor der Löschung.</b></div>
                 </details>
             </div>
+        </div>
+    </div>
+
+    <div id="supportModal" class="modal">
+        <div class="modal-box" style="max-width: 500px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="color:var(--accent-blue); margin:0;">Support kontaktieren</h3>
+                <button id="closeSupportBtn" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
+            </div>
+
+            <form id="supportForm">
+                <div class="input-group">
+                    <label class="input-label">Benutzername / ID</label>
+                    <input type="text" id="supportUsername" class="input-field" placeholder="Benutzername oder ID (falls bekannt)">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Betreff</label>
+                    <input type="text" id="supportSubject" class="input-field" list="supportTopics" placeholder="Thema wählen oder eingeben" required>
+                    <datalist id="supportTopics">
+                        <option value="Account & Zugang (Login-Probleme)">
+                        <option value="Lizenz & Zahlung">
+                        <option value="Technisches Problem / Bug">
+                        <option value="Frage zur Verschlüsselung">
+                        <option value="Feature-Wunsch">
+                        <option value="Sonstiges">
+                    </datalist>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">E-Mail-Adresse (für Rückmeldung)</label>
+                    <input type="email" id="supportEmail" class="input-field" placeholder="ihre@email.de" required>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Nachricht</label>
+                    <textarea id="supportMessage" class="input-field" rows="5" placeholder="Bitte beschreiben Sie Ihr Anliegen..." required></textarea>
+                </div>
+
+                <div class="support-info-block">
+                    <h5 style="color:var(--text-main); margin-bottom:5px;">Hinweise für eine schnelle Hilfe</h5>
+                    <ul style="font-size:0.8rem; color:#ccc; margin-left:20px; margin-bottom:10px;">
+                        <li>Damit wir Ihnen helfen können, benötigen wir: Ihre ID, eine genaue Problembeschreibung sowie Informationen zu Ihrem Browser und Gerät (z. B. Chrome auf Android).</li>
+                    </ul>
+                    <div class="security-banner">
+                        WICHTIG: Wir werden Sie NIEMALS nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Geben Sie diesen niemals an Dritte weiter!
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:15px;">Nachricht Senden</button>
+
+                <p style="font-size:0.7rem; color:#666; margin-top:10px; text-align:center;">
+                    Ihre Daten werden nur zur Bearbeitung der Anfrage genutzt. <br>
+                    Siehe <a onclick="openModal('privacyModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">Datenschutz</a>.
+                </p>
+            </form>
         </div>
     </div>
 
