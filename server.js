@@ -21,6 +21,27 @@ app.set('trust proxy', 1);
 // 1. MIDDLEWARE
 // ==================================================================
 
+// SSL & Canonical Redirect (WWW + HTTPS)
+app.use((req, res, next) => {
+    // Skip localhost (Development)
+    if (req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
+
+    const isHttps = req.headers['x-forwarded-proto'] === 'https';
+    const isRoot = req.hostname === 'secure-msg.app';
+
+    // 1. Optimize: Redirect Root directly to WWW HTTPS (Avoids double redirect)
+    if (isRoot) {
+        return res.redirect(301, `https://www.secure-msg.app${req.url}`);
+    }
+
+    // 2. Force HTTPS for everything else (e.g. www)
+    if (!isHttps) {
+        return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+
+    next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
