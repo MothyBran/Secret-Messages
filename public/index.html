@@ -151,6 +151,8 @@
 
         /* === MODALS & SECTIONS === */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        /* Legal Modals must be higher than Support Modal */
+        #privacyModal, #imprintModal, #agbModal { z-index: 1050; }
         .modal.active { display: flex; }
         .modal-box { background: var(--bg-panel); padding: 25px; width: 90%; max-width: 400px; border: 1px solid var(--accent-blue); box-shadow: 0 0 30px rgba(0,191,255,0.2); }
 
