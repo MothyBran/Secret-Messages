@@ -1031,32 +1031,41 @@ async function handleSupportSubmit(e) {
     };
 
     try {
+        // Timeout Logic (10s)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const res = await fetch(`${API_BASE}/support`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+
         const data = await res.json();
+        console.log('Server-Antwort:', data);
 
         if (data.success) {
             showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
             // Form stays locked until close
             setTimeout(() => {
                 document.getElementById('supportModal').classList.remove('active');
-                // Optional: Reset form state after close if needed for next time
                 e.target.reset();
                 allFields.forEach(f => f.disabled = false);
                 btn.textContent = "Nachricht Senden";
             }, 3000);
         } else {
             alert("Fehler: " + (data.error || "Versand fehlgeschlagen."));
-            // Unlock on error
             allFields.forEach(f => f.disabled = false);
             btn.textContent = oldText;
         }
     } catch (err) {
-        alert("Versand fehlgeschlagen. Bitte prüfen Sie Ihre Verbindung oder schreiben Sie uns direkt per Mail.");
-        // Unlock on error
+        if (err.name === 'AbortError') {
+            alert("Server antwortet nicht. Bitte schreiben Sie direkt an support@secure-msg.app");
+        } else {
+            alert("Versand fehlgeschlagen. Bitte prüfen Sie Ihre Verbindung oder schreiben Sie uns direkt per Mail.");
+        }
         allFields.forEach(f => f.disabled = false);
         btn.textContent = oldText;
     }
