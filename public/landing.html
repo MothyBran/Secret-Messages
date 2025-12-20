@@ -6,6 +6,7 @@
     <title>SECURE MESSAGES - High End Encryption</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --bg-dark: #050505;
@@ -128,19 +129,75 @@
         /* Feature Grid */
         .grid-section { background: #080a0c; border-top: 1px solid #222; border-bottom: 1px solid #222; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 40px; }
+
         .feature-card {
-            background: rgba(255,255,255,0.02);
-            padding: 30px;
-            border: 1px solid #222;
-            transition: all 0.3s;
+            background: #050505;
+            border: 1px solid #444;
+            transition: all 0.4s ease;
+            position: relative;
+            height: 320px;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
         }
+
         .feature-card:hover {
-            transform: scale(1.02);
             border-color: var(--accent-blue);
-            box-shadow: 0 0 20px rgba(0,191,255,0.15);
+            box-shadow: 0 0 15px rgba(0, 191, 255, 0.6);
+            transform: translateY(-5px);
         }
-        .feature-icon { margin-bottom: 20px; }
-        .feature-icon svg { width: 40px; height: 40px; fill: var(--accent-blue); }
+
+        .feature-state {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .state-inactive {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .state-active {
+            opacity: 0;
+            transform: translateY(20px);
+            background: #050505;
+        }
+
+        .feature-card:hover .state-inactive {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        .feature-card:hover .state-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .feature-icon-large {
+            font-size: 4rem;
+            color: var(--accent-blue);
+            margin-top: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0;
+            color: #fff;
+        }
+
+        .state-active p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
 
         /* Tech Deep Dive */
         .deep-dive { display: flex; flex-wrap: wrap; align-items: center; gap: 60px; }
@@ -347,46 +404,63 @@
             <h2>Maximale Sicherheit, minimale Spuren.</h2>
             <div class="grid">
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Platform Agnostic</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-share-nodes"></i></div>
                     </div>
-                    <h3>Platform Agnostic</h3>
-                    <p>Versende verschlüsselte Texte, Bilder oder Dokumente über WhatsApp, E-Mail, Telegram, Signal oder per QR-Code. Das Medium ist egal, der Inhalt bleibt sicher.</p>
+                    <div class="feature-state state-active">
+                        <p>Versende verschlüsselte Texte, Bilder oder Dokumente über WhatsApp, E-Mail, Telegram, Signal oder per QR-Code.</p>
+                    </div>
                 </div>
+
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Client-Side Security</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-laptop-code"></i></div>
                     </div>
-                    <h3>Client-Side Security</h3>
-                    <p>Verschlüsselung passiert lokal in deinem Browser. Der Server sieht niemals deine Nachricht oder deinen Code.</p>
+                    <div class="feature-state state-active">
+                        <p>Verschlüsselung passiert lokal in deinem Browser. Der Server sieht niemals deine Nachricht oder deinen Code.</p>
+                    </div>
                 </div>
+
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2zm2 0h14v14H5V5zm2 2h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>QR-Code Generator</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-qrcode"></i></div>
                     </div>
-                    <h3>QR-Code Generator</h3>
-                    <p>Erstelle sofort scannbare QR-Codes für den schnellen Austausch im echten Leben.</p>
+                    <div class="feature-state state-active">
+                        <p>Erstelle sofort scannbare QR-Codes für den schnellen Austausch im echten Leben.</p>
+                    </div>
                 </div>
+
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8 0-1.84.62-3.54 1.69-4.9L16.9 18.31C15.54 19.38 13.84 20 12 20zm6.31-3.1L7.1 5.69C8.46 4.62 10.16 4 12 4c4.41 0 8 3.59 8 8 0 1.84-.62 3.54-1.69 4.9z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Zero Knowledge</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-user-secret"></i></div>
                     </div>
-                    <h3>Zero Knowledge</h3>
-                    <p>Wir speichern nichts. Sobald du das Fenster schließt, sind die Daten weg. Kein Cache, keine Logs.</p>
+                    <div class="feature-state state-active">
+                        <p>Wir speichern nichts. Sobald du das Fenster schließt, sind die Daten weg. Kein Cache, keine Logs.</p>
+                    </div>
                 </div>
+
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Empfänger- & Geräte-Schutz</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-user-shield"></i></div>
                     </div>
-                    <h3>Empfänger- & Geräte-Schutz</h3>
-                    <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem fest verknüpften Gerät entschlüsseln.</p>
+                    <div class="feature-state state-active">
+                        <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem Gerät entschlüsseln.</p>
+                    </div>
                 </div>
+
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Diebstahlschutz inklusive</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-mask"></i></div>
                     </div>
-                    <h3>Diebstahlschutz inklusive</h3>
-                    <p>Gerät verloren? Account gehackt? Da wir keine Nachrichten speichern, finden Angreifer nichts. Sensible Infos gelangen niemals an Dritte.</p>
+                    <div class="feature-state state-active">
+                        <p>Gerät verloren? Da wir keine Nachrichten speichern, finden Angreifer nichts. Sensible Infos gelangen niemals an Dritte.</p>
+                    </div>
                 </div>
             </div>
         </div>
