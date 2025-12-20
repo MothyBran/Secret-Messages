@@ -431,11 +431,18 @@ app.post('/api/auth/activate', async (req, res) => {
         } else if (pc === '3m') {
             now.setMonth(now.getMonth() + 3);
             expiresAt = now.toISOString();
-        } else if (pc === '12m') {
+        } else if (pc === '6m') {
+            now.setMonth(now.getMonth() + 6);
+            expiresAt = now.toISOString();
+        } else if (pc === '1j' || pc === '12m') {
             now.setFullYear(now.getFullYear() + 1);
             expiresAt = now.toISOString();
+        } else if (pc === 'unl' || pc === 'unlimited') {
+            expiresAt = null; // Lifetime
         } else {
-            // 'unlimited' or unknown -> null (Lifetime)
+            // Fallback: If unknown, treat as Lifetime or handle error?
+            // Defaulting to null (Lifetime) as per previous logic, but technically could be 1m default?
+            // We stick to Lifetime/Null for unknown codes to be safe/generous or per previous logic.
             expiresAt = null;
         }
 
@@ -595,7 +602,9 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")';
         const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
         const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'true' : '1'}`);
-        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'} AND (expires_at IS NULL OR expires_at > ${now})`);
+        // Fix: "Keys Aktiv" soll alle zählen, deren Status (is_active) = true ist. Unabhängig vom Ablaufdatum (lt. Anforderung).
+        // Falls doch "Gültig" gemeint ist, wäre die alte Query korrekt. Wir folgen der Anforderung "Status exakt Wert Aktiv".
+        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`);
         const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
         const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
@@ -748,12 +757,20 @@ app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`;
         const result = await dbQuery(sql);
+
+        // Optional: Hole User-Emails für Matching falls Meta fehlt (komplexer Join Workaround)
+        // Da 'payments' keine user_id hat, verlassen wir uns primär auf Metadata.
+
         const purchases = result.rows.map(r => {
             let meta = {};
-            try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata; } catch(e){}
+            try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata || {}; } catch(e){}
+
+            // Fix: Bessere Erkennung der Email aus verschiedenen Meta-Feldern
+            const email = meta.email || meta.customer_email || meta.customerEmail || '?';
+
             return {
                 id: r.payment_id,
-                email: meta.customer_email || meta.email || '?',
+                email: email,
                 product: meta.product_type || '?',
                 amount: r.amount,
                 currency: r.currency,

@@ -1023,9 +1023,12 @@ function updateSidebarInfo(user, expiryData) {
                 
                 // Ist das Datum gültig?
                 if (!isNaN(dateObj.getTime())) {
-                    const dateStr = dateObj.toLocaleDateString('de-DE', {
-                        day: '2-digit', month: '2-digit', year: 'numeric'
-                    });
+                    // FIX: Exaktes Format TT.MM.JJJJ erzwingen
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const year = dateObj.getFullYear();
+                    const dateStr = `${day}.${month}.${year}`;
+
                     licenseLabel.textContent = "LIZENZ: gültig bis " + dateStr;
                     licenseLabel.style.color = "var(--accent-blue)";
                 } else {
