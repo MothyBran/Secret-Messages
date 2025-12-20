@@ -129,15 +129,72 @@
         .grid-section { background: #080a0c; border-top: 1px solid #222; border-bottom: 1px solid #222; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 40px; }
         .feature-card {
-            background: rgba(255,255,255,0.02);
-            padding: 30px;
-            border: 1px solid #222;
-            transition: all 0.3s;
+            background: #050505;
+            border: 1px solid #333;
+            transition: all 0.4s ease;
+            position: relative;
+            height: 320px;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
         }
         .feature-card:hover {
             transform: scale(1.02);
             border-color: var(--accent-blue);
-            box-shadow: 0 0 20px rgba(0,191,255,0.15);
+            box-shadow: 0 0 15px rgba(0, 191, 255, 0.6);
+            transform: translateY(-5px);
+        }
+
+        .feature-state {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .state-inactive {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .state-active {
+            opacity: 0;
+            transform: translateY(20px);
+            background: #050505;
+        }
+
+        .feature-card:hover .state-inactive {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        .feature-card:hover .state-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .feature-icon-large {
+            font-size: 4rem;
+            color: var(--accent-blue);
+            margin-top: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0;
+            color: var(--accent-blue);
+        }
+
+        .state-active p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #ffffff;
         }
         .feature-icon { margin-bottom: 20px; }
         .feature-icon svg { width: 40px; height: 40px; fill: var(--accent-blue); }
@@ -347,8 +404,12 @@
             <h2>Maximale Sicherheit, minimale Spuren.</h2>
             <div class="grid">
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Platform Agnostic</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-share-nodes"></i></div>
+                    </div>
+                    <div class="feature-state state-active">
+                        <p>Versende verschlüsselte Texte, Bilder oder Dokumente über WhatsApp, E-Mail, Telegram, Signal oder per QR-Code. Das Medium ist egal, der Inhalt bleibt sicher.</p>
                     </div>
                     <h3>Platform Agnostic</h3>
                     <p>Versende verschlüsselte Texte, Bilder oder Dokumente über WhatsApp, E-Mail, Telegram, Signal oder per QR-Code. Das Medium ist egal, der Inhalt bleibt sicher.</p>
@@ -375,8 +436,12 @@
                     <p>Wir speichern nichts. Sobald du das Fenster schließt, sind die Daten weg. Kein Cache, keine Logs.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">
-                        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    <div class="feature-state state-inactive">
+                        <h3>Empfänger- & Geräte-Schutz</h3>
+                        <div class="feature-icon-large"><i class="fa-solid fa-user-shield"></i></div>
+                    </div>
+                    <div class="feature-state state-active">
+                        <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem fest verknüpften Gerät entschlüsseln.</p>
                     </div>
                     <h3>Empfänger- & Geräte-Schutz</h3>
                     <p>Verschlüsselung ist personengebunden. Nur der explizit genannte Empfänger kann die Nachricht auf seinem fest verknüpften Gerät entschlüsseln.</p>
