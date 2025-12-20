@@ -51,8 +51,50 @@ document.addEventListener('DOMContentLoaded', function() {
         showAppStatus("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
     }
 
+    // Wartungsmodus Check (Initial)
+    if (document.title.includes('Wartung')) {
+        // Schon auf der Wartungsseite
+    } else {
+        fetch(API_BASE + '/ping').catch(err => {
+             // 503 check?
+        });
+    }
+
     setupIdleTimer();
 });
+
+// GLOBAL FETCH INTERCEPTOR to handle Maintenance Mode Redirects
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+    try {
+        const response = await originalFetch(...args);
+
+        // Check for Maintenance Mode (503 Service Unavailable with specific JSON or text)
+        if (response.status === 503) {
+            // Check if it's maintenance
+            try {
+                const clone = response.clone();
+                const data = await clone.json();
+                if (data.error === 'MAINTENANCE_MODE') {
+                     window.location.href = '/maintenance';
+                     return response;
+                }
+            } catch (e) {
+                // If text response or check failed, maybe just redirect if it was an API call?
+            }
+        }
+
+        // If we are redirected to /maintenance via HTTP Redirect (302/301) handled by browser,
+        // we might not catch it here unless we check response.url
+        if (response.url && response.url.includes('/maintenance')) {
+            window.location.href = '/maintenance';
+        }
+
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
 
 // ================================================================
 // UI EVENT HANDLING

@@ -69,6 +69,52 @@ window.loadPurchases = async function() {
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
+window.loadMaintenanceStatus = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/maintenance-status`, { headers: getHeaders() });
+        const data = await res.json();
+        if (data.success) {
+            const toggle = document.getElementById('maintenanceToggle');
+            const statusText = document.getElementById('maintenanceStateText');
+            if (toggle) toggle.checked = data.maintenance;
+            if (statusText) {
+                statusText.textContent = data.maintenance ? "WARTUNG AKTIV" : "ONLINE";
+                statusText.style.color = data.maintenance ? "orange" : "var(--success-green)";
+            }
+        }
+    } catch (e) { console.error("Maintenance Status Load Failed", e); }
+};
+
+window.toggleMaintenance = async function() {
+    const toggle = document.getElementById('maintenanceToggle');
+    const isActive = toggle.checked;
+    const statusText = document.getElementById('maintenanceStateText');
+
+    // Optimistic UI
+    statusText.textContent = "Updating...";
+
+    try {
+        const res = await fetch(`${API_BASE}/toggle-maintenance`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ active: isActive })
+        });
+        const data = await res.json();
+        if (data.success) {
+             statusText.textContent = data.maintenance ? "WARTUNG AKTIV" : "ONLINE";
+             statusText.style.color = data.maintenance ? "orange" : "var(--success-green)";
+             window.showMessage("Info", `Wartungsmodus ist nun ${data.maintenance ? 'AKTIV' : 'INAKTIV'}`);
+        } else {
+            // Revert on error
+            toggle.checked = !isActive;
+            window.showMessage("Fehler", "Konnte Status nicht ändern.", true);
+        }
+    } catch(e) {
+        toggle.checked = !isActive;
+        window.showMessage("Fehler", "Netzwerkfehler.", true);
+    }
+};
+
 window.resetDevice = function(id) {
     console.log("Funktion aufgerufen: resetDevice");
     window.showConfirm(`Gerätebindung für User #${id} löschen?`, async () => {
@@ -207,6 +253,7 @@ async function initDashboard() {
             document.getElementById('login-view').style.display = 'none';
             document.getElementById('dashboard-view').style.display = 'block';
             renderStats(data.stats);
+            window.loadMaintenanceStatus();
             window.loadUsers();
             window.loadKeys();
             window.loadPurchases();
@@ -231,6 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('sm_admin_pw');
         location.reload();
     });
+
+    document.getElementById('maintenanceToggle')?.addEventListener('change', window.toggleMaintenance);
 
     document.getElementById('generateBtn')?.addEventListener('click', window.generateKeys);
     document.getElementById('saveLicenseBtn')?.addEventListener('click', window.saveLicenseChanges);

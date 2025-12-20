@@ -67,6 +67,38 @@
             <button id="logoutBtn" class="btn" style="border-color:var(--error-red); color:var(--error-red);">Logout</button>
         </div>
 
+        <!-- WARTUNGSMODUS TOGGLE -->
+        <div class="section" style="border-color: #00BFFF;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: #00BFFF;">⚠️ Wartungsmodus (Global)</h3>
+                    <p style="font-size: 0.8rem; color: #888;">Wenn aktiv, werden alle Nutzer auf die Wartungsseite umgeleitet. Der Admin-Bereich bleibt erreichbar.</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="maintenanceStateText" style="font-family:'Roboto Mono'; color:#888;">OFFLINE</span>
+                    <label class="switch" style="position: relative; display: inline-block; width: 50px; height: 24px;">
+                        <input type="checkbox" id="maintenanceToggle" style="opacity: 0; width: 0; height: 0;">
+                        <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 24px;"></span>
+                        <style>
+                            .slider:before {
+                                position: absolute;
+                                content: "";
+                                height: 16px;
+                                width: 16px;
+                                left: 4px;
+                                bottom: 4px;
+                                background-color: white;
+                                transition: .4s;
+                                border-radius: 50%;
+                            }
+                            input:checked + .slider { background-color: #00BFFF; }
+                            input:checked + .slider:before { transform: translateX(26px); }
+                        </style>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:30px; font-family:'Roboto Mono';">
             <div style="border:1px solid #333; padding:10px; text-align:center;">
                 <div style="color:#888; font-size:0.8rem;">USER AKTIV</div>
