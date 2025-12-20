@@ -46,6 +46,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // URL Consistency Check
+    if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
+        showAppStatus("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
+    }
+
     setupIdleTimer();
 });
 
@@ -230,6 +235,11 @@ function setupUIEvents() {
     document.getElementById('btnCancelSelect')?.addEventListener('click', closeContactSidebar);
     document.getElementById('btnConfirmSelect')?.addEventListener('click', confirmSelection);
     
+    // Import/Export
+    document.getElementById('btnExportContacts')?.addEventListener('click', exportContacts);
+    document.getElementById('btnImportContacts')?.addEventListener('click', () => document.getElementById('contactImportInput').click());
+    document.getElementById('contactImportInput')?.addEventListener('change', importContacts);
+
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
     document.getElementById('btnDeleteContact')?.addEventListener('click', deleteContact);
@@ -317,11 +327,15 @@ async function performAccountDeletion() {
         document.getElementById('deleteAccountModal').classList.remove('active'); // Modal zu
         
         if(d.success) {
+            if (confirm("Möchten Sie auch Ihre lokalen Kontakte vom Gerät löschen?")) {
+                localStorage.removeItem('sm_contacts');
+            }
+
             alert("Dein Account wurde erfolgreich gelöscht.");
             // Remove token and reload to force Login Screen
             localStorage.removeItem('sm_token');
             localStorage.removeItem('sm_user');
-            localStorage.removeItem('sm_contacts');
+            // contacts already optionally handled
             window.location.reload();
         } else {
             showAppStatus(d.error || "Fehler beim Löschen", 'error');
@@ -445,8 +459,17 @@ function handleRowClick(contact) {
 function toggleEditMode() {
     isEditMode = !isEditMode;
     const btn = document.getElementById('btnEditToggle');
-    if (isEditMode) { btn.style.background = 'rgba(255, 165, 0, 0.2)'; btn.textContent = 'Modus: Bearbeiten'; }
-    else { btn.style.background = 'transparent'; btn.textContent = '✎ Bearbeiten'; }
+    const footerImpExp = document.getElementById('csImportExport');
+
+    if (isEditMode) {
+        btn.style.background = 'rgba(255, 165, 0, 0.2)';
+        btn.textContent = 'Modus: Bearbeiten';
+        if(footerImpExp) footerImpExp.style.display = 'flex';
+    } else {
+        btn.style.background = 'transparent';
+        btn.textContent = '✎ Bearbeiten';
+        if(footerImpExp) footerImpExp.style.display = 'none';
+    }
     renderContactList(document.getElementById('contactSearch').value);
 }
 
@@ -493,7 +516,11 @@ async function saveContact(e) {
         contacts = contacts.filter(c => c.id !== idVal);
         contacts.push({ id: idVal, name: nameVal || idVal, group: groupVal });
         contacts.sort((a, b) => a.name.localeCompare(b.name));
-        localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+
+        if (contacts && Array.isArray(contacts)) {
+            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+        }
+
         document.getElementById('contactEditModal').classList.remove('active');
         renderContactList(document.getElementById('contactSearch').value);
         if(contactMode === 'select') renderGroupTags();
@@ -505,9 +532,72 @@ function deleteContact() {
     const id = document.getElementById('btnDeleteContact').dataset.id;
     if (confirm("Kontakt löschen?")) {
         contacts = contacts.filter(c => c.id !== id);
-        localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+        if (contacts && Array.isArray(contacts)) {
+            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+        }
         document.getElementById('contactEditModal').classList.remove('active'); renderContactList(); showAppStatus("Gelöscht.", 'success');
     }
+}
+
+function exportContacts() {
+    if (!contacts || contacts.length === 0) return showAppStatus("Keine Kontakte zum Exportieren.", 'error');
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(contacts, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "secure-msg-contacts.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    showAppStatus("Kontakte exportiert.", 'success');
+}
+
+function importContacts(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const imported = JSON.parse(evt.target.result);
+            if (!Array.isArray(imported)) throw new Error("Format ungültig");
+
+            let added = 0;
+            let skipped = 0;
+            let updated = 0;
+
+            imported.forEach(c => {
+                if (!c.id) return;
+                const existingIndex = contacts.findIndex(ex => ex.id === c.id);
+
+                if (existingIndex > -1) {
+                    if (confirm(`Kontakt "${c.id}" existiert bereits. Überschreiben?`)) {
+                        contacts[existingIndex] = c;
+                        updated++;
+                    } else {
+                        skipped++;
+                    }
+                } else {
+                    contacts.push(c);
+                    added++;
+                }
+            });
+
+            // Ensure no null/undefined in contacts
+            contacts = contacts.filter(c => c && c.id);
+            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+            renderContactList(document.getElementById('contactSearch').value);
+
+            // Clear input
+            e.target.value = '';
+
+            showAppStatus(`Import: ${added} neu, ${updated} aktualisiert, ${skipped} übersprungen.`, 'success');
+
+        } catch(err) {
+            console.error(err);
+            showAppStatus("Fehler beim Importieren der Datei.", 'error');
+        }
+    };
+    reader.readAsText(file);
 }
 
 function confirmSelection() {
