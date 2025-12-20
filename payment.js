@@ -2,7 +2,6 @@
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { sendLicenseEmail } = require('./email/mailer');
