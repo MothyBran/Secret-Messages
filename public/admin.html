@@ -132,7 +132,7 @@
 
         <div class="section">
             <div class="section-header">
-                <h3>⚡ Lizenz Generator</h3>
+                <h3>⚡ Lizenz Generator (Einzel)</h3>
             </div>
             <div style="display:flex; gap:10px; align-items:flex-end;">
                 <div style="flex:1;">
@@ -151,6 +151,64 @@
                 <button id="generateBtn" class="btn">Erstellen</button>
             </div>
             <textarea id="newKeysArea" class="input-field" style="display:none; height:100px; margin-top:15px; font-family:'Roboto Mono';" readonly></textarea>
+        </div>
+
+        <div class="section" style="border-color: #ffd700;">
+            <div class="section-header">
+                <h3 style="color: #ffd700;">💼 Sell Tool (B2B Bundles)</h3>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+                <div>
+                    <label style="font-size:0.8rem; color:#888;">Kunde / Name</label>
+                    <input type="text" id="bundleName" class="input-field" placeholder="Firma GmbH">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:#888;">Produkt / Laufzeit</label>
+                    <select id="bundleProduct" class="input-field">
+                        <option value="1m">1 Monat</option>
+                        <option value="3m">3 Monate</option>
+                        <option value="12m">12 Monate</option>
+                        <option value="unlimited">Lifetime</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; color:#888;">Anzahl Keys</label>
+                    <input type="number" id="bundleCount" class="input-field" value="10" min="1">
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label style="font-size:0.8rem; color:#888;">ID-Stamm (Prefix)</label>
+                        <input type="text" id="bundleIdStem" class="input-field" placeholder="SEC-" value="SEC-">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.8rem; color:#888;">Start-Nr.</label>
+                        <input type="number" id="bundleStartNum" class="input-field" value="1">
+                    </div>
+                </div>
+            </div>
+            <button id="generateBundleBtn" class="btn" style="width:100%; border-color:#ffd700; color:#ffd700;">Bundle Generieren</button>
+
+            <div style="margin-top:20px;">
+                <div class="section-header">
+                    <h4>📦 Aktive Bundles</h4>
+                    <button class="btn" id="refreshBundlesBtn">Refresh</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table id="bundlesTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Order #</th>
+                                <th>Keys</th>
+                                <th>Aktiv</th>
+                                <th>Erstellt</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bundlesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <div class="section">
@@ -263,6 +321,36 @@
             <h3 id="msgTitle" style="margin-bottom:15px;">Titel</h3>
             <p id="msgText" style="margin-bottom:20px; color:#fff;">Nachricht</p>
             <button id="btnMsgOk" class="btn" style="width:100%;">OK</button>
+        </div>
+    </div>
+
+    <div id="bundleDetailsModal" class="modal">
+        <div class="modal-content" style="width: 800px; max-width: 95%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="color:var(--accent-blue);">Bundle Details</h3>
+                <button id="closeBundleModalBtn" style="background:none; border:none; font-size:1.5rem; color:#fff; cursor:pointer;">✕</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button class="btn" id="exportBundleBtn">⬇ CSV Export</button>
+                <div style="flex:1;"></div>
+                <input type="date" id="massExtendParams" class="input-field" style="width:auto;">
+                <button class="btn" id="massExtendBtn">Massen-Verlängerung</button>
+            </div>
+
+            <div style="max-height:60vh; overflow-y:auto; border:1px solid #333;">
+                <table id="bundleKeysTable">
+                    <thead>
+                        <tr>
+                            <th>Assigned ID</th>
+                            <th>License Key</th>
+                            <th>Status</th>
+                            <th>Ablauf</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bundleKeysBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 

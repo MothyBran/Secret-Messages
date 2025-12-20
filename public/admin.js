@@ -9,6 +9,8 @@ let adminPassword = '';
 let allUsers = [];
 let allKeys = [];
 let allPurchases = [];
+let allBundles = [];
+let currentBundleId = null;
 
 // Helper für Headers
 function getHeaders() {
@@ -67,6 +69,133 @@ window.loadPurchases = async function() {
         renderPurchasesTable(allPurchases);
     } catch(e) { console.error("Load Purchases Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+window.loadBundles = async function() {
+    const btn = document.getElementById('refreshBundlesBtn');
+    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
+    try {
+        const res = await fetch(`${API_BASE}/bundles`, { headers: getHeaders() });
+        allBundles = await res.json();
+        renderBundlesTable(allBundles);
+    } catch(e) { console.error("Load Bundles Failed", e); }
+    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+window.generateBundle = async function() {
+    const btn = document.getElementById('generateBundleBtn');
+    const oldText = btn.textContent;
+    btn.textContent = "Generiere..."; btn.disabled = true;
+
+    const payload = {
+        name: document.getElementById('bundleName').value,
+        productCode: document.getElementById('bundleProduct').value,
+        count: document.getElementById('bundleCount').value,
+        idStem: document.getElementById('bundleIdStem').value,
+        startNumber: document.getElementById('bundleStartNum').value
+    };
+
+    if(!payload.name || !payload.idStem) {
+        alert("Bitte Name und ID-Stamm angeben.");
+        btn.textContent = oldText; btn.disabled = false;
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/generate-bundle`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            window.showMessage("Erfolg", `Bundle #${data.bundleId} erstellt mit ${payload.count} Keys.`);
+            window.loadBundles();
+            // Also refresh global keys if needed
+            window.loadKeys();
+        } else {
+            window.showMessage("Fehler", data.error || "Fehler beim Erstellen", true);
+        }
+    } catch(e) { window.showMessage("Fehler", "Netzwerkfehler", true); }
+
+    btn.textContent = oldText; btn.disabled = false;
+};
+
+window.openBundleDetails = async function(id) {
+    currentBundleId = id;
+    const modal = document.getElementById('bundleDetailsModal');
+    const tbody = document.getElementById('bundleKeysBody');
+    tbody.innerHTML = '<tr><td colspan="4">Lade...</td></tr>';
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`${API_BASE}/bundles/${id}/keys`, { headers: getHeaders() });
+        const keys = await res.json();
+
+        tbody.innerHTML = '';
+        keys.forEach(k => {
+            const tr = document.createElement('tr');
+
+            const expStr = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '-';
+            const statusStyle = k.is_active ? 'color:var(--success-green);' : 'color: #888;';
+            const statusText = k.is_active ? 'Aktiv' : 'Frei';
+
+            tr.innerHTML = `
+                <td style="font-weight:bold; color:var(--accent-blue);">${k.assigned_user_id || '-'}</td>
+                <td style="font-family:'Roboto Mono';">${k.key_code}</td>
+                <td style="${statusStyle}">${statusText}</td>
+                <td>${expStr}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Fehler beim Laden.</td></tr>'; }
+};
+
+window.massExtendBundle = async function() {
+    if(!currentBundleId) return;
+    const dateStr = document.getElementById('massExtendParams').value;
+    if(!dateStr) return alert("Bitte Datum wählen.");
+
+    const newDate = new Date(dateStr);
+    newDate.setHours(23, 59, 59); // End of day
+
+    if(!confirm(`Alle Keys dieses Bundles bis ${newDate.toLocaleDateString()} verlängern?`)) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/bundles/${currentBundleId}/extend`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ expires_at: newDate.toISOString() })
+        });
+        if(res.ok) {
+            alert("Erfolgreich verlängert.");
+            window.openBundleDetails(currentBundleId); // Refresh list
+        } else {
+            alert("Fehler bei der Verlängerung.");
+        }
+    } catch(e) { alert("Verbindungsfehler."); }
+};
+
+window.exportBundleCsv = async function() {
+    if(!currentBundleId) return;
+    try {
+        const res = await fetch(`${API_BASE}/bundles/${currentBundleId}/keys`, { headers: getHeaders() });
+        const keys = await res.json();
+
+        let csvContent = "data:text/csv;charset=utf-8,AssignedID,LicenseKey,Status,ExpiresAt\n";
+        keys.forEach(k => {
+            csvContent += `${k.assigned_user_id || ''},${k.key_code},${k.is_active ? 'Active' : 'Free'},${k.expires_at || ''}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `bundle_${currentBundleId}_export.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch(e) { alert("Export fehlgeschlagen."); }
 };
 
 window.loadMaintenanceStatus = async function() {
@@ -257,6 +386,7 @@ async function initDashboard() {
             window.loadUsers();
             window.loadKeys();
             window.loadPurchases();
+            window.loadBundles();
         } else {
             alert("Passwort falsch.");
         }
@@ -291,6 +421,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
     document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
+    document.getElementById('refreshBundlesBtn')?.addEventListener('click', window.loadBundles);
+    document.getElementById('generateBundleBtn')?.addEventListener('click', window.generateBundle);
+    document.getElementById('closeBundleModalBtn')?.addEventListener('click', () => document.getElementById('bundleDetailsModal').style.display='none');
+    document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
+    document.getElementById('exportBundleBtn')?.addEventListener('click', window.exportBundleCsv);
 
     // Modal Events
     document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
@@ -369,6 +504,31 @@ function renderUsersTable(users) {
                     <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Reset Device" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📱</button>
                     <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Block" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">${u.is_blocked ? '🔓' : '🛑'}</button>
                 </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderBundlesTable(bundles) {
+    const tbody = document.getElementById('bundlesTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    bundles.forEach(b => {
+        const tr = document.createElement('tr');
+        // Calculate progress
+        const active = b.active_count || 0;
+        const total = b.total_keys || 0;
+        const progress = Math.round((active/total)*100);
+
+        tr.innerHTML = `
+            <td style="font-weight:bold; color:var(--accent-blue);">${b.name || '-'}</td>
+            <td style="font-family:'Roboto Mono'">${b.order_number}</td>
+            <td>${total} Keys</td>
+            <td>${active} (${progress}%)</td>
+            <td>${new Date(b.created_at).toLocaleDateString('de-DE')}</td>
+            <td>
+                <button class="btn-icon" onclick="openBundleDetails(${b.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📂</button>
             </td>
         `;
         tbody.appendChild(tr);

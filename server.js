@@ -214,6 +214,19 @@ const createTables = async () => {
             value TEXT
         )`);
 
+        await dbQuery(`CREATE TABLE IF NOT EXISTS license_bundles (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            name VARCHAR(100),
+            order_number VARCHAR(50),
+            total_keys INTEGER DEFAULT 0,
+            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
+            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
+        )`);
+
+        // Add columns to license_keys if missing (Schema Migration)
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
+
         // Initialize Maintenance Mode Default if not exists
         try {
             const mCheck = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
@@ -417,6 +430,13 @@ app.post('/api/auth/activate', async (req, res) => {
         if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
         
+        // CHECK ASSIGNED ID
+        if (key.assigned_user_id) {
+            if (key.assigned_user_id !== username) {
+                return res.status(403).json({ error: 'Dieser Key ist für eine andere ID reserviert.' });
+            }
+        }
+
         const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
@@ -478,6 +498,41 @@ app.post('/api/auth/activate', async (req, res) => {
         console.error("Activation Error:", e);
         res.status(500).json({ error: 'Aktivierung fehlgeschlagen: ' + e.message });
     }
+});
+
+app.post('/api/auth/check-license', async (req, res) => {
+    try {
+        const { licenseKey } = req.body;
+        if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
+
+        const keyRes = await dbQuery('SELECT assigned_user_id, is_active FROM license_keys WHERE key_code = $1', [licenseKey]);
+        if (keyRes.rows.length === 0) return res.json({ isValid: false });
+
+        const key = keyRes.rows[0];
+        const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
+
+        if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
+
+        res.json({
+            isValid: true,
+            assignedUserId: key.assigned_user_id || null
+        });
+    } catch (e) { res.status(500).json({ error: 'Serverfehler' }); }
+});
+
+app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
+    try {
+        const { newAccessCode } = req.body; // Hashed on client? No, client sends plaintext code, server hashes it.
+        // Prompt says: "Der Nutzer muss nur noch seinen individuellen 5-stelligen Zugangscode festlegen."
+        // For change code: "Da der Code lokal verschlüsselt, muss der Nutzer den alten Code eingeben, um die Daten zu entschlüsseln, und dann den neuen Code festlegen..."
+        // The backend only stores the hash of the access code for login verification.
+        // So we just need to update the hash.
+
+        const hash = await bcrypt.hash(newAccessCode, 10);
+        await dbQuery("UPDATE users SET access_code_hash = $1 WHERE id = $2", [hash, req.user.id]);
+
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: "Fehler beim Ändern." }); }
 });
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
@@ -715,6 +770,88 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         console.error(e);
         res.status(500).json({ error: "Fehler beim Generieren: " + e.message });
     }
+});
+
+app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
+    try {
+        const { name, count, productCode, idStem, startNumber } = req.body;
+        const amount = parseInt(count) || 1;
+        const start = parseInt(startNumber) || 1;
+        const orderNum = 'ORD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+        // Calculate Bundle Expiry based on Product Code
+        let bundleExpiresAt = null;
+        const now = new Date();
+        const pc = (productCode || '').toLowerCase();
+
+        // This logic mirrors activation logic but sets an initial expiry target
+        // Actually, usually expiry starts upon activation. But bundles might have fixed terms?
+        // Prompt says: "Massen-Verlängerung: Ändere das Ablaufdatum für alle Keys eines Bundles gleichzeitig."
+        // We will store null initially if not activated, OR we set a pre-defined expiry if the deal is fixed date.
+        // For now, let's keep keys inactive (expires_at null) until activation, OR until admin sets it.
+        // However, we need to store the bundle info.
+
+        let insertBundle = await dbQuery(
+            `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL ? 'RETURNING id' : ''}`,
+            [name, orderNum, amount, new Date().toISOString()]
+        );
+
+        let bundleId = isPostgreSQL ? insertBundle.rows[0].id : insertBundle.lastID;
+
+        const newKeys = [];
+        for(let i = 0; i < amount; i++) {
+            const seqNum = start + i;
+            const assignedId = `${idStem}${String(seqNum).padStart(3, '0')}`;
+
+            const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+            const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+
+            await dbQuery(
+                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+                [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0), bundleId, assignedId]
+            );
+            newKeys.push({ key: keyRaw, assignedId });
+        }
+
+        res.json({ success: true, bundleId, keys: newKeys });
+    } catch(e) {
+        console.error(e);
+        res.status(500).json({ error: "Bundle Fehler: " + e.message });
+    }
+});
+
+// BUNDLES
+app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT b.*,
+            (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = ${isPostgreSQL ? 'TRUE' : '1'}) as active_count
+            FROM license_bundles b ORDER BY b.created_at DESC
+        `;
+        const result = await dbQuery(sql);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/bundles/:id/keys', requireAdmin, async (req, res) => {
+    try {
+        const sql = `SELECT key_code, assigned_user_id, is_active, expires_at FROM license_keys WHERE bundle_id = $1 ORDER BY assigned_user_id ASC`;
+        const result = await dbQuery(sql, [req.params.id]);
+        const keys = result.rows.map(r => ({
+            ...r,
+            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
+        }));
+        res.json(keys);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/bundles/:id/extend', requireAdmin, async (req, res) => {
+    try {
+        const { expires_at } = req.body; // ISO String
+        await dbQuery(`UPDATE license_keys SET expires_at = $1 WHERE bundle_id = $2`, [expires_at, req.params.id]);
+        await dbQuery(`UPDATE license_bundles SET expires_at = $1 WHERE id = $2`, [expires_at, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // USERS
