@@ -1047,7 +1047,7 @@ async function handleSupportSubmit(e) {
         console.log('Server-Antwort:', data);
 
         if (data.success) {
-            showAppStatus("Vielen Dank! Ihre Nachricht wurde übermittelt.", 'success');
+            showAppStatus(`Danke! Ihre Nachricht wurde gesendet. Ticket: ${data.ticketId}`, 'success');
             // Form stays locked until close
             setTimeout(() => {
                 document.getElementById('supportModal').classList.remove('active');

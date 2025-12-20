@@ -198,19 +198,24 @@ app.post('/api/support', rateLimiter, async (req, res) => {
         return res.status(400).json({ success: false, error: 'Bitte alle Pflichtfelder ausfüllen.' });
     }
 
+    // 1. Ticket-Nummer generieren
+    const ticketId = 'TIC-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
     try {
-        console.log(">> Sende Support-Email via Resend...");
+        console.log(`>> Sende Support-Email via Resend (Ticket: ${ticketId})...`);
 
         const receiver = process.env.EMAIL_RECEIVER || 'support@secure-msg.app';
+        const sender = 'support@secure-msg.app';
 
-        const { data, error } = await resend.emails.send({
-            from: 'support@secure-msg.app',
+        // 1. Email an Support-Team
+        const { error: errorTeam } = await resend.emails.send({
+            from: sender,
             to: receiver,
             reply_to: email,
-            subject: `[SUPPORT] ${subject}`,
-            text: `Neue Support-Anfrage\n\nVon: ${username || 'Gast'}\nEmail: ${email}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
+            subject: `[SUPPORT] ${subject} [${ticketId}]`,
+            text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${username || 'Gast'}\nEmail: ${email}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
             html: `
-                <h3>Neue Support-Anfrage</h3>
+                <h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3>
                 <p><strong>Von:</strong> ${username || 'Gast'}</p>
                 <p><strong>Email:</strong> ${email}</p>
                 <p><strong>Betreff:</strong> ${subject}</p>
@@ -219,13 +224,61 @@ app.post('/api/support', rateLimiter, async (req, res) => {
             `
         });
 
-        if (error) {
-            console.error('>> Resend API Error:', error);
-            return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
+        if (errorTeam) {
+            console.error('>> Resend API Error (Team):', errorTeam);
+            return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + errorTeam.message });
         }
 
-        console.log(`>> Email erfolgreich: ${data.id}`);
-        return res.status(200).json({ success: true });
+        // 2. Bestätigung an Kunden (Auto-Reply)
+        const { error: errorClient } = await resend.emails.send({
+            from: sender,
+            to: email,
+            subject: `Bestätigung Ihrer Support-Anfrage [Ticket-Nr: ${ticketId}]`,
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+                    <h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3>
+                    <p>Hallo ${username || 'Nutzer'},</p>
+                    <p>Ihre Nachricht ist bei uns eingegangen. Unser Support-Team wird sich schnellstmöglich bei Ihnen melden.</p>
+
+                    <p><strong>Ihre Ticket-Nummer:</strong> ${ticketId}</p>
+
+                    <div style="background-color: #f4f4f4; padding: 15px; border-left: 4px solid #00BFFF; margin: 20px 0; color: #555;">
+                        <strong>Ihre Nachricht:</strong><br><br>
+                        ${message.replace(/\n/g, '<br>')}
+                    </div>
+
+                    <br>
+                    <hr style="border: 0; border-top: 1px solid #ddd;">
+
+                    <div style="font-size: 12px; color: #777;">
+                        <p><strong>Secure Message Support Team</strong></p>
+                        <p><a href="https://www.secure-msg.app"><img src="https://www.secure-msg.app/assets/screenshots/logo-signature.png" alt="Secure Message Logo" width="150" style="display:block; margin-bottom:10px;"></a></p>
+
+                        <p>...Your Message is a Secure Message | Zero-Knowledge-Kryptografie | Lokale AES-GCM Verschlüsselung<br>
+                        Web: <a href="https://www.secure-msg.app" style="color:#00BFFF; text-decoration:none;">www.secure-msg.app</a> | Support: <a href="mailto:support@secure-msg.app" style="color:#00BFFF; text-decoration:none;">support@secure-msg.app</a></p>
+
+                        <p><strong>Sicherheitshinweis:</strong> Diese Nachricht wurde über einen gesicherten Workspace versendet. Wir werden Sie niemals per E-Mail nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Ihre Privatsphäre ist durch unsere Zero-Knowledge-Architektur geschützt.</p>
+
+                        <p><strong>Pflichtangaben gemäß § 125a HGB / § 80 AktG:</strong><br>
+                        Secure Message<br>
+                        Musterstraße 1, 10115 Berlin, Deutschland</p>
+
+                        <p>Inhaber/Geschäftsführer: Max Mustermann<br>
+                        USt-IdNr.: DE123456789</p>
+
+                        <p><em>Diese E-Mail enthält vertrauliche Informationen. Wenn Sie nicht der beabsichtigte Empfänger sind, löschen Sie diese bitte und informieren Sie uns.</em></p>
+                    </div>
+                </div>
+            `
+        });
+
+        if (errorClient) {
+            console.warn('>> Warnung: Bestätigungsmail konnte nicht gesendet werden:', errorClient);
+            // Wir brechen hier nicht ab, da die Support-Anfrage erfolgreich war.
+        }
+
+        console.log(`>> Support-Vorgang erfolgreich. Ticket: ${ticketId}`);
+        return res.status(200).json({ success: true, ticketId });
 
     } catch (error) {
         console.error(`>> Unerwarteter Fehler: ${error.message}`);
