@@ -44,6 +44,38 @@ app.use((req, res, next) => {
     next();
 });
 
+// MAINTENANCE MODE MIDDLEWARE
+app.use(async (req, res, next) => {
+    // 1. Exclude Admin, Auth, API (except specific checks if needed), and Static Files
+    if (req.path.startsWith('/admin') ||
+        req.path.startsWith('/api/admin') ||
+        req.path.startsWith('/api/auth/login') ||
+        req.path === '/maintenance' ||
+        req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$/)) {
+        return next();
+    }
+
+    try {
+        if (!dbQuery) return next(); // Database not ready
+
+        const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
+        const isMaintenance = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
+
+        if (isMaintenance) {
+            // Check if it's an API request -> return 503
+            if (req.path.startsWith('/api')) {
+                return res.status(503).json({ error: 'MAINTENANCE_MODE' });
+            }
+            // Otherwise redirect to maintenance page
+            return res.redirect('/maintenance');
+        }
+    } catch (e) {
+        console.error("Maintenance Check Error:", e);
+    }
+
+    next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -176,6 +208,19 @@ const createTables = async () => {
             reason TEXT,
             deleted_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
         )`);
+
+        await dbQuery(`CREATE TABLE IF NOT EXISTS settings (
+            key VARCHAR(50) PRIMARY KEY,
+            value TEXT
+        )`);
+
+        // Initialize Maintenance Mode Default if not exists
+        try {
+            const mCheck = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
+            if (mCheck.rows.length === 0) {
+                await dbQuery("INSERT INTO settings (key, value) VALUES ('maintenance_mode', 'false')");
+            }
+        } catch (e) { console.warn("Settings init warning:", e.message); }
 
         console.log('✅ Tables checked/created');
     } catch (e) { console.error("Table creation error:", e); }
@@ -720,6 +765,31 @@ app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     } catch (e) { res.json([]); }
 });
 
+// MAINTENANCE SETTINGS
+app.get('/api/admin/maintenance-status', requireAdmin, async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
+        const isActive = result.rows.length > 0 && result.rows[0].value === 'true';
+        res.json({ success: true, maintenance: isActive });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
+    try {
+        const { active } = req.body; // boolean
+        const val = active ? 'true' : 'false';
+
+        // Use UPSERT logic or standard UPDATE (since we init row at start, UPDATE should suffice)
+        await dbQuery("UPDATE settings SET value = $1 WHERE key = 'maintenance_mode'", [val]);
+
+        res.json({ success: true, maintenance: active });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ==================================================================
 // 5. START
 // ==================================================================
@@ -730,6 +800,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'store.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/maintenance', (req, res) => res.sendFile(path.join(__dirname, 'public', 'maintenance.html')));
 
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api') || req.path.match(/\.[0-9a-z]+$/i)) {
