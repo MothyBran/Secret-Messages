@@ -1,12 +1,7 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
+require('dotenv').config();
 
-const transporter = nodemailer.createTransport({
-    service: 'Gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Sends a license email to the customer.
@@ -24,33 +19,37 @@ async function sendLicenseEmail(toEmail, licenseKey, productType) {
     // Singular/Plural distinction for German
     const keyLabel = Array.isArray(licenseKey) && licenseKey.length > 1 ? 'Ihre Lizenzschlüssel' : 'Ihr Lizenzschlüssel';
 
-    const mailOptions = {
-        from: `"Secure Messages Team" <${process.env.EMAIL_USER}>`,
-        to: toEmail,
-        subject: 'Ihre Secure Messages Lizenz',
-        html: `
-            <h3>Vielen Dank für Ihren Kauf!</h3>
-            <p>Hier ist ${keyLabel}:</p>
-            <div style="background-color: #f4f4f4; padding: 15px; border-left: 5px solid #00BFFF; margin: 20px 0; font-family: monospace; font-size: 1.2em;">
-                ${keys}
-            </div>
-            <p><strong>Produkt:</strong> ${productType}</p>
-            <hr>
-            <h4>Anleitung:</h4>
-            <ol>
-                <li>Gehen Sie auf <a href="https://secure-msg.app">https://secure-msg.app</a>.</li>
-                <li>Klicken Sie auf <strong>"Lizenzschlüssel aktivieren"</strong>.</li>
-                <li>Erstellen Sie Ihren Account und binden Sie den Schlüssel an Ihr Gerät.</li>
-            </ol>
-            <br>
-            <p>Mit freundlichen Grüßen,<br>Ihr Secure Messages Team</p>
-        `
-    };
-
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Email sent: ${info.messageId}`);
-        return info;
+        const { data, error } = await resend.emails.send({
+            from: 'support@secure-msg.app',
+            to: toEmail,
+            subject: 'Ihre Secure Messages Lizenz',
+            html: `
+                <h3>Vielen Dank für Ihren Kauf!</h3>
+                <p>Hier ist ${keyLabel}:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; border-left: 5px solid #00BFFF; margin: 20px 0; font-family: monospace; font-size: 1.2em;">
+                    ${keys}
+                </div>
+                <p><strong>Produkt:</strong> ${productType}</p>
+                <hr>
+                <h4>Anleitung:</h4>
+                <ol>
+                    <li>Gehen Sie auf <a href="https://secure-msg.app">https://secure-msg.app</a>.</li>
+                    <li>Klicken Sie auf <strong>"Lizenzschlüssel aktivieren"</strong>.</li>
+                    <li>Erstellen Sie Ihren Account und binden Sie den Schlüssel an Ihr Gerät.</li>
+                </ol>
+                <br>
+                <p>Mit freundlichen Grüßen,<br>Ihr Secure Messages Team</p>
+            `
+        });
+
+        if (error) {
+            console.error("Resend API Error:", error);
+            return;
+        }
+
+        console.log(`Email sent: ${data.id}`);
+        return data;
     } catch (error) {
         console.error("Error sending license email:", error);
         // We log the error but do not throw it to ensure payment processing completes.
