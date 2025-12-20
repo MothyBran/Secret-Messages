@@ -8,8 +8,10 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 require('dotenv').config();
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Payment Routes
 const paymentRoutes = require('./payment.js');
@@ -187,35 +189,6 @@ initializeDatabase();
 
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
 
-// SMTP CONFIGURATION (Google Workspace / Gmail)
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Must be false for port 587
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        // SSLv3 entfernen! Google verlangt moderne TLS-Standards.
-        minVersion: 'TLSv1.2',
-        rejectUnauthorized: false
-    },
-    family: 4, // Force IPv4
-    connectionTimeout: 20000, // 20 Sekunden für den Verbindungsaufbau
-    greetingTimeout: 20000,
-    socketTimeout: 25000
-});
-
-// SMTP CONNECTION TEST
-transporter.verify((error, success) => {
-    if (error) {
-        console.error("SMTP Verify Error:", JSON.stringify(error));
-    } else {
-        console.log(">> SMTP Server ist bereit");
-    }
-});
-
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
     console.log(`>> Anfrage erhalten für: ${req.body.email}`);
@@ -226,14 +199,14 @@ app.post('/api/support', rateLimiter, async (req, res) => {
     }
 
     try {
-        console.log(">> Sende Support-Email...");
+        console.log(">> Sende Support-Email via Resend...");
 
-        const receiver = process.env.EMAIL_RECEIVER || process.env.EMAIL_USER;
+        const receiver = process.env.EMAIL_RECEIVER || 'support@secure-msg.app';
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
+        const { data, error } = await resend.emails.send({
+            from: 'support@secure-msg.app',
             to: receiver,
-            replyTo: email,
+            reply_to: email,
             subject: `[SUPPORT] ${subject}`,
             text: `Neue Support-Anfrage\n\nVon: ${username || 'Gast'}\nEmail: ${email}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
             html: `
@@ -244,16 +217,19 @@ app.post('/api/support', rateLimiter, async (req, res) => {
                 <hr>
                 <p style="white-space: pre-wrap;">${message}</p>
             `
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
+        if (error) {
+            console.error('>> Resend API Error:', error);
+            return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
+        }
 
-        console.log(`>> Email erfolgreich: ${info.messageId}`);
+        console.log(`>> Email erfolgreich: ${data.id}`);
         return res.status(200).json({ success: true });
 
     } catch (error) {
-        console.error(`>> Fehler bei SMTP: ${error.message}`);
-        console.error(error); // Log full error object
+        console.error(`>> Unerwarteter Fehler: ${error.message}`);
+        console.error(error);
         return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
     }
 });
