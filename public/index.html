@@ -274,7 +274,17 @@
             </div>
             <div id="contactListBody" style="display: flex; flex-direction: column;"></div>
             <div id="emptyContactMsg" style="text-align: center; color: #666; padding: 20px; display: none;">Keine Kontakte gefunden.</div>
+            <div style="margin-top: 20px; padding: 10px; text-align: center; font-size: 0.7rem; color: #555; border-top: 1px solid #222;">
+                Hinweis: Kontakte werden nur lokal in Ihrem Browser gespeichert. Exportieren Sie Ihr Verzeichnis regelmäßig, um Datenverlust beim Löschen des Browser-Caches zu vermeiden.
+            </div>
         </div>
+
+        <div class="cs-footer" id="csImportExport" style="display: none; gap: 10px; background: rgba(0,0,0,0.8);">
+             <button class="btn" id="btnExportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬇ Export</button>
+             <button class="btn" id="btnImportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬆ Import</button>
+             <input type="file" id="contactImportInput" accept=".json" style="display: none;">
+        </div>
+
         <div class="cs-footer" id="csFooterManage" style="display: none;">
             <button class="btn" id="btnEditToggle" style="flex: 1; border-color: #ffa500; color: #ffa500;">✎ Bearbeiten</button>
             <button class="btn btn-primary" id="btnAddContactOpen" style="flex: 1;">+ Hinzufügen</button>
