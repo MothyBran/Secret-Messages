@@ -677,3 +677,77 @@ function renderPurchasesTable(purchases) {
         tbody.appendChild(tr);
     });
 }
+// --- MAIL SERVICE ---
+window.toggleRecipientInput = function() {
+    const type = document.getElementById('msgRecipientType').value;
+    document.getElementById('msgRecipientId').style.display = (type === 'single') ? 'block' : 'none';
+};
+
+window.toggleSubjectInput = function() {
+    const val = document.getElementById('msgSubjectSelect').value;
+    document.getElementById('msgSubjectCustom').style.display = (val === 'custom') ? 'block' : 'none';
+};
+
+window.sendAdminMessage = async function() {
+    const btn = event.currentTarget;
+    const oldText = btn.textContent;
+    btn.textContent = "Sende..."; btn.disabled = true;
+
+    const type = document.getElementById('msgRecipientType').value; // broadcast / single
+    const recipientId = (type === 'single') ? document.getElementById('msgRecipientId').value.trim() : null;
+
+    const subjSelect = document.getElementById('msgSubjectSelect').value;
+    const subject = (subjSelect === 'custom') ? document.getElementById('msgSubjectCustom').value.trim() : subjSelect;
+
+    const body = document.getElementById('msgBody').value.trim();
+    const expiry = document.getElementById('msgExpiry').value;
+
+    if (!subject || !body) {
+        alert("Bitte Betreff und Nachricht eingeben.");
+        btn.textContent = oldText; btn.disabled = false;
+        return;
+    }
+    if (type === 'single' && !recipientId) {
+        alert("Bitte User ID angeben.");
+        btn.textContent = oldText; btn.disabled = false;
+        return;
+    }
+
+    let msgType = 'general';
+    if (subject.includes('Support')) msgType = 'support';
+    if (type === 'single' && msgType === 'general') msgType = 'automated'; // Default for single
+
+    // Payload
+    const payload = {
+        recipientId: recipientId, // null if broadcast
+        subject: subject,
+        body: body,
+        type: msgType,
+        expiresAt: expiry ? new Date(expiry).toISOString() : null
+    };
+
+    // Set default expiry for broadcasts if not set (7 days)
+    if (!payload.recipientId && !payload.expiresAt) {
+        const d = new Date(); d.setDate(d.getDate() + 7);
+        payload.expiresAt = d.toISOString();
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/send-message`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.showMessage("Erfolg", "Nachricht wurde versendet.");
+            document.getElementById('msgBody').value = '';
+            document.getElementById('msgRecipientId').value = '';
+        } else {
+            window.showMessage("Fehler", data.error || "Senden fehlgeschlagen", true);
+        }
+    } catch(e) { window.showMessage("Fehler", "Netzwerkfehler", true); }
+
+    btn.textContent = oldText; btn.disabled = false;
+};
