@@ -1529,7 +1529,27 @@ function saveUserContacts() {
     if (!currentUser || !currentUser.sm_id) return;
     localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts));
 }
-// --- INBOX LOGIC ---
+
+// --- NEW POSTBOX UI LOGIC ---
+
+function updatePostboxUI(unreadCount) {
+    const navLink = document.getElementById('navPost');
+    if (!navLink) return;
+
+    if (unreadCount > 0) {
+        // Active state
+        navLink.innerHTML = `📬 Postfach <span style="color:var(--accent-blue); font-weight:bold;">(${unreadCount})</span>`;
+        navLink.style.color = "var(--accent-blue)";
+        navLink.style.borderLeft = "3px solid var(--accent-blue)";
+        navLink.style.paddingLeft = "22px"; // slightly indented to indicate active/highlight
+    } else {
+        // Idle state
+        navLink.innerHTML = `📪 Postfach`;
+        navLink.style.color = "var(--text-main)";
+        navLink.style.borderLeft = "none";
+        navLink.style.paddingLeft = "15px"; // Reset to default style (assuming .sidebar-item padding)
+    }
+}
 
 async function checkUnreadMessages() {
     if(!currentUser || !authToken) return;
@@ -1539,20 +1559,10 @@ async function checkUnreadMessages() {
         });
         const msgs = await res.json();
 
-        // Count unread (Personal only, or unread personal + new broadcasts?)
-        // The API returns unread personal + active broadcasts.
-        // Broadcasts don't have is_read flag in DB usually (unless user-specific record).
-        // Since schema has is_read in messages, and broadcast has recipient_id=NULL,
-        // we can't mark broadcast as read on server for everyone.
-        // We will just count 'unread' personal messages for badge.
-
         const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
 
-        const badge = document.getElementById('msgBadge');
-        if(badge) {
-            badge.textContent = unreadPersonal;
-            badge.style.display = unreadPersonal > 0 ? 'inline-block' : 'none';
-        }
+        updatePostboxUI(unreadPersonal);
+
     } catch(e) { console.error("Msg Check Failed", e); }
 }
 
@@ -1569,6 +1579,10 @@ async function loadAndShowInbox() {
         });
         const msgs = await res.json();
 
+        // Update UI immediately with fresh count
+        const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
+        updatePostboxUI(unreadPersonal);
+
         container.innerHTML = '';
 
         if(msgs.length === 0) {
@@ -1578,9 +1592,6 @@ async function loadAndShowInbox() {
 
         msgs.forEach(m => {
             const el = document.createElement('div');
-            // Unread logic: Personal=is_read false. Broadcast=Always "info" style unless we track local reads.
-            // Requirement says "Markiere allgemeine Nachrichten ... optisch anders".
-            // "Beim Anklicken einer persönlichen Nachricht wird diese als gelesen markiert".
 
             const isPersonal = !!m.recipient_id;
             const isUnread = isPersonal && !m.is_read;
@@ -1593,7 +1604,7 @@ async function loadAndShowInbox() {
             let icon = '📩';
             if(m.type === 'automated') icon = '⚠️';
             else if(m.type === 'support') icon = '💬';
-            else if(!isPersonal) icon = '📢'; // General/Broadcast
+            else if(!isPersonal) icon = '📢';
 
             el.className = classes;
             el.innerHTML = `
@@ -1601,27 +1612,36 @@ async function loadAndShowInbox() {
                     <span>${new Date(m.created_at).toLocaleString('de-DE')}</span>
                     <span>${isPersonal ? 'Persönlich' : 'Allgemein'}</span>
                 </div>
-                <div class="msg-subject">${icon} ${m.subject}</div>
-                <div class="msg-body">${m.body}</div>
             `;
 
+            // SECURITY: Render Subject & Body safely as text
+            const divSubject = document.createElement('div');
+            divSubject.className = 'msg-subject';
+            divSubject.textContent = `${icon} ${m.subject}`; // textContent handles escaping
+
+            const divBody = document.createElement('div');
+            divBody.className = 'msg-body';
+            divBody.textContent = m.body; // textContent handles escaping
+
+            el.appendChild(divSubject);
+            el.appendChild(divBody);
+
             el.addEventListener('click', () => {
-                // Toggle Body
                 const wasExpanded = el.classList.contains('expanded');
                 document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
 
                 if(!wasExpanded) {
                     el.classList.add('expanded');
-                    // Mark read if personal and unread
                     if(isUnread && isPersonal) {
                         markMessageRead(m.id);
                         el.classList.remove('unread');
-                        // Update badge locally
-                        const b = document.getElementById('msgBadge');
-                        const cur = parseInt(b.textContent) || 0;
-                        if(cur > 0) {
-                            b.textContent = cur - 1;
-                            if(cur - 1 === 0) b.style.display = 'none';
+
+                        // Decrement local count logic
+                        const navLink = document.getElementById('navPost');
+                        const match = navLink.innerText.match(/\((\d+)\)/);
+                        if(match) {
+                            let cur = parseInt(match[1]);
+                            if(cur > 0) updatePostboxUI(cur - 1);
                         }
                     }
                 }
