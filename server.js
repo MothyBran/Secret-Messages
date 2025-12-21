@@ -417,19 +417,28 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         // User is allowed to get token, but frontend will handle "no license" state.
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            // Trigger Security Warning
-            const msgSubject = "Sicherheits-Warnung: Unbekanntes Gerät";
-            const msgBody = `Ein Login-Versuch wurde blockiert.\nGerät-ID: ${deviceId}\nZeit: ${new Date().toLocaleString('de-DE')}`;
+            // Trigger Security Warning but ALLOW login (Device Switch)
+            // SECURITY: Sanitize deviceId
+            const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
+
+            const msgSubject = "Sicherheits-Warnung: Neues Gerät erkannt";
+            const msgBody = `Ihr Account wurde auf einem neuen Gerät genutzt.\nGerät-ID: ${sanitizedDeviceId}\nZeit: ${new Date().toLocaleString('de-DE')}`;
+
             await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
                 [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
 
-            return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
+            // Update Device ID to new one
+            await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
         }
         if (!user.allowed_device_id) {
             // First device binding - Inform user
+            const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
+
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
+
             const msgSubject = "Sicherheits-Info: Neues Gerät verknüpft";
-            const msgBody = `Ihr Account wurde erfolgreich mit diesem Gerät verknüpft.\nGerät-ID: ${deviceId}`;
+            const msgBody = `Ihr Account wurde erfolgreich mit diesem Gerät verknüpft.\nGerät-ID: ${sanitizedDeviceId}`;
+
             await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
                 [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
         }
@@ -1007,9 +1016,10 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
         const userId = req.user.id;
         const now = new Date().toISOString();
 
+        // Filter: Personal messages MUST be unread. Broadcasts must be active.
         const sql = `
             SELECT * FROM messages
-            WHERE (recipient_id = $1)
+            WHERE (recipient_id = $1 AND is_read = ${isPostgreSQL ? 'false' : '0'})
             OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2))
             ORDER BY created_at DESC
         `;
