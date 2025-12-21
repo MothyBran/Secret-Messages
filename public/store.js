@@ -26,7 +26,23 @@ document.addEventListener("DOMContentLoaded", () => {
   if (sessionId && success) {
     switchToStatusMode(sessionId);
   } else {
-    initializeShop();
+    // Check Shop Status first
+    fetch('/api/shop-status')
+      .then(r => r.json())
+      .then(data => {
+          if(!data.active) {
+              const content = document.getElementById("shopContent");
+              const banner = document.getElementById("shopOfflineBanner");
+              if(content) content.style.display = 'none';
+              if(banner) banner.style.display = 'block';
+          } else {
+              initializeShop();
+          }
+      })
+      .catch(e => {
+          console.error("Shop Status Check Failed", e);
+          initializeShop(); // Fallback to open
+      });
   }
 
   // Event Listeners für das Modal

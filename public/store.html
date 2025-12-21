@@ -193,11 +193,24 @@
   <a href="/app" class="btn btn-back">← Zurück zur App</a>
 
   <div class="store-container" id="shop-view">
-    <h1>SECURE MESSAGES - Lizenz Shop</h1>
-    <p class="subtitle">Wähle deinen Zugangsschlüssel. Anonym. Sicher. Sofort.</p>
     
-    <h2>🔓 Einzel-Schlüssel</h2>
-    <div class="license-grid">
+    <!-- SHOP OFFLINE BANNER -->
+    <div id="shopOfflineBanner" style="display:none; text-align:center; padding:40px; background:#000; border:2px solid var(--accent-blue); border-radius:8px; box-shadow:0 0 30px rgba(0,191,255,0.2); margin-top:50px;">
+        <div style="font-size:3rem; margin-bottom:20px;">🔒</div>
+        <h2 style="color:var(--accent-blue); margin-bottom:20px; font-family:'Rajdhani', sans-serif;">SHOP VORÜBERGEHEND GESCHLOSSEN</h2>
+        <p style="color:#e0e0e0; font-size:1.1rem; max-width:600px; margin:0 auto 20px auto; line-height:1.6;">
+            Unser Shop ist vorübergehend geschlossen. Aktuell können keine neuen Lizenzen erworben werden.
+            Bestehende Lizenzen sind davon nicht betroffen und funktionieren weiterhin einwandfrei.
+        </p>
+        <p style="color:#888;">Support: <a href="mailto:support@secure-msg.app" style="color:var(--accent-blue);">support@secure-msg.app</a></p>
+    </div>
+
+    <div id="shopContent">
+        <h1>SECURE MESSAGES - Lizenz Shop</h1>
+        <p class="subtitle">Wähle deinen Zugangsschlüssel. Anonym. Sicher. Sofort.</p>
+
+        <h2>🔓 Einzel-Schlüssel</h2>
+        <div class="license-grid">
       <div class="license-card">
         <div class="license-title">1 Monat Access</div>
         <div class="license-price">1,99 €</div>
@@ -266,32 +279,35 @@
       </div>
     </div>
 
-    <div class="info-box">
-        <h3 style="margin-bottom:20px; color:#fff;">ℹ️ Wichtige Informationen</h3>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px;">
-            <div>
-                <ul>
-                    <li>Kein Abo: Der Zugang endet automatisch.</li>
-                    <li>Anonymität: Wir speichern keine persönlichen Daten außer der Zahlungs-ID.</li>
-                    <li>Gerätebindung: Ein Key gilt für EIN Endgerät.</li>
-                </ul>
-            </div>
-            <div>
-                <details>
-                    <summary>Gibt es noch andere Bundles mit Lizenz-Keys?</summary>
-                    <p>Wir bieten maßgeschneiderte Lösungen für Unternehmen und Großabnehmer. Wenn Sie größere Bündel oder eine Unlimited-Flotten-Lizenz benötigen, kontaktieren Sie bitte den Support für ein individuelles Angebot.</p>
-                </details>
-                <details>
-                    <summary>Wie erhalte ich den Lizenz-Key?</summary>
-                    <p>Direkt nach der Zahlung wird der Key hier angezeigt. Zusätzlich senden wir eine Kopie an die angegebene E-Mail (optional).</p>
-                </details>
-                <details>
-                    <summary>Was passiert beim Gerätewechsel?</summary>
-                    <p>Kontaktiere den Support mit deinem Key und der Zahlungsreferenz, um die Bindung zurückzusetzen.</p>
-                </details>
+        </div>
+
+        <div class="info-box">
+            <h3 style="margin-bottom:20px; color:#fff;">ℹ️ Wichtige Informationen</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px;">
+                <div>
+                    <ul>
+                        <li>Kein Abo: Der Zugang endet automatisch.</li>
+                        <li>Anonymität: Wir speichern keine persönlichen Daten außer der Zahlungs-ID.</li>
+                        <li>Gerätebindung: Ein Key gilt für EIN Endgerät.</li>
+                    </ul>
+                </div>
+                <div>
+                    <details>
+                        <summary>Gibt es noch andere Bundles mit Lizenz-Keys?</summary>
+                        <p>Wir bieten maßgeschneiderte Lösungen für Unternehmen und Großabnehmer. Wenn Sie größere Bündel oder eine Unlimited-Flotten-Lizenz benötigen, kontaktieren Sie bitte den Support für ein individuelles Angebot.</p>
+                    </details>
+                    <details>
+                        <summary>Wie erhalte ich den Lizenz-Key?</summary>
+                        <p>Direkt nach der Zahlung wird der Key hier angezeigt. Zusätzlich senden wir eine Kopie an die angegebene E-Mail (optional).</p>
+                    </details>
+                    <details>
+                        <summary>Was passiert beim Gerätewechsel?</summary>
+                        <p>Kontaktiere den Support mit deinem Key und der Zahlungsreferenz, um die Bindung zurückzusetzen.</p>
+                    </details>
+                </div>
             </div>
         </div>
-    </div>
+    </div> <!-- End of shopContent -->
 
     <footer style="margin-top:60px; color:#555; font-size:0.8rem;">
         <div style="margin-bottom:10px;">

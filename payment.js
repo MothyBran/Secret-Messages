@@ -70,7 +70,7 @@ router.post("/create-checkout-session", async (req, res) => {
 
     // Check Shop Status
     try {
-        const sRes = await pool.query("SELECT value FROM settings WHERE key = 'shop_enabled'");
+        const sRes = await pool.query("SELECT value FROM settings WHERE key = 'shop_active'");
         if (sRes.rows.length > 0 && sRes.rows[0].value === 'false') {
              return res.status(503).json({ error: 'Shop is currently offline.' });
         }
