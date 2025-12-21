@@ -223,6 +223,36 @@
             font-weight: bold;
             margin-top: 10px;
         }
+
+        /* INBOX STYLES */
+        .badge {
+            background: var(--error-red);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+        .msg-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .msg-card:hover { background: rgba(255,255,255,0.1); }
+        .msg-card.unread { border-left: 3px solid var(--accent-blue); background: rgba(0, 191, 255, 0.05); }
+        .msg-card.unread:hover { background: rgba(0, 191, 255, 0.1); }
+
+        .msg-card.type-automated.unread { border-left-color: var(--error-red); background: rgba(255, 50, 50, 0.05); }
+        .msg-card.type-support.unread { border-left-color: gold; background: rgba(255, 215, 0, 0.05); }
+
+        .msg-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: #888; margin-bottom: 5px; }
+        .msg-subject { color: #fff; font-weight: bold; font-size: 1rem; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        .msg-body { color: #ccc; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; display: none; margin-top: 10px; border-top: 1px solid #333; padding-top: 10px; }
+        .msg-card.expanded .msg-body { display: block; }
     </style>
 </head>
 <body>
@@ -238,6 +268,7 @@
         </div>
         
         <a href="/shop" class="sidebar-item">🛒 Lizenz Shop</a>
+        <a href="#" class="sidebar-item auth-only" id="navPost" style="display:none;">📫 Postfach <span id="msgBadge" class="badge" style="display:none">0</span></a>
         <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;">📇 Kontaktverzeichnis</a>
         
         <a href="#" class="sidebar-item" id="navGuide">📖 Anleitung</a>
@@ -467,6 +498,21 @@
                 <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
                 <button id="uploadTxtBtn" class="btn" style="display:none;">📂 .TXT DATEI HOCHLADEN</button>
             </div>
+        </div>
+
+        <div id="inboxSection" class="section">
+            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;">POSTFACH</h2>
+
+            <div id="inboxList">
+                <!-- Messages Injected Here -->
+            </div>
+
+            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;">
+                <div style="font-size:3rem; margin-bottom:10px;">📭</div>
+                Keine Nachrichten vorhanden.
+            </div>
+
+            <button id="btnBackInbox" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <div id="guideSection" class="section">

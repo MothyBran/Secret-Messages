@@ -208,6 +208,7 @@
                 <button class="nav-tab" onclick="switchTab('users')">Benutzer</button>
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
+                <button class="nav-tab" onclick="switchTab('mail')">Mail Service</button>
                 <button class="nav-tab" onclick="switchTab('maintenance')">Wartung</button>
             </nav>
 
@@ -411,7 +412,64 @@
 
         </div>
 
-        <!-- TAB 5: WARTUNG -->
+        <!-- TAB 5: MAIL SERVICE -->
+        <div id="tab-mail" class="tab-content">
+            <h2 class="section-title">Nachrichtenzentrale</h2>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <h3 style="color:#fff; margin-bottom:20px;">Neue Nachricht verfassen</h3>
+
+                    <div class="control-bar" style="flex-direction:column; align-items:stretch;">
+
+                        <!-- Empfänger -->
+                        <label style="color:#888; font-size:0.9rem;">Empfänger</label>
+                        <select id="msgRecipientType" onchange="toggleRecipientInput()" style="margin-bottom:10px;">
+                            <option value="broadcast">📢 Alle Benutzer (Broadcast)</option>
+                            <option value="single">👤 Einzelner Benutzer</option>
+                        </select>
+                        <input type="text" id="msgRecipientId" placeholder="User ID eingeben..." style="display:none; margin-bottom:10px;">
+
+                        <!-- Betreff -->
+                        <label style="color:#888; font-size:0.9rem;">Betreff</label>
+                        <select id="msgSubjectSelect" onchange="toggleSubjectInput()" style="margin-bottom:5px;">
+                            <option value="Wichtige System-Meldung">ℹ️ Wichtige System-Meldung</option>
+                            <option value="Wartungsarbeiten">🛠️ Wartungsarbeiten</option>
+                            <option value="Sicherheits-Hinweis">🛡️ Sicherheits-Hinweis</option>
+                            <option value="Support-Antwort">💬 Support-Antwort</option>
+                            <option value="custom">✎ Eigener Betreff...</option>
+                        </select>
+                        <input type="text" id="msgSubjectCustom" placeholder="Betreff eingeben..." style="display:none; margin-bottom:10px;">
+
+                        <!-- Nachricht -->
+                        <label style="color:#888; font-size:0.9rem;">Nachricht</label>
+                        <textarea id="msgBody" rows="6" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:10px; margin-bottom:10px;" placeholder="Ihre Nachricht..."></textarea>
+
+                        <!-- Optionen -->
+                        <label style="color:#888; font-size:0.9rem;">Sichtbar bis (Optional für Broadcasts)</label>
+                        <input type="datetime-local" id="msgExpiry">
+
+                        <div style="margin-top:20px; text-align:right;">
+                            <button onclick="sendAdminMessage()" class="btn-action">Absenden</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <h3 style="color:#fff; margin-bottom:20px;">Info</h3>
+                    <p style="color:#ccc; line-height:1.6;">
+                        <strong>Broadcasts:</strong><br>
+                        Nachrichten an "Alle Benutzer" werden nicht in der Datenbank vervielfacht, sondern als globale Nachricht gespeichert. Sie verschwinden automatisch nach dem Ablaufdatum (Standard: 7 Tage).<br><br>
+                        <strong>Einzelnachrichten:</strong><br>
+                        Werden direkt dem Postfach des Users zugeordnet. Der User muss sie als "Gelesen" markieren, damit sie verschwinden (oder archiviert werden).<br><br>
+                        <strong>Support:</strong><br>
+                        Nutzen Sie den Betreff "Support-Antwort", um auf Anfragen zu reagieren. Die Nachricht erscheint hervorgehoben beim User.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: WARTUNG -->
         <div id="tab-maintenance" class="tab-content">
             <h2 class="section-title">Control Center</h2>
 

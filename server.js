@@ -223,6 +223,17 @@ const createTables = async () => {
             created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
         )`);
 
+        await dbQuery(`CREATE TABLE IF NOT EXISTS messages (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            recipient_id INTEGER,
+            subject VARCHAR(255),
+            body TEXT,
+            is_read ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
+            type VARCHAR(50),
+            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
+            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}
+        )`);
+
         // Add columns to license_keys if missing (Schema Migration)
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
@@ -406,10 +417,21 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         // User is allowed to get token, but frontend will handle "no license" state.
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
+            // Trigger Security Warning
+            const msgSubject = "Sicherheits-Warnung: Unbekanntes Gerät";
+            const msgBody = `Ein Login-Versuch wurde blockiert.\nGerät-ID: ${deviceId}\nZeit: ${new Date().toLocaleString('de-DE')}`;
+            await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
+
             return res.status(403).json({ success: false, error: "Gerät nicht autorisiert." });
         }
         if (!user.allowed_device_id) {
+            // First device binding - Inform user
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
+            const msgSubject = "Sicherheits-Info: Neues Gerät verknüpft";
+            const msgBody = `Ihr Account wurde erfolgreich mit diesem Gerät verknüpft.\nGerät-ID: ${deviceId}`;
+            await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
@@ -974,6 +996,109 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
         });
     } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
+
+// ==================================================================
+// MESSAGING SYSTEM
+// ==================================================================
+
+// GET MESSAGES
+app.get('/api/messages', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const now = new Date().toISOString();
+
+        const sql = `
+            SELECT * FROM messages
+            WHERE (recipient_id = $1)
+            OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2))
+            ORDER BY created_at DESC
+        `;
+
+        const result = await dbQuery(sql, [userId, now]);
+        const msgs = result.rows.map(r => ({
+            ...r,
+            is_read: isPostgreSQL ? r.is_read : (r.is_read === 1)
+        }));
+
+        res.json(msgs);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// MARK READ
+app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
+    try {
+        const msgId = req.params.id;
+        await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ADMIN SEND
+app.post('/api/admin/send-message', requireAdmin, async (req, res) => {
+    try {
+        const { recipientId, subject, body, type, expiresAt } = req.body;
+
+        await dbQuery(
+            `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [recipientId || null, subject, body, type || 'general', expiresAt || null, new Date().toISOString(), (isPostgreSQL ? false : 0)]
+        );
+
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// SCHEDULER (License Expiry)
+const checkLicenseExpiries = async () => {
+    try {
+        if (!dbQuery) return;
+
+        const now = new Date();
+        const thresholds = [30, 10, 3]; // Days
+
+        // Fetch active keys with users
+        const sql = `
+            SELECT u.id as user_id, l.expires_at
+            FROM users u
+            JOIN license_keys l ON u.license_key_id = l.id
+            WHERE l.expires_at IS NOT NULL AND l.is_active = ${isPostgreSQL ? 'true' : '1'}
+        `;
+
+        const result = await dbQuery(sql);
+
+        for (const row of result.rows) {
+            const expDate = new Date(row.expires_at);
+            const diffTime = expDate - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (thresholds.includes(diffDays)) {
+                const subject = `Lizenz läuft ab in ${diffDays} Tagen`;
+
+                // Avoid duplicates (check last 24h)
+                const existing = await dbQuery(`
+                    SELECT id FROM messages
+                    WHERE recipient_id = $1 AND subject = $2 AND created_at > $3
+                `, [row.user_id, subject, new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()]);
+
+                if (existing.rows.length === 0) {
+                    await dbQuery(`
+                        INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                        VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)
+                    `, [
+                        row.user_id,
+                        subject,
+                        `Ihre Lizenz läuft am ${expDate.toLocaleDateString('de-DE')} ab. Bitte verlängern Sie rechtzeitig.`,
+                        new Date().toISOString()
+                    ]);
+                }
+            }
+        }
+    } catch(e) { console.error("Scheduler Error:", e); }
+};
+
+// Run Scheduler every 12 hours
+setInterval(checkLicenseExpiries, 12 * 60 * 60 * 1000);
+// Run once on start (delayed)
+setTimeout(checkLicenseExpiries, 10000);
 
 // ==================================================================
 // 5. START

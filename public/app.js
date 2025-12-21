@@ -130,6 +130,10 @@ function setupUIEvents() {
         e.preventDefault(); toggleMainMenu(true); openContactSidebar('manage');
     });
 
+    document.getElementById('navPost')?.addEventListener('click', (e) => {
+        e.preventDefault(); toggleMainMenu(true); loadAndShowInbox();
+    });
+
     document.getElementById('navGuide')?.addEventListener('click', (e) => {
         e.preventDefault(); toggleMainMenu(true); showSection('guideSection');
     });
@@ -216,6 +220,7 @@ function setupUIEvents() {
 
     document.getElementById('btnBackGuide')?.addEventListener('click', goBackToMain);
     document.getElementById('btnBackInfo')?.addEventListener('click', goBackToMain);
+    document.getElementById('btnBackInbox')?.addEventListener('click', goBackToMain);
 
 
     // --- ACCOUNT LÖSCHEN (NEUES LAYOUT) ---
@@ -1120,6 +1125,16 @@ function updateSidebarInfo(user, expiryData) {
     // 1. User Name setzen
     if (userLabel) userLabel.textContent = user || 'Gast';
 
+    // Start Polling Messages if user is logged in
+    if(user) {
+        checkUnreadMessages();
+        // Clear existing interval if any
+        if(window.msgPollInterval) clearInterval(window.msgPollInterval);
+        window.msgPollInterval = setInterval(checkUnreadMessages, 5 * 60 * 1000);
+    } else {
+        if(window.msgPollInterval) clearInterval(window.msgPollInterval);
+    }
+
     // 2. Lizenz-Anzeige Logik
     if (user && licenseLabel) {
         // Aufräumen: Falls "undefined" oder "null" als String gespeichert wurde
@@ -1513,4 +1528,119 @@ function loadUserContacts() {
 function saveUserContacts() {
     if (!currentUser || !currentUser.sm_id) return;
     localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts));
+}
+// --- INBOX LOGIC ---
+
+async function checkUnreadMessages() {
+    if(!currentUser || !authToken) return;
+    try {
+        const res = await fetch(`${API_BASE}/messages`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const msgs = await res.json();
+
+        // Count unread (Personal only, or unread personal + new broadcasts?)
+        // The API returns unread personal + active broadcasts.
+        // Broadcasts don't have is_read flag in DB usually (unless user-specific record).
+        // Since schema has is_read in messages, and broadcast has recipient_id=NULL,
+        // we can't mark broadcast as read on server for everyone.
+        // We will just count 'unread' personal messages for badge.
+
+        const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
+
+        const badge = document.getElementById('msgBadge');
+        if(badge) {
+            badge.textContent = unreadPersonal;
+            badge.style.display = unreadPersonal > 0 ? 'inline-block' : 'none';
+        }
+    } catch(e) { console.error("Msg Check Failed", e); }
+}
+
+async function loadAndShowInbox() {
+    showSection('inboxSection');
+    const container = document.getElementById('inboxList');
+    const emptyMsg = document.getElementById('inboxEmpty');
+    container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>';
+    emptyMsg.style.display = 'none';
+
+    try {
+        const res = await fetch(`${API_BASE}/messages`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const msgs = await res.json();
+
+        container.innerHTML = '';
+
+        if(msgs.length === 0) {
+            emptyMsg.style.display = 'block';
+            return;
+        }
+
+        msgs.forEach(m => {
+            const el = document.createElement('div');
+            // Unread logic: Personal=is_read false. Broadcast=Always "info" style unless we track local reads.
+            // Requirement says "Markiere allgemeine Nachrichten ... optisch anders".
+            // "Beim Anklicken einer persönlichen Nachricht wird diese als gelesen markiert".
+
+            const isPersonal = !!m.recipient_id;
+            const isUnread = isPersonal && !m.is_read;
+
+            let classes = 'msg-card';
+            if(isUnread) classes += ' unread';
+            if(m.type === 'automated') classes += ' type-automated';
+            if(m.type === 'support') classes += ' type-support';
+
+            let icon = '📩';
+            if(m.type === 'automated') icon = '⚠️';
+            else if(m.type === 'support') icon = '💬';
+            else if(!isPersonal) icon = '📢'; // General/Broadcast
+
+            el.className = classes;
+            el.innerHTML = `
+                <div class="msg-header">
+                    <span>${new Date(m.created_at).toLocaleString('de-DE')}</span>
+                    <span>${isPersonal ? 'Persönlich' : 'Allgemein'}</span>
+                </div>
+                <div class="msg-subject">${icon} ${m.subject}</div>
+                <div class="msg-body">${m.body}</div>
+            `;
+
+            el.addEventListener('click', () => {
+                // Toggle Body
+                const wasExpanded = el.classList.contains('expanded');
+                document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
+
+                if(!wasExpanded) {
+                    el.classList.add('expanded');
+                    // Mark read if personal and unread
+                    if(isUnread && isPersonal) {
+                        markMessageRead(m.id);
+                        el.classList.remove('unread');
+                        // Update badge locally
+                        const b = document.getElementById('msgBadge');
+                        const cur = parseInt(b.textContent) || 0;
+                        if(cur > 0) {
+                            b.textContent = cur - 1;
+                            if(cur - 1 === 0) b.style.display = 'none';
+                        }
+                    }
+                }
+            });
+
+            container.appendChild(el);
+        });
+
+    } catch(e) {
+        container.innerHTML = '<div style="color:red; text-align:center;">Laden fehlgeschlagen.</div>';
+    }
+}
+
+async function markMessageRead(id) {
+    try {
+        await fetch(`${API_BASE}/messages/${id}/read`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        // Background update, no wait needed
+    } catch(e) { console.error("Mark Read Failed", e); }
 }
