@@ -17,6 +17,32 @@ function getHeaders() {
     return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
 }
 
+// --- TABS LOGIC ---
+window.switchTab = function(tabName) {
+    // Hide all contents
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+
+    // Show target
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    // Highlight Tab Button
+    // Find button that calls this function with this arg
+    // Since we can't easily find the button element from function call without event,
+    // we query selector for onclick attribute or use index.
+    // Simpler: iterate buttons and check text or attribute.
+    // We added onclick="switchTab('dashboard')"
+    const btns = document.querySelectorAll('.nav-tab');
+    btns.forEach(btn => {
+        if(btn.getAttribute('onclick').includes(tabName)) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Load data specific to tab if needed (lazy load optimization possible, but eager load is fine for now)
+    // We load everything on initDashboard anyway.
+}
+
 // --- HELPERS (MODALS & FEEDBACK) ---
 let confirmCallback = null;
 
@@ -198,6 +224,8 @@ window.exportBundleCsv = async function() {
     } catch(e) { alert("Export fehlgeschlagen."); }
 };
 
+// --- MAINTENANCE & SHOP ---
+
 window.loadMaintenanceStatus = async function() {
     try {
         const res = await fetch(`${API_BASE}/maintenance-status`, { headers: getHeaders() });
@@ -218,14 +246,11 @@ window.toggleMaintenance = async function() {
     const toggle = document.getElementById('maintenanceToggle');
     const isActive = toggle.checked;
     const statusText = document.getElementById('maintenanceStateText');
-
-    // Optimistic UI
     statusText.textContent = "Updating...";
 
     try {
         const res = await fetch(`${API_BASE}/toggle-maintenance`, {
-            method: 'POST',
-            headers: getHeaders(),
+            method: 'POST', headers: getHeaders(),
             body: JSON.stringify({ active: isActive })
         });
         const data = await res.json();
@@ -234,15 +259,51 @@ window.toggleMaintenance = async function() {
              statusText.style.color = data.maintenance ? "orange" : "var(--success-green)";
              window.showMessage("Info", `Wartungsmodus ist nun ${data.maintenance ? 'AKTIV' : 'INAKTIV'}`);
         } else {
-            // Revert on error
             toggle.checked = !isActive;
             window.showMessage("Fehler", "Konnte Status nicht ändern.", true);
         }
-    } catch(e) {
-        toggle.checked = !isActive;
-        window.showMessage("Fehler", "Netzwerkfehler.", true);
-    }
+    } catch(e) { toggle.checked = !isActive; window.showMessage("Fehler", "Netzwerkfehler.", true); }
 };
+
+window.loadShopStatus = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/shop-status`, { headers: getHeaders() });
+        const data = await res.json();
+        if (data.success) {
+            const toggle = document.getElementById('shopToggle');
+            const statusText = document.getElementById('shopStateText');
+            if (toggle) toggle.checked = data.enabled;
+            if (statusText) {
+                statusText.textContent = data.enabled ? "AKTIV" : "OFFLINE";
+                statusText.style.color = data.enabled ? "var(--success-green)" : "var(--error-red)";
+            }
+        }
+    } catch (e) { console.error("Shop Status Load Failed", e); }
+};
+
+window.toggleShop = async function() {
+    const toggle = document.getElementById('shopToggle');
+    const isEnabled = toggle.checked;
+    const statusText = document.getElementById('shopStateText');
+    statusText.textContent = "Updating...";
+
+    try {
+        const res = await fetch(`${API_BASE}/toggle-shop`, {
+            method: 'POST', headers: getHeaders(),
+            body: JSON.stringify({ enabled: isEnabled })
+        });
+        const data = await res.json();
+        if (data.success) {
+             statusText.textContent = data.enabled ? "AKTIV" : "OFFLINE";
+             statusText.style.color = data.enabled ? "var(--success-green)" : "var(--error-red)";
+             window.showMessage("Info", `Shop ist nun ${data.enabled ? 'ONLINE' : 'OFFLINE'}`);
+        } else {
+            toggle.checked = !isEnabled;
+            window.showMessage("Fehler", "Konnte Status nicht ändern.", true);
+        }
+    } catch(e) { toggle.checked = !isEnabled; window.showMessage("Fehler", "Netzwerkfehler.", true); }
+};
+
 
 window.resetDevice = function(id) {
     console.log("Funktion aufgerufen: resetDevice");
@@ -372,6 +433,24 @@ window.generateKeys = async function() {
     } catch(e) { window.showMessage("Fehler", "Fehler beim Generieren.", true); }
 }
 
+async function loadSystemStatus() {
+     try {
+        const res = await fetch(`${API_BASE}/system-status`, { headers: getHeaders() });
+        const data = await res.json();
+        if(data.success) {
+            const st = data.status;
+            document.getElementById('sysDbStatus').textContent = st.dbConnection;
+            document.getElementById('sysDbStatus').style.color = st.dbConnection === 'OK' ? 'var(--success-green)' : 'red';
+
+            const d = new Date(st.serverTime);
+            document.getElementById('sysTime').textContent = d.toLocaleTimeString('de-DE');
+
+            const uptimeH = (st.uptime / 3600).toFixed(1);
+            document.getElementById('sysUptime').textContent = `${uptimeH} h`;
+        }
+    } catch(e) { console.error("Sys Status Failed", e); }
+}
+
 async function initDashboard() {
     try {
         const res = await fetch(`${API_BASE}/stats`, { headers: getHeaders() });
@@ -383,10 +462,16 @@ async function initDashboard() {
             document.getElementById('dashboard-view').style.display = 'block';
             renderStats(data.stats);
             window.loadMaintenanceStatus();
+            window.loadShopStatus();
             window.loadUsers();
             window.loadKeys();
             window.loadPurchases();
             window.loadBundles();
+            loadSystemStatus();
+
+            // Set default tab
+            window.switchTab('dashboard');
+
         } else {
             alert("Passwort falsch.");
         }
@@ -410,6 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('maintenanceToggle')?.addEventListener('change', window.toggleMaintenance);
+    document.getElementById('shopToggle')?.addEventListener('change', window.toggleShop);
 
     document.getElementById('generateBtn')?.addEventListener('click', window.generateKeys);
     document.getElementById('saveLicenseBtn')?.addEventListener('click', window.saveLicenseChanges);
@@ -482,6 +568,10 @@ function renderStats(stats) {
     setVal('stKeysExpired', stats.keys_expired);
     setVal('stPurchases', stats.purchases_count);
     setVal('stRevenue', (stats.revenue_total / 100).toFixed(2) + ' €');
+
+    // New Stats
+    setVal('stBundlesActive', stats.bundles_active || 0);
+    setVal('stKeysUnassigned', stats.bundle_keys_unassigned || 0);
 }
 
 function renderUsersTable(users) {

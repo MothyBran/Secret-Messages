@@ -67,6 +67,15 @@ function addDays(iso, days) {
 router.post("/create-checkout-session", async (req, res) => {
   try {
     const { product_type, customer_email, is_renewal } = req.body;
+
+    // Check Shop Status
+    try {
+        const sRes = await pool.query("SELECT value FROM settings WHERE key = 'shop_enabled'");
+        if (sRes.rows.length > 0 && sRes.rows[0].value === 'false') {
+             return res.status(503).json({ error: 'Shop is currently offline.' });
+        }
+    } catch(e) { console.warn("Shop check failed", e); }
+
     const product = PRICES[product_type];
     
     if (!product) return res.status(400).json({ error: 'Invalid product' });

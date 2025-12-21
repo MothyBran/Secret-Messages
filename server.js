@@ -227,11 +227,15 @@ const createTables = async () => {
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
 
-        // Initialize Maintenance Mode Default if not exists
+        // Initialize Settings Defaults
         try {
             const mCheck = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
             if (mCheck.rows.length === 0) {
                 await dbQuery("INSERT INTO settings (key, value) VALUES ('maintenance_mode', 'false')");
+            }
+            const sCheck = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
+            if (sCheck.rows.length === 0) {
+                await dbQuery("INSERT INTO settings (key, value) VALUES ('shop_enabled', 'true')");
             }
         } catch (e) { console.warn("Settings init warning:", e.message); }
 
@@ -246,6 +250,14 @@ initializeDatabase();
 // ==================================================================
 
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
+
+app.get('/api/shop-status', async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
+        const enabled = result.rows.length > 0 && result.rows[0].value === 'true';
+        res.json({ enabled });
+    } catch (e) { res.status(500).json({ error: 'DB Error' }); }
+});
 
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
@@ -663,6 +675,10 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
         const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
+
+        // Bundle Stats
+        const totalBundles = await dbQuery(`SELECT COUNT(*) as c FROM license_bundles`);
+        const unassignedBundleKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE bundle_id IS NOT NULL AND is_active = ${isPostgreSQL ? 'false' : '0'}`);
         
         res.json({
             success: true,
@@ -672,7 +688,9 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
                 keys_active: activeKeys.rows[0].c,
                 keys_expired: expiredKeys.rows[0].c,
                 purchases_count: totalPurchases.rows[0].c,
-                revenue_total: (totalRevenue.rows[0].s || 0)
+                revenue_total: (totalRevenue.rows[0].s || 0),
+                bundles_active: totalBundles.rows[0].c,
+                bundle_keys_unassigned: unassignedBundleKeys.rows[0].c
             }
         });
     } catch (e) { res.json({ success: false, error: 'DB Error' }); }
@@ -695,14 +713,7 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
     const { expires_at, user_id, product_code } = req.body;
     try {
-        // 1. Basic Key Update (Expiry, Product Code) - NO USERNAME, NO USER_ID (Schema relies on users table for link)
-        // Note: product_code defaults to existing if not provided, or can be updated if sent.
-        // If product_code is sent, update it. If not, keep it (by not setting it? or coalesce).
-        // Since SQL requires values, and we don't know current value easily without fetch,
-        // we assume if it's undefined we shouldn't overwrite it OR we set it to 'man' as logic before?
-        // Original code had `product_code = 'man'` hardcoded.
-        // User instruction: "product_code (falls gesendet)".
-
+        // 1. Basic Key Update
         let updateSql = `UPDATE license_keys SET expires_at = $1`;
         const params = [expires_at || null];
         let pIndex = 2;
@@ -778,18 +789,6 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
         const amount = parseInt(count) || 1;
         const start = parseInt(startNumber) || 1;
         const orderNum = 'ORD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-
-        // Calculate Bundle Expiry based on Product Code
-        let bundleExpiresAt = null;
-        const now = new Date();
-        const pc = (productCode || '').toLowerCase();
-
-        // This logic mirrors activation logic but sets an initial expiry target
-        // Actually, usually expiry starts upon activation. But bundles might have fixed terms?
-        // Prompt says: "Massen-Verlängerung: Ändere das Ablaufdatum für alle Keys eines Bundles gleichzeitig."
-        // We will store null initially if not activated, OR we set a pre-defined expiry if the deal is fixed date.
-        // For now, let's keep keys inactive (expires_at null) until activation, OR until admin sets it.
-        // However, we need to store the bundle info.
 
         let insertBundle = await dbQuery(
             `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL ? 'RETURNING id' : ''}`,
@@ -942,6 +941,38 @@ app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
+});
+
+app.get('/api/admin/shop-status', requireAdmin, async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
+        const enabled = result.rows.length > 0 && result.rows[0].value === 'true';
+        res.json({ success: true, enabled });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/toggle-shop', requireAdmin, async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        const val = enabled ? 'true' : 'false';
+        await dbQuery("UPDATE settings SET value = $1 WHERE key = 'shop_enabled'", [val]);
+        res.json({ success: true, enabled });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
+    try {
+        const dbRes = await dbQuery('SELECT 1');
+        res.json({
+            success: true,
+            status: {
+                serverTime: new Date().toISOString(),
+                dbConnection: dbRes ? 'OK' : 'ERROR',
+                platform: process.platform,
+                uptime: process.uptime()
+            }
+        });
+    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // ==================================================================
