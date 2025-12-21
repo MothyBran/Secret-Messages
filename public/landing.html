@@ -391,7 +391,9 @@
         <div class="container">
             <h1>Nachrichten sicher verschlüsseln.<br>Überall versenden.</h1>
             <p>Lokale AES-GCM-Kryptografie (Zero-Knowledge). <br>Keine Serververarbeitung, kein Speichern <br>Absolute Datensouveränität, denn <br>...Your message is a <b>Secure Message</b></p>
-            <a href="/shop" class="btn btn-primary">Ab 1,99€ Loslegen</a>
+
+            <a href="/shop" id="heroBuyBtn" class="btn btn-primary">Ab 1,99€ Loslegen</a>
+            <p id="shopOfflineMsg" style="display:none; color:var(--error-red); margin-top:10px;">Aktuell keine neuen Registrierungen möglich.</p>
 
             <div class="hero-visual">
                 <img src="hero-secure-vault.jpg" alt="Secure Digital Vault" class="hero-image floating-anim">
@@ -657,6 +659,25 @@
     </div>
 
     <script>
+        // === SHOP STATUS CHECK ===
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/shop-status');
+                const data = await res.json();
+                const btn = document.getElementById('heroBuyBtn');
+                const msg = document.getElementById('shopOfflineMsg');
+
+                if (data.enabled === false) {
+                    if(btn) {
+                        btn.style.opacity = '0.5';
+                        btn.style.pointerEvents = 'none';
+                        btn.textContent = "Shop Offline";
+                    }
+                    if(msg) msg.style.display = 'block';
+                }
+            } catch(e) { console.error("Shop Check Failed", e); }
+        });
+
         // === APP CAROUSEL ===
         document.addEventListener('DOMContentLoaded', () => {
             const carouselData = [
