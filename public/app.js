@@ -9,13 +9,13 @@ import { encryptFull, decryptFull } from './cryptoLayers.js';
 // ================================================================
 
 const API_BASE = '/api';
-let currentUser = null;
+let currentUser = null; // Object { name: string, sm_id: number }
 let authToken = null;
 let currentAttachmentBase64 = null;
 let currentMode = 'encrypt'; 
 
 // Kontakt State
-let contacts = JSON.parse(localStorage.getItem('sm_contacts')) || [];
+let contacts = []; // Loaded dynamically
 let contactMode = 'manage'; 
 let isEditMode = false;     
 let selectedContactIds = new Set(); 
@@ -422,14 +422,16 @@ async function performAccountDeletion() {
         
         if(d.success) {
             if (confirm("Möchten Sie auch Ihre lokalen Kontakte vom Gerät löschen?")) {
-                localStorage.removeItem('sm_contacts');
+                if(currentUser && currentUser.sm_id) {
+                    localStorage.removeItem(`sm_contacts_${currentUser.sm_id}`);
+                }
             }
 
             alert("Dein Account wurde erfolgreich gelöscht.");
             // Remove token and reload to force Login Screen
             localStorage.removeItem('sm_token');
             localStorage.removeItem('sm_user');
-            // contacts already optionally handled
+            contacts = [];
             window.location.reload();
         } else {
             showAppStatus(d.error || "Fehler beim Löschen", 'error');
@@ -456,14 +458,10 @@ async function handleChangeAccessCode() {
     btn.disabled = true;
 
     try {
-        // 1. Verify Old Code using Server Login Check (Server Hash)
-        // Note: Currently local contacts are stored as plain JSON in this version.
-        // If they were encrypted, we would decrypt them here with old code and re-encrypt with new code.
-
         const res = await fetch(`${API_BASE}/auth/login`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ username: currentUser, accessCode: currentCode, deviceId: await generateDeviceFingerprint() })
+             body: JSON.stringify({ username: currentUser.name, accessCode: currentCode, deviceId: await generateDeviceFingerprint() })
         });
         const loginData = await res.json();
 
@@ -474,7 +472,6 @@ async function handleChangeAccessCode() {
             return;
         }
 
-        // If Old Code is correct, proceed to update.
         const updateRes = await fetch(`${API_BASE}/auth/change-code`, {
             method: 'POST',
             headers: {
@@ -503,7 +500,7 @@ async function handleChangeAccessCode() {
 
 
 // ================================================================
-// KONTAKT LOGIK (Unverändert gut)
+// KONTAKT LOGIK
 // ================================================================
 
 function openContactSidebar(mode) {
@@ -670,9 +667,7 @@ async function saveContact(e) {
         contacts.push({ id: idVal, name: nameVal || idVal, group: groupVal });
         contacts.sort((a, b) => a.name.localeCompare(b.name));
 
-        if (contacts && Array.isArray(contacts)) {
-            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
-        }
+        saveUserContacts(); // Use specific key
 
         document.getElementById('contactEditModal').classList.remove('active');
         renderContactList(document.getElementById('contactSearch').value);
@@ -685,9 +680,7 @@ function deleteContact() {
     const id = document.getElementById('btnDeleteContact').dataset.id;
     if (confirm("Kontakt löschen?")) {
         contacts = contacts.filter(c => c.id !== id);
-        if (contacts && Array.isArray(contacts)) {
-            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
-        }
+        saveUserContacts(); // Use specific key
         document.getElementById('contactEditModal').classList.remove('active'); renderContactList(); showAppStatus("Gelöscht.", 'success');
     }
 }
@@ -737,7 +730,7 @@ function importContacts(e) {
 
             // Ensure no null/undefined in contacts
             contacts = contacts.filter(c => c && c.id);
-            localStorage.setItem('sm_contacts', JSON.stringify(contacts));
+            saveUserContacts(); // Use specific key
             renderContactList(document.getElementById('contactSearch').value);
 
             // Clear input
@@ -774,12 +767,20 @@ async function handleLogin(e) {
         });
         const data = await res.json();
         if (data.success) {
-            authToken = data.token; currentUser = data.username;
-            localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', currentUser);
+            authToken = data.token;
+
+            // Extract ID from token
+            const decoded = parseJwt(authToken);
+            currentUser = { name: data.username, sm_id: decoded.id };
+
+            localStorage.setItem('sm_token', authToken);
+            localStorage.setItem('sm_user', JSON.stringify(currentUser)); // Store as object
+
+            loadUserContacts(); // Load isolated contacts
 
             // License Missing Check
             if (data.hasLicense === false) {
-                updateSidebarInfo(currentUser, null);
+                updateSidebarInfo(currentUser.name, null);
                 alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
                 showRenewalScreen();
                 return;
@@ -789,13 +790,13 @@ async function handleLogin(e) {
             if(data.expiresAt && data.expiresAt !== 'lifetime') {
                 const expDate = new Date(String(data.expiresAt).replace(' ', 'T'));
                 if(expDate < new Date()) {
-                    updateSidebarInfo(currentUser, data.expiresAt);
+                    updateSidebarInfo(currentUser.name, data.expiresAt);
                     showRenewalScreen();
                     return;
                 }
             }
 
-            updateSidebarInfo(currentUser, data.expiresAt); showSection('mainSection');
+            updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
             // Handle specific blocked error
             if (data.error === "ACCOUNT_BLOCKED") {
@@ -841,9 +842,14 @@ async function handleActivation(e) {
 }
 
 async function handleLogout() {
-    localStorage.removeItem('sm_token'); localStorage.removeItem('sm_user');
-    currentUser=null; authToken=null; updateSidebarInfo(null);
-    document.getElementById('sidebar').classList.remove('active'); showSection('loginSection');
+    localStorage.removeItem('sm_token');
+    localStorage.removeItem('sm_user');
+    currentUser=null;
+    authToken=null;
+    contacts = []; // Clear contacts from memory
+    updateSidebarInfo(null);
+    document.getElementById('sidebar').classList.remove('active');
+    showSection('loginSection');
 }
 
 function updateAppMode(mode) {
@@ -902,8 +908,8 @@ async function handleMainAction() {
         let res = "";
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
-            if(!rIds.includes(currentUser)) rIds.push(currentUser);
-            res = await encryptFull(payload, code, rIds, currentUser);
+            if(!rIds.includes(currentUser.name)) rIds.push(currentUser.name);
+            res = await encryptFull(payload, code, rIds, currentUser.name);
 
              // Show encrypted text result
              const textOut = document.getElementById('messageOutput');
@@ -924,7 +930,7 @@ async function handleMainAction() {
              }
 
         } else {
-            res = await decryptFull(payload, code, currentUser);
+            res = await decryptFull(payload, code, currentUser.name);
             renderDecryptedOutput(res);
         }
         document.getElementById('outputGroup').style.display = 'block';
@@ -1168,10 +1174,19 @@ function updateSidebarInfo(user, expiryData) {
 
 async function checkExistingSession() {
     const token = localStorage.getItem('sm_token');
-    const user = localStorage.getItem('sm_user');
+    const userStored = localStorage.getItem('sm_user');
     let savedExpiry = localStorage.getItem('sm_exp'); 
     
-    if (token && user) {
+    // Attempt to parse old user string or new user object
+    let userName = '';
+    try {
+        const parsed = JSON.parse(userStored);
+        userName = parsed.name || parsed;
+    } catch(e) {
+        userName = userStored;
+    }
+
+    if (token) {
         try {
             const res = await fetch(`${API_BASE}/auth/validate`, {
                 method: 'POST',
@@ -1182,8 +1197,16 @@ async function checkExistingSession() {
             
             if (data.valid) {
                 authToken = token;
-                currentUser = user;
                 
+                // Construct new currentUser object with ID from token
+                const decoded = parseJwt(token);
+                currentUser = { name: data.username || userName, sm_id: decoded.id };
+
+                // Update storage to new format
+                localStorage.setItem('sm_user', JSON.stringify(currentUser));
+
+                loadUserContacts(); // Load isolated contacts
+
                 // WICHTIG: Server-Datum hat Vorrang vor LocalStorage!
                 let finalExpiry = data.expiresAt;
                 
@@ -1199,20 +1222,23 @@ async function checkExistingSession() {
                 if(finalExpiry && finalExpiry !== 'lifetime') {
                     const expDate = new Date(String(finalExpiry).replace(' ', 'T'));
                     if(expDate < new Date()) {
-                        updateSidebarInfo(user, finalExpiry);
+                        updateSidebarInfo(currentUser.name, finalExpiry);
                         showRenewalScreen();
                         return;
                     }
                 }
 
-                updateSidebarInfo(user, finalExpiry);
+                updateSidebarInfo(currentUser.name, finalExpiry);
                 showSection('mainSection');
                 return;
             } else {
                 if (data.reason === 'no_license') {
                     alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
                     authToken = token; // Needed for renewal call
-                    currentUser = user;
+
+                    const decoded = parseJwt(token);
+                    currentUser = { name: userName, sm_id: decoded.id }; // Partial info
+
                     showRenewalScreen();
                 } else {
                     // Token invalid or blocked -> Logout
@@ -1244,7 +1270,7 @@ function openSupportModal() {
 
     if (currentUser) {
         // Fall: Eingeloggt
-        userField.value = currentUser;
+        userField.value = currentUser.name;
         userField.readOnly = true;
         userField.style.opacity = '0.7';
     } else {
@@ -1444,3 +1470,47 @@ function startQRScanner() {
     qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (txt)=>{stopQRScanner(); document.getElementById('messageInput').value=txt; showAppStatus("QR erkannt!");}, ()=>{}).catch(e=>{document.getElementById('qr-reader').innerHTML="Kamera Fehler";});
 }
 function stopQRScanner() { document.getElementById('qrScannerModal').classList.remove('active'); if(qrScan) qrScan.stop().catch(()=>{}); }
+
+// ========================================================
+// HELPERS
+// ========================================================
+
+function parseJwt (token) {
+    try {
+        var base64Url = token.split('.')[1];
+        var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return {};
+    }
+}
+
+function loadUserContacts() {
+    if (!currentUser || !currentUser.sm_id) {
+        contacts = [];
+        return;
+    }
+    const key = `sm_contacts_${currentUser.sm_id}`;
+    const globalKey = 'sm_contacts';
+
+    let stored = localStorage.getItem(key);
+
+    // Migration Logic
+    if (!stored && localStorage.getItem(globalKey)) {
+        // Alte Daten vorhanden, neue noch nicht -> Migration
+        stored = localStorage.getItem(globalKey);
+        localStorage.setItem(key, stored);
+        localStorage.removeItem(globalKey);
+        console.log("Contacts migrated to user-specific storage.");
+    }
+
+    contacts = stored ? JSON.parse(stored) : [];
+}
+
+function saveUserContacts() {
+    if (!currentUser || !currentUser.sm_id) return;
+    localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts));
+}
