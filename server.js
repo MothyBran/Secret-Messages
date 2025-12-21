@@ -233,9 +233,9 @@ const createTables = async () => {
             if (mCheck.rows.length === 0) {
                 await dbQuery("INSERT INTO settings (key, value) VALUES ('maintenance_mode', 'false')");
             }
-            const sCheck = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
+            const sCheck = await dbQuery("SELECT value FROM settings WHERE key = 'shop_active'");
             if (sCheck.rows.length === 0) {
-                await dbQuery("INSERT INTO settings (key, value) VALUES ('shop_enabled', 'true')");
+                await dbQuery("INSERT INTO settings (key, value) VALUES ('shop_active', 'true')");
             }
         } catch (e) { console.warn("Settings init warning:", e.message); }
 
@@ -253,9 +253,9 @@ app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/api/shop-status', async (req, res) => {
     try {
-        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
-        const enabled = result.rows.length > 0 && result.rows[0].value === 'true';
-        res.json({ enabled });
+        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_active'");
+        const active = result.rows.length > 0 && result.rows[0].value === 'true';
+        res.json({ active });
     } catch (e) { res.status(500).json({ error: 'DB Error' }); }
 });
 
@@ -945,18 +945,18 @@ app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/shop-status', requireAdmin, async (req, res) => {
     try {
-        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_enabled'");
-        const enabled = result.rows.length > 0 && result.rows[0].value === 'true';
-        res.json({ success: true, enabled });
+        const result = await dbQuery("SELECT value FROM settings WHERE key = 'shop_active'");
+        const active = result.rows.length > 0 && result.rows[0].value === 'true';
+        res.json({ success: true, active });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.post('/api/admin/toggle-shop', requireAdmin, async (req, res) => {
     try {
-        const { enabled } = req.body;
-        const val = enabled ? 'true' : 'false';
-        await dbQuery("UPDATE settings SET value = $1 WHERE key = 'shop_enabled'", [val]);
-        res.json({ success: true, enabled });
+        const { active } = req.body;
+        const val = active ? 'true' : 'false';
+        await dbQuery("UPDATE settings SET value = $1 WHERE key = 'shop_active'", [val]);
+        res.json({ success: true, active });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 

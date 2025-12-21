@@ -272,10 +272,10 @@ window.loadShopStatus = async function() {
         if (data.success) {
             const toggle = document.getElementById('shopToggle');
             const statusText = document.getElementById('shopStateText');
-            if (toggle) toggle.checked = data.enabled;
+            if (toggle) toggle.checked = data.active;
             if (statusText) {
-                statusText.textContent = data.enabled ? "AKTIV" : "OFFLINE";
-                statusText.style.color = data.enabled ? "var(--success-green)" : "var(--error-red)";
+                statusText.textContent = data.active ? "AKTIV" : "OFFLINE";
+                statusText.style.color = data.active ? "var(--success-green)" : "var(--error-red)";
             }
         }
     } catch (e) { console.error("Shop Status Load Failed", e); }
@@ -290,13 +290,13 @@ window.toggleShop = async function() {
     try {
         const res = await fetch(`${API_BASE}/toggle-shop`, {
             method: 'POST', headers: getHeaders(),
-            body: JSON.stringify({ enabled: isEnabled })
+            body: JSON.stringify({ active: isEnabled })
         });
         const data = await res.json();
         if (data.success) {
-             statusText.textContent = data.enabled ? "AKTIV" : "OFFLINE";
-             statusText.style.color = data.enabled ? "var(--success-green)" : "var(--error-red)";
-             window.showMessage("Info", `Shop ist nun ${data.enabled ? 'ONLINE' : 'OFFLINE'}`);
+             statusText.textContent = data.active ? "AKTIV" : "OFFLINE";
+             statusText.style.color = data.active ? "var(--success-green)" : "var(--error-red)";
+             window.showMessage("Info", `Shop ist nun ${data.active ? 'ONLINE' : 'OFFLINE'}`);
         } else {
             toggle.checked = !isEnabled;
             window.showMessage("Fehler", "Konnte Status nicht ändern.", true);
