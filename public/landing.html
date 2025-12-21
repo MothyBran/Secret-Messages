@@ -163,6 +163,10 @@
         .state-inactive {
             opacity: 1;
             transform: translateY(0);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding-top: 40px;
         }
 
         .state-active {
@@ -184,7 +188,7 @@
         .feature-icon-large {
             font-size: 4rem;
             color: var(--accent-blue);
-            margin-top: 20px;
+            margin-top: 40px;
         }
 
         .feature-card h3 {
@@ -427,7 +431,7 @@
                         </div>
                     </div>
                     <div class="feature-state state-active">
-                        <p>Sämtliche kryptografischen Operationen werden isoliert auf Ihrem Endgerät ausgeführt. Es erfolgt keine Übermittlung von Inhalten oder Entschlüsselungscodes an den Server. Was auf Ihrem Gerät verschlüsselt wird, bleibt mathematisch unzugänglich für Dritte.</p>
+                        <p>Sämtliche kryptografischen Operationen werden isoliert auf Ihrem Endgerät ausgeführt. Es erfolgt keine Übermittlung von Inhalten oder Entschlüsselungscodes an den Server. Was auf Ihrem Gerät verschlüsselt wird, bleibt mathematisch unzugänglich.</p>
                     </div>
                 </div>
 
@@ -440,7 +444,7 @@
                         </div>
                     </div>
                     <div class="feature-state state-active">
-                        <p>Ihre digitale Präsenz basiert ausschließlich auf einem gewählten Alias und einer numerischen ID. Es erfolgt keine Verknüpfung mit Klarnamen, E-Mails oder Rufnummern. Diese konsequente Trennung gewährleistet vollständige Anonymität gegenüber dem System.</p>
+                        <p>Ihre digitale Präsenz basiert auf einem gewählten Alias und einer ID-Sequenz. Es erfolgt keine Verknüpfung mit Klarnamen, E-Mails oder Rufnummern. Diese Trennung gewährleistet Anonymität gegenüber dem System.</p>
                     </div>
                 </div>
 
@@ -453,7 +457,7 @@
                         </div>
                     </div>
                     <div class="feature-state state-active">
-                        <p>Die Datenhoheit liegt exklusiv bei Ihnen. Durch dezentrale Schlüsselverwaltung ist ein administrativer Zugriff durch den Anbieter systembedingt ausgeschlossen. Nur die Kombination aus Empfänger-Binding und individuellem Zugangscode ermöglicht die Dekodierung.</p>
+                        <p>Die Datenhoheit liegt exklusiv bei Ihnen. Durch dezentrale Schlüsselverwaltung ist ein administrativer Zugriff durch den Anbieter ausgeschlossen. Nur die Kombination aus Empfänger-Binding und Zugangscode ermöglicht die Dekodierung.</p>
                     </div>
                 </div>
 
@@ -466,7 +470,7 @@
                         </div>
                     </div>
                     <div class="feature-state state-active">
-                        <p>Wir speichern nur systemrelevante Metadaten zur Lizenzvalidierung. Das System nutzt hardwarenahe Verhaltensanalysen für eine eindeutige Gerätebindung, während Kontakt-IDs flüchtig im lokalen Cache verbleiben. Personenbezogene Profile werden konsequent vermieden.</p>
+                        <p>Wir speichern nur systemrelevante Metadaten zur Lizenzvalidierung. Das System nutzt hardwarenahe Analysen für eine eindeutige Gerätebindung, während Kontakt-IDs flüchtig im lokalen Cache verbleiben.</p>
                     </div>
                 </div>
 
@@ -479,7 +483,7 @@
                         </div>
                     </div>
                     <div class="feature-state state-active">
-                        <p>Ein unbefugter Zugriff wird durch obligatorisches Hardware-Binding verhindert. Logins auf nicht registrierten Endgeräten werden blockiert. Die Anwendung ist forensisch resistent; bei Geräteverlust bietet das System keine Angriffsfläche für Datenextraktion.</p>
+                        <p>Unbefugter Zugriff wird durch obligatorisches Hardware-Binding verhindert. Die Anwendung ist forensisch resistent konzipiert; bei Geräteverlust bietet das System keine Angriffsfläche für Datenextraktion.</p>
                     </div>
                 </div>
             </div>
