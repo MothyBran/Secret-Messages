@@ -171,6 +171,22 @@ function setupUIEvents() {
     document.getElementById('logoutBtnSide')?.addEventListener('click', handleLogout);
     document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
+    // --- CODE ÄNDERN ---
+    document.getElementById('navChangeCode')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMainMenu(true);
+        document.getElementById('changeCodeModal').classList.add('active');
+        document.getElementById('currentAccessCode').value = '';
+        document.getElementById('changeNewCode').value = '';
+        document.getElementById('changeNewCodeRepeat').value = '';
+    });
+
+    document.getElementById('btnCancelChangeCode')?.addEventListener('click', () => {
+        document.getElementById('changeCodeModal').classList.remove('active');
+    });
+
+    document.getElementById('btnConfirmChangeCode')?.addEventListener('click', handleChangeAccessCode);
+
     // --- LOGO KLICK LOGIK (NEU) ---
     document.querySelector('.app-logo')?.addEventListener('click', () => {
         // Prüfen ob eingeloggt (Token existiert)
@@ -246,6 +262,42 @@ function setupUIEvents() {
     document.getElementById('activationForm')?.addEventListener('submit', handleActivation);
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
+
+    // License Key Check (Auto-Fill Assigned ID)
+    document.getElementById('licenseKey')?.addEventListener('blur', async (e) => {
+        const key = e.target.value.trim();
+        if(!key) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/check-license`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ licenseKey: key })
+            });
+            const data = await res.json();
+
+            if (data.isValid && data.assignedUserId) {
+                const uField = document.getElementById('newUsername');
+                uField.value = data.assignedUserId;
+                uField.readOnly = true;
+                uField.style.opacity = '0.7';
+
+                // Show hint
+                let hint = document.getElementById('assignedIdHint');
+                if(!hint) {
+                    hint = document.createElement('div');
+                    hint.id = 'assignedIdHint';
+                    hint.style.fontSize = '0.8rem';
+                    hint.style.color = 'var(--accent-blue)';
+                    hint.style.marginTop = '5px';
+                    uField.parentNode.appendChild(hint);
+                }
+                hint.textContent = `ℹ️ Diese Lizenz ist fest für die ID ${data.assignedUserId} reserviert.`;
+            } else if (!data.isValid && data.error === 'Bereits benutzt') {
+                showAppStatus("Dieser Key wurde bereits verwendet.", 'error');
+            }
+        } catch(e) { console.error(e); }
+    });
 
     // Activation Code Validation
     document.getElementById('newAccessCode')?.addEventListener('input', validateActivationInputs);
@@ -387,6 +439,65 @@ async function performAccountDeletion() {
         document.getElementById('deleteAccountModal').classList.remove('active');
     } finally {
         btn.textContent = originalText; btn.disabled = false;
+    }
+}
+
+async function handleChangeAccessCode() {
+    const currentCode = document.getElementById('currentAccessCode').value;
+    const newCode = document.getElementById('changeNewCode').value;
+    const newCodeRepeat = document.getElementById('changeNewCodeRepeat').value;
+    const btn = document.getElementById('btnConfirmChangeCode');
+
+    if(!currentCode || !newCode || !newCodeRepeat) return alert("Bitte alle Felder ausfüllen.");
+    if(newCode.length !== 5 || isNaN(newCode)) return alert("Der neue Code muss 5 Ziffern haben.");
+    if(newCode !== newCodeRepeat) return alert("Die neuen Codes stimmen nicht überein.");
+
+    btn.textContent = "Verarbeite...";
+    btn.disabled = true;
+
+    try {
+        // 1. Verify Old Code using Server Login Check (Server Hash)
+        // Note: Currently local contacts are stored as plain JSON in this version.
+        // If they were encrypted, we would decrypt them here with old code and re-encrypt with new code.
+
+        const res = await fetch(`${API_BASE}/auth/login`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ username: currentUser, accessCode: currentCode, deviceId: await generateDeviceFingerprint() })
+        });
+        const loginData = await res.json();
+
+        if(!loginData.success) {
+            alert("Der aktuelle Zugangscode ist falsch.");
+            btn.textContent = "Ändern";
+            btn.disabled = false;
+            return;
+        }
+
+        // If Old Code is correct, proceed to update.
+        const updateRes = await fetch(`${API_BASE}/auth/change-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ newAccessCode: newCode })
+        });
+
+        const updateData = await updateRes.json();
+
+        if(updateData.success) {
+            alert("Zugangscode erfolgreich geändert.");
+            document.getElementById('changeCodeModal').classList.remove('active');
+        } else {
+            alert("Fehler: " + (updateData.error || "Unbekannt"));
+        }
+
+    } catch(e) {
+        alert("Verbindungsfehler.");
+    } finally {
+        btn.textContent = "Ändern";
+        btn.disabled = false;
     }
 }
 

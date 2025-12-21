@@ -250,6 +250,7 @@
 
         <div style="margin-top: auto;"></div>
 
+        <a href="#" class="sidebar-item auth-only" id="navChangeCode" style="display:none; color: var(--accent-blue);">🔑 Code ändern</a>
         <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
         <a href="#" class="sidebar-item auth-only" id="navDelete" style="display:none; color: var(--error-red); border-top: 1px solid #333;">⚠️ Zugang löschen</a>
         <div style="padding: 10px 25px; font-size: 0.7rem; color: #555;">
@@ -569,6 +570,36 @@
             <div style="display: flex; gap: 10px;">
                 <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;">Schließen</button>
                 <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="changeCodeModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">ZUGANGSCODE ÄNDERN</h3>
+
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem;">
+                Zur Änderung des Codes müssen wir Ihre lokalen Daten entschlüsseln und neu verschlüsseln.
+            </p>
+
+            <div class="input-group">
+                <label class="input-label">Aktueller Code</label>
+                <input type="password" id="currentAccessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Neuer Code</label>
+                <input type="password" id="changeNewCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Neuen Code wiederholen</label>
+                <input type="password" id="changeNewCodeRepeat" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button class="btn" id="btnCancelChangeCode" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmChangeCode" style="flex:1;">Ändern</button>
             </div>
         </div>
     </div>
