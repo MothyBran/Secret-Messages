@@ -238,6 +238,7 @@
                 <button class="nav-tab" onclick="switchTab('users')">Benutzer</button>
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
+                <button class="nav-tab" onclick="switchTab('support')">Support</button>
                 <button class="nav-tab" onclick="switchTab('mail')">Mail Service</button>
                 <button class="nav-tab" onclick="switchTab('maintenance')">Wartung</button>
             </nav>
@@ -440,6 +441,31 @@
                 </table>
             </div>
 
+        </div>
+
+        <!-- TAB: SUPPORT TICKETS -->
+        <div id="tab-support" class="tab-content">
+            <h2 class="section-title">
+                Support Anfragen
+                <button id="refreshSupportBtn" class="btn-outline">Refresh</button>
+            </h2>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket</th>
+                            <th>User/ID</th>
+                            <th>E-Mail</th>
+                            <th>Betreff</th>
+                            <th>Nachricht</th>
+                            <th>Erstellt</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supportTableBody"></tbody>
+                </table>
+            </div>
         </div>
 
         <!-- TAB 5: MAIL SERVICE -->

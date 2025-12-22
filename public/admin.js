@@ -10,6 +10,7 @@ let allUsers = [];
 let allKeys = [];
 let allPurchases = [];
 let allBundles = [];
+let allTickets = [];
 let currentBundleId = null;
 
 // Helper für Headers
@@ -133,6 +134,49 @@ window.loadBundles = async function() {
         renderBundlesTable(allBundles);
     } catch(e) { console.error("Load Bundles Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+window.loadSupportTickets = async function() {
+    const btn = document.getElementById('refreshSupportBtn');
+    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
+    try {
+        const res = await fetch(`${API_BASE}/support-tickets`, { headers: getHeaders() });
+        allTickets = await res.json();
+        renderSupportTickets(allTickets);
+    } catch(e) { console.error("Load Tickets Failed", e); }
+    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+window.closeTicket = function(id) {
+    window.showConfirm("Ticket als erledigt markieren (löschen)?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/support-tickets/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.loadSupportTickets();
+                window.showMessage("Info", "Ticket gelöscht.");
+            } else {
+                window.showMessage("Fehler", "Konnte Ticket nicht löschen.", true);
+            }
+        } catch(e) { window.showMessage("Fehler", "Verbindungsfehler.", true); }
+    });
+};
+
+window.replyToTicket = function(username, subject, ticketId) {
+    // 1. Switch Tab
+    window.switchTab('mail');
+
+    // 2. Pre-fill Form
+    document.getElementById('msgRecipientType').value = 'single';
+    window.toggleRecipientInput(); // Show input
+    document.getElementById('msgRecipientId').value = username;
+
+    document.getElementById('msgSubjectSelect').value = 'custom';
+    window.toggleSubjectInput(); // Show custom input
+    document.getElementById('msgSubjectCustom').value = `Re: [${ticketId}] ${subject}`;
+
+    document.getElementById('msgBody').focus();
+
+    window.showToast("Antwort-Formular wurde vorbefüllt.", 'info');
 };
 
 window.generateBundle = async function() {
@@ -495,6 +539,7 @@ async function initDashboard() {
             window.loadKeys();
             window.loadPurchases();
             window.loadBundles();
+            window.loadSupportTickets();
             loadSystemStatus();
 
             // Set default tab
@@ -536,6 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
     document.getElementById('refreshBundlesBtn')?.addEventListener('click', window.loadBundles);
+    document.getElementById('refreshSupportBtn')?.addEventListener('click', window.loadSupportTickets);
     document.getElementById('generateBundleBtn')?.addEventListener('click', window.generateBundle);
     document.getElementById('closeBundleModalBtn')?.addEventListener('click', () => document.getElementById('bundleDetailsModal').style.display='none');
     document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
@@ -705,6 +751,101 @@ function renderPurchasesTable(purchases) {
         tbody.appendChild(tr);
     });
 }
+
+function renderSupportTickets(tickets) {
+    const tbody = document.getElementById('supportTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    tickets.forEach(t => {
+        const tr = document.createElement('tr');
+
+        // 1. Ticket ID
+        const tdId = document.createElement('td');
+        tdId.style.fontFamily = "'Roboto Mono'";
+        tdId.style.fontSize = "0.8rem";
+        tdId.style.color = "var(--accent-blue)";
+        tdId.textContent = t.ticket_id;
+        tr.appendChild(tdId);
+
+        // 2. Username
+        const tdUser = document.createElement('td');
+        if (t.username) {
+            tdUser.textContent = t.username;
+            tdUser.style.fontWeight = "bold";
+            tdUser.style.color = "#fff";
+        } else {
+            tdUser.textContent = "(Gast)";
+            tdUser.style.color = "#888";
+        }
+        tr.appendChild(tdUser);
+
+        // 3. Email
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = t.email || '-';
+        tr.appendChild(tdEmail);
+
+        // 4. Subject
+        const tdSubj = document.createElement('td');
+        tdSubj.textContent = t.subject;
+        tr.appendChild(tdSubj);
+
+        // 5. Message (Truncated)
+        const tdMsg = document.createElement('td');
+        tdMsg.textContent = t.message;
+        tdMsg.title = t.message; // Tooltip shows full text
+        tdMsg.style.fontSize = "0.8rem";
+        tdMsg.style.color = "#ccc";
+        tdMsg.style.maxWidth = "300px";
+        tdMsg.style.whiteSpace = "nowrap";
+        tdMsg.style.overflow = "hidden";
+        tdMsg.style.textOverflow = "ellipsis";
+        tr.appendChild(tdMsg);
+
+        // 6. Created At
+        const tdDate = document.createElement('td');
+        tdDate.textContent = new Date(t.created_at).toLocaleString('de-DE');
+        tr.appendChild(tdDate);
+
+        // 7. Actions
+        const tdActions = document.createElement('td');
+
+        // Reply Button (Only if Username exists)
+        if (t.username && t.username.length > 0) {
+            const btnReply = document.createElement('button');
+            btnReply.className = "btn-icon";
+            btnReply.textContent = "📤";
+            btnReply.title = "Via Postfach antworten";
+            btnReply.style.cursor = "pointer";
+            btnReply.style.border = "none";
+            btnReply.style.background = "none";
+            btnReply.style.fontSize = "1.2rem";
+            btnReply.style.marginRight = "10px";
+
+            // Securely attach event handler
+            btnReply.onclick = () => window.replyToTicket(t.username, t.subject, t.ticket_id);
+            tdActions.appendChild(btnReply);
+        }
+
+        // Delete Button
+        const btnDelete = document.createElement('button');
+        btnDelete.className = "btn-icon";
+        btnDelete.textContent = "🗑️";
+        btnDelete.title = "Löschen";
+        btnDelete.style.cursor = "pointer";
+        btnDelete.style.border = "none";
+        btnDelete.style.background = "none";
+        btnDelete.style.fontSize = "1.2rem";
+        btnDelete.style.color = "var(--error-red)";
+
+        // Securely attach event handler
+        btnDelete.onclick = () => window.closeTicket(t.id);
+        tdActions.appendChild(btnDelete);
+
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+}
+
 // --- MAIL SERVICE ---
 window.toggleRecipientInput = function() {
     const type = document.getElementById('msgRecipientType').value;

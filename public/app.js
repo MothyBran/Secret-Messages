@@ -1389,15 +1389,31 @@ async function handleSupportSubmit(e) {
     const allFields = form.querySelectorAll('input, textarea, button');
     const oldText = btn.textContent;
 
+    const usernameVal = document.getElementById('supportUsername').value.trim();
+    const emailVal = document.getElementById('supportEmail').value.trim();
+    const messageVal = document.getElementById('supportMessage').value.trim();
+    const subjectVal = document.getElementById('supportSubject').value.trim();
+
+    // Validation Logic
+    if (!messageVal || !subjectVal) {
+        showToast("Bitte Betreff und Nachricht eingeben.", 'error');
+        return;
+    }
+
+    if (!usernameVal && !emailVal) {
+        showToast("Bitte geben Sie eine E-Mail-Adresse oder Ihre Benutzer-ID für eine Rückantwort an.", 'error');
+        return;
+    }
+
     // 1. Lock UI
     btn.textContent = "Wird gesendet...";
     allFields.forEach(f => f.disabled = true);
 
     const payload = {
-        username: document.getElementById('supportUsername').value,
-        subject: document.getElementById('supportSubject').value,
-        email: document.getElementById('supportEmail').value,
-        message: document.getElementById('supportMessage').value
+        username: usernameVal,
+        subject: subjectVal,
+        email: emailVal,
+        message: messageVal
     };
 
     try {
