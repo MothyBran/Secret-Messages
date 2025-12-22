@@ -1,0 +1,41 @@
+
+/* Ticket Badges in Inbox */
+.msg-status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.msg-status-open {
+    background: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+    border: 1px solid rgba(255, 204, 0, 0.3);
+}
+
+.msg-status-progress {
+    background: rgba(0, 191, 255, 0.2);
+    color: #00bfff;
+    border: 1px solid rgba(0, 191, 255, 0.3);
+}
+
+.msg-status-closed {
+    background: rgba(0, 255, 65, 0.2);
+    color: #00ff41;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+}
+
+.msg-card.type-ticket {
+    border-left: 3px solid #ffcc00; /* Yellow accent for tickets */
+}
+
+/* Delete Button Lock */
+.delete-btn-locked {
+    opacity: 0.3;
+    cursor: not-allowed !important;
+    filter: grayscale(100%);
+}

@@ -27,6 +27,12 @@ let sortDir = 'asc';
 // ================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Inject CSS for tickets if not present
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/assets/css/user-tickets.css';
+    document.head.appendChild(link);
+
     const verEl = document.getElementById('appVersion');
     if(verEl) verEl.textContent = APP_VERSION;
 
@@ -1658,6 +1664,8 @@ async function checkUnreadMessages() {
         });
         const msgs = await res.json();
 
+        // Count unread that are NOT closed tickets (if we want to notify about updates?)
+        // Standard behavior: Count all unread where recipient_id is set.
         const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
 
         updatePostboxUI(unreadPersonal);
@@ -1694,16 +1702,30 @@ async function loadAndShowInbox() {
 
             const isPersonal = !!m.recipient_id;
             const isUnread = isPersonal && !m.is_read;
+            const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
 
             let classes = 'msg-card';
             if(isUnread) classes += ' unread';
             if(m.type === 'automated') classes += ' type-automated';
             if(m.type === 'support') classes += ' type-support';
+            if(isTicket) classes += ' type-ticket';
 
             let icon = '📩';
             if(m.type === 'automated') icon = '⚠️';
             else if(m.type === 'support') icon = '💬';
+            else if(isTicket) icon = '🎫';
             else if(!isPersonal) icon = '📢';
+
+            // --- TICKET BADGE LOGIC ---
+            let badgeHtml = '';
+            if (m.type === 'ticket' && m.status) {
+                let statusClass = 'msg-status-open';
+                let statusText = 'OFFEN';
+                if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN ARBEIT'; }
+                if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ERLEDIGT'; }
+                badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
+            }
+            // ---------------------------
 
             el.className = classes;
             el.innerHTML = `
@@ -1716,14 +1738,37 @@ async function loadAndShowInbox() {
             // SECURITY: Render Subject & Body safely as text
             const divSubject = document.createElement('div');
             divSubject.className = 'msg-subject';
-            divSubject.textContent = `${icon} ${m.subject}`; // textContent handles escaping
+            divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`; // Use innerHTML for badge, but escape subject
 
             const divBody = document.createElement('div');
             divBody.className = 'msg-body';
-            divBody.textContent = m.body; // textContent handles escaping
+            divBody.textContent = m.body;
 
             el.appendChild(divSubject);
             el.appendChild(divBody);
+
+            // DELETE BUTTON (Custom Logic for Tickets)
+            if (isPersonal) {
+                const btnDel = document.createElement('button');
+                btnDel.textContent = 'Löschen';
+                btnDel.className = 'btn-outline';
+                btnDel.style.fontSize = '0.7rem';
+                btnDel.style.marginTop = '10px';
+                btnDel.style.padding = '4px 8px';
+
+                // Lock if Ticket and NOT closed
+                if (m.type === 'ticket' && m.status !== 'closed') {
+                    btnDel.classList.add('delete-btn-locked');
+                    btnDel.title = "Ticket ist noch offen.";
+                    btnDel.onclick = (e) => { e.stopPropagation(); showToast("Ticket kann erst nach Abschluss gelöscht werden.", "error"); };
+                } else {
+                    btnDel.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteMessage(m.id, el);
+                    };
+                }
+                el.appendChild(btnDel);
+            }
 
             el.addEventListener('click', () => {
                 const wasExpanded = el.classList.contains('expanded');
@@ -1760,6 +1805,44 @@ async function markMessageRead(id) {
             method: 'PATCH',
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        // Background update, no wait needed
     } catch(e) { console.error("Mark Read Failed", e); }
+}
+
+async function deleteMessage(id, element) {
+    if(!confirm("Nachricht wirklich löschen?")) return; // Using native confirm for speed inside list
+    try {
+        // We don't have a specific delete endpoint exposed in server.js for messages?
+        // Checking server.js... There is NO DELETE endpoint for messages in server.js provided!
+        // Wait, standard user inbox deletion was not in the original requirements provided in memory,
+        // but implied by "Interaction Lock: Implement logic that disables the 'Delete' button".
+        // Use existing if avail or creating one?
+        // The provided server.js DOES NOT have app.delete('/api/messages/:id').
+        // I must add it or use a workaround.
+        // I will add the DELETE endpoint to server.js in a separate step if missing.
+        // Checking server.js content again... NO delete endpoint for messages found.
+
+        // I will implement client logic assuming endpoint exists, and fix server.js in next step.
+        const res = await fetch(`${API_BASE}/messages/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (res.ok) {
+            element.remove();
+            showToast("Nachricht gelöscht.", "success");
+            checkUnreadMessages(); // Update count
+        } else {
+            showToast("Fehler beim Löschen.", "error");
+        }
+    } catch(e) { showToast("Verbindungsfehler", "error"); }
+}
+
+function escapeHtml(text) {
+    if(!text) return '';
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
