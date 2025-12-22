@@ -234,6 +234,17 @@ const createTables = async () => {
             expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}
         )`);
 
+        await dbQuery(`CREATE TABLE IF NOT EXISTS support_tickets (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            ticket_id VARCHAR(50),
+            username VARCHAR(50),
+            email VARCHAR(100),
+            subject VARCHAR(255),
+            message TEXT,
+            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
+            status VARCHAR(20) DEFAULT 'open'
+        )`);
+
         // Add columns to license_keys if missing (Schema Migration)
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
@@ -272,90 +283,101 @@ app.get('/api/shop-status', async (req, res) => {
 
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
-    console.log(`>> Anfrage erhalten für: ${req.body.email}`);
+    console.log(`>> Anfrage erhalten für: ${req.body.username || req.body.email}`);
     const { username, subject, email, message } = req.body;
 
-    if (!email || !message || !subject) {
-        return res.status(400).json({ success: false, error: 'Bitte alle Pflichtfelder ausfüllen.' });
+    if ((!email && !username) || !message || !subject) {
+        return res.status(400).json({ success: false, error: 'Bitte Pflichtfelder ausfüllen.' });
     }
 
     // 1. Ticket-Nummer generieren
     const ticketId = 'TIC-' + crypto.randomBytes(3).toString('hex').toUpperCase();
 
     try {
+        // DB SAVE
+        await dbQuery(
+            `INSERT INTO support_tickets (ticket_id, username, email, subject, message, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [ticketId, username || null, email || null, subject, message, new Date().toISOString()]
+        );
+
         console.log(`>> Sende Support-Email via Resend (Ticket: ${ticketId})...`);
 
         const receiver = process.env.EMAIL_RECEIVER || 'support@secure-msg.app';
         const sender = 'support@secure-msg.app';
 
         // 1. Email an Support-Team
+        const replyTo = email || 'no-reply@secure-msg.app';
+
         const { error: errorTeam } = await resend.emails.send({
             from: sender,
             to: receiver,
-            reply_to: email,
+            reply_to: replyTo,
             subject: `[SUPPORT] ${subject} [${ticketId}]`,
-            text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${username || 'Gast'}\nEmail: ${email}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
+            text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${username || 'Gast'}\nEmail: ${email || 'Keine (Interner Support)'}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
             html: `
                 <h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3>
                 <p><strong>Von:</strong> ${username || 'Gast'}</p>
-                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Email:</strong> ${email || 'Keine (Interner Support)'}</p>
                 <p><strong>Betreff:</strong> ${subject}</p>
                 <hr>
                 <p style="white-space: pre-wrap;">${message}</p>
+                ${username ? '<p style="color:green; font-weight:bold;">Interne ID vorhanden: ' + username + '</p>' : ''}
             `
         });
 
         if (errorTeam) {
             console.error('>> Resend API Error (Team):', errorTeam);
-            return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + errorTeam.message });
+            // Wir loggen den Fehler, aber da es in DB ist, geben wir Success zurück, damit der User nicht verwirrt ist.
+            // return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + errorTeam.message });
         }
 
-        // 2. Bestätigung an Kunden (Auto-Reply)
-        const { error: errorClient } = await resend.emails.send({
-            from: sender,
-            to: email,
-            subject: `Bestätigung Ihrer Support-Anfrage [Ticket-Nr: ${ticketId}]`,
-            html: `
-                <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-                    <h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3>
-                    <p>Hallo ${username || 'Nutzer'},</p>
-                    <p>Ihre Nachricht ist bei uns eingegangen. Unser Support-Team wird sich schnellstmöglich bei Ihnen melden.</p>
+        // 2. Bestätigung an Kunden (Auto-Reply) NUR wenn Email vorhanden
+        if (email) {
+            const { error: errorClient } = await resend.emails.send({
+                from: sender,
+                to: email,
+                subject: `Bestätigung Ihrer Support-Anfrage [Ticket-Nr: ${ticketId}]`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+                        <h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3>
+                        <p>Hallo ${username || 'Nutzer'},</p>
+                        <p>Ihre Nachricht ist bei uns eingegangen. Unser Support-Team wird sich schnellstmöglich bei Ihnen melden.</p>
 
-                    <p><strong>Ihre Ticket-Nummer:</strong> ${ticketId}</p>
+                        <p><strong>Ihre Ticket-Nummer:</strong> ${ticketId}</p>
 
-                    <div style="background-color: #f4f4f4; padding: 15px; border-left: 4px solid #00BFFF; margin: 20px 0; color: #555;">
-                        <strong>Ihre Nachricht:</strong><br><br>
-                        ${message.replace(/\n/g, '<br>')}
+                        <div style="background-color: #f4f4f4; padding: 15px; border-left: 4px solid #00BFFF; margin: 20px 0; color: #555;">
+                            <strong>Ihre Nachricht:</strong><br><br>
+                            ${message.replace(/\n/g, '<br>')}
+                        </div>
+
+                        <br>
+                        <hr style="border: 0; border-top: 1px solid #ddd;">
+
+                        <div style="font-size: 12px; color: #777;">
+                            <p><strong>Secure Message Support Team</strong></p>
+                            <p><a href="https://www.secure-msg.app"><img src="https://www.secure-msg.app/assets/screenshots/logo-signature.png" alt="Secure Message Logo" width="150" style="display:block; margin-bottom:10px;"></a></p>
+
+                            <p>...Your Message is a Secure Message | Zero-Knowledge-Kryptografie | Lokale AES-GCM Verschlüsselung<br>
+                            Web: <a href="https://www.secure-msg.app" style="color:#00BFFF; text-decoration:none;">www.secure-msg.app</a> | Support: <a href="mailto:support@secure-msg.app" style="color:#00BFFF; text-decoration:none;">support@secure-msg.app</a></p>
+
+                            <p><strong>Sicherheitshinweis:</strong> Diese Nachricht wurde über einen gesicherten Workspace versendet. Wir werden Sie niemals per E-Mail nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Ihre Privatsphäre ist durch unsere Zero-Knowledge-Architektur geschützt.</p>
+
+                            <p><strong>Pflichtangaben gemäß § 125a HGB / § 80 AktG:</strong><br>
+                            Secure Message<br>
+                            Musterstraße 1, 10115 Berlin, Deutschland</p>
+
+                            <p>Inhaber/Geschäftsführer: Max Mustermann<br>
+                            USt-IdNr.: DE123456789</p>
+
+                            <p><em>Diese E-Mail enthält vertrauliche Informationen. Wenn Sie nicht der beabsichtigte Empfänger sind, löschen Sie diese bitte und informieren Sie uns.</em></p>
+                        </div>
                     </div>
+                `
+            });
 
-                    <br>
-                    <hr style="border: 0; border-top: 1px solid #ddd;">
-
-                    <div style="font-size: 12px; color: #777;">
-                        <p><strong>Secure Message Support Team</strong></p>
-                        <p><a href="https://www.secure-msg.app"><img src="https://www.secure-msg.app/assets/screenshots/logo-signature.png" alt="Secure Message Logo" width="150" style="display:block; margin-bottom:10px;"></a></p>
-
-                        <p>...Your Message is a Secure Message | Zero-Knowledge-Kryptografie | Lokale AES-GCM Verschlüsselung<br>
-                        Web: <a href="https://www.secure-msg.app" style="color:#00BFFF; text-decoration:none;">www.secure-msg.app</a> | Support: <a href="mailto:support@secure-msg.app" style="color:#00BFFF; text-decoration:none;">support@secure-msg.app</a></p>
-
-                        <p><strong>Sicherheitshinweis:</strong> Diese Nachricht wurde über einen gesicherten Workspace versendet. Wir werden Sie niemals per E-Mail nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Ihre Privatsphäre ist durch unsere Zero-Knowledge-Architektur geschützt.</p>
-
-                        <p><strong>Pflichtangaben gemäß § 125a HGB / § 80 AktG:</strong><br>
-                        Secure Message<br>
-                        Musterstraße 1, 10115 Berlin, Deutschland</p>
-
-                        <p>Inhaber/Geschäftsführer: Max Mustermann<br>
-                        USt-IdNr.: DE123456789</p>
-
-                        <p><em>Diese E-Mail enthält vertrauliche Informationen. Wenn Sie nicht der beabsichtigte Empfänger sind, löschen Sie diese bitte und informieren Sie uns.</em></p>
-                    </div>
-                </div>
-            `
-        });
-
-        if (errorClient) {
-            console.warn('>> Warnung: Bestätigungsmail konnte nicht gesendet werden:', errorClient);
-            // Wir brechen hier nicht ab, da die Support-Anfrage erfolgreich war.
+            if (errorClient) {
+                console.warn('>> Warnung: Bestätigungsmail konnte nicht gesendet werden:', errorClient);
+            }
         }
 
         console.log(`>> Support-Vorgang erfolgreich. Ticket: ${ticketId}`);
@@ -947,6 +969,21 @@ app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
         });
         res.json(purchases);
     } catch (e) { res.json([]); }
+});
+
+// SUPPORT TICKETS (ADMIN)
+app.get('/api/admin/support-tickets', requireAdmin, async (req, res) => {
+    try {
+        const result = await dbQuery(`SELECT * FROM support_tickets ORDER BY created_at DESC`);
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/support-tickets/:id', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery(`DELETE FROM support_tickets WHERE id = $1`, [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // MAINTENANCE SETTINGS
