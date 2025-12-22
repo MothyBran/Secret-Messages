@@ -60,6 +60,33 @@ window.showMessage = function(title, message, isError = false) {
     document.getElementById('messageModal').style.display = 'flex';
 };
 
+// --- TOAST NOTIFICATIONS (ADMIN) ---
+window.showToast = function(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return; // Fallback?
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+
+    toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400); // wait for fade out
+    }, 4000);
+}
+
 // Global functions must be attached to window for HTML onclick attributes to work
 window.loadUsers = async function() {
     console.log("Funktion aufgerufen: loadUsers");
@@ -122,7 +149,7 @@ window.generateBundle = async function() {
     };
 
     if(!payload.name || !payload.idStem) {
-        alert("Bitte Name und ID-Stamm angeben.");
+        window.showMessage("Info", "Bitte Name und ID-Stamm angeben.", true);
         btn.textContent = oldText; btn.disabled = false;
         return;
     }
@@ -186,21 +213,22 @@ window.massExtendBundle = async function() {
     const newDate = new Date(dateStr);
     newDate.setHours(23, 59, 59); // End of day
 
-    if(!confirm(`Alle Keys dieses Bundles bis ${newDate.toLocaleDateString()} verlängern?`)) return;
-
-    try {
-        const res = await fetch(`${API_BASE}/bundles/${currentBundleId}/extend`, {
-            method: 'PUT',
-            headers: getHeaders(),
-            body: JSON.stringify({ expires_at: newDate.toISOString() })
-        });
-        if(res.ok) {
-            alert("Erfolgreich verlängert.");
-            window.openBundleDetails(currentBundleId); // Refresh list
-        } else {
-            alert("Fehler bei der Verlängerung.");
-        }
-    } catch(e) { alert("Verbindungsfehler."); }
+    // Fix: Using existing showConfirm helper (which uses confirmModal in HTML)
+    window.showConfirm(`Alle Keys dieses Bundles bis ${newDate.toLocaleDateString()} verlängern?`, async () => {
+        try {
+            const res = await fetch(`${API_BASE}/bundles/${currentBundleId}/extend`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify({ expires_at: newDate.toISOString() })
+            });
+            if(res.ok) {
+                window.showMessage("Erfolg", "Erfolgreich verlängert.");
+                window.openBundleDetails(currentBundleId); // Refresh list
+            } else {
+                window.showMessage("Fehler", "Fehler bei der Verlängerung.", true);
+            }
+        } catch(e) { window.showMessage("Fehler", "Verbindungsfehler.", true); }
+    });
 };
 
 window.exportBundleCsv = async function() {
@@ -221,7 +249,7 @@ window.exportBundleCsv = async function() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    } catch(e) { alert("Export fehlgeschlagen."); }
+    } catch(e) { window.showMessage("Fehler", "Export fehlgeschlagen.", true); }
 };
 
 // --- MAINTENANCE & SHOP ---
@@ -473,9 +501,9 @@ async function initDashboard() {
             window.switchTab('dashboard');
 
         } else {
-            alert("Passwort falsch.");
+            window.showMessage("Fehler", "Passwort falsch.", true);
         }
-    } catch(e) { console.error(e); alert("Server nicht erreichbar."); }
+    } catch(e) { console.error(e); window.showMessage("Fehler", "Server nicht erreichbar.", true); }
 }
 
 // DOM Event Listeners
@@ -703,12 +731,12 @@ window.sendAdminMessage = async function() {
     const expiry = document.getElementById('msgExpiry').value;
 
     if (!subject || !body) {
-        alert("Bitte Betreff und Nachricht eingeben.");
+        window.showMessage("Info", "Bitte Betreff und Nachricht eingeben.", true);
         btn.textContent = oldText; btn.disabled = false;
         return;
     }
     if (type === 'single' && !recipientId) {
-        alert("Bitte User ID angeben.");
+        window.showMessage("Info", "Bitte User ID angeben.", true);
         btn.textContent = oldText; btn.disabled = false;
         return;
     }

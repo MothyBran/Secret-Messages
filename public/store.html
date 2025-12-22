@@ -184,10 +184,39 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* === TOAST NOTIFICATIONS (SHARED) === */
+    #toast-container {
+        position: fixed; top: 20px; right: 20px; z-index: 10000;
+        display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+    }
+    .toast {
+        background: rgba(15, 18, 21, 0.95);
+        color: var(--text-main);
+        padding: 15px 20px;
+        border-radius: 8px;
+        border-left: 4px solid var(--accent-blue);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        min-width: 250px;
+        max-width: 350px;
+        opacity: 0;
+        transform: translateX(50px);
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        pointer-events: auto;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.9rem;
+        backdrop-filter: blur(5px);
+        display: flex; align-items: center; gap: 10px;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .toast.success { border-left-color: var(--success-green); }
+    .toast.error { border-left-color: var(--error-red); }
+    .toast.info { border-left-color: var(--accent-blue); }
+
   </style>
 </head>
 <body>
 
+  <div id="toast-container"></div>
   <div class="bg-grid"></div>
 
   <a href="/app" class="btn btn-back">← Zurück zur App</a>

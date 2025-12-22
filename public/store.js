@@ -62,6 +62,36 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =======================================================
+// UTILS
+// =======================================================
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return; // Fallback?
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+
+    toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400); // wait for fade out
+    }, 4000);
+}
+
+// =======================================================
 // SHOP UI LOGIC
 // =======================================================
 
@@ -89,7 +119,7 @@ function showModal(plan) {
   const emailInput = document.getElementById("emailInput");
 
   const license = licenseMapping[plan];
-  if (!license) return alert("Fehler: Unbekannter Lizenztyp.");
+  if (!license) return showToast("Fehler: Unbekannter Lizenztyp.", 'error');
 
   // Speichere den gewählten Plan im Dataset des Modals
   modal.dataset.selectedPlan = plan;
@@ -125,7 +155,8 @@ async function confirmPurchase() {
   
   // E-Mail Validierung
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    alert("Bitte geben Sie eine gültige E-Mail-Adresse ein.");
+    // Custom inline warning or alert
+    showToast("Bitte geben Sie eine gültige E-Mail-Adresse ein.", 'error');
     return;
   }
 
@@ -153,7 +184,7 @@ async function confirmPurchase() {
 
   } catch (err) {
     console.error("Zahlungsfehler:", err);
-    alert("Fehler beim Starten der Zahlung: " + err.message);
+    showToast("Fehler beim Starten der Zahlung: " + err.message, 'error');
     btn.innerText = originalText;
     btn.disabled = false;
     btn.style.opacity = "1";

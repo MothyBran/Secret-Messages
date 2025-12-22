@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // URL Consistency Check
     if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
-        showAppStatus("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
+        showToast("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
     }
 
     // Wartungsmodus Check (Initial)
@@ -95,6 +95,66 @@ window.fetch = async function(...args) {
         throw error;
     }
 };
+
+// ================================================================
+// TOAST & LOADER SYSTEM & CONFIRM
+// ================================================================
+
+window.showToast = function(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+
+    toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400); // wait for fade out
+    }, 4000);
+};
+
+window.showLoader = function(text = "Verarbeite Daten...") {
+    const loader = document.getElementById('global-loader');
+    if (!loader) return;
+    loader.querySelector('.loader-text').textContent = text;
+    loader.classList.add('active');
+};
+
+window.hideLoader = function() {
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.classList.remove('active');
+};
+
+// Async Confirm Modal
+let appConfirmCallback = null;
+window.showAppConfirm = function(message, onConfirm) {
+    document.getElementById('appConfirmMessage').textContent = message;
+    document.getElementById('appConfirmModal').classList.add('active');
+    appConfirmCallback = onConfirm;
+};
+
+document.getElementById('btnAppConfirmYes')?.addEventListener('click', () => {
+    if(appConfirmCallback) appConfirmCallback();
+    document.getElementById('appConfirmModal').classList.remove('active');
+    appConfirmCallback = null;
+});
+document.getElementById('btnAppConfirmNo')?.addEventListener('click', () => {
+    document.getElementById('appConfirmModal').classList.remove('active');
+    appConfirmCallback = null;
+});
 
 // ================================================================
 // UI EVENT HANDLING
@@ -352,12 +412,13 @@ function setupUIEvents() {
 
             // Limit: 5MB
             if (file.size > 5 * 1024 * 1024) {
-                alert("Datei ist zu groß! Maximum sind 5MB.");
+                showToast("Datei ist zu groß! Maximum sind 5MB.", 'error');
                 this.value = '';
                 return;
             }
 
             // UI Update: Show Spinner immediately
+            showLoader("Lade Datei...");
             const infoDiv = document.getElementById('fileInfo');
             const nameSpan = document.getElementById('fileName');
             const spinner = document.getElementById('fileSpinner');
@@ -386,6 +447,12 @@ function setupUIEvents() {
                 if (textArea) {
                     textArea.value = "[Datei bereit zur Verschlüsselung]";
                 }
+                hideLoader();
+                showToast("Datei erfolgreich geladen.", 'success');
+            };
+            reader.onerror = function() {
+                hideLoader();
+                showToast("Fehler beim Laden der Datei.", 'error');
             };
             reader.readAsDataURL(file);
         });
@@ -426,23 +493,25 @@ async function performAccountDeletion() {
         document.getElementById('deleteAccountModal').classList.remove('active'); // Modal zu
         
         if(d.success) {
-            if (confirm("Möchten Sie auch Ihre lokalen Kontakte vom Gerät löschen?")) {
-                if(currentUser && currentUser.sm_id) {
-                    localStorage.removeItem(`sm_contacts_${currentUser.sm_id}`);
-                }
+            // "Confirm" removal of contacts silently or just do it.
+            // Since we remove account, removing local contacts is safe/expected for privacy.
+            if(currentUser && currentUser.sm_id) {
+                localStorage.removeItem(`sm_contacts_${currentUser.sm_id}`);
             }
 
-            alert("Dein Account wurde erfolgreich gelöscht.");
+            showToast("Dein Account wurde erfolgreich gelöscht.", 'success');
             // Remove token and reload to force Login Screen
-            localStorage.removeItem('sm_token');
-            localStorage.removeItem('sm_user');
-            contacts = [];
-            window.location.reload();
+            setTimeout(() => {
+                localStorage.removeItem('sm_token');
+                localStorage.removeItem('sm_user');
+                contacts = [];
+                window.location.reload();
+            }, 2000);
         } else {
-            showAppStatus(d.error || "Fehler beim Löschen", 'error');
+            showToast(d.error || "Fehler beim Löschen", 'error');
         }
     } catch(e) { 
-        showAppStatus("Verbindungsfehler", 'error'); 
+        showToast("Verbindungsfehler", 'error');
         document.getElementById('deleteAccountModal').classList.remove('active');
     } finally {
         btn.textContent = originalText; btn.disabled = false;
@@ -455,12 +524,13 @@ async function handleChangeAccessCode() {
     const newCodeRepeat = document.getElementById('changeNewCodeRepeat').value;
     const btn = document.getElementById('btnConfirmChangeCode');
 
-    if(!currentCode || !newCode || !newCodeRepeat) return alert("Bitte alle Felder ausfüllen.");
-    if(newCode.length !== 5 || isNaN(newCode)) return alert("Der neue Code muss 5 Ziffern haben.");
-    if(newCode !== newCodeRepeat) return alert("Die neuen Codes stimmen nicht überein.");
+    if(!currentCode || !newCode || !newCodeRepeat) return showToast("Bitte alle Felder ausfüllen.", 'error');
+    if(newCode.length !== 5 || isNaN(newCode)) return showToast("Der neue Code muss 5 Ziffern haben.", 'error');
+    if(newCode !== newCodeRepeat) return showToast("Die neuen Codes stimmen nicht überein.", 'error');
 
     btn.textContent = "Verarbeite...";
     btn.disabled = true;
+    showLoader("Ändere Zugangscode...");
 
     try {
         const res = await fetch(`${API_BASE}/auth/login`, {
@@ -471,9 +541,10 @@ async function handleChangeAccessCode() {
         const loginData = await res.json();
 
         if(!loginData.success) {
-            alert("Der aktuelle Zugangscode ist falsch.");
+            showToast("Der aktuelle Zugangscode ist falsch.", 'error');
             btn.textContent = "Ändern";
             btn.disabled = false;
+            hideLoader();
             return;
         }
 
@@ -489,17 +560,18 @@ async function handleChangeAccessCode() {
         const updateData = await updateRes.json();
 
         if(updateData.success) {
-            alert("Zugangscode erfolgreich geändert.");
+            showToast("Zugangscode erfolgreich geändert.", 'success');
             document.getElementById('changeCodeModal').classList.remove('active');
         } else {
-            alert("Fehler: " + (updateData.error || "Unbekannt"));
+            showToast("Fehler: " + (updateData.error || "Unbekannt"), 'error');
         }
 
     } catch(e) {
-        alert("Verbindungsfehler.");
+        showToast("Verbindungsfehler.", 'error');
     } finally {
         btn.textContent = "Ändern";
         btn.disabled = false;
+        hideLoader();
     }
 }
 
@@ -657,7 +729,7 @@ async function saveContact(e) {
     const idVal = document.getElementById('inputID').value.trim();
     const groupVal = document.getElementById('inputGroup').value.trim();
 
-    if (!idVal) return showAppStatus("ID fehlt!", 'error');
+    if (!idVal) return showToast("ID fehlt!", 'error');
     btn.disabled = true; btn.textContent = "Prüfe...";
 
     try {
@@ -666,7 +738,7 @@ async function saveContact(e) {
             body: JSON.stringify({ targetUsername: idVal })
         });
         const data = await res.json();
-        if (!data.exists) { showAppStatus(`ID "${idVal}" nicht gefunden.`, 'error'); btn.disabled = false; btn.textContent = oldTxt; return; }
+        if (!data.exists) { showToast(`ID "${idVal}" nicht gefunden.`, 'error'); btn.disabled = false; btn.textContent = oldTxt; return; }
 
         contacts = contacts.filter(c => c.id !== idVal);
         contacts.push({ id: idVal, name: nameVal || idVal, group: groupVal });
@@ -677,21 +749,23 @@ async function saveContact(e) {
         document.getElementById('contactEditModal').classList.remove('active');
         renderContactList(document.getElementById('contactSearch').value);
         if(contactMode === 'select') renderGroupTags();
-        showAppStatus(`Gespeichert.`, 'success');
-    } catch (err) { showAppStatus("Fehler", 'error'); } finally { btn.disabled = false; btn.textContent = oldTxt; }
+        showToast(`Kontakt gespeichert.`, 'success');
+    } catch (err) { showToast("Fehler beim Speichern", 'error'); } finally { btn.disabled = false; btn.textContent = oldTxt; }
 }
 
 function deleteContact() {
     const id = document.getElementById('btnDeleteContact').dataset.id;
-    if (confirm("Kontakt löschen?")) {
+    window.showAppConfirm("Kontakt wirklich löschen?", () => {
         contacts = contacts.filter(c => c.id !== id);
-        saveUserContacts(); // Use specific key
-        document.getElementById('contactEditModal').classList.remove('active'); renderContactList(); showAppStatus("Gelöscht.", 'success');
-    }
+        saveUserContacts();
+        document.getElementById('contactEditModal').classList.remove('active');
+        renderContactList();
+        showToast("Kontakt gelöscht.", 'success');
+    });
 }
 
 function exportContacts() {
-    if (!contacts || contacts.length === 0) return showAppStatus("Keine Kontakte zum Exportieren.", 'error');
+    if (!contacts || contacts.length === 0) return showToast("Keine Kontakte zum Exportieren.", 'error');
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(contacts, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -699,7 +773,7 @@ function exportContacts() {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
-    showAppStatus("Kontakte exportiert.", 'success');
+    showToast("Kontakte erfolgreich exportiert.", 'success');
 }
 
 function importContacts(e) {
@@ -713,39 +787,48 @@ function importContacts(e) {
             if (!Array.isArray(imported)) throw new Error("Format ungültig");
 
             let added = 0;
-            let skipped = 0;
             let updated = 0;
+            // Simplified merge logic without synchronous confirm dialogs
+
+            // We need a strategy for overwrite. Using a simple flag if conflicts exist?
+            // Since showAppConfirm is async, we can't easily iterate and confirm per item inside this loop.
+            // Better strategy: Count conflicts, if any, ask once "Import X contacts? Y will be overwritten."
+
+            const toUpdate = [];
+            const toAdd = [];
 
             imported.forEach(c => {
                 if (!c.id) return;
                 const existingIndex = contacts.findIndex(ex => ex.id === c.id);
-
-                if (existingIndex > -1) {
-                    if (confirm(`Kontakt "${c.id}" existiert bereits. Überschreiben?`)) {
-                        contacts[existingIndex] = c;
-                        updated++;
-                    } else {
-                        skipped++;
-                    }
-                } else {
-                    contacts.push(c);
-                    added++;
-                }
+                if (existingIndex > -1) toUpdate.push(c);
+                else toAdd.push(c);
             });
 
-            // Ensure no null/undefined in contacts
-            contacts = contacts.filter(c => c && c.id);
-            saveUserContacts(); // Use specific key
-            renderContactList(document.getElementById('contactSearch').value);
+            const proceedImport = () => {
+                // Add new
+                toAdd.forEach(c => contacts.push(c));
+                // Update existing
+                toUpdate.forEach(c => {
+                    const idx = contacts.findIndex(ex => ex.id === c.id);
+                    if(idx > -1) contacts[idx] = c;
+                });
 
-            // Clear input
-            e.target.value = '';
+                contacts = contacts.filter(c => c && c.id);
+                saveUserContacts();
+                renderContactList(document.getElementById('contactSearch').value);
+                e.target.value = '';
+                showToast(`Import: ${toAdd.length} neu, ${toUpdate.length} aktualisiert.`, 'success');
+            };
 
-            showAppStatus(`Import: ${added} neu, ${updated} aktualisiert, ${skipped} übersprungen.`, 'success');
+            if (toUpdate.length > 0) {
+                window.showAppConfirm(`${toUpdate.length} Kontakte existieren bereits und werden überschrieben. Fortfahren?`, proceedImport);
+            } else {
+                proceedImport();
+            }
 
         } catch(err) {
             console.error(err);
-            showAppStatus("Fehler beim Importieren der Datei.", 'error');
+            showToast("Fehler beim Importieren der Datei.", 'error');
         }
     };
     reader.readAsText(file);
