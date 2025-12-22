@@ -1721,8 +1721,8 @@ async function loadAndShowInbox() {
             if (m.type === 'ticket' && m.status) {
                 let statusClass = 'msg-status-open';
                 let statusText = 'OFFEN';
-                if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN ARBEIT'; }
-                if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ERLEDIGT'; }
+                if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; }
+                if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
                 badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
             }
             // ---------------------------
@@ -1760,7 +1760,9 @@ async function loadAndShowInbox() {
                 if (m.type === 'ticket' && m.status !== 'closed') {
                     btnDel.classList.add('delete-btn-locked');
                     btnDel.title = "Ticket ist noch offen.";
-                    btnDel.onclick = (e) => { e.stopPropagation(); showToast("Ticket kann erst nach Abschluss gelöscht werden.", "error"); };
+                    btnDel.style.display = 'none'; // HIDE completely as per strict requirement "sichtbar"
+                    btnDel.disabled = true;
+                    btnDel.onclick = (e) => { e.stopPropagation(); };
                 } else {
                     btnDel.onclick = (e) => {
                         e.stopPropagation();
