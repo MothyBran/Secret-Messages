@@ -684,22 +684,67 @@
     <div id="privacyModal" class="modal">
         <div class="modal-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
-                <h3 style="color:var(--accent-blue); margin:0;">Datenschutz</h3>
+                <h3 style="color:var(--accent-blue); margin:0;">Datenschutzerklärung (Privacy Policy)</h3>
                 <button onclick="document.getElementById('privacyModal').classList.remove('active')" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
             </div>
             <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
-                <h4 style="color:#fff; margin-bottom:5px;">1. Zero-Knowledge-Prinzip</h4>
-                <p style="margin-bottom:15px;">Sicherheit durch Technik: Die Verschlüsselung Ihrer Daten erfolgt ausschließlich lokal in Ihrem Browser. Wir haben technisch keine Möglichkeit, Ihre Inhalte einzusehen oder Passcodes wiederherzustellen.</p>
-                <h4 style="color:#fff; margin-bottom:5px;">2. Verantwortliche Stelle</h4>
-                <p style="margin-bottom:15px;">Verantwortlich ist der Betreiber von Secure Messages (siehe Impressum). Kontakt: support@secure-msg.app</p>
-                <h4 style="color:#fff; margin-bottom:5px;">3. Datenerfassung & Hosting</h4>
-                <p style="margin-bottom:15px;"><strong>Hosting:</strong> Diese App wird bei Railway (USA) gehostet. Es werden technisch notwendige Server-Log-Files (IP-Adresse, Zeitstempel) erfasst.<br>
-                <strong>LocalStorage:</strong> Wir speichern Sitzungs-Daten und Einstellungen lokal auf Ihrem Gerät. Diese Daten verbleiben dort und werden nicht zu Werbezwecken ausgewertet.</p>
-                <h4 style="color:#fff; margin-bottom:5px;">4. Zahlungsabwicklung & E-Mail</h4>
-                <p style="margin-bottom:15px;"><strong>Stripe:</strong> Zur Abwicklung von Käufen nutzen wir Stripe. Wir speichern keine Kreditkartendaten. Stripe übermittelt uns lediglich Ihren Zahlungsstatus und Ihre E-Mail-Adresse.<br>
-                <strong>Google Workspace:</strong> Der Versand von Lizenz-E-Mails erfolgt über die Server von Google. Ihre E-Mail-Adresse wird nur für diesen Zweck verarbeitet.</p>
-                <h4 style="color:#fff; margin-bottom:5px;">5. Ihre Rechte</h4>
-                <p>Sie haben das Recht auf Auskunft, Berichtigung und Löschung Ihrer Daten gemäß DSGVO.</p>
+                <h4 style="color:#fff; margin-bottom:5px;">1. Einleitung und Verantwortlicher</h4>
+                <p style="margin-bottom:15px;">Der Schutz Ihrer Privatsphäre ist das fundamentale Prinzip von SECURE MESSAGES. Wir verfolgen einen Ansatz der radikalen Datensparsamkeit (Privacy by Design).<br>
+                Verantwortlich für die Datenverarbeitung auf dieser Webseite ist:<br>
+                [DEIN NAME/UNTERNEHMEN]<br>
+                [ADRESSE]<br>
+                [PLZ/STADT], Deutschland<br>
+                E-Mail: support@secure-msg.app</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">2. Grundpfeiler der Verschlüsselung (Zero-Knowledge)</h4>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Lokale Verarbeitung: Die Verschlüsselung und Entschlüsselung von Inhalten erfolgt ausschließlich lokal auf Ihrem Endgerät.</li>
+                    <li>Kein Serverzugriff: Zu keinem Zeitpunkt werden Klartexte, Zugangscodes (Passphrasen) oder private kryptografische Schlüssel an unsere Server übertragen oder dort gespeichert.</li>
+                    <li>Inhalts-Anonymität: Wir haben technisch keine Möglichkeit, die von Ihnen verschlüsselten Nachrichten einzusehen oder zu rekonstruieren.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">3. Datenerhebung und Verarbeitung bei Nutzung des Dienstes</h4>
+                <p style="margin-bottom:5px;">Wir erheben und verarbeiten nur Daten, die für die Bereitstellung des Dienstes technisch zwingend erforderlich sind:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Benutzer-Identifikatoren: Wir speichern Ihre anonyme Benutzer-ID (SM-ID) und Ihren gewählten Alias.</li>
+                    <li>Lizenzdaten: Zur Prüfung der Zugriffsberechtigung speichern wir den Status und das Ablaufdatum Ihrer Lizenz.</li>
+                    <li>Hardware-Binding: Zur Absicherung Ihres Profils gegen unbefugte Logins werden gerätespezifische Merkmale analysiert, um eine eindeutige Verknüpfung zwischen Lizenz und Endgerät herzustellen. Diese Daten dienen ausschließlich der Sicherheits-Validierung.</li>
+                    <li>Kommunikations-Metadaten: Der Server registriert den Zeitpunkt der Lizenzabfrage, um die Gültigkeit der Sitzung während des Verschlüsselungsprozesses zu gewährleisten.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">4. Lokale Speicherung (LocalStorage & Cache)</h4>
+                <p style="margin-bottom:5px;">Um die Anonymität zu wahren, werden bestimmte Daten nicht auf unseren Servern, sondern ausschließlich in Ihrem Browser-Speicher (LocalStorage) abgelegt:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Kontaktverzeichnis: Ihre hinterlegten Kontakt-IDs und deren öffentliche Schlüssel werden lokal auf Ihrem Gerät gespeichert.</li>
+                    <li>Sitzungsdaten: Informationen über Ihre aktuelle Sitzung verbleiben lokal, um die Bedienbarkeit zu erhöhen.</li>
+                    <li>Löschung: Diese Daten können von Ihnen jederzeit durch das Löschen des Browser-Caches oder die Funktion „Zugang löschen“ entfernt werden.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">5. Hosting und Infrastruktur</h4>
+                <p style="margin-bottom:15px;">Unsere Anwendung wird bei dem Cloud-Dienstleister Railway (Railway Corp., USA/EU) gehostet.</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Server-Log-Files: Beim Zugriff auf die Webseite werden automatisch Informationen (IP-Adresse, Zeitstempel, Browsertyp) in Log-Files erfasst. Dies ist technisch notwendig, um die Stabilität und Sicherheit des Betriebs zu gewährleisten (Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO).</li>
+                    <li>Datentransfer: Sofern Daten auf Servern in den USA verarbeitet werden, erfolgt dies auf Grundlage von Standardvertragsklauseln der EU-Kommission.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">6. Zahlungsabwicklung (Stripe)</h4>
+                <p style="margin-bottom:5px;">Für den Erwerb von Lizenzen nutzen wir den Zahlungsdienstleister Stripe (Stripe Inc.).</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Zahlungsdaten: Wir erhalten von Stripe lediglich die Bestätigung der Zahlung sowie Ihre E-Mail-Adresse für den Rechnungsversand.</li>
+                    <li>Keine Speicherung: Kreditkartendaten oder detaillierte Finanzinformationen werden niemals auf unseren Servern verarbeitet oder gespeichert.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">7. Betroffenenrechte</h4>
+                <p style="margin-bottom:5px;">Sie haben im Rahmen der DSGVO das Recht auf:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Auskunft über Ihre bei uns gespeicherten Daten (SM-ID, Lizenzstatus).</li>
+                    <li>Berichtigung unrichtiger Daten.</li>
+                    <li>Löschung Ihres Accounts und der damit verbundenen Lizenzdaten.</li>
+                    <li>Einschränkung der Verarbeitung sowie Datenübertragbarkeit.</li>
+                </ul>
+
+                <h4 style="color:#fff; margin-bottom:5px;">8. Datensicherheit</h4>
+                <p>Wir setzen modernste technische und organisatorische Sicherheitsmaßnahmen (TOMs) ein, um Ihre Daten vor Manipulation und unbefugtem Zugriff zu schützen. Dies beinhaltet insbesondere die Absicherung der Serververbindungen via TLS/SSL sowie die erwähnte Client-Side-Encryption-Architektur.</p>
             </div>
         </div>
     </div>
@@ -707,24 +752,61 @@
     <div id="agbModal" class="modal">
         <div class="modal-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
-                <h3 style="color:var(--accent-blue); margin:0;">AGB & Richtlinien</h3>
+                <h3 style="color:var(--accent-blue); margin:0;">Allgemeine Geschäftsbedingungen (AGB)</h3>
                 <button onclick="document.getElementById('agbModal').classList.remove('active')" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
             </div>
             <div class="legal-section" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#ccc;">
-                <h4 style="color:#fff; margin-bottom:5px;">1. Nutzungsverbote (Acceptable Use Policy)</h4>
-                <p style="margin-bottom:5px;">Es ist ausdrücklich untersagt, diesen Dienst für illegale Aktivitäten zu nutzen. Dazu zählen insbesondere:</p>
+                <h4 style="color:#fff; margin-bottom:5px;">§ 1 Geltungsbereich und Anbieter</h4>
+                <p style="margin-bottom:15px;">(1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge über die Nutzung der Web-Applikation „SECURE MESSAGES“ (nachfolgend „Dienst“), die zwischen dem Anbieter [DEIN NAME/UNTERNEHMEN], [ADRESSE], Deutschland (nachfolgend „Anbieter“) und dem Nutzer (nachfolgend „Kunde“) geschlossen werden.<br>
+                (2) Abweichende Bedingungen des Kunden werden nicht anerkannt, es sei denn, der Anbieter stimmt ihrer Geltung ausdrücklich schriftlich zu.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 2 Leistungsbeschreibung und technisches Paradigma</h4>
+                <p style="margin-bottom:15px;">(1) SECURE MESSAGES stellt eine Plattform zur provider-agnostischen Verschlüsselung von Texten, Medien und Dokumenten bereit.<br>
+                (2) Zero-Knowledge-Prinzip: Der Dienst arbeitet nach dem Prinzip der vollständigen clientseitigen Verschlüsselung. Sämtliche kryptografischen Operationen erfolgen lokal auf dem Endgerät des Kunden. Klartexte, Zugangscodes oder Entschlüsselungsparameter werden zu keinem Zeitpunkt an den Anbieter oder Dritte übertragen.<br>
+                (3) Integritätsprüfung: Der Server des Anbieters führt lediglich technische Validierungen zur Lizenzprüfung und zur Identitätssicherung (Device-Binding) durch.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 3 Registrierung und Verantwortlichkeit für Zugangsschlüssel</h4>
+                <p style="margin-bottom:15px;">(1) Der Zugang zum Dienst erfordert eine gültige Lizenz und die Erstellung einer anonymisierten Benutzer-ID (Alias).<br>
+                (2) Der Kunde legt während des Aktivierungsprozesses einen individuellen, 5-stelligen Zugangscode fest.<br>
+                (3) Eigenverantwortung: Da der Anbieter keinen Zugriff auf die lokalen Verschlüsselungscodes hat, ist eine Wiederherstellung bei Verlust technisch unmöglich. Der Verlust des Zugangscodes führt zum unwiederbringlichen Verlust aller verschlüsselten Daten.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 4 Hardware-Binding und Diebstahlschutz</h4>
+                <p style="margin-bottom:15px;">(1) Zur Vermeidung unbefugter Zugriffe wird jede Lizenz fest mit dem physischen Endgerät verknüpft, auf dem die Registrierung erfolgte.<br>
+                (2) Ein Login von einem nicht registrierten Gerät ist systemseitig ausgeschlossen, sofern keine explizite Migration oder Mehrfachlizenzierung vorliegt.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 5 Nutzungsregeln und Verbote (Acceptable Use Policy)</h4>
+                <p style="margin-bottom:5px;">(1) Der Dienst darf ausschließlich für rechtmäßige Zwecke verwendet werden. Dem Kunden ist es untersagt, den Dienst für folgende Aktivitäten zu nutzen:</p>
                 <ul style="margin-bottom:15px; padding-left:20px;">
-                    <li>Verbreitung von Schadsoftware (Viren, Ransomware).</li>
+                    <li>Verbreitung von Schadsoftware (Viren, Ransomware, Trojaner).</li>
                     <li>Handel mit illegalen Gütern oder Substanzen.</li>
-                    <li>Terroristische Aktivitäten, Gewaltverherrlichung oder Volksverhetzung.</li>
-                    <li>Verletzung von Urheberrechten oder Persönlichkeitsrechten.</li>
+                    <li>Darstellung oder Verbreitung von Gewalt, terroristischen Inhalten oder Volksverhetzung.</li>
+                    <li>Verletzung von Urheberrechten oder gewerblichen Schutzrechten Dritter.</li>
                 </ul>
-                <h4 style="color:#fff; margin-bottom:5px;">2. Haftungsausschluss</h4>
-                <p style="margin-bottom:15px;">Da wir aufgrund der Verschlüsselung keine Kenntnis von Nutzerinhalten haben, übernehmen wir <strong>keine Haftung</strong> für die über den Dienst verschlüsselten oder verbreiteten Daten. Für alle Inhalte ist ausschließlich der absendende Nutzer verantwortlich.</p>
-                <h4 style="color:#fff; margin-bottom:5px;">3. Ausschlussrecht & Sperrung</h4>
-                <p style="margin-bottom:15px;">Wir behalten uns vor, Nutzer bei begründetem Verdacht auf Missbrauch oder Verstoß gegen diese Richtlinien <strong>sofort und ohne Vorankündigung zu sperren</strong>. In diesem Fall erfolgt <strong>keine Erstattung</strong> gezahlter Beträge.</p>
-                <h4 style="color:#fff; margin-bottom:5px;">4. Eigenverantwortung bei Schlüsseln</h4>
-                <p>Der Nutzer ist allein für die Sicherung seines 5-stelligen Codes verantwortlich. Bei Verlust des Codes sind die Daten unwiederbringlich verloren; eine Wiederherstellung durch uns ist technisch unmöglich.</p>
+                <p style="margin-bottom:15px;">(2) Da der Anbieter aufgrund der Verschlüsselung keinen Einblick in die Inhalte hat, entbindet dies den Kunden nicht von der vollumfänglichen rechtlichen Verantwortung für seine versendeten Daten.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 6 Zahlungsbedingungen und Lizenzmodelle</h4>
+                <p style="margin-bottom:15px;">(1) Die Nutzung des Dienstes ist kostenpflichtig. Die aktuellen Preise und Laufzeiten sind im Shop unter www.secure-msg.app/shop einsehbar.<br>
+                (2) Die Zahlungsabwicklung erfolgt über den externen Dienstleister Stripe. Der Anbieter speichert keine Kreditkartendaten.<br>
+                (3) Bei einem Verstoß gegen die Nutzungsregeln (§ 5) behält sich der Anbieter das Recht vor, den Zugang sofort zu sperren. Ein Anspruch auf Rückerstattung bereits gezahlter Gebühren besteht in diesem Fall nicht.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 7 Haftungsausschluss und Gewährleistung</h4>
+                <p style="margin-bottom:15px;">(1) Der Anbieter haftet unbeschränkt für Vorsatz und grobe Fahrlässigkeit. Für leichte Fahrlässigkeit haftet der Anbieter nur bei Verletzung einer wesentlichen Vertragspflicht.<br>
+                (2) Der Anbieter übernimmt keine Haftung für:</p>
+                <ul style="margin-bottom:15px; padding-left:20px;">
+                    <li>Datenverlust infolge vergessener Zugangscodes oder Hardware-Defekte des Kunden.</li>
+                    <li>Missbräuchliche Verwendung des Dienstes durch den Kunden.</li>
+                    <li>Die Sicherheit der Drittanbieter-Dienste (z. B. WhatsApp, Telegram), über die die verschlüsselten Pakete versendet werden.</li>
+                </ul>
+                <p style="margin-bottom:15px;">(3) Eine Verfügbarkeit des Dienstes von 100 % kann aufgrund notwendiger Wartungsarbeiten oder Störungen außerhalb des Machtbereichs des Anbieters (z. B. Ausfall von Cloud-Providern) nicht garantiert werden.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 8 Datenschutz</h4>
+                <p style="margin-bottom:15px;">(1) Der Schutz der Privatsphäre hat höchste Priorität. Es werden keine Klarnamen oder personenbezogenen Profile erstellt.<br>
+                (2) Ergänzende Informationen zur Datenerhebung (Lizenzlaufzeiten, Hardware-IDs) sind in der gesonderten Datenschutzerklärung aufgeführt.</p>
+
+                <h4 style="color:#fff; margin-bottom:5px;">§ 9 Schlussbestimmungen</h4>
+                <p>(1) Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts.<br>
+                (2) Sollten einzelne Bestimmungen dieser AGB unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.<br>
+                (3) Gerichtsstand für alle Streitigkeiten aus diesem Vertrag ist der Sitz des Anbieters, sofern der Kunde Kaufmann ist oder keinen allgemeinen Gerichtsstand in Deutschland hat.</p>
             </div>
         </div>
     </div>
