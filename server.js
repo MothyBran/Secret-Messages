@@ -901,7 +901,7 @@ app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) 
         const userId = userRes.rows[0].id;
 
         // 3. Send Reply Message
-        const replySubject = `RE: ${subject}`;
+        const replySubject = `RE: ${subject} - Ticket: #${ticket_id}`;
         await dbQuery(
             `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
              VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL ? 'false' : '0'}, $4)`,
