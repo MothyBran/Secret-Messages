@@ -148,17 +148,53 @@ window.loadSupportTickets = async function() {
 };
 
 window.closeTicket = function(id) {
-    window.showConfirm("Ticket als erledigt markieren (löschen)?", async () => {
+    // Legacy function, keeping for compatibility if used elsewhere, but redirected to new logic
+    window.deleteTicket(id);
+};
+
+window.deleteTicket = function(id) {
+    window.showConfirm("Möchten Sie dieses Ticket unwiderruflich löschen?", async () => {
         try {
-            const res = await fetch(`${API_BASE}/support-tickets/${id}`, { method: 'DELETE', headers: getHeaders() });
+            const res = await fetch(`${API_BASE}/messages/${id}`, { method: 'DELETE', headers: getHeaders() });
             if(res.ok) {
                 window.loadSupportTickets();
                 window.showMessage("Info", "Ticket gelöscht.");
+                document.getElementById('ticketDetailContainer').innerHTML = '<div class="empty-state">Ticket gelöscht.</div>';
+                currentTicketId = null;
             } else {
                 window.showMessage("Fehler", "Konnte Ticket nicht löschen.", true);
             }
         } catch(e) { window.showMessage("Fehler", "Verbindungsfehler.", true); }
     });
+};
+
+window.markTicketClosed = async function(id) {
+    try {
+        const res = await fetch(`${API_BASE}/messages/${id}/status`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ status: 'closed' })
+        });
+        if(res.ok) {
+            window.loadSupportTickets();
+            window.showToast("Ticket manuell abgeschlossen.", "success");
+            // If currently viewing this ticket, refresh details to show status change
+            if(currentTicketId === id) {
+                // Fetch updated ticket or just optimistically update logic would happen in loadSupportTickets re-render
+                // But selectTicket would need re-triggering or manual DOM update.
+                // Simplest is to let loadSupportTickets handle list, and clear detail or keep it open.
+                // Ideally re-select it to update badges.
+                // We'll let loadSupportTickets refresh the list.
+                // The Detail View might need a refresh. We can find it in allTickets after reload.
+
+                // Let's just reset the detail view for clarity or re-select.
+                // Waiting for loadSupportTickets to finish (it's async but we didn't await it strictly here)
+                // Actually loadSupportTickets updates allTickets.
+            }
+        } else {
+            window.showToast("Fehler beim Abschließen.", "error");
+        }
+    } catch(e) { window.showToast("Netzwerkfehler", "error"); }
 };
 
 // =========================================================
@@ -273,9 +309,15 @@ async function selectTicket(ticket) {
 
     detailContainer.innerHTML = `
         <div class="detail-header">
-            <div class="detail-subject">
-                ${ticket.subject}
-                <span class="status-badge ${statusClass}" style="margin-left:10px; font-size:0.6em; vertical-align:middle;">${ticket.status}</span>
+            <div class="detail-subject" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    ${ticket.subject}
+                    <span class="status-badge ${statusClass}" style="margin-left:10px; font-size:0.6em; vertical-align:middle;">${ticket.status}</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                     <button class="btn-icon" title="Als abgeschlossen markieren" style="background:none; border:none; cursor:pointer; font-size:1.5rem; color:var(--success-green);" onclick="markTicketClosed(${ticket.id})">✅</button>
+                     <button class="btn-icon" title="Löschen" style="background:none; border:none; cursor:pointer; font-size:1.5rem; color:var(--error-red);" onclick="deleteTicket(${ticket.id})">🗑️</button>
+                </div>
             </div>
             <div class="detail-meta">
                 <span>Von: <strong style="color:#fff;">${ticket.username || 'Gast'}</strong> (${ticket.email || 'Keine Mail'})</span>
