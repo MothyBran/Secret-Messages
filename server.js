@@ -882,6 +882,44 @@ app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) 
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// NEW: Manual Status Update (Requested PATCH /messages/:id/status)
+app.patch('/api/admin/messages/:id/status', requireAdmin, async (req, res) => {
+    const { status } = req.body; // 'closed'
+    const ticketId = req.params.id;
+    try {
+        const ticketRes = await dbQuery("SELECT ticket_id FROM support_tickets WHERE id = $1", [ticketId]);
+        if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
+        const { ticket_id } = ticketRes.rows[0];
+
+        await dbQuery("UPDATE support_tickets SET status = $1 WHERE id = $2", [status, ticketId]);
+
+        if (ticket_id) {
+            await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// NEW: Delete Ticket Message (Requested DELETE /messages/:id)
+app.delete('/api/admin/messages/:id', requireAdmin, async (req, res) => {
+    const ticketId = req.params.id;
+    try {
+        // Get ticket details to clean up linked messages
+        const ticketRes = await dbQuery("SELECT ticket_id FROM support_tickets WHERE id = $1", [ticketId]);
+
+        if (ticketRes.rows.length > 0) {
+            const { ticket_id } = ticketRes.rows[0];
+            // Delete from messages if linked
+            if (ticket_id) {
+                await dbQuery("DELETE FROM messages WHERE ticket_id = $1", [ticket_id]);
+            }
+        }
+
+        await dbQuery("DELETE FROM support_tickets WHERE id = $1", [ticketId]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // Reply to Ticket
 app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) => {
     const ticketDbId = req.params.id;
