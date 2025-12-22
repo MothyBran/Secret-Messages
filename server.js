@@ -94,7 +94,7 @@ app.use(helmet({
 
 app.use(cors({
     origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
 }));
 
@@ -249,6 +249,10 @@ const createTables = async () => {
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
 
+        // Add columns to messages for Ticket System
+        try { await dbQuery(`ALTER TABLE messages ADD COLUMN status VARCHAR(20) DEFAULT 'open'`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE messages ADD COLUMN ticket_id VARCHAR(50)`); } catch (e) { }
+
         // Initialize Settings Defaults
         try {
             const mCheck = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
@@ -258,6 +262,12 @@ const createTables = async () => {
             const sCheck = await dbQuery("SELECT value FROM settings WHERE key = 'shop_active'");
             if (sCheck.rows.length === 0) {
                 await dbQuery("INSERT INTO settings (key, value) VALUES ('shop_active', 'true')");
+            }
+            // Template for Ticket Replies
+            const tCheck = await dbQuery("SELECT value FROM settings WHERE key = 'ticket_reply_template'");
+            if (tCheck.rows.length === 0) {
+                const defaultTemplate = "Hallo {username},\n\n[TEXT]\n\nMit freundlichen Grüßen,\nIhr Support-Team";
+                await dbQuery("INSERT INTO settings (key, value) VALUES ('ticket_reply_template', $1)", [defaultTemplate]);
             }
         } catch (e) { console.warn("Settings init warning:", e.message); }
 
@@ -292,13 +302,32 @@ app.post('/api/support', rateLimiter, async (req, res) => {
 
     // 1. Ticket-Nummer generieren
     const ticketId = 'TIC-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const createdAt = new Date().toISOString();
 
     try {
         // DB SAVE
         await dbQuery(
-            `INSERT INTO support_tickets (ticket_id, username, email, subject, message, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [ticketId, username || null, email || null, subject, message, new Date().toISOString()]
+            `INSERT INTO support_tickets (ticket_id, username, email, subject, message, created_at, status) VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
+            [ticketId, username || null, email || null, subject, message, createdAt]
         );
+
+        // --- NEW: Copy to User Inbox if registered ---
+        if (username) {
+            try {
+                const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
+                if (userRes.rows.length > 0) {
+                    const userId = userRes.rows[0].id;
+                    await dbQuery(
+                        `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at, status, ticket_id)
+                         VALUES ($1, $2, $3, 'ticket', ${isPostgreSQL ? 'true' : '1'}, $4, 'open', $5)`,
+                        [userId, `[Ticket: ${ticketId}] ${subject}`, message, createdAt, ticketId]
+                    );
+                }
+            } catch (err) {
+                console.warn(">> Could not save copy to user inbox:", err.message);
+            }
+        }
+        // ---------------------------------------------
 
         console.log(`>> Sende Support-Email via Resend (Ticket: ${ticketId})...`);
 
@@ -327,8 +356,6 @@ app.post('/api/support', rateLimiter, async (req, res) => {
 
         if (errorTeam) {
             console.error('>> Resend API Error (Team):', errorTeam);
-            // Wir loggen den Fehler, aber da es in DB ist, geben wir Success zurück, damit der User nicht verwirrt ist.
-            // return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + errorTeam.message });
         }
 
         // 2. Bestätigung an Kunden (Auto-Reply) NUR wenn Email vorhanden
@@ -342,34 +369,15 @@ app.post('/api/support', rateLimiter, async (req, res) => {
                         <h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3>
                         <p>Hallo ${username || 'Nutzer'},</p>
                         <p>Ihre Nachricht ist bei uns eingegangen. Unser Support-Team wird sich schnellstmöglich bei Ihnen melden.</p>
-
                         <p><strong>Ihre Ticket-Nummer:</strong> ${ticketId}</p>
-
                         <div style="background-color: #f4f4f4; padding: 15px; border-left: 4px solid #00BFFF; margin: 20px 0; color: #555;">
                             <strong>Ihre Nachricht:</strong><br><br>
                             ${message.replace(/\n/g, '<br>')}
                         </div>
-
                         <br>
                         <hr style="border: 0; border-top: 1px solid #ddd;">
-
                         <div style="font-size: 12px; color: #777;">
                             <p><strong>Secure Message Support Team</strong></p>
-                            <p><a href="https://www.secure-msg.app"><img src="https://www.secure-msg.app/assets/screenshots/logo-signature.png" alt="Secure Message Logo" width="150" style="display:block; margin-bottom:10px;"></a></p>
-
-                            <p>...Your Message is a Secure Message | Zero-Knowledge-Kryptografie | Lokale AES-GCM Verschlüsselung<br>
-                            Web: <a href="https://www.secure-msg.app" style="color:#00BFFF; text-decoration:none;">www.secure-msg.app</a> | Support: <a href="mailto:support@secure-msg.app" style="color:#00BFFF; text-decoration:none;">support@secure-msg.app</a></p>
-
-                            <p><strong>Sicherheitshinweis:</strong> Diese Nachricht wurde über einen gesicherten Workspace versendet. Wir werden Sie niemals per E-Mail nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Ihre Privatsphäre ist durch unsere Zero-Knowledge-Architektur geschützt.</p>
-
-                            <p><strong>Pflichtangaben gemäß § 125a HGB / § 80 AktG:</strong><br>
-                            Secure Message<br>
-                            Musterstraße 1, 10115 Berlin, Deutschland</p>
-
-                            <p>Inhaber/Geschäftsführer: Max Mustermann<br>
-                            USt-IdNr.: DE123456789</p>
-
-                            <p><em>Diese E-Mail enthält vertrauliche Informationen. Wenn Sie nicht der beabsichtigte Empfänger sind, löschen Sie diese bitte und informieren Sie uns.</em></p>
                         </div>
                     </div>
                 `
@@ -435,12 +443,8 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
 
-        // LICENSE CHECK REMOVED from strict block.
-        // User is allowed to get token, but frontend will handle "no license" state.
-
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             // Trigger Security Warning but ALLOW login (Device Switch)
-            // SECURITY: Sanitize deviceId
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
 
             const msgSubject = "Sicherheits-Warnung: Neues Gerät erkannt";
@@ -453,9 +457,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
         }
         if (!user.allowed_device_id) {
-            // First device binding - Inform user
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
-
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
 
             const msgSubject = "Sicherheits-Info: Neues Gerät verknüpft";
@@ -505,54 +507,25 @@ app.post('/api/auth/activate', async (req, res) => {
         const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
-        // CALCULATE EXPIRATION based on product_code
+        // CALCULATE EXPIRATION
         let expiresAt = null;
         const now = new Date();
         const pc = (key.product_code || '').toLowerCase();
 
-        if (pc === '1m') {
-            now.setMonth(now.getMonth() + 1);
-            expiresAt = now.toISOString();
-        } else if (pc === '3m') {
-            now.setMonth(now.getMonth() + 3);
-            expiresAt = now.toISOString();
-        } else if (pc === '6m') {
-            now.setMonth(now.getMonth() + 6);
-            expiresAt = now.toISOString();
-        } else if (pc === '1j' || pc === '12m') {
-            now.setFullYear(now.getFullYear() + 1);
-            expiresAt = now.toISOString();
-        } else if (pc === 'unl' || pc === 'unlimited') {
-            expiresAt = null; // Lifetime
-        } else {
-            // Fallback: If unknown, treat as Lifetime or handle error?
-            // Defaulting to null (Lifetime) as per previous logic, but technically could be 1m default?
-            // We stick to Lifetime/Null for unknown codes to be safe/generous or per previous logic.
-            expiresAt = null;
-        }
+        if (pc === '1m') { now.setMonth(now.getMonth() + 1); expiresAt = now.toISOString(); }
+        else if (pc === '3m') { now.setMonth(now.getMonth() + 3); expiresAt = now.toISOString(); }
+        else if (pc === '6m') { now.setMonth(now.getMonth() + 6); expiresAt = now.toISOString(); }
+        else if (pc === '1j' || pc === '12m') { now.setFullYear(now.getFullYear() + 1); expiresAt = now.toISOString(); }
+        else if (pc === 'unl' || pc === 'unlimited') { expiresAt = null; }
+        else { expiresAt = null; }
 
         const hash = await bcrypt.hash(accessCode, 10);
 
-        // 1. Insert User
         let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)';
-        if (isPostgreSQL) {
-            insertSql += ' RETURNING id';
-        }
+        if (isPostgreSQL) { insertSql += ' RETURNING id'; }
 
-        const insertUser = await dbQuery(
-            insertSql,
-            [username, hash, key.id, deviceId, new Date().toISOString()]
-        );
+        const insertUser = await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString()]);
         
-        // Handle different return types (SQLite vs PG)
-        let newUserId = null;
-        if(insertUser.rows && insertUser.rows.length > 0) {
-            newUserId = insertUser.rows[0].id; // PG
-        } else if (insertUser.lastID) {
-            newUserId = insertUser.lastID; // SQLite
-        }
-
-        // 2. Update License Key
         await dbQuery(
             'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4',
             [(isPostgreSQL ? true : 1), new Date().toISOString(), expiresAt, key.id]
@@ -569,33 +542,22 @@ app.post('/api/auth/check-license', async (req, res) => {
     try {
         const { licenseKey } = req.body;
         if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
-
         const keyRes = await dbQuery('SELECT assigned_user_id, is_active FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.json({ isValid: false });
 
         const key = keyRes.rows[0];
         const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
-
         if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
 
-        res.json({
-            isValid: true,
-            assignedUserId: key.assigned_user_id || null
-        });
+        res.json({ isValid: true, assignedUserId: key.assigned_user_id || null });
     } catch (e) { res.status(500).json({ error: 'Serverfehler' }); }
 });
 
 app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
     try {
-        const { newAccessCode } = req.body; // Hashed on client? No, client sends plaintext code, server hashes it.
-        // Prompt says: "Der Nutzer muss nur noch seinen individuellen 5-stelligen Zugangscode festlegen."
-        // For change code: "Da der Code lokal verschlüsselt, muss der Nutzer den alten Code eingeben, um die Daten zu entschlüsseln, und dann den neuen Code festlegen..."
-        // The backend only stores the hash of the access code for login verification.
-        // So we just need to update the hash.
-
+        const { newAccessCode } = req.body;
         const hash = await bcrypt.hash(newAccessCode, 10);
         await dbQuery("UPDATE users SET access_code_hash = $1 WHERE id = $2", [hash, req.user.id]);
-
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: "Fehler beim Ändern." }); }
 });
@@ -605,10 +567,8 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
         const userRes = await dbQuery('SELECT * FROM users WHERE id = $1', [req.user.id]);
         const user = userRes.rows[0];
         if (!user) return res.json({ status: 'banned' });
-
         const blocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
         if (blocked) return res.json({ status: 'banned' });
-
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
         const key = keyRes.rows[0];
         if (key && key.expires_at) {
@@ -634,30 +594,20 @@ app.post('/api/users/exists', authenticateUser, async (req, res) => {
 
 app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
     try {
-        // 1. User Info & License ID
         const userRes = await dbQuery('SELECT username, license_key_id FROM users WHERE id = $1', [req.user.id]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User nicht gefunden" });
         const user = userRes.rows[0];
-
-        // 2. Get License Code
         let licenseCode = 'UNKNOWN';
         if (user.license_key_id) {
             const keyRes = await dbQuery('SELECT key_code FROM license_keys WHERE id = $1', [user.license_key_id]);
             if (keyRes.rows.length > 0) licenseCode = keyRes.rows[0].key_code;
         }
-
-        // 3. Archive
         await dbQuery('INSERT INTO account_deletions (username, license_key_code, reason, deleted_at) VALUES ($1, $2, $3, $4)',
             [user.username, licenseCode, 'user_request', new Date().toISOString()]);
-
-        // 4. Delete User
         await dbQuery('DELETE FROM users WHERE id = $1', [req.user.id]);
-
-        // 5. Delete License Key
         if (user.license_key_id) {
             await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
         }
-
         res.json({ success: true });
     } catch (e) {
         console.error("Delete Account Error:", e);
@@ -675,27 +625,14 @@ app.post('/api/auth/validate', async (req, res) => {
         if (userRes.rows.length > 0) {
             const user = userRes.rows[0];
             const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
-
-            if (isBlocked) {
-                return res.json({ valid: false, reason: 'blocked' });
-            }
-
-            // LICENSE CHECK (Security Fix)
-            if (!user.license_key_id) {
-                return res.json({ valid: false, reason: 'no_license' });
-            }
-
-            // Check Expiration
+            if (isBlocked) return res.json({ valid: false, reason: 'blocked' });
+            if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
             let isExpired = false;
             if (user.expires_at) {
                 const expDate = new Date(user.expires_at);
                 if (expDate < new Date()) isExpired = true;
             }
-
-            if (isExpired) {
-                return res.json({ valid: false, reason: 'expired', expiresAt: user.expires_at });
-            }
-
+            if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: user.expires_at });
             res.json({ valid: true, username: user.username, expiresAt: user.expires_at });
         } else {
             res.json({ valid: false, reason: 'user_not_found' });
@@ -707,7 +644,6 @@ app.post('/api/auth/validate', async (req, res) => {
 // 4. ADMIN DASHBOARD ROUTES
 // ==================================================================
 
-// Unified Admin Middleware
 const requireAdmin = (req, res, next) => {
     const sentPassword = req.headers['x-admin-password'] || req.body.password;
     if (sentPassword !== ADMIN_PASSWORD) {
@@ -716,20 +652,15 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
-// STATS
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
         const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")';
         const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
         const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'true' : '1'}`);
-        // Fix: "Keys Aktiv" soll alle zählen, deren Status (is_active) = true ist. Unabhängig vom Ablaufdatum (lt. Anforderung).
-        // Falls doch "Gültig" gemeint ist, wäre die alte Query korrekt. Wir folgen der Anforderung "Status exakt Wert Aktiv".
         const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`);
         const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
         const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
-
-        // Bundle Stats
         const totalBundles = await dbQuery(`SELECT COUNT(*) as c FROM license_bundles`);
         const unassignedBundleKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE bundle_id IS NOT NULL AND is_active = ${isPostgreSQL ? 'false' : '0'}`);
         
@@ -749,15 +680,11 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     } catch (e) { res.json({ success: false, error: 'DB Error' }); }
 });
 
-// KEYS
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT k.*, u.username, u.id as user_id FROM license_keys k LEFT JOIN users u ON u.license_key_id = k.id ORDER BY k.created_at DESC LIMIT 200`;
         const result = await dbQuery(sql);
-        const keys = result.rows.map(r => ({
-            ...r,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
-        }));
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -766,38 +693,23 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
     const { expires_at, user_id, product_code } = req.body;
     try {
-        // 1. Basic Key Update
         let updateSql = `UPDATE license_keys SET expires_at = $1`;
         const params = [expires_at || null];
         let pIndex = 2;
 
-        if (product_code) {
-            updateSql += `, product_code = $${pIndex}`;
-            params.push(product_code);
-            pIndex++;
-        }
-
-        updateSql += ` WHERE id = $${pIndex}`;
-        params.push(keyId);
-
+        if (product_code) { updateSql += `, product_code = $${pIndex}`; params.push(product_code); pIndex++; }
+        updateSql += ` WHERE id = $${pIndex}`; params.push(keyId);
         await dbQuery(updateSql, params);
 
-        // 2. Clear old link in USERS (where license_key_id = keyId)
         await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
-
         if (user_id) {
             const userCheck = await dbQuery(`SELECT id FROM users WHERE id = $1`, [user_id]);
             if (userCheck.rows.length > 0) {
-                // Link new user
                 await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
-
-                // Update KEY active state (NO username update)
                 const now = new Date().toISOString();
                 await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
             }
         }
-        // Note: No else block needed to set username=NULL since we don't use username column anymore.
-
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
@@ -805,14 +717,10 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
 app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
     try {
-        // 1. Verknüpfung bei Usern lösen, die diesen Key nutzen
         await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
-        // 2. Key löschen
         await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message });
-    }
+    } catch (e) { res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message }); }
 });
 
 app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
@@ -821,19 +729,14 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         const amount = parseInt(count) || 1;
         const newKeys = [];
         for(let i=0; i < amount; i++) {
-            // Generate 6 bytes = 12 hex chars -> "XXXX-XXXX-XXXX" (14 chars)
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            // FIX: Use parameter for boolean to support SQLite (no literal 'true') and set default to false/inactive
             await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, $4)`,
                 [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0)]);
             newKeys.push(keyRaw);
         }
         res.json({ success: true, keys: newKeys });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Fehler beim Generieren: " + e.message });
-    }
+    } catch (e) { res.status(500).json({ error: "Fehler beim Generieren: " + e.message }); }
 });
 
 app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
@@ -847,32 +750,23 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
             `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL ? 'RETURNING id' : ''}`,
             [name, orderNum, amount, new Date().toISOString()]
         );
-
         let bundleId = isPostgreSQL ? insertBundle.rows[0].id : insertBundle.lastID;
-
         const newKeys = [];
         for(let i = 0; i < amount; i++) {
             const seqNum = start + i;
             const assignedId = `${idStem}${String(seqNum).padStart(3, '0')}`;
-
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-
             await dbQuery(
                 `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id) VALUES ($1, $2, $3, $4, $5, $6)`,
                 [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0), bundleId, assignedId]
             );
             newKeys.push({ key: keyRaw, assignedId });
         }
-
         res.json({ success: true, bundleId, keys: newKeys });
-    } catch(e) {
-        console.error(e);
-        res.status(500).json({ error: "Bundle Fehler: " + e.message });
-    }
+    } catch(e) { res.status(500).json({ error: "Bundle Fehler: " + e.message }); }
 });
 
-// BUNDLES
 app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
     try {
         const sql = `
@@ -889,24 +783,20 @@ app.get('/api/admin/bundles/:id/keys', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT key_code, assigned_user_id, is_active, expires_at FROM license_keys WHERE bundle_id = $1 ORDER BY assigned_user_id ASC`;
         const result = await dbQuery(sql, [req.params.id]);
-        const keys = result.rows.map(r => ({
-            ...r,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
-        }));
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/admin/bundles/:id/extend', requireAdmin, async (req, res) => {
     try {
-        const { expires_at } = req.body; // ISO String
+        const { expires_at } = req.body;
         await dbQuery(`UPDATE license_keys SET expires_at = $1 WHERE bundle_id = $2`, [expires_at, req.params.id]);
         await dbQuery(`UPDATE license_bundles SET expires_at = $1 WHERE id = $2`, [expires_at, req.params.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// USERS
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT u.*, k.key_code FROM users u LEFT JOIN license_keys k ON u.license_key_id = k.id ORDER BY u.registered_at DESC LIMIT 100`;
@@ -920,11 +810,10 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ACTIONS
 app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
     try {
         await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [req.params.id]);
-        await dbQuery("DELETE FROM user_sessions WHERE user_id = $1", [req.params.id]); // Optional session table
+        await dbQuery("DELETE FROM user_sessions WHERE user_id = $1", [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
@@ -941,22 +830,14 @@ app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-// PURCHASES
 app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`;
         const result = await dbQuery(sql);
-
-        // Optional: Hole User-Emails für Matching falls Meta fehlt (komplexer Join Workaround)
-        // Da 'payments' keine user_id hat, verlassen wir uns primär auf Metadata.
-
         const purchases = result.rows.map(r => {
             let meta = {};
             try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata || {}; } catch(e){}
-
-            // Fix: Bessere Erkennung der Email aus verschiedenen Meta-Feldern
             const email = meta.email || meta.customer_email || meta.customerEmail || '?';
-
             return {
                 id: r.payment_id,
                 email: email,
@@ -979,6 +860,66 @@ app.get('/api/admin/support-tickets', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Update Ticket Status (Viewed/Open)
+app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) => {
+    const { status } = req.body; // 'in_progress', 'closed'
+    const ticketId = req.params.id; // Database ID (INT)
+    try {
+        // Get Ticket Details to find real ticket_id (String)
+        const ticketRes = await dbQuery("SELECT ticket_id, username FROM support_tickets WHERE id = $1", [ticketId]);
+        if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
+        const { ticket_id, username } = ticketRes.rows[0];
+
+        // Update Ticket Status
+        await dbQuery("UPDATE support_tickets SET status = $1 WHERE id = $2", [status, ticketId]);
+
+        // Update Linked Message Status (if exists)
+        if (ticket_id) {
+            await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
+        }
+
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reply to Ticket
+app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) => {
+    const ticketDbId = req.params.id;
+    const { message, username } = req.body;
+
+    if (!message || !username) return res.status(400).json({ error: "Missing data" });
+
+    try {
+        // 1. Get Ticket Details
+        const ticketRes = await dbQuery("SELECT ticket_id, subject FROM support_tickets WHERE id = $1", [ticketDbId]);
+        if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
+        const { ticket_id, subject } = ticketRes.rows[0];
+
+        // 2. Find User ID
+        const userRes = await dbQuery("SELECT id FROM users WHERE username = $1", [username]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const userId = userRes.rows[0].id;
+
+        // 3. Send Reply Message
+        const replySubject = `RE: ${subject}`;
+        await dbQuery(
+            `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+             VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL ? 'false' : '0'}, $4)`,
+            [userId, replySubject, message, new Date().toISOString()]
+        );
+
+        // 4. Close Ticket
+        await dbQuery("UPDATE support_tickets SET status = 'closed' WHERE id = $1", [ticketDbId]);
+
+        // 5. Close User's Original Ticket Message (Unlocks Delete)
+        if (ticket_id) {
+            await dbQuery("UPDATE messages SET status = 'closed' WHERE ticket_id = $1", [ticket_id]);
+        }
+
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.delete('/api/admin/support-tickets/:id', requireAdmin, async (req, res) => {
     try {
         await dbQuery(`DELETE FROM support_tickets WHERE id = $1`, [req.params.id]);
@@ -986,7 +927,29 @@ app.delete('/api/admin/support-tickets/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// MAINTENANCE SETTINGS
+// Get/Set Settings (for Templates)
+app.get('/api/admin/settings/:key', requireAdmin, async (req, res) => {
+    try {
+        const result = await dbQuery("SELECT value FROM settings WHERE key = $1", [req.params.key]);
+        const val = result.rows.length > 0 ? result.rows[0].value : null;
+        res.json({ success: true, value: val });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/settings', requireAdmin, async (req, res) => {
+    try {
+        const { key, value } = req.body;
+        // Upsert logic (simplistic)
+        const check = await dbQuery("SELECT key FROM settings WHERE key = $1", [key]);
+        if (check.rows.length > 0) {
+            await dbQuery("UPDATE settings SET value = $1 WHERE key = $2", [value, key]);
+        } else {
+            await dbQuery("INSERT INTO settings (key, value) VALUES ($1, $2)", [key, value]);
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/admin/maintenance-status', requireAdmin, async (req, res) => {
     try {
         const result = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
@@ -999,12 +962,9 @@ app.get('/api/admin/maintenance-status', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
     try {
-        const { active } = req.body; // boolean
+        const { active } = req.body;
         const val = active ? 'true' : 'false';
-
-        // Use UPSERT logic or standard UPDATE (since we init row at start, UPDATE should suffice)
         await dbQuery("UPDATE settings SET value = $1 WHERE key = 'maintenance_mode'", [val]);
-
         res.json({ success: true, maintenance: active });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -1053,10 +1013,12 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
         const userId = req.user.id;
         const now = new Date().toISOString();
 
-        // Filter: Personal messages MUST be unread. Broadcasts must be active.
+        // UPDATED LOGIC:
+        // 1. Personal messages that are unread OR Type='ticket' (always show tickets)
+        // 2. Broadcasts (recipient=NULL) that are not expired
         const sql = `
             SELECT * FROM messages
-            WHERE (recipient_id = $1 AND is_read = ${isPostgreSQL ? 'false' : '0'})
+            WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL ? 'false' : '0'} OR type = 'ticket'))
             OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2))
             ORDER BY created_at DESC
         `;
@@ -1076,6 +1038,28 @@ app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
         await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE MESSAGE (USER)
+app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
+    try {
+        const msgId = req.params.id;
+        // User can only delete their own messages
+        // Also check if it's a TICKET and if it is OPEN (which shouldn't be deleted)
+        // But the frontend already locks it. Server side validation is good too.
+
+        // 1. Check status if ticket
+        const msgRes = await dbQuery("SELECT type, status FROM messages WHERE id = $1 AND recipient_id = $2", [msgId, req.user.id]);
+        if(msgRes.rows.length === 0) return res.status(404).json({ error: "Nachricht nicht gefunden" });
+
+        const msg = msgRes.rows[0];
+        if (msg.type === 'ticket' && msg.status !== 'closed') {
+            return res.status(403).json({ error: "Ticket noch offen. Löschen nicht erlaubt." });
+        }
+
+        await dbQuery(`DELETE FROM messages WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });

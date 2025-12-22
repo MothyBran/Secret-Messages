@@ -6,6 +6,7 @@
     <title>SECURE MESSAGES - Admin Panel</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/admin-mail.css">
     <style>
         :root {
             --bg-dark: #050505;
@@ -238,8 +239,7 @@
                 <button class="nav-tab" onclick="switchTab('users')">Benutzer</button>
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
-                <button class="nav-tab" onclick="switchTab('support')">Support</button>
-                <button class="nav-tab" onclick="switchTab('mail')">Mail Service</button>
+                <button class="nav-tab" onclick="switchTab('mail')">Mail Service <span id="mailServiceBadge" style="display:none; color:var(--accent-blue); font-size:0.8rem; margin-left:5px;">(0)</span></button>
                 <button class="nav-tab" onclick="switchTab('maintenance')">Wartung</button>
             </nav>
 
@@ -443,42 +443,41 @@
 
         </div>
 
-        <!-- TAB: SUPPORT TICKETS -->
-        <div id="tab-support" class="tab-content">
-            <h2 class="section-title">
-                Support Anfragen
-                <button id="refreshSupportBtn" class="btn-outline">Refresh</button>
-            </h2>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Ticket</th>
-                            <th>User/ID</th>
-                            <th>E-Mail</th>
-                            <th>Betreff</th>
-                            <th>Nachricht</th>
-                            <th>Erstellt</th>
-                            <th>Aktion</th>
-                        </tr>
-                    </thead>
-                    <tbody id="supportTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- TAB 5: MAIL SERVICE -->
+        <!-- TAB 5: MAIL SERVICE (REVISED) -->
         <div id="tab-mail" class="tab-content">
-            <h2 class="section-title">Nachrichtenzentrale</h2>
+            <h2 class="section-title">Support & Postfach</h2>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                <button class="nav-tab active" id="btnMailInbox" onclick="showMailView('inbox')">Posteingang (Tickets)</button>
+                <button class="nav-tab" id="btnMailCompose" onclick="showMailView('compose')">Nachricht verfassen</button>
+                <button class="nav-tab" id="btnMailSettings" onclick="showMailView('settings')">Vorlagen</button>
+            </div>
+
+            <!-- VIEW: INBOX (Split Layout) -->
+            <div id="view-mail-inbox" class="mail-service-container">
+                <!-- Left: List -->
+                <div class="mail-inbox-list" id="ticketListContainer">
+                    <div style="padding:15px; border-bottom:1px solid #333; text-align:right;">
+                        <button class="btn-outline" style="font-size:0.8rem;" onclick="loadSupportTickets()">↻ Aktualisieren</button>
+                    </div>
+                    <div id="ticketListBody">
+                        <!-- Items rendered by JS -->
+                        <div class="empty-state">Lade Tickets...</div>
+                    </div>
+                </div>
+
+                <!-- Right: Detail -->
+                <div class="mail-detail-view" id="ticketDetailContainer">
+                    <div class="empty-state">Wählen Sie eine Nachricht aus.</div>
+                </div>
+            </div>
+
+            <!-- VIEW: COMPOSE (Old Logic) -->
+            <div id="view-mail-compose" style="display:none; max-width:800px;">
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
-                    <h3 style="color:#fff; margin-bottom:20px;">Neue Nachricht verfassen</h3>
+                    <h3 style="color:#fff; margin-bottom:20px;">Neue Nachricht senden</h3>
 
                     <div class="control-bar" style="flex-direction:column; align-items:stretch;">
-
-                        <!-- Empfänger -->
                         <label style="color:#888; font-size:0.9rem;">Empfänger</label>
                         <select id="msgRecipientType" onchange="toggleRecipientInput()" style="margin-bottom:10px;">
                             <option value="broadcast">📢 Alle Benutzer (Broadcast)</option>
@@ -486,43 +485,40 @@
                         </select>
                         <input type="text" id="msgRecipientId" placeholder="User ID eingeben..." style="display:none; margin-bottom:10px;">
 
-                        <!-- Betreff -->
                         <label style="color:#888; font-size:0.9rem;">Betreff</label>
                         <select id="msgSubjectSelect" onchange="toggleSubjectInput()" style="margin-bottom:5px;">
                             <option value="Wichtige System-Meldung">ℹ️ Wichtige System-Meldung</option>
                             <option value="Wartungsarbeiten">🛠️ Wartungsarbeiten</option>
                             <option value="Sicherheits-Hinweis">🛡️ Sicherheits-Hinweis</option>
-                            <option value="Support-Antwort">💬 Support-Antwort</option>
                             <option value="custom">✎ Eigener Betreff...</option>
                         </select>
                         <input type="text" id="msgSubjectCustom" placeholder="Betreff eingeben..." style="display:none; margin-bottom:10px;">
 
-                        <!-- Nachricht -->
                         <label style="color:#888; font-size:0.9rem;">Nachricht</label>
                         <textarea id="msgBody" rows="6" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:10px; margin-bottom:10px;" placeholder="Ihre Nachricht..."></textarea>
-
-                        <!-- Optionen -->
-                        <label style="color:#888; font-size:0.9rem;">Sichtbar bis (Optional für Broadcasts)</label>
-                        <input type="datetime-local" id="msgExpiry">
 
                         <div style="margin-top:20px; text-align:right;">
                             <button onclick="sendAdminMessage()" class="btn-action">Absenden</button>
                         </div>
                     </div>
                 </div>
+            </div>
 
+            <!-- VIEW: SETTINGS (Templates) -->
+             <div id="view-mail-settings" style="display:none; max-width:800px;">
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
-                    <h3 style="color:#fff; margin-bottom:20px;">Info</h3>
-                    <p style="color:#ccc; line-height:1.6;">
-                        <strong>Broadcasts:</strong><br>
-                        Nachrichten an "Alle Benutzer" werden nicht in der Datenbank vervielfacht, sondern als globale Nachricht gespeichert. Sie verschwinden automatisch nach dem Ablaufdatum (Standard: 7 Tage).<br><br>
-                        <strong>Einzelnachrichten:</strong><br>
-                        Werden direkt dem Postfach des Users zugeordnet. Der User muss sie als "Gelesen" markieren, damit sie verschwinden (oder archiviert werden).<br><br>
-                        <strong>Support:</strong><br>
-                        Nutzen Sie den Betreff "Support-Antwort", um auf Anfragen zu reagieren. Die Nachricht erscheint hervorgehoben beim User.
+                    <h3 style="color:#fff; margin-bottom:20px;">Antwort-Vorlage (Tickets)</h3>
+                    <p style="color:#888; font-size:0.9rem; margin-bottom:10px;">
+                        Platzhalter: <code>{username}</code><br>
+                        Der eigentliche Text des Admins ersetzt <code>[TEXT]</code>.
                     </p>
+                    <textarea id="templateEditor" rows="10" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:10px; font-family:monospace;"></textarea>
+                    <div style="margin-top:20px; text-align:right;">
+                        <button onclick="saveMailTemplate()" class="btn-action">Speichern</button>
+                    </div>
                 </div>
             </div>
+
         </div>
 
         <!-- TAB 6: WARTUNG -->

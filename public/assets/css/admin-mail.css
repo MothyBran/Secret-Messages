@@ -1,0 +1,136 @@
+
+/* Layout */
+.mail-service-container {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 180px); /* Adjust based on admin layout */
+}
+
+.mail-inbox-list {
+    flex: 1;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.mail-detail-view {
+    flex: 2;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+/* List Items */
+.mail-item {
+    padding: 15px;
+    border-bottom: 1px solid #222;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mail-item:hover {
+    background: #1a1a1a;
+}
+
+.mail-item.active {
+    background: rgba(0, 191, 255, 0.1);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.mail-item.unread {
+    font-weight: bold;
+    color: #fff;
+}
+
+.mail-item-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #777;
+    margin-bottom: 5px;
+}
+
+.mail-item-subject {
+    color: var(--accent-blue);
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mail-item-status {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+/* Detail View */
+.detail-header {
+    border-bottom: 1px solid #333;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+
+.detail-subject {
+    font-size: 1.2rem;
+    color: var(--accent-blue);
+    margin-bottom: 10px;
+}
+
+.detail-meta {
+    font-size: 0.9rem;
+    color: #888;
+    display: flex;
+    justify-content: space-between;
+}
+
+.detail-body {
+    flex: 1;
+    line-height: 1.6;
+    color: #ddd;
+    white-space: pre-wrap;
+    margin-bottom: 20px;
+    overflow-y: auto;
+}
+
+/* Reply Section */
+.reply-section {
+    border-top: 1px solid #333;
+    padding-top: 20px;
+}
+
+.reply-textarea {
+    width: 100%;
+    min-height: 150px;
+    background: #000;
+    border: 1px solid #333;
+    color: #ddd;
+    padding: 10px;
+    font-family: monospace;
+    margin-bottom: 10px;
+}
+
+.status-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.status-open { background: rgba(255, 204, 0, 0.2); color: #ffcc00; }
+.status-progress { background: rgba(0, 191, 255, 0.2); color: #00bfff; }
+.status-closed { background: rgba(0, 255, 65, 0.2); color: #00ff41; }
+
+.empty-state {
+    text-align: center;
+    color: #555;
+    margin-top: 50px;
+}

@@ -13,6 +13,10 @@ let allBundles = [];
 let allTickets = [];
 let currentBundleId = null;
 
+// New Data Store for Ticket Inbox
+let inboxTickets = [];
+let currentTicketId = null;
+
 // Helper für Headers
 function getHeaders() {
     return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
@@ -27,21 +31,16 @@ window.switchTab = function(tabName) {
     // Show target
     document.getElementById(`tab-${tabName}`).classList.add('active');
 
-    // Highlight Tab Button
-    // Find button that calls this function with this arg
-    // Since we can't easily find the button element from function call without event,
-    // we query selector for onclick attribute or use index.
-    // Simpler: iterate buttons and check text or attribute.
-    // We added onclick="switchTab('dashboard')"
     const btns = document.querySelectorAll('.nav-tab');
     btns.forEach(btn => {
-        if(btn.getAttribute('onclick').includes(tabName)) {
+        if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName)) {
             btn.classList.add('active');
         }
     });
 
-    // Load data specific to tab if needed (lazy load optimization possible, but eager load is fine for now)
-    // We load everything on initDashboard anyway.
+    if(tabName === 'mail') {
+        window.loadSupportTickets(); // Refresh inbox count
+    }
 }
 
 // --- HELPERS (MODALS & FEEDBACK) ---
@@ -90,7 +89,6 @@ window.showToast = function(message, type = 'info') {
 
 // Global functions must be attached to window for HTML onclick attributes to work
 window.loadUsers = async function() {
-    console.log("Funktion aufgerufen: loadUsers");
     const btn = document.getElementById('refreshUsersBtn');
     if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
@@ -102,7 +100,6 @@ window.loadUsers = async function() {
 };
 
 window.loadKeys = async function() {
-    console.log("Funktion aufgerufen: loadKeys");
     const btn = document.getElementById('refreshKeysBtn');
     if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
@@ -114,7 +111,6 @@ window.loadKeys = async function() {
 };
 
 window.loadPurchases = async function() {
-    console.log("Funktion aufgerufen: loadPurchases");
     const btn = document.getElementById('refreshPurchasesBtn');
     if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
@@ -142,7 +138,11 @@ window.loadSupportTickets = async function() {
     try {
         const res = await fetch(`${API_BASE}/support-tickets`, { headers: getHeaders() });
         allTickets = await res.json();
+
+        // Update both tables (Legacy tab and new Mail Service tab)
         renderSupportTickets(allTickets);
+        renderMailInbox(allTickets);
+
     } catch(e) { console.error("Load Tickets Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
@@ -161,23 +161,218 @@ window.closeTicket = function(id) {
     });
 };
 
-window.replyToTicket = function(username, subject, ticketId) {
-    // 1. Switch Tab
-    window.switchTab('mail');
+// =========================================================
+// NEW: MAIL SERVICE INBOX LOGIC
+// =========================================================
 
-    // 2. Pre-fill Form
-    document.getElementById('msgRecipientType').value = 'single';
-    window.toggleRecipientInput(); // Show input
-    document.getElementById('msgRecipientId').value = username;
+window.showMailView = function(viewName) {
+    // Buttons
+    document.getElementById('btnMailInbox').classList.remove('active');
+    document.getElementById('btnMailCompose').classList.remove('active');
+    document.getElementById('btnMailSettings').classList.remove('active');
 
-    document.getElementById('msgSubjectSelect').value = 'custom';
-    window.toggleSubjectInput(); // Show custom input
-    document.getElementById('msgSubjectCustom').value = `Re: [${ticketId}] ${subject}`;
+    // Content
+    document.getElementById('view-mail-inbox').style.display = 'none';
+    document.getElementById('view-mail-compose').style.display = 'none';
+    document.getElementById('view-mail-settings').style.display = 'none';
 
-    document.getElementById('msgBody').focus();
+    // Activate
+    document.getElementById(`btnMail${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`).classList.add('active');
+    document.getElementById(`view-mail-${viewName}`).style.display = (viewName === 'inbox') ? 'flex' : 'block'; // inbox is flex
 
-    window.showToast("Antwort-Formular wurde vorbefüllt.", 'info');
+    if (viewName === 'inbox') window.loadSupportTickets();
+    if (viewName === 'settings') window.loadMailTemplate();
 };
+
+function renderMailInbox(tickets) {
+    const container = document.getElementById('ticketListBody');
+    if (!container) return;
+
+    // Filter out only registered user tickets if needed? No, show all.
+    // Count open tickets
+    const openCount = tickets.filter(t => t.status !== 'closed').length;
+    const badge = document.getElementById('mailServiceBadge');
+    if(badge) {
+        badge.textContent = `(${openCount})`;
+        badge.style.display = openCount > 0 ? 'inline' : 'none';
+    }
+
+    if (tickets.length === 0) {
+        container.innerHTML = '<div class="empty-state">Keine Tickets vorhanden.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    // Sort: Open first, then by date desc
+    tickets.sort((a,b) => {
+        if (a.status === 'open' && b.status !== 'open') return -1;
+        if (a.status !== 'open' && b.status === 'open') return 1;
+        return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    tickets.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'mail-item';
+        if (t.status === 'open') item.classList.add('unread');
+        if (currentTicketId === t.id) item.classList.add('active');
+
+        let statusClass = 'status-open';
+        let statusText = 'OFFEN';
+        if (t.status === 'in_progress') { statusClass = 'status-progress'; statusText = 'IN BEARBEITUNG'; }
+        if (t.status === 'closed') { statusClass = 'status-closed'; statusText = 'ABGESCHLOSSEN'; }
+
+        item.innerHTML = `
+            <div class="mail-item-header">
+                <span>${t.username || 'Gast'}</span>
+                <span>${new Date(t.created_at).toLocaleDateString()}</span>
+            </div>
+            <div class="mail-item-subject">${t.ticket_id} | ${t.subject}</div>
+            <div class="mail-item-status ${statusClass}">${statusText}</div>
+        `;
+
+        item.onclick = () => selectTicket(t);
+        container.appendChild(item);
+    });
+}
+
+async function selectTicket(ticket) {
+    currentTicketId = ticket.id;
+    renderMailInbox(allTickets); // Re-render to update active class
+
+    const detailContainer = document.getElementById('ticketDetailContainer');
+
+    // 1. Mark as In Progress if Open
+    if (ticket.status === 'open') {
+        try {
+             await fetch(`${API_BASE}/support-tickets/${ticket.id}/status`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify({ status: 'in_progress' })
+            });
+            ticket.status = 'in_progress'; // Optimistic update
+            renderMailInbox(allTickets);
+        } catch(e) { console.error("Status update failed", e); }
+    }
+
+    // 2. Load Template
+    let template = "";
+    try {
+        const res = await fetch(`${API_BASE}/settings/ticket_reply_template`, { headers: getHeaders() });
+        const data = await res.json();
+        if(data.success && data.value) template = data.value;
+    } catch(e) {}
+
+    // Replace Placeholder
+    const replyBody = template.replace('{username}', ticket.username || 'Nutzer').replace('[TEXT]', '\n\n');
+
+    // 3. Render Detail View
+    let statusClass = 'status-open';
+    if (ticket.status === 'in_progress') statusClass = 'status-progress';
+    if (ticket.status === 'closed') statusClass = 'status-closed';
+
+    detailContainer.innerHTML = `
+        <div class="detail-header">
+            <div class="detail-subject">
+                ${ticket.subject}
+                <span class="status-badge ${statusClass}" style="margin-left:10px; font-size:0.6em; vertical-align:middle;">${ticket.status}</span>
+            </div>
+            <div class="detail-meta">
+                <span>Von: <strong style="color:#fff;">${ticket.username || 'Gast'}</strong> (${ticket.email || 'Keine Mail'})</span>
+                <span>ID: ${ticket.ticket_id}</span>
+                <span>${new Date(ticket.created_at).toLocaleString()}</span>
+            </div>
+        </div>
+
+        <div class="detail-body">
+            ${ticket.message}
+        </div>
+    `;
+
+    // 4. Add Reply Section (Only if not closed or if we allow re-opening?)
+    // Requirement says: "Sobald der Admin antwortet... wechselt Status auf abgeschlossen."
+    // We allow replying even if closed? Maybe. But let's assume standard flow.
+
+    if (ticket.username) { // Only for registered users (or if we implement email reply logic here later)
+        const replyDiv = document.createElement('div');
+        replyDiv.className = 'reply-section';
+        replyDiv.innerHTML = `
+            <h4 style="color:#fff; margin-bottom:10px;">Antworten</h4>
+            <textarea id="ticketReplyBody" class="reply-textarea">${replyBody}</textarea>
+            <div style="text-align:right;">
+                <button onclick="sendTicketReply(${ticket.id}, '${ticket.username}')" class="btn-action">Senden & Schließen</button>
+            </div>
+        `;
+        detailContainer.appendChild(replyDiv);
+    } else {
+        const info = document.createElement('div');
+        info.className = 'reply-section';
+        info.innerHTML = `<p style="color:#888;">Antwort nur per E-Mail möglich (${ticket.email || 'Keine Email'}). <br>Gast-Tickets können nicht über das System beantwortet werden.</p>`;
+        detailContainer.appendChild(info);
+    }
+}
+
+window.sendTicketReply = async function(dbId, username) {
+    const btn = event.target;
+    const oldText = btn.textContent;
+    btn.textContent = "Sende..."; btn.disabled = true;
+
+    const message = document.getElementById('ticketReplyBody').value;
+    if(!message.trim()) {
+        window.showToast("Bitte Nachricht eingeben.", "error");
+        btn.textContent = oldText; btn.disabled = false;
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/support-tickets/${dbId}/reply`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ message, username })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.showToast("Antwort gesendet. Ticket geschlossen.", "success");
+            // Refresh
+            window.loadSupportTickets();
+            document.getElementById('ticketDetailContainer').innerHTML = '<div class="empty-state">Ticket geschlossen.</div>';
+            currentTicketId = null;
+        } else {
+            window.showToast("Fehler: " + data.error, "error");
+        }
+    } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+
+    btn.textContent = oldText; btn.disabled = false;
+};
+
+window.loadMailTemplate = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/settings/ticket_reply_template`, { headers: getHeaders() });
+        const data = await res.json();
+        if(data.success && data.value) {
+            document.getElementById('templateEditor').value = data.value;
+        } else {
+            // Default fallback
+            document.getElementById('templateEditor').value = "Hallo {username},\n\n[TEXT]\n\nMit freundlichen Grüßen,\nIhr Support-Team";
+        }
+    } catch(e) {}
+};
+
+window.saveMailTemplate = async function() {
+    const val = document.getElementById('templateEditor').value;
+    try {
+        await fetch(`${API_BASE}/settings`, {
+            method: 'POST', headers: getHeaders(),
+            body: JSON.stringify({ key: 'ticket_reply_template', value: val })
+        });
+        window.showToast("Vorlage gespeichert.", "success");
+    } catch(e) { window.showToast("Fehler beim Speichern.", "error"); }
+};
+
+// =========================================================
+// OLD LOGIC PRESERVED BELOW
+// =========================================================
 
 window.generateBundle = async function() {
     const btn = document.getElementById('generateBundleBtn');
@@ -378,7 +573,6 @@ window.toggleShop = async function() {
 
 
 window.resetDevice = function(id) {
-    console.log("Funktion aufgerufen: resetDevice");
     window.showConfirm(`Gerätebindung für User #${id} löschen?`, async () => {
         await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
         window.loadUsers();
@@ -387,7 +581,6 @@ window.resetDevice = function(id) {
 };
 
 window.toggleUserBlock = function(id, isBlocked) {
-    console.log("Funktion aufgerufen: toggleUserBlock");
     window.showConfirm(`Benutzer ${isBlocked ? 'entsperren' : 'sperren'}?`, async () => {
         const endpoint = isBlocked ? 'unblock-user' : 'block-user';
         await fetch(`${API_BASE}/${endpoint}/${id}`, { method: 'POST', headers: getHeaders() });
@@ -399,7 +592,6 @@ window.toggleUserBlock = function(id, isBlocked) {
 let currentEditingKeyId = null;
 
 window.openEditLicenseModal = function(id) {
-    console.log("Funktion aufgerufen: openEditLicenseModal");
     const key = allKeys.find(k => k.id === id);
     if(!key) return;
 
@@ -427,7 +619,6 @@ window.openEditLicenseModal = function(id) {
 };
 
 window.saveLicenseChanges = async function() {
-    console.log("Funktion aufgerufen: saveLicenseChanges");
     if(!currentEditingKeyId) return;
 
     const dateStr = document.getElementById('editExpiryDate').value;
@@ -481,7 +672,6 @@ window.deleteKey = function(id) {
 };
 
 window.generateKeys = async function() {
-    console.log("Funktion aufgerufen: generateKeys");
     const duration = document.getElementById('genDuration').value;
     const count = document.getElementById('genCount').value || 1;
     try {
@@ -809,7 +999,7 @@ function renderSupportTickets(tickets) {
         // 7. Actions
         const tdActions = document.createElement('td');
 
-        // Reply Button (Only if Username exists)
+        // Reply Button (Only if Username exists) - Redirects to Inbox now!
         if (t.username && t.username.length > 0) {
             const btnReply = document.createElement('button');
             btnReply.className = "btn-icon";
@@ -821,8 +1011,8 @@ function renderSupportTickets(tickets) {
             btnReply.style.fontSize = "1.2rem";
             btnReply.style.marginRight = "10px";
 
-            // Securely attach event handler
-            btnReply.onclick = () => window.replyToTicket(t.username, t.subject, t.ticket_id);
+            // Securely attach event handler -> Redirect to Mail Tab
+            btnReply.onclick = () => window.switchTab('mail');
             tdActions.appendChild(btnReply);
         }
 
