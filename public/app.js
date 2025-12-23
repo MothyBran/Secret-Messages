@@ -20,7 +20,8 @@ let contactMode = 'manage';
 let isEditMode = false;     
 let selectedContactIds = new Set(); 
 let sortKey = 'name';       
-let sortDir = 'asc';        
+let sortDir = 'asc';
+let pendingContactAction = null;
 
 // ================================================================
 // INITIALISIERUNG
@@ -423,6 +424,12 @@ function setupUIEvents() {
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
     document.getElementById('btnDeleteContact')?.addEventListener('click', deleteContact);
 
+    document.getElementById('btnCancelContactCode')?.addEventListener('click', () => {
+        document.getElementById('contactCodeModal').classList.remove('active');
+        pendingContactAction = null;
+    });
+    document.getElementById('btnConfirmContactCode')?.addEventListener('click', handleContactCodeSubmit);
+
     // --- DATEI UPLOAD LOGIK ---
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
@@ -787,36 +794,11 @@ function deleteContact() {
 function exportContacts() {
     if (!contacts || contacts.length === 0) return showToast("Keine Kontakte zum Exportieren.", 'error');
 
-    // Prompt for code using prompt() - simplistic but functional for this requirement
-    // Or better: Use a custom modal if possible, but prompt is strictly blocking and simple.
-    // The requirement says "Nutzer muss seinen 5-stelligen Zugangscode eingeben".
-    // We'll use a simple prompt for now to avoid complex UI refactoring unless required.
-    const code = prompt("Bitte 5-stelligen Zugangscode für Backup-Verschlüsselung eingeben:");
-    if (!code || code.length !== 5) return showToast("Ungültiger Code. Export abgebrochen.", 'error');
-
-    showLoader("Verschlüssele Backup...");
-
-    setTimeout(async () => {
-        try {
-            const jsonStr = JSON.stringify(contacts);
-            const encrypted = await encryptBackup(jsonStr, code);
-
-            const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted);
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "contacts_backup.smb");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-
-            showToast("Backup erfolgreich erstellt (.smb).", 'success');
-        } catch(e) {
-            console.error(e);
-            showToast("Verschlüsselungsfehler.", 'error');
-        } finally {
-            hideLoader();
-        }
-    }, 100);
+    // Reset and Open Modal
+    document.getElementById('contactSecureCode').value = '';
+    pendingContactAction = { type: 'export' };
+    document.getElementById('contactCodeModal').classList.add('active');
+    setTimeout(() => document.getElementById('contactSecureCode').focus(), 100);
 }
 
 function importContacts(e) {
@@ -827,66 +809,133 @@ function importContacts(e) {
 
     const reader = new FileReader();
     reader.onload = async function(evt) {
-        try {
-            let importedData;
+        if (isEncrypted) {
+            // Open Modal for Code
+            document.getElementById('contactSecureCode').value = '';
+            pendingContactAction = { type: 'import', content: evt.target.result };
+            document.getElementById('contactCodeModal').classList.add('active');
+            setTimeout(() => document.getElementById('contactSecureCode').focus(), 100);
 
-            if (isEncrypted) {
-                const code = prompt("Bitte 5-stelligen Zugangscode zum Entschlüsseln eingeben:");
-                if (!code) { e.target.value = ''; return; }
-
-                showLoader("Entschlüssele...");
-                try {
-                    const decryptedStr = await decryptBackup(evt.target.result, code);
-                    importedData = JSON.parse(decryptedStr);
-                } catch(err) {
-                    hideLoader();
-                    e.target.value = '';
-                    return showToast("Falscher Code oder Datei defekt.", 'error');
-                }
-                hideLoader();
-            } else {
-                // Legacy JSON support
-                importedData = JSON.parse(evt.target.result);
-            }
-
-            if (!Array.isArray(importedData)) throw new Error("Format ungültig");
-
-            const toUpdate = [];
-            const toAdd = [];
-
-            importedData.forEach(c => {
-                if (!c.id) return;
-                const existingIndex = contacts.findIndex(ex => ex.id === c.id);
-                if (existingIndex > -1) toUpdate.push(c);
-                else toAdd.push(c);
-            });
-
-            const proceedImport = () => {
-                toAdd.forEach(c => contacts.push(c));
-                toUpdate.forEach(c => {
-                    const idx = contacts.findIndex(ex => ex.id === c.id);
-                    if(idx > -1) contacts[idx] = c;
-                });
-                contacts = contacts.filter(c => c && c.id);
-                saveUserContacts();
-                renderContactList(document.getElementById('contactSearch').value);
-                e.target.value = '';
-                showToast(`Import: ${toAdd.length} neu, ${toUpdate.length} aktualisiert.`, 'success');
-            };
-
-            if (toUpdate.length > 0) {
-                window.showAppConfirm(`${toUpdate.length} Kontakte existieren bereits und werden überschrieben. Fortfahren?`, proceedImport);
-            } else {
-                proceedImport();
-            }
-
-        } catch(err) {
-            console.error(err);
-            hideLoader();
-            showToast("Fehler beim Importieren der Datei.", 'error');
+            // Clear file input so same file can be selected again if cancelled
+            e.target.value = '';
+        } else {
+            // Legacy JSON support
+            processImportedData(evt.target.result, false);
+            e.target.value = '';
         }
     };
     reader.readAsText(file);
+}
+
+async function handleContactCodeSubmit() {
+    const codeInput = document.getElementById('contactSecureCode');
+    const code = codeInput.value;
+
+    if (!code || code.length !== 5 || isNaN(code)) {
+        showToast("Bitte 5-stelligen Code eingeben.", 'error');
+        return;
+    }
+
+    if (!pendingContactAction) return;
+
+    const modal = document.getElementById('contactCodeModal');
+    const btn = document.getElementById('btnConfirmContactCode');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Verarbeite...";
+
+    try {
+        if (pendingContactAction.type === 'export') {
+             showLoader("Verschlüssele Backup...");
+
+             // Wait for UI render
+             setTimeout(async () => {
+                 try {
+                     const jsonStr = JSON.stringify(contacts);
+                     const encrypted = await encryptBackup(jsonStr, code);
+
+                     const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted);
+                     const downloadAnchorNode = document.createElement('a');
+                     downloadAnchorNode.setAttribute("href", dataStr);
+                     downloadAnchorNode.setAttribute("download", "contacts_backup.smb");
+                     document.body.appendChild(downloadAnchorNode);
+                     downloadAnchorNode.click();
+                     downloadAnchorNode.remove();
+
+                     showToast("Backup erfolgreich erstellt (.smb).", 'success');
+                     modal.classList.remove('active');
+                     pendingContactAction = null;
+                 } catch(e) {
+                     showToast("Verschlüsselungsfehler.", 'error');
+                 } finally {
+                     hideLoader();
+                     btn.disabled = false;
+                     btn.textContent = originalText;
+                 }
+             }, 100);
+
+        } else if (pendingContactAction.type === 'import') {
+             showLoader("Entschlüssele...");
+             try {
+                 const decryptedStr = await decryptBackup(pendingContactAction.content, code);
+                 hideLoader();
+                 processImportedData(decryptedStr, true);
+                 modal.classList.remove('active');
+                 pendingContactAction = null;
+                 btn.disabled = false;
+                 btn.textContent = originalText;
+             } catch(err) {
+                 hideLoader();
+                 showToast("Falscher Code oder Datei defekt.", 'error');
+                 btn.disabled = false;
+                 btn.textContent = originalText;
+             }
+        }
+    } catch (e) {
+        console.error(e);
+        hideLoader();
+        showToast("Fehler bei der Verarbeitung.", 'error');
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+function processImportedData(jsonString, isEncryptedSource) {
+    try {
+        const importedData = JSON.parse(jsonString);
+        if (!Array.isArray(importedData)) throw new Error("Format ungültig");
+
+        const toUpdate = [];
+        const toAdd = [];
+
+        importedData.forEach(c => {
+            if (!c.id) return;
+            const existingIndex = contacts.findIndex(ex => ex.id === c.id);
+            if (existingIndex > -1) toUpdate.push(c);
+            else toAdd.push(c);
+        });
+
+        const proceedImport = () => {
+            toAdd.forEach(c => contacts.push(c));
+            toUpdate.forEach(c => {
+                const idx = contacts.findIndex(ex => ex.id === c.id);
+                if(idx > -1) contacts[idx] = c;
+            });
+            contacts = contacts.filter(c => c && c.id);
+            saveUserContacts();
+            renderContactList(document.getElementById('contactSearch').value);
+            if(contactMode === 'select') renderGroupTags();
+            showToast(`Import: ${toAdd.length} neu, ${toUpdate.length} aktualisiert.`, 'success');
+        };
+
+        if (toUpdate.length > 0) {
+            window.showAppConfirm(`${toUpdate.length} Kontakte existieren bereits und werden überschrieben. Fortfahren?`, proceedImport);
+        } else {
+            proceedImport();
+        }
+    } catch(err) {
+        showToast("Datenformat ungültig.", 'error');
+    }
 }
 
 function confirmSelection() {

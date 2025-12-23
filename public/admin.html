@@ -566,21 +566,27 @@
                     <h3 style="color:#fff; margin-bottom:15px;">Admin 2FA Sicherheit</h3>
                     <p style="color:#888; margin-bottom:20px;">Zusätzlicher Schutz für den Admin-Bereich.</p>
 
-                    <button class="btn" onclick="start2FASetup()" style="border:1px solid var(--accent-blue); color:var(--accent-blue); width:100%;">2FA Einrichten / Status</button>
+                    <!-- Initial State -->
+                    <div id="2faStartArea">
+                        <button class="btn" onclick="start2FASetup()" style="border:1px solid var(--accent-blue); color:var(--accent-blue); width:100%;">2FA Einrichten / Status</button>
+                    </div>
 
-                    <div id="2faSetupArea" style="display:none; margin-top:20px; background:#000; padding:20px; border:1px solid #333;">
-                        <p style="color:#fff;">1. Scannen Sie diesen QR-Code mit Ihrer Authenticator-App (Google/Authy):</p>
-                        <div id="2faQrDisplay" style="margin:20px 0; background:#fff; padding:10px; width:fit-content;"></div>
-                        <p style="color:#fff;">2. Geben Sie den 6-stelligen Code ein:</p>
-                        <div style="display:flex; gap:10px; margin-top:10px;">
-                            <input type="text" id="verify2faInput" placeholder="123456" maxlength="6" style="width:150px; text-align:center;">
+                    <!-- Setup Mode -->
+                    <div id="2faSetupArea" style="display:none; margin-top:20px; background:#000; padding:20px; border:1px solid #333; border-radius:8px; text-align:center;">
+                        <p style="color:#fff; margin-bottom:10px;">1. Scannen Sie diesen QR-Code mit Ihrer App:</p>
+                        <div id="2faQrDisplay" style="margin:10px auto; background:#fff; padding:10px; width:fit-content; border-radius:4px;"></div>
+
+                        <p style="color:#fff; margin:15px 0 5px 0;">2. Code eingeben:</p>
+                        <div style="display:flex; gap:10px; justify-content:center;">
+                            <input type="text" id="verify2faInput" placeholder="123456" maxlength="6" style="width:120px; text-align:center; font-size:1.2rem; letter-spacing:3px;">
                             <button class="btn btn-primary" onclick="confirm2FASetup()">Aktivieren</button>
                         </div>
                     </div>
 
-                    <div id="2faStatusArea" style="display:none; margin-top:20px;">
-                         <p style="color:var(--success-green); font-weight:bold; margin-bottom:10px;">✅ 2-Faktor-Authentifizierung ist AKTIV</p>
-                         <button class="btn" onclick="disable2FA()" style="border:1px solid var(--error-red); color:var(--error-red); font-size:0.8rem; width:100%;">2FA Deaktivieren</button>
+                    <!-- Active State -->
+                    <div id="2faStatusArea" style="display:none; margin-top:20px; text-align:center; padding:15px; border:1px solid var(--success-green); background:rgba(0,255,0,0.05); border-radius:8px;">
+                         <p style="color:var(--success-green); font-weight:bold; margin-bottom:15px; font-size:1.1rem;">✅ 2FA IST AKTIV</p>
+                         <button class="btn" onclick="disable2FA()" style="border:1px solid var(--error-red); color:var(--error-red); font-size:0.9rem; width:100%;">2FA Deaktivieren</button>
                     </div>
                 </div>
 

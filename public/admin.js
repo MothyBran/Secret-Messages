@@ -789,6 +789,7 @@ async function initDashboard() {
 
             // Set default tab
             window.switchTab('dashboard');
+            window.check2FAStatus();
 
         } else {
             // Stats call failed?
@@ -834,26 +835,48 @@ async function performLogin(password, token2fa) {
 }
 
 // 2FA LOGIC
+window.check2FAStatus = async function() {
+    // Check global settings via endpoint or just infer from UI flow?
+    // Usually we check /settings/admin_2fa_enabled
+    try {
+        const res = await fetch(`${API_BASE}/settings/admin_2fa_enabled`, { headers: getHeaders() });
+        const data = await res.json();
+        const enabled = (data.value === 'true');
+
+        if (enabled) {
+            document.getElementById('2faStartArea').style.display = 'none';
+            document.getElementById('2faSetupArea').style.display = 'none';
+            document.getElementById('2faStatusArea').style.display = 'block';
+        } else {
+            document.getElementById('2faStartArea').style.display = 'block';
+            document.getElementById('2faSetupArea').style.display = 'none';
+            document.getElementById('2faStatusArea').style.display = 'none';
+        }
+    } catch(e) {}
+};
+
 window.start2FASetup = async function() {
     try {
-        // First check if already enabled? Maybe just fetch key
-        // Or blindly start setup
-        const res = await fetch(`${API_BASE}/2fa/setup`, { method: 'POST', headers: getHeaders() });
-        const data = await res.json();
+        // Check current status first
+        const res = await fetch(`${API_BASE}/settings/admin_2fa_enabled`, { headers: getHeaders() });
+        const sData = await res.json();
+        if(sData.value === 'true') {
+            window.showMessage("Info", "2FA ist bereits aktiv.");
+            window.check2FAStatus();
+            return;
+        }
+
+        const setupRes = await fetch(`${API_BASE}/2fa/setup`, { method: 'POST', headers: getHeaders() });
+        const data = await setupRes.json();
 
         if(data.success) {
+            document.getElementById('2faStartArea').style.display = 'none';
             document.getElementById('2faSetupArea').style.display = 'block';
             document.getElementById('2faStatusArea').style.display = 'none';
 
             // Show QR
             const qrContainer = document.getElementById('2faQrDisplay');
             qrContainer.innerHTML = `<img src="${data.qrCode}" style="width:200px; height:200px;">`;
-
-            // Store secret in a data attribute or global var is not needed, user just scans it.
-            // But verify endpoint needs the secret to verify against, because we haven't saved it to DB yet?
-            // Wait, server setup said: "Store secret in DB marked pending OR send to client".
-            // My server code sends `secret` back to client.
-            // So I must send it back to `/verify`.
             window.pending2FASecret = data.secret;
 
         } else {
@@ -876,8 +899,7 @@ window.confirm2FASetup = async function() {
 
         if(data.success) {
             window.showToast("2FA erfolgreich aktiviert!", "success");
-            document.getElementById('2faSetupArea').style.display = 'none';
-            document.getElementById('2faStatusArea').style.display = 'block';
+            window.check2FAStatus();
         } else {
             window.showToast("Code ungültig.", "error");
         }
@@ -890,7 +912,7 @@ window.disable2FA = function() {
             const res = await fetch(`${API_BASE}/2fa/disable`, { method: 'POST', headers: getHeaders() });
             if(res.ok) {
                 window.showToast("2FA deaktiviert.", "info");
-                document.getElementById('2faStatusArea').style.display = 'none';
+                window.check2FAStatus();
             } else {
                 window.showToast("Fehler beim Deaktivieren.", "error");
             }
