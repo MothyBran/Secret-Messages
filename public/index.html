@@ -1086,6 +1086,22 @@
         </div>
     </div>
 
+    <div id="contactCodeModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">SICHERHEITS-CODE</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Bitte geben Sie einen 5-stelligen Code ein,<br>um die Daten zu verschlüsseln bzw. entschlüsseln.
+            </p>
+            <div class="input-group">
+                <input type="password" id="contactSecureCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" id="btnCancelContactCode" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmContactCode" style="flex:1;">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="app.js"></script>
 </body>
 </html>

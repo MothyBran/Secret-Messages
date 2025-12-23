@@ -409,11 +409,15 @@
 
     <!-- NEW HOW IT WORKS SECTION -->
     <section class="reveal">
-        <div class="container" style="text-align: center;">
+        <div class="container" style="text-align: center; position: relative;">
             <h2>In 3 Schritten zur totalen Sicherheit</h2>
-            <div class="steps-container" style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 40px; margin-top: 60px;">
 
-                <div class="step-card" style="flex: 1; min-width: 250px; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 12px; border: 1px solid #333; transition: transform 0.3s ease;">
+            <!-- Connection Beam -->
+            <div class="connection-beam"></div>
+
+            <div class="steps-container" style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 40px; margin-top: 60px; position: relative; z-index: 2;">
+
+                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </div>
@@ -421,7 +425,7 @@
                     <p>Nachricht verfassen & Empfänger wählen.</p>
                 </div>
 
-                <div class="step-card" style="flex: 1; min-width: 250px; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 12px; border: 1px solid #333; transition: transform 0.3s ease;">
+                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-lock"></i>
                     </div>
@@ -429,7 +433,7 @@
                     <p>Lokale 4-Layer-Verschlüsselung (Zero-Knowledge).</p>
                 </div>
 
-                <div class="step-card" style="flex: 1; min-width: 250px; background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 12px; border: 1px solid #333; transition: transform 0.3s ease;">
+                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-paper-plane"></i>
                     </div>
@@ -442,16 +446,57 @@
         <style>
             .step-card { opacity: 0; transform: translateY(30px); animation: fadeInUp 0.8s forwards; }
             .step-card:nth-child(1) { animation-delay: 0.2s; }
-            .step-card:nth-child(2) { animation-delay: 0.4s; }
-            .step-card:nth-child(3) { animation-delay: 0.6s; }
+            .step-card:nth-child(2) { animation-delay: 0.6s; }
+            .step-card:nth-child(3) { animation-delay: 1.0s; }
 
             @keyframes fadeInUp {
                 to { opacity: 1; transform: translateY(0); }
             }
             .step-card:hover {
-                box-shadow: 0 0 20px rgba(0, 191, 255, 0.2);
+                box-shadow: 0 0 30px rgba(0, 191, 255, 0.4);
                 border-color: var(--accent-blue);
                 transform: translateY(-10px) !important;
+            }
+
+            /* Pulse Animation */
+            @keyframes pulseGlow {
+                0% { box-shadow: 0 0 0 0 rgba(0, 191, 255, 0.1); border-color: #333; }
+                50% { box-shadow: 0 0 20px 0 rgba(0, 191, 255, 0.3); border-color: rgba(0, 191, 255, 0.5); }
+                100% { box-shadow: 0 0 0 0 rgba(0, 191, 255, 0); border-color: #333; }
+            }
+
+            /* Staggered Pulse */
+            .pulse-anim { animation: fadeInUp 0.8s forwards, pulseGlow 3s infinite; }
+            .step-card:nth-child(1).pulse-anim { animation-delay: 0.2s, 0s; }
+            .step-card:nth-child(2).pulse-anim { animation-delay: 0.6s, 1s; } /* 1s delay for pulse */
+            .step-card:nth-child(3).pulse-anim { animation-delay: 1.0s, 2s; } /* 2s delay for pulse */
+
+            /* Connection Beam */
+            .connection-beam {
+                position: absolute;
+                top: 50%; left: 10%; right: 10%;
+                height: 2px;
+                background: rgba(255,255,255,0.1);
+                z-index: 1;
+                transform: translateY(20px); /* Adjust based on card height */
+                overflow: hidden;
+            }
+            .connection-beam::after {
+                content: '';
+                position: absolute;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+                transform: translateX(-100%);
+                animation: beamMove 2s infinite linear;
+            }
+            @keyframes beamMove {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+            }
+
+            @media (max-width: 768px) {
+                .connection-beam { display: none; }
             }
         </style>
     </section>
