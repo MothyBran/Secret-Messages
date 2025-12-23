@@ -375,7 +375,7 @@
         <div class="cs-footer" id="csImportExport" style="display: none; gap: 10px; background: rgba(0,0,0,0.8);">
              <button class="btn" id="btnExportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬇ Export</button>
              <button class="btn" id="btnImportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬆ Import</button>
-             <input type="file" id="contactImportInput" accept=".smb" style="display: none;">
+             <input type="file" id="contactImportInput" accept=".csv" style="display: none;">
         </div>
 
         <div class="cs-footer" id="csFooterManage" style="display: none;">
@@ -1102,21 +1102,6 @@
         </div>
     </div>
 
-    <div id="contactBackupModal" class="modal">
-        <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">BACKUP SICHERUNG</h3>
-            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
-                Bitte geben Sie einen 5-stelligen Code ein,<br>um das Backup zu schützen.
-            </p>
-            <div class="input-group">
-                <input type="password" id="contactBackupCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button class="btn" id="btnCancelBackup" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
-                <button class="btn btn-primary" id="btnConfirmBackup" style="flex:1;">Bestätigen</button>
-            </div>
-        </div>
-    </div>
 
     <script type="module" src="app.js"></script>
 </body>
