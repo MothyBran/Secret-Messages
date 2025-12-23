@@ -332,7 +332,15 @@ function setupUIEvents() {
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('activationForm')?.addEventListener('submit', handleActivation);
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
-    document.getElementById('showLoginLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('loginSection'); });
+    document.getElementById('showLoginLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        showSection('loginSection');
+        // Clear fields when switching to login
+        const u = document.getElementById('u_ident_entry');
+        const c = document.getElementById('u_key_secure');
+        if(u) u.value = '';
+        if(c) c.value = '';
+    });
 
     // License Key Check (Auto-Fill Assigned ID)
     document.getElementById('licenseKey')?.addEventListener('blur', async (e) => {
@@ -376,6 +384,12 @@ function setupUIEvents() {
 
     // AGB Checkbox Logic
     document.getElementById('agbCheck')?.addEventListener('change', validateActivationInputs);
+
+    // Force clear login fields on load
+    const uField = document.getElementById('u_ident_entry');
+    const cField = document.getElementById('u_key_secure');
+    if (uField) uField.value = '';
+    if (cField) cField.value = '';
 
     // QR
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
@@ -852,7 +866,15 @@ function confirmSelection() {
 
 async function handleLogin(e) {
     e.preventDefault();
-    const u = document.getElementById('username').value; const c = document.getElementById('accessCode').value;
+    const uInput = document.getElementById('u_ident_entry');
+    const cInput = document.getElementById('u_key_secure');
+    const u = uInput.value;
+    const c = cInput.value;
+
+    // Immediately clear fields after reading values
+    uInput.value = '';
+    cInput.value = '';
+
     const devId = await generateDeviceFingerprint();
     try {
         const res = await fetch(`${API_BASE}/auth/login`, {
@@ -894,7 +916,6 @@ async function handleLogin(e) {
         } else {
             // Handle specific blocked error
             if (data.error === "ACCOUNT_BLOCKED") {
-                document.getElementById('accessCode').value = ''; // Clear sensitive data
                 localStorage.removeItem('sm_token'); // Ensure no token is kept
                 showSection('blockedSection');
             } else {
@@ -928,7 +949,7 @@ async function handleActivation(e) {
         if(d.success) {
             showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success');
             showSection('loginSection');
-            document.getElementById('username').value = payload.username;
+            document.getElementById('u_ident_entry').value = payload.username;
         } else {
             showAppStatus(d.error || "Aktivierung fehlgeschlagen", 'error');
         }

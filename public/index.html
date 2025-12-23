@@ -404,14 +404,14 @@
 
         <div id="loginSection" class="section active">
             <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
-            <form id="loginForm">
+            <form id="loginForm" autocomplete="off">
                 <div class="input-group">
                     <label class="input-label">Benutzername</label>
-                    <input type="text" id="username" class="input-field" placeholder="USER.ID" required>
+                    <input type="text" id="u_ident_entry" name="u_ident_entry" class="input-field" placeholder="USER.ID" required autocomplete="off" spellcheck="false">
                 </div>
                 <div class="input-group">
                     <label class="input-label">Zugangscode</label>
-                    <input type="password" id="accessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required>
+                    <input type="password" id="u_key_secure" name="u_key_secure" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
             </form>
