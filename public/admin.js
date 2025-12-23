@@ -4,6 +4,7 @@ console.log("🚀 ADMIN.JS GELADEN");
 
 const API_BASE = '/api/admin';
 let adminPassword = '';
+let adminToken = ''; // Bearer Token
 
 // Lokale Datenspeicher
 let allUsers = [];
@@ -19,7 +20,16 @@ let currentTicketId = null;
 
 // Helper für Headers
 function getHeaders() {
-    return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
+    // If we have a JWT token, use it. Otherwise fallback to x-admin-password (for legacy/disabled 2fa support)
+    // Actually server logic now prefers Bearer. If we have 2FA enabled, we MUST use Bearer.
+    // We send both or switch? Switch is cleaner.
+    const headers = { 'Content-Type': 'application/json' };
+    if (adminToken) {
+        headers['Authorization'] = `Bearer ${adminToken}`;
+    } else {
+        headers['x-admin-password'] = adminPassword;
+    }
+    return headers;
 }
 
 // --- TABS LOGIC ---
@@ -761,7 +771,10 @@ async function initDashboard() {
         const data = await res.json();
 
         if(data.success) {
-            sessionStorage.setItem('sm_admin_pw', adminPassword);
+            // Save what we have
+            if(adminToken) sessionStorage.setItem('sm_admin_token', adminToken);
+            if(adminPassword) sessionStorage.setItem('sm_admin_pw', adminPassword);
+
             document.getElementById('login-view').style.display = 'none';
             document.getElementById('dashboard-view').style.display = 'block';
             renderStats(data.stats);
@@ -778,24 +791,138 @@ async function initDashboard() {
             window.switchTab('dashboard');
 
         } else {
-            window.showMessage("Fehler", "Passwort falsch.", true);
+            // Stats call failed?
+            if(res.status === 403) {
+                // If it was a session resume attempt, clear it and show login
+                sessionStorage.removeItem('sm_admin_token');
+                sessionStorage.removeItem('sm_admin_pw');
+                document.getElementById('login-view').style.display = 'flex';
+                // If this was an explicit login, show error
+                if(document.getElementById('adminPasswordInput').value) {
+                     window.showMessage("Fehler", "Zugriff verweigert (Token/Passwort ungültig).", true);
+                }
+            } else {
+                 window.showMessage("Fehler", "Verbindungsfehler.", true);
+            }
         }
     } catch(e) { console.error(e); window.showMessage("Fehler", "Server nicht erreichbar.", true); }
 }
 
+async function performLogin(password, token2fa) {
+    try {
+        const res = await fetch(`${API_BASE}/auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: password, token: token2fa })
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            if(data.token) {
+                adminToken = data.token;
+            }
+            adminPassword = password; // Keep it as backup? Or purely rely on token?
+            // If we have token, we prefer token. But getHeaders uses what is available.
+
+            initDashboard();
+        } else {
+            window.showMessage("Login Fehler", data.error || "Unbekannter Fehler", true);
+        }
+    } catch(e) {
+        window.showMessage("Login Fehler", "Verbindung fehlgeschlagen", true);
+    }
+}
+
+// 2FA LOGIC
+window.start2FASetup = async function() {
+    try {
+        // First check if already enabled? Maybe just fetch key
+        // Or blindly start setup
+        const res = await fetch(`${API_BASE}/2fa/setup`, { method: 'POST', headers: getHeaders() });
+        const data = await res.json();
+
+        if(data.success) {
+            document.getElementById('2faSetupArea').style.display = 'block';
+            document.getElementById('2faStatusArea').style.display = 'none';
+
+            // Show QR
+            const qrContainer = document.getElementById('2faQrDisplay');
+            qrContainer.innerHTML = `<img src="${data.qrCode}" style="width:200px; height:200px;">`;
+
+            // Store secret in a data attribute or global var is not needed, user just scans it.
+            // But verify endpoint needs the secret to verify against, because we haven't saved it to DB yet?
+            // Wait, server setup said: "Store secret in DB marked pending OR send to client".
+            // My server code sends `secret` back to client.
+            // So I must send it back to `/verify`.
+            window.pending2FASecret = data.secret;
+
+        } else {
+            window.showMessage("Fehler", data.error || "Setup fehlgeschlagen", true);
+        }
+    } catch(e) { window.showMessage("Fehler", "Netzwerkfehler", true); }
+};
+
+window.confirm2FASetup = async function() {
+    const code = document.getElementById('verify2faInput').value;
+    if(!code || code.length !== 6) return window.showToast("Bitte 6-stelligen Code eingeben", "error");
+
+    try {
+        const res = await fetch(`${API_BASE}/2fa/verify`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ token: code, secret: window.pending2FASecret })
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            window.showToast("2FA erfolgreich aktiviert!", "success");
+            document.getElementById('2faSetupArea').style.display = 'none';
+            document.getElementById('2faStatusArea').style.display = 'block';
+        } else {
+            window.showToast("Code ungültig.", "error");
+        }
+    } catch(e) { window.showToast("Verbindungsfehler", "error"); }
+};
+
+window.disable2FA = function() {
+    window.showConfirm("2FA wirklich deaktivieren?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/2fa/disable`, { method: 'POST', headers: getHeaders() });
+            if(res.ok) {
+                window.showToast("2FA deaktiviert.", "info");
+                document.getElementById('2faStatusArea').style.display = 'none';
+            } else {
+                window.showToast("Fehler beim Deaktivieren.", "error");
+            }
+        } catch(e) { window.showToast("Fehler", "error"); }
+    });
+};
+
 // DOM Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    const storedToken = sessionStorage.getItem('sm_admin_token');
     const storedPw = sessionStorage.getItem('sm_admin_pw');
-    if(storedPw) { adminPassword = storedPw; initDashboard(); }
+
+    if(storedToken) {
+        adminToken = storedToken;
+        if(storedPw) adminPassword = storedPw; // Restore legacy just in case
+        initDashboard();
+    } else if(storedPw) {
+        // Legacy resume
+        adminPassword = storedPw;
+        initDashboard();
+    }
 
     document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        adminPassword = document.getElementById('adminPasswordInput').value;
-        initDashboard();
+        const pw = document.getElementById('adminPasswordInput').value;
+        const t2fa = document.getElementById('admin2faInput').value;
+        performLogin(pw, t2fa);
     });
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         sessionStorage.removeItem('sm_admin_pw');
+        sessionStorage.removeItem('sm_admin_token');
         location.reload();
     });
 

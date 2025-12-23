@@ -9,6 +9,8 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 const { Resend } = require('resend');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 require('dotenv').config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -644,13 +646,120 @@ app.post('/api/auth/validate', async (req, res) => {
 // 4. ADMIN DASHBOARD ROUTES
 // ==================================================================
 
-const requireAdmin = (req, res, next) => {
-    const sentPassword = req.headers['x-admin-password'] || req.body.password;
-    if (sentPassword !== ADMIN_PASSWORD) {
-        return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
+const requireAdmin = async (req, res, next) => {
+    // 1. Check for Bearer Token (JWT)
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'admin') {
+                return next();
+            }
+        } catch (e) { }
     }
-    next();
+
+    // 2. Fallback: Check for x-admin-password (LEGACY, only allowed if 2FA is DISABLED)
+    // IMPORTANT: If 2FA is enabled, we REQUIRE JWT flow (which proves 2FA was passed)
+    const sentPassword = req.headers['x-admin-password'] || req.body.password;
+    if (sentPassword === ADMIN_PASSWORD) {
+        // Check if 2FA is enabled globally
+        if (dbQuery) { // Defensive check if db is ready
+            const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
+            const is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
+
+            if (is2FA) {
+                // Deny access if trying to bypass 2FA with just password
+                return res.status(403).json({ success: false, error: '2FA required. Please login.' });
+            }
+        }
+        return next();
+    }
+
+    return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
 };
+
+// ADMIN LOGIN ENDPOINT
+app.post('/api/admin/auth', async (req, res) => {
+    const { password, token } = req.body;
+
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).json({ success: false, error: 'Falsches Passwort' });
+    }
+
+    try {
+        // Check if 2FA is enabled
+        const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
+        const is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
+
+        if (is2FA) {
+            if (!token) return res.json({ success: false, error: '2FA Token erforderlich' });
+
+            const resSecret = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_secret'");
+            if (resSecret.rows.length === 0) return res.status(500).json({ success: false, error: '2FA Config Error' });
+
+            const secret = resSecret.rows[0].value;
+            const verified = speakeasy.totp.verify({
+                secret: secret,
+                encoding: 'base32',
+                token: token
+            });
+
+            if (!verified) return res.json({ success: false, error: 'Ungültiger 2FA Code' });
+        }
+
+        // Generate Admin JWT
+        const jwtToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '4h' });
+        res.json({ success: true, token: jwtToken });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: 'Auth Error' });
+    }
+});
+
+// 2FA SETUP ENDPOINTS
+app.post('/api/admin/2fa/setup', requireAdmin, async (req, res) => {
+    try {
+        const secret = speakeasy.generateSecret({ name: "SecureMsg Admin" });
+        // Return secret and QR code data URL
+        QRCode.toDataURL(secret.otpauth_url, async (err, data_url) => {
+            if (err) return res.status(500).json({ success: false, error: 'QR Gen Error' });
+
+            // Store secret temporarily or send it to client to verify?
+            // Safer: Store secret in DB marked as "pending" or just return it and verify in next step.
+            // We will return it. The verify step will save it to DB.
+            res.json({ success: true, secret: secret.base32, qrCode: data_url });
+        });
+    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/2fa/verify', requireAdmin, async (req, res) => {
+    const { token, secret } = req.body;
+    try {
+        const verified = speakeasy.totp.verify({
+            secret: secret,
+            encoding: 'base32',
+            token: token
+        });
+
+        if (verified) {
+            // Save secret and enable 2FA
+            await dbQuery("INSERT INTO settings (key, value) VALUES ('admin_2fa_secret', $1) ON CONFLICT(key) DO UPDATE SET value = $1", [secret]);
+            await dbQuery("INSERT INTO settings (key, value) VALUES ('admin_2fa_enabled', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'");
+            res.json({ success: true });
+        } else {
+            res.json({ success: false, error: 'Ungültiger Code' });
+        }
+    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/2fa/disable', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery("UPDATE settings SET value = 'false' WHERE key = 'admin_2fa_enabled'");
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
