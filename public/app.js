@@ -430,6 +430,13 @@ function setupUIEvents() {
     });
     document.getElementById('btnConfirmContactCode')?.addEventListener('click', handleContactCodeSubmit);
 
+    // Backup Modal Listeners
+    document.getElementById('btnCancelBackup')?.addEventListener('click', () => {
+        document.getElementById('contactBackupModal').classList.remove('active');
+        pendingContactAction = null;
+    });
+    document.getElementById('btnConfirmBackup')?.addEventListener('click', handleContactBackupSubmit);
+
     // --- DATEI UPLOAD LOGIK ---
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
@@ -795,40 +802,42 @@ function exportContacts() {
     if (!contacts || contacts.length === 0) return showToast("Keine Kontakte zum Exportieren.", 'error');
 
     // Reset and Open Modal
-    document.getElementById('contactSecureCode').value = '';
+    document.getElementById('contactBackupCode').value = '';
     pendingContactAction = { type: 'export' };
-    document.getElementById('contactCodeModal').classList.add('active');
-    setTimeout(() => document.getElementById('contactSecureCode').focus(), 100);
+    document.getElementById('contactBackupModal').classList.add('active');
+    setTimeout(() => document.getElementById('contactBackupCode').focus(), 100);
 }
 
 function importContacts(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const isEncrypted = file.name.endsWith('.smb');
+    // Strict .smb check per task requirement
+    if (!file.name.endsWith('.smb')) {
+        showToast("Nur .smb Backup-Dateien erlaubt.", 'error');
+        e.target.value = '';
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = async function(evt) {
-        if (isEncrypted) {
-            // Open Modal for Code
-            document.getElementById('contactSecureCode').value = '';
-            pendingContactAction = { type: 'import', content: evt.target.result };
-            document.getElementById('contactCodeModal').classList.add('active');
-            setTimeout(() => document.getElementById('contactSecureCode').focus(), 100);
+        // Open Modal for Code
+        document.getElementById('contactBackupCode').value = '';
+        pendingContactAction = { type: 'import', content: evt.target.result };
+        document.getElementById('contactBackupModal').classList.add('active');
+        setTimeout(() => document.getElementById('contactBackupCode').focus(), 100);
 
-            // Clear file input so same file can be selected again if cancelled
-            e.target.value = '';
-        } else {
-            // Legacy JSON support
-            processImportedData(evt.target.result, false);
-            e.target.value = '';
-        }
+        // Clear file input so same file can be selected again if cancelled
+        e.target.value = '';
     };
     reader.readAsText(file);
 }
 
-async function handleContactCodeSubmit() {
-    const codeInput = document.getElementById('contactSecureCode');
+// Deprecated: Legacy handler (kept if contactCodeModal is still used elsewhere, otherwise unused)
+async function handleContactCodeSubmit() { /* Unused now for backups */ }
+
+async function handleContactBackupSubmit() {
+    const codeInput = document.getElementById('contactBackupCode');
     const code = codeInput.value;
 
     if (!code || code.length !== 5 || isNaN(code)) {
@@ -838,8 +847,8 @@ async function handleContactCodeSubmit() {
 
     if (!pendingContactAction) return;
 
-    const modal = document.getElementById('contactCodeModal');
-    const btn = document.getElementById('btnConfirmContactCode');
+    const modal = document.getElementById('contactBackupModal');
+    const btn = document.getElementById('btnConfirmBackup');
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Verarbeite...";
@@ -848,11 +857,12 @@ async function handleContactCodeSubmit() {
         if (pendingContactAction.type === 'export') {
              showLoader("Verschlüssele Backup...");
 
-             // Wait for UI render
              setTimeout(async () => {
                  try {
                      const jsonStr = JSON.stringify(contacts);
-                     const encrypted = await encryptBackup(jsonStr, code);
+                     // Task Requirement: Use encryptFull
+                     // Since encryptFull requires recipients and binds to IDs, we use currentUser.name
+                     const encrypted = await encryptFull(jsonStr, code, [currentUser.name], currentUser.name);
 
                      const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted);
                      const downloadAnchorNode = document.createElement('a');
@@ -866,7 +876,7 @@ async function handleContactCodeSubmit() {
                      modal.classList.remove('active');
                      pendingContactAction = null;
                  } catch(e) {
-                     showToast("Verschlüsselungsfehler.", 'error');
+                     showToast("Verschlüsselungsfehler: " + e.message, 'error');
                  } finally {
                      hideLoader();
                      btn.disabled = false;
@@ -877,7 +887,8 @@ async function handleContactCodeSubmit() {
         } else if (pendingContactAction.type === 'import') {
              showLoader("Entschlüssele...");
              try {
-                 const decryptedStr = await decryptBackup(pendingContactAction.content, code);
+                 // Task Requirement: Use decryptFull
+                 const decryptedStr = await decryptFull(pendingContactAction.content, code, currentUser.name);
                  hideLoader();
                  processImportedData(decryptedStr, true);
                  modal.classList.remove('active');
@@ -886,7 +897,8 @@ async function handleContactCodeSubmit() {
                  btn.textContent = originalText;
              } catch(err) {
                  hideLoader();
-                 showToast("Falscher Code oder Datei defekt.", 'error');
+                 // If decryptFull fails, it usually throws "Zugriff verweigert" or bad code
+                 showToast(err.message || "Entschlüsselung fehlgeschlagen.", 'error');
                  btn.disabled = false;
                  btn.textContent = originalText;
              }
