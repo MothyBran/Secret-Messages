@@ -681,22 +681,21 @@ const requireAdmin = async (req, res, next) => {
 
 // ADMIN LOGIN ENDPOINT
 app.post('/api/admin/auth', async (req, res) => {
-    const { password, token } = req.body;
+    const { password } = req.body;
+    // Check header for token as requested
+    const token = req.headers['x-admin-2fa-token'] || req.body.token;
 
     if (password !== ADMIN_PASSWORD) {
         return res.status(403).json({ success: false, error: 'Falsches Passwort' });
     }
 
     try {
-        // Check if 2FA is enabled
-        const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
-        const is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
+        // Check if 2FA secret exists (implies enabled)
+        const resSecret = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_secret'");
+        const hasSecret = resSecret.rows.length > 0 && resSecret.rows[0].value;
 
-        if (is2FA) {
+        if (hasSecret) {
             if (!token) return res.json({ success: false, error: '2FA Token erforderlich' });
-
-            const resSecret = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_secret'");
-            if (resSecret.rows.length === 0) return res.status(500).json({ success: false, error: '2FA Config Error' });
 
             const secret = resSecret.rows[0].value;
             const verified = speakeasy.totp.verify({
@@ -719,19 +718,21 @@ app.post('/api/admin/auth', async (req, res) => {
 });
 
 // 2FA SETUP ENDPOINTS
-app.post('/api/admin/2fa/setup', requireAdmin, async (req, res) => {
+app.get('/api/admin/2fa-setup', requireAdmin, async (req, res) => {
     try {
         const secret = speakeasy.generateSecret({ name: "SecureMsg Admin" });
         // Return secret and QR code data URL
         QRCode.toDataURL(secret.otpauth_url, async (err, data_url) => {
             if (err) return res.status(500).json({ success: false, error: 'QR Gen Error' });
-
-            // Store secret temporarily or send it to client to verify?
-            // Safer: Store secret in DB marked as "pending" or just return it and verify in next step.
-            // We will return it. The verify step will save it to DB.
             res.json({ success: true, secret: secret.base32, qrCode: data_url });
         });
     } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Legacy POST for compatibility if needed, but primary is GET now
+app.post('/api/admin/2fa/setup', requireAdmin, async (req, res) => {
+    // Redirect to GET logic or duplicate
+    res.redirect(307, '/api/admin/2fa-setup');
 });
 
 app.post('/api/admin/2fa/verify', requireAdmin, async (req, res) => {

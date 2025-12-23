@@ -811,10 +811,15 @@ async function initDashboard() {
 
 async function performLogin(password, token2fa) {
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token2fa) {
+            headers['x-admin-2fa-token'] = token2fa;
+        }
+
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: password, token: token2fa })
+            headers: headers,
+            body: JSON.stringify({ password: password })
         });
         const data = await res.json();
 
@@ -866,7 +871,7 @@ window.start2FASetup = async function() {
             return;
         }
 
-        const setupRes = await fetch(`${API_BASE}/2fa/setup`, { method: 'POST', headers: getHeaders() });
+        const setupRes = await fetch(`${API_BASE}/2fa-setup`, { method: 'GET', headers: getHeaders() });
         const data = await setupRes.json();
 
         if(data.success) {
