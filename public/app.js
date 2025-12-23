@@ -1,6 +1,6 @@
 // app.js - Frontend Logic (Final Polish: Custom Delete Modal & Fixed Navigation)
 
-const APP_VERSION = 'v1.01';
+const APP_VERSION = 'Beta v0.61';
 
 import { encryptFull, decryptFull, encryptBackup, decryptBackup } from './cryptoLayers.js';
 
