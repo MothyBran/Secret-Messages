@@ -98,7 +98,6 @@ export async function encryptFull(text, passcode, recipientIDs, currentUserId = 
     const allowed = [...recipientIDs];
     if (currentUserId) {
         // Check if ID exists (case-insensitive usually preferred, but strict here matches prompt implies)
-        // Prompt says: "Prüfe vor dem Start, ob die ID des aktuellen Users ... enthalten ist."
         if (!allowed.some(id => String(id) === String(currentUserId))) {
             allowed.push(currentUserId);
         }
@@ -204,5 +203,63 @@ export async function decryptFull(encryptedBase64, passcode, currentUserId) {
         return layer1Obj.content;
     } else {
         throw new Error("Zugriff verweigert: Du stehst nicht auf der Empfängerliste.");
+    }
+}
+
+// ========================================================
+// 4. BACKUP FUNCTIONS (Simple Encryption, No User Check)
+// ========================================================
+
+/**
+ * Encrypts raw data (string) with a passcode for backup purposes.
+ * @param {string} data - The data string (e.g. JSON).
+ * @param {string} passcode - The 5-digit passcode.
+ */
+export async function encryptBackup(data, passcode) {
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey(passcode, salt);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const encoded = textEnc.encode(data);
+
+    const encrypted = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        encoded
+    );
+
+    const packed = new Uint8Array(16 + 12 + encrypted.byteLength);
+    packed.set(salt, 0);
+    packed.set(iv, 16);
+    packed.set(new Uint8Array(encrypted), 28);
+
+    return buf2base64(packed);
+}
+
+/**
+ * Decrypts backup data with a passcode.
+ * @param {string} encryptedBase64
+ * @param {string} passcode
+ */
+export async function decryptBackup(encryptedBase64, passcode) {
+    let packed;
+    try { packed = base642buf(encryptedBase64); } catch(e) { throw new Error("Ungültiges Format"); }
+
+    if(packed.byteLength < 28) throw new Error("Formatfehler");
+
+    const salt = packed.slice(0, 16);
+    const iv = packed.slice(16, 28);
+    const ciphertext = packed.slice(28);
+
+    const key = await deriveKey(passcode, salt);
+
+    try {
+        const decrypted = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            ciphertext
+        );
+        return textDec.decode(decrypted);
+    } catch(e) {
+        throw new Error("Falscher Code oder Datei beschädigt.");
     }
 }

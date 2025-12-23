@@ -2,7 +2,7 @@
 
 const APP_VERSION = 'v1.01';
 
-import { encryptFull, decryptFull } from './cryptoLayers.js';
+import { encryptFull, decryptFull, encryptBackup, decryptBackup } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -786,38 +786,75 @@ function deleteContact() {
 
 function exportContacts() {
     if (!contacts || contacts.length === 0) return showToast("Keine Kontakte zum Exportieren.", 'error');
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(contacts, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "secure-msg-contacts.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    showToast("Kontakte erfolgreich exportiert.", 'success');
+
+    // Prompt for code using prompt() - simplistic but functional for this requirement
+    // Or better: Use a custom modal if possible, but prompt is strictly blocking and simple.
+    // The requirement says "Nutzer muss seinen 5-stelligen Zugangscode eingeben".
+    // We'll use a simple prompt for now to avoid complex UI refactoring unless required.
+    const code = prompt("Bitte 5-stelligen Zugangscode für Backup-Verschlüsselung eingeben:");
+    if (!code || code.length !== 5) return showToast("Ungültiger Code. Export abgebrochen.", 'error');
+
+    showLoader("Verschlüssele Backup...");
+
+    setTimeout(async () => {
+        try {
+            const jsonStr = JSON.stringify(contacts);
+            const encrypted = await encryptBackup(jsonStr, code);
+
+            const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted);
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "contacts_backup.smb");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+
+            showToast("Backup erfolgreich erstellt (.smb).", 'success');
+        } catch(e) {
+            console.error(e);
+            showToast("Verschlüsselungsfehler.", 'error');
+        } finally {
+            hideLoader();
+        }
+    }, 100);
 }
 
 function importContacts(e) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const isEncrypted = file.name.endsWith('.smb');
+
     const reader = new FileReader();
-    reader.onload = function(evt) {
+    reader.onload = async function(evt) {
         try {
-            const imported = JSON.parse(evt.target.result);
-            if (!Array.isArray(imported)) throw new Error("Format ungültig");
+            let importedData;
 
-            let added = 0;
-            let updated = 0;
-            // Simplified merge logic without synchronous confirm dialogs
+            if (isEncrypted) {
+                const code = prompt("Bitte 5-stelligen Zugangscode zum Entschlüsseln eingeben:");
+                if (!code) { e.target.value = ''; return; }
 
-            // We need a strategy for overwrite. Using a simple flag if conflicts exist?
-            // Since showAppConfirm is async, we can't easily iterate and confirm per item inside this loop.
-            // Better strategy: Count conflicts, if any, ask once "Import X contacts? Y will be overwritten."
+                showLoader("Entschlüssele...");
+                try {
+                    const decryptedStr = await decryptBackup(evt.target.result, code);
+                    importedData = JSON.parse(decryptedStr);
+                } catch(err) {
+                    hideLoader();
+                    e.target.value = '';
+                    return showToast("Falscher Code oder Datei defekt.", 'error');
+                }
+                hideLoader();
+            } else {
+                // Legacy JSON support
+                importedData = JSON.parse(evt.target.result);
+            }
+
+            if (!Array.isArray(importedData)) throw new Error("Format ungültig");
 
             const toUpdate = [];
             const toAdd = [];
 
-            imported.forEach(c => {
+            importedData.forEach(c => {
                 if (!c.id) return;
                 const existingIndex = contacts.findIndex(ex => ex.id === c.id);
                 if (existingIndex > -1) toUpdate.push(c);
@@ -825,14 +862,11 @@ function importContacts(e) {
             });
 
             const proceedImport = () => {
-                // Add new
                 toAdd.forEach(c => contacts.push(c));
-                // Update existing
                 toUpdate.forEach(c => {
                     const idx = contacts.findIndex(ex => ex.id === c.id);
                     if(idx > -1) contacts[idx] = c;
                 });
-
                 contacts = contacts.filter(c => c && c.id);
                 saveUserContacts();
                 renderContactList(document.getElementById('contactSearch').value);
@@ -848,6 +882,7 @@ function importContacts(e) {
 
         } catch(err) {
             console.error(err);
+            hideLoader();
             showToast("Fehler beim Importieren der Datei.", 'error');
         }
     };
