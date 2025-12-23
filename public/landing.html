@@ -412,91 +412,146 @@
         <div class="container" style="text-align: center; position: relative;">
             <h2>In 3 Schritten zur totalen Sicherheit</h2>
 
-            <!-- Connection Beam -->
-            <div class="connection-beam"></div>
+            <div class="steps-container" style="display: flex; justify-content: center; align-items: center; flex-wrap: nowrap; gap: 0; margin-top: 60px; overflow-x: auto;">
 
-            <div class="steps-container" style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 40px; margin-top: 60px; position: relative; z-index: 2;">
-
-                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
+                <!-- 1. INPUT -->
+                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">1. Schreiben</h3>
+                    <h3 style="margin-bottom: 15px;">1. Input</h3>
                     <p>Nachricht verfassen & Empfänger wählen.</p>
                 </div>
 
-                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
+                <!-- BEAM 1-2 -->
+                <div class="connector">
+                    <div class="data-dot delay-1"></div>
+                </div>
+
+                <!-- 2. ENCRYPTION -->
+                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-lock"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">2. Sichern</h3>
+                    <h3 style="margin-bottom: 15px;">2. Verschlüsselung</h3>
                     <p>Lokale 4-Layer-Verschlüsselung (Zero-Knowledge).</p>
                 </div>
 
-                <div class="step-card pulse-anim" style="flex: 1; min-width: 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; transition: all 0.3s ease;">
+                <!-- BEAM 2-3 -->
+                <div class="connector">
+                    <div class="data-dot delay-2"></div>
+                </div>
+
+                <!-- 3. OUTPUT -->
+                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
                     <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
                         <i class="fa-solid fa-paper-plane"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">3. Senden</h3>
+                    <h3 style="margin-bottom: 15px;">3. Versand</h3>
                     <p>Verschlüsseltes Paket über beliebigen Kanal versenden.</p>
                 </div>
 
             </div>
         </div>
         <style>
-            .step-card { opacity: 0; transform: translateY(30px); animation: fadeInUp 0.8s forwards; }
-            .step-card:nth-child(1) { animation-delay: 0.2s; }
-            .step-card:nth-child(2) { animation-delay: 0.6s; }
-            .step-card:nth-child(3) { animation-delay: 1.0s; }
-
-            @keyframes fadeInUp {
-                to { opacity: 1; transform: translateY(0); }
+            .steps-container {
+                padding-bottom: 20px; /* For hover effects */
             }
+
+            .step-card {
+                transition: all 0.3s ease;
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            /* Reveal Animation triggered by intersection observer on parent .reveal */
+            .reveal.active .step-card {
+                animation: fadeInUp 0.8s forwards;
+            }
+            .reveal.active .step-card:nth-child(1) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0s, 0s; animation-iteration-count: 1, infinite; }
+            .reveal.active .step-card:nth-child(3) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.3s, 1.33s; animation-iteration-count: 1, infinite; }
+            .reveal.active .step-card:nth-child(5) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.6s, 2.66s; animation-iteration-count: 1, infinite; }
+
             .step-card:hover {
                 box-shadow: 0 0 30px rgba(0, 191, 255, 0.4);
                 border-color: var(--accent-blue);
-                transform: translateY(-10px) !important;
+                transform: translateY(-10px);
             }
 
-            /* Pulse Animation */
-            @keyframes pulseGlow {
-                0% { box-shadow: 0 0 0 0 rgba(0, 191, 255, 0.1); border-color: #333; }
-                50% { box-shadow: 0 0 20px 0 rgba(0, 191, 255, 0.3); border-color: rgba(0, 191, 255, 0.5); }
-                100% { box-shadow: 0 0 0 0 rgba(0, 191, 255, 0); border-color: #333; }
-            }
-
-            /* Staggered Pulse */
-            .pulse-anim { animation: fadeInUp 0.8s forwards, pulseGlow 3s infinite; }
-            .step-card:nth-child(1).pulse-anim { animation-delay: 0.2s, 0s; }
-            .step-card:nth-child(2).pulse-anim { animation-delay: 0.6s, 1s; } /* 1s delay for pulse */
-            .step-card:nth-child(3).pulse-anim { animation-delay: 1.0s, 2s; } /* 2s delay for pulse */
-
-            /* Connection Beam */
-            .connection-beam {
-                position: absolute;
-                top: 50%; left: 10%; right: 10%;
+            /* Connector Line */
+            .connector {
+                flex: 1;
                 height: 2px;
-                background: rgba(255,255,255,0.1);
-                z-index: 1;
-                transform: translateY(20px); /* Adjust based on card height */
+                background: rgba(255, 255, 255, 0.1);
+                position: relative;
+                min-width: 50px;
+                max-width: 150px;
+                align-self: center;
                 overflow: hidden;
             }
-            .connection-beam::after {
-                content: '';
+
+            /* Moving Dot */
+            .data-dot {
                 position: absolute;
-                top: 0; left: 0;
-                width: 100%; height: 100%;
-                background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
-                transform: translateX(-100%);
-                animation: beamMove 2s infinite linear;
+                top: 50%; left: 0;
+                width: 40px; height: 4px;
+                background: linear-gradient(90deg, transparent, var(--accent-blue), #fff);
+                border-radius: 2px;
+                transform: translateY(-50%) translateX(-100%);
+                box-shadow: 0 0 15px var(--accent-blue);
+                opacity: 0;
             }
-            @keyframes beamMove {
-                0% { transform: translateX(-100%); }
-                100% { transform: translateX(100%); }
+
+            /* Animations */
+            @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+            @keyframes pulseSequence {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; }
+                10% { box-shadow: 0 0 30px 0 rgba(0,191,255,0.4); border-color: var(--accent-blue); transform: scale(1.02); }
+                20% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; transform: scale(1); }
+            }
+
+            @keyframes dotMove {
+                0% { transform: translateY(-50%) translateX(-100%); opacity: 0; }
+                10% { opacity: 1; }
+                90% { opacity: 1; }
+                100% { transform: translateY(-50%) translateX(400%); opacity: 0; } /* Move fully across */
+            }
+
+            /* Sequence Logic (Total 4s cycle)
+               0.0s: Card 1 Pulse Start
+               0.8s: Dot 1 Start
+               1.3s: Card 2 Pulse Start
+               2.1s: Dot 2 Start
+               2.6s: Card 3 Pulse Start
+            */
+            .reveal.active .data-dot.delay-1 {
+                animation: dotMove 1.5s linear infinite;
+                animation-delay: 0.8s;
+                /* Adjust to run once per cycle? infinite matches request 'flow'.
+                   If we want strictly synchronized with pulse, we need same duration. */
+                animation-duration: 4s;
+            }
+
+            .reveal.active .data-dot.delay-2 {
+                animation: dotMove 1.5s linear infinite;
+                animation-delay: 2.1s;
+                animation-duration: 4s;
             }
 
             @media (max-width: 768px) {
-                .connection-beam { display: none; }
+                .steps-container { flex-direction: column; gap: 20px; }
+                .connector { width: 2px; height: 50px; min-width: 0; }
+                .data-dot {
+                    width: 4px; height: 40px;
+                    top: 0; left: 50%;
+                    transform: translateX(-50%) translateY(-100%);
+                    background: linear-gradient(180deg, transparent, var(--accent-blue), #fff);
+                }
+                @keyframes dotMove {
+                    0% { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+                    100% { transform: translateX(-50%) translateY(400%); opacity: 0; }
+                }
             }
         </style>
     </section>
