@@ -996,6 +996,9 @@ async function handleLogin(e) {
             if (data.error === "ACCOUNT_BLOCKED") {
                 localStorage.removeItem('sm_token'); // Ensure no token is kept
                 showSection('blockedSection');
+            } else if (data.error === "DEVICE_NOT_AUTHORIZED") {
+                localStorage.removeItem('sm_token');
+                window.showToast("Dieses Gerät ist für diesen Account nicht autorisiert. Bitte nutzen Sie Ihr registriertes Endgerät oder kontaktieren Sie den Support für einen Gerätewechsel.", 'error');
             } else {
                 showAppStatus(data.error || "Login fehlgeschlagen", 'error');
             }
