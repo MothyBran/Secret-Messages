@@ -861,6 +861,7 @@ window.check2FAStatus = async function() {
 };
 
 window.start2FASetup = async function() {
+    // Verified setup logic
     try {
         // Check current status first
         const res = await fetch(`${API_BASE}/settings/admin_2fa_enabled`, { headers: getHeaders() });
@@ -943,7 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const pw = document.getElementById('adminPasswordInput').value;
-        const t2fa = document.getElementById('admin2faInput').value;
+        const t2fa = document.getElementById('admin2faInput').value; // Get 2FA Token
         performLogin(pw, t2fa);
     });
 

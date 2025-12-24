@@ -2,6 +2,7 @@
 
 const APP_VERSION = 'Beta v0.61';
 
+// Import encryption functions including backup helpers
 import { encryptFull, decryptFull, encryptBackup, decryptBackup } from './cryptoLayers.js';
 
 // ================================================================
@@ -415,10 +416,20 @@ function setupUIEvents() {
     document.getElementById('btnCancelSelect')?.addEventListener('click', closeContactSidebar);
     document.getElementById('btnConfirmSelect')?.addEventListener('click', confirmSelection);
     
-    // Import/Export
-    document.getElementById('btnExportContacts')?.addEventListener('click', exportContacts);
+    // Import/Export (Revised)
+    document.getElementById('btnExportContacts')?.addEventListener('click', () => openBackupModal('export'));
     document.getElementById('btnImportContacts')?.addEventListener('click', () => document.getElementById('contactImportInput').click());
-    document.getElementById('contactImportInput')?.addEventListener('change', importContacts);
+    document.getElementById('contactImportInput')?.addEventListener('change', (e) => {
+        if(e.target.files.length > 0) openBackupModal('import', e.target.files[0]);
+    });
+
+    // Backup Modal Events
+    document.getElementById('btnCancelBackup')?.addEventListener('click', () => {
+        document.getElementById('backupModal').classList.remove('active');
+        document.getElementById('backupCode').value = '';
+        document.getElementById('contactImportInput').value = ''; // Reset file input
+    });
+    document.getElementById('btnConfirmBackup')?.addEventListener('click', handleBackupAction);
 
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
@@ -792,107 +803,93 @@ function deleteContact() {
     });
 }
 
-function exportContacts() {
-    if (!contacts || contacts.length === 0) return showToast("Keine Kontakte zum Exportieren.", 'error');
+// --- NEW BACKUP LOGIC (.SMB) ---
+let currentBackupAction = null; // 'export' or 'import'
+let currentBackupFile = null;
+
+function openBackupModal(action, file = null) {
+    currentBackupAction = action;
+    currentBackupFile = file;
+    document.getElementById('backupCode').value = '';
+    const txt = document.getElementById('backupModalText');
+    if(action === 'export') {
+        txt.textContent = "Wähle einen 5-stelligen Code für die Verschlüsselung.";
+    } else {
+        txt.textContent = "Gib den Code ein, um das Backup zu entschlüsseln.";
+    }
+    document.getElementById('backupModal').classList.add('active');
+    document.getElementById('backupCode').focus();
+}
+
+async function handleBackupAction() {
+    const code = document.getElementById('backupCode').value;
+    if(!code || code.length !== 5 || isNaN(code)) {
+        return showToast("Bitte 5-stelligen Zahlencode eingeben.", 'error');
+    }
+
+    const btn = document.getElementById('btnConfirmBackup');
+    const oldTxt = btn.textContent;
+    btn.textContent = "..."; btn.disabled = true;
 
     try {
-        const headers = ["ID", "Name", "Group"];
-        const rows = contacts.map(c => [
-            c.id,
-            c.name || '',
-            c.group || ''
-        ].map(v => `"${(String(v)).replace(/"/g, '""')}"`).join(","));
-
-        const csvContent = [headers.join(","), ...rows].join("\n");
-        const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
-
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "contacts.csv");
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-
-        showToast("Kontakte als CSV exportiert.", 'success');
+        if(currentBackupAction === 'export') {
+            await executeExport(code);
+        } else {
+            await executeImport(code);
+        }
+        document.getElementById('backupModal').classList.remove('active');
     } catch(e) {
-        showToast("Fehler beim Export.", 'error');
-        console.error(e);
+        showToast("Fehler: " + e.message, 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+        document.getElementById('backupCode').value = '';
+        document.getElementById('contactImportInput').value = ''; // Reset input
     }
 }
 
-function importContacts(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+async function executeExport(code) {
+    if (!contacts || contacts.length === 0) throw new Error("Keine Kontakte vorhanden.");
 
-    if (!file.name.endsWith('.csv')) {
-        showToast("Bitte wählen Sie eine .csv Datei.", 'error');
-        e.target.value = '';
-        return;
-    }
+    // Serialize
+    const jsonStr = JSON.stringify(contacts);
 
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-        try {
-            const text = evt.target.result;
-            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-            if (lines.length < 2) throw new Error("Keine Daten gefunden");
+    // Encrypt
+    const encryptedBase64 = await encryptBackup(jsonStr, code);
 
-            // Simple CSV Parser (handles basic quotes)
-            const parseLine = (line) => {
-                const res = [];
-                let cur = '';
-                let inQuote = false;
-                for(let i=0; i<line.length; i++) {
-                    const char = line[i];
-                    if(char === '"') {
-                        if(inQuote && line[i+1] === '"') {
-                            cur += '"'; i++;
-                        } else {
-                            inQuote = !inQuote;
-                        }
-                    } else if(char === ',' && !inQuote) {
-                        res.push(cur); cur = '';
-                    } else {
-                        cur += char;
-                    }
-                }
-                res.push(cur);
-                return res;
-            };
+    // Download
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(encryptedBase64));
+    element.setAttribute('download', `contacts_backup_${new Date().toISOString().slice(0,10)}.smb`);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
 
-            const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase());
-            // Expect ID, Name, Group order or map by header name
-            // Let's assume order ID, Name, Group for simplicity or try to map
+    showToast("Backup (.smb) erfolgreich erstellt.", 'success');
+}
 
-            const importedList = [];
-            for(let i=1; i<lines.length; i++) {
-                const cols = parseLine(lines[i]);
-                if(cols.length < 1) continue;
+async function executeImport(code) {
+    if (!currentBackupFile) throw new Error("Keine Datei gewählt.");
 
-                let id = '', name = '', group = '';
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async function(evt) {
+            try {
+                const encryptedContent = evt.target.result; // Should be base64 string from file
+                // Decrypt
+                const jsonStr = await decryptBackup(encryptedContent, code);
+                const importedData = JSON.parse(jsonStr);
 
-                // Flexible mapping
-                if (headers.includes('id')) id = cols[headers.indexOf('id')];
-                else id = cols[0]; // Fallback pos 0
-
-                if (headers.includes('name')) name = cols[headers.indexOf('name')];
-                else name = cols[1]; // Fallback pos 1
-
-                if (headers.includes('group')) group = cols[headers.indexOf('group')];
-                else group = cols[2]; // Fallback pos 2
-
-                if(id) importedList.push({ id: id.trim(), name: name ? name.trim() : '', group: group ? group.trim() : '' });
+                // Process
+                processImportedData(importedData);
+                resolve();
+            } catch(e) {
+                reject(new Error("Entschlüsselung fehlgeschlagen (Falscher Code?)."));
             }
-
-            processImportedData(importedList);
-            e.target.value = '';
-
-        } catch(err) {
-            showToast("Fehler beim Verarbeiten der CSV: " + err.message, 'error');
-            e.target.value = '';
-        }
-    };
-    reader.readAsText(file);
+        };
+        reader.onerror = () => reject(new Error("Lesefehler"));
+        reader.readAsText(currentBackupFile);
+    });
 }
 
 // Deprecated: Legacy handler (kept if contactCodeModal is still used elsewhere, otherwise unused)

@@ -1,4 +1,5 @@
 // public/cryptoLayers.js - Rewrite for Multi-Layer Encryption & Group Access Control
+// Includes Backup Encryption Helpers
 
 const textEnc = new TextEncoder();
 const textDec = new TextDecoder();
