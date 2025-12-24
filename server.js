@@ -670,6 +670,7 @@ const requireAdmin = async (req, res, next) => {
 
             if (is2FA) {
                 // Deny access if trying to bypass 2FA with just password
+                console.warn('Blocked Admin Access: 2FA is enabled but not provided.');
                 return res.status(403).json({ success: false, error: '2FA required. Please login.' });
             }
         }
@@ -720,6 +721,7 @@ app.post('/api/admin/auth', async (req, res) => {
 // 2FA SETUP ENDPOINTS
 app.get('/api/admin/2fa-setup', requireAdmin, async (req, res) => {
     try {
+        // console.log('2FA Setup requested');
         const secret = speakeasy.generateSecret({ name: "SecureMsg Admin" });
         // Return secret and QR code data URL
         QRCode.toDataURL(secret.otpauth_url, async (err, data_url) => {

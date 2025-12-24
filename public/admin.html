@@ -227,7 +227,7 @@
         <form id="adminLoginForm" class="login-box">
             <h1>ADMIN CORE</h1>
             <input type="password" id="adminPasswordInput" placeholder="ACCESS KEY" required>
-            <input type="text" id="admin2faInput" placeholder="2FA Code (Optional)" maxlength="6" style="margin-top:10px; text-align:center; letter-spacing:3px;">
+            <input type="text" id="admin2faInput" placeholder="2FA Code (Pflicht bei Aktivierung)" maxlength="6" style="margin-top:10px; text-align:center; letter-spacing:3px;">
             <button type="submit" class="btn-login" style="margin-top:20px;">Unlock</button>
         </form>
     </div>
@@ -500,6 +500,9 @@
                         <label style="color:#888; font-size:0.9rem;">Nachricht</label>
                         <textarea id="msgBody" rows="6" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:10px; margin-bottom:10px;" placeholder="Ihre Nachricht..."></textarea>
 
+                        <label style="color:#888; font-size:0.9rem;">Ablaufdatum (Optional)</label>
+                        <input type="datetime-local" id="msgExpiry" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:10px; margin-bottom:10px;">
+
                         <div style="margin-top:20px; text-align:right;">
                             <button onclick="sendAdminMessage()" class="btn-action">Absenden</button>
                         </div>
@@ -563,7 +566,7 @@
                 <!-- 2FA Section -->
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:30px; border-radius:8px;">
                     <h3 style="color:#fff; margin-bottom:15px;">Admin 2FA Sicherheit</h3>
-                    <p style="color:#888; margin-bottom:20px;">Zusätzlicher Schutz für den Admin-Bereich.</p>
+                    <p style="color:#888; margin-bottom:20px;">Zusätzlicher Schutz für den Admin-Bereich. Aktivieren Sie 2FA für erhöhte Sicherheit.</p>
 
                     <!-- Initial State -->
                     <div id="2faStartArea">
