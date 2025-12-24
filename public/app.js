@@ -1734,6 +1734,23 @@ function saveUserContacts() {
     localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts));
 }
 
+function getReadBroadcasts() {
+    if (!currentUser || !currentUser.sm_id) return [];
+    const key = `sm_read_broadcasts_${currentUser.sm_id}`;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+}
+
+function markBroadcastRead(id) {
+    if (!currentUser || !currentUser.sm_id) return;
+    const key = `sm_read_broadcasts_${currentUser.sm_id}`;
+    const list = getReadBroadcasts();
+    if (!list.includes(id)) {
+        list.push(id);
+        localStorage.setItem(key, JSON.stringify(list));
+    }
+}
+
 // --- NEW POSTBOX UI LOGIC ---
 
 function updatePostboxUI(unreadCount) {
@@ -1763,11 +1780,14 @@ async function checkUnreadMessages() {
         });
         const msgs = await res.json();
 
-        // Count unread that are NOT closed tickets (if we want to notify about updates?)
-        // Standard behavior: Count all unread where recipient_id is set.
-        const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
+        // 1. Personal Unread
+        const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
 
-        updatePostboxUI(unreadPersonal);
+        // 2. Broadcast Unread (Local Check)
+        const readBroadcasts = getReadBroadcasts();
+        const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
+
+        updatePostboxUI(unreadPersonal + unreadBroadcasts);
 
     } catch(e) { console.error("Msg Check Failed", e); }
 }
@@ -1785,9 +1805,12 @@ async function loadAndShowInbox() {
         });
         const msgs = await res.json();
 
-        // Update UI immediately with fresh count
-        const unreadPersonal = msgs.filter(m => m.recipient_id && !m.is_read).length;
-        updatePostboxUI(unreadPersonal);
+        // Count logic matching checkUnreadMessages
+        const readBroadcasts = getReadBroadcasts();
+        const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
+        const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
+
+        updatePostboxUI(unreadPersonal + unreadBroadcasts);
 
         container.innerHTML = '';
 
@@ -1800,7 +1823,11 @@ async function loadAndShowInbox() {
             const el = document.createElement('div');
 
             const isPersonal = !!m.recipient_id;
-            const isUnread = isPersonal && !m.is_read;
+            const isBroadcast = !isPersonal;
+
+            // Unread Logic: Personal (server) OR Broadcast (local)
+            const isUnread = (isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id));
+
             const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
 
             let classes = 'msg-card';
@@ -1877,16 +1904,26 @@ async function loadAndShowInbox() {
 
                 if(!wasExpanded) {
                     el.classList.add('expanded');
-                    if(isUnread && isPersonal) {
-                        markMessageRead(m.id);
-                        el.classList.remove('unread');
 
-                        // Decrement local count logic
-                        const navLink = document.getElementById('navPost');
-                        const match = navLink.innerText.match(/\((\d+)\)/);
-                        if(match) {
-                            let cur = parseInt(match[1]);
-                            if(cur > 0) updatePostboxUI(cur - 1);
+                    // If it was unread, mark it as read now
+                    if(isUnread) {
+                        // Avoid double-triggering if already visually marked read in this session
+                        if(el.classList.contains('unread')) {
+                            el.classList.remove('unread');
+
+                            if(isPersonal) {
+                                markMessageRead(m.id);
+                            } else if(isBroadcast) {
+                                markBroadcastRead(m.id);
+                            }
+
+                            // Update Sidebar Badge immediately
+                            const navLink = document.getElementById('navPost');
+                            const match = navLink.innerText.match(/\((\d+)\)/);
+                            if(match) {
+                                let cur = parseInt(match[1]);
+                                if(cur > 0) updatePostboxUI(cur - 1);
+                            }
                         }
                     }
                 }
