@@ -446,17 +446,8 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         }
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            // Trigger Security Warning but ALLOW login (Device Switch)
-            const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
-
-            const msgSubject = "Sicherheits-Warnung: Neues Gerät erkannt";
-            const msgBody = `Ihr Account wurde auf einem neuen Gerät genutzt.\nGerät-ID: ${sanitizedDeviceId}\nZeit: ${new Date().toLocaleString('de-DE')}`;
-
-            await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
-
-            // Update Device ID to new one
-            await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
+            // STRICT HARDWARE BINDING - BLOCK ACCESS
+            return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
         }
         if (!user.allowed_device_id) {
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
