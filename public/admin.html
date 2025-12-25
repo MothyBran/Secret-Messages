@@ -243,7 +243,6 @@
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
                 <button class="nav-tab" onclick="switchTab('mail')">Mail Service <span id="mailServiceBadge" style="display:none; color:var(--accent-blue); font-size:0.8rem; margin-left:5px;">(0)</span></button>
-                <button class="nav-tab" onclick="switchTab('enterprise')">Enterprise</button>
                 <button class="nav-tab" onclick="switchTab('maintenance')">Wartung</button>
             </nav>
 
@@ -528,37 +527,7 @@
 
         </div>
 
-        <!-- TAB 6: ENTERPRISE HUB -->
-        <div id="tab-enterprise" class="tab-content">
-            <h2 class="section-title">Enterprise Management</h2>
-
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:30px;">
-
-                <!-- Local Hub Control -->
-                <div style="background:var(--bg-panel); border:1px solid #333; padding:30px; border-radius:8px;">
-                    <h3 style="color:#fff; margin-bottom:15px;">Local LAN Hub</h3>
-                    <p style="color:#888; margin-bottom:20px;">
-                        Startet einen lokalen WebSocket Server im Netzwerk, um Clients ohne Internetverbindung zu verbinden.
-                    </p>
-                    <div style="display:flex; align-items:center; gap:20px;">
-                        <button id="btnStartHub" class="btn-action" style="width:100%;">Start Hub Server</button>
-                        <button id="btnStopHub" class="btn-outline" style="width:100%; display:none;">Stop Server</button>
-                    </div>
-                    <div id="hubStatusDisplay" style="margin-top:15px; color:#666; font-family:'Roboto Mono';">Status: Inactive</div>
-                </div>
-
-                <!-- Master Key Export -->
-                <div style="background:var(--bg-panel); border:1px solid #333; padding:30px; border-radius:8px;">
-                    <h3 style="color:#fff; margin-bottom:15px;">Master Key List Export</h3>
-                    <p style="color:#888; margin-bottom:20px;">
-                        Exportiert alle öffentlichen Schlüssel (Public Keys) für den Air-Gapped Modus als .csv Datei.
-                    </p>
-                    <button id="btnExportMasterKeys" class="btn-action" style="background:gold; color:black; width:100%;">Export Keys (.csv)</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 7: WARTUNG -->
+        <!-- TAB 6: WARTUNG -->
         <div id="tab-maintenance" class="tab-content">
             <h2 class="section-title">Control Center</h2>
 

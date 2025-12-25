@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const { Resend } = require('resend');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+const { WebSocketServer } = require('ws');
 require('dotenv').config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -1193,6 +1194,58 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
             }
         });
     } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ==================================================================
+// LOCAL HUB ENDPOINTS (IT ADMIN)
+// ==================================================================
+
+// Hub State
+let wss = null;
+let isHubActive = false;
+
+app.get('/api/hub/status', requireAdmin, (req, res) => {
+    res.json({ active: isHubActive, port: 8080 }); // Port hardcoded for now or from config
+});
+
+app.post('/api/hub/start', requireAdmin, (req, res) => {
+    if (isHubActive) return res.json({ success: true, active: true, message: 'Already running' });
+
+    try {
+        // Start WebSocket Server on port 8080 (distinct from Express)
+        wss = new WebSocketServer({ port: 8080 });
+        isHubActive = true;
+
+        wss.on('connection', (ws) => {
+            ws.on('message', (message) => {
+                // Broadcast to all clients
+                // In a real secure hub, we would verify tokens and target specific clients
+                wss.clients.forEach((client) => {
+                    if (client !== ws && client.readyState === 1) { // 1 = OPEN
+                        client.send(message);
+                    }
+                });
+            });
+        });
+
+        console.log('📡 LAN Hub started on port 8080');
+        res.json({ success: true, active: true, port: 8080 });
+    } catch (e) {
+        console.error("Hub Start Error:", e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/hub/stop', requireAdmin, (req, res) => {
+    if (!isHubActive) return res.json({ success: true, active: false });
+
+    if (wss) {
+        wss.close();
+        wss = null;
+    }
+    isHubActive = false;
+    console.log('📡 LAN Hub stopped');
+    res.json({ success: true, active: false });
 });
 
 // ==================================================================
