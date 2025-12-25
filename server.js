@@ -680,6 +680,46 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ==================================================================
+// 4. ADMIN DASHBOARD ROUTES
+// ==================================================================
+
+const requireAdmin = async (req, res, next) => {
+    // 1. Check for Bearer Token (JWT)
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'admin') {
+                return next();
+            }
+        } catch (e) { }
+    }
+
+    // 2. Fallback: Check for x-admin-password (LEGACY, only allowed if 2FA is DISABLED)
+    const sentPassword = req.headers['x-admin-password'] || req.body.password;
+    if (sentPassword === ADMIN_PASSWORD) {
+        // Check if 2FA is enabled globally
+        let is2FA = false;
+        if(isPostgreSQL) {
+            const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
+            is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
+        } else {
+            const s = await nedb.settings.findOne({ key: 'admin_2fa_enabled' });
+            is2FA = s && s.value === 'true';
+        }
+
+        if (is2FA) {
+            console.warn('Blocked Admin Access: 2FA is enabled but not provided.');
+            return res.status(403).json({ success: false, error: '2FA required. Please login.' });
+        }
+        return next();
+    }
+
+    return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
+};
+
 // Admin Auth (Simplified for NeDB)
 app.post('/api/admin/auth', async (req, res) => {
     const { password, token } = req.body;
