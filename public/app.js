@@ -15,6 +15,74 @@ let authToken = null;
 let currentAttachmentBase64 = null;
 let currentMode = 'encrypt'; 
 
+// --- NEW: Storage Adapter & Mode Logic ---
+const StorageAdapter = {
+    mode: 'cloud', // 'cloud', 'local', 'hub'
+
+    init: function() {
+        // Detect Environment (Mock detection for now, later verify window.electronAPI)
+        if (window.location.protocol === 'file:') {
+            this.mode = 'local';
+        }
+        // Check local storage override
+        const storedMode = localStorage.getItem('sm_app_mode');
+        if(storedMode) this.mode = storedMode;
+
+        this.renderStatusBar();
+    },
+
+    setMode: function(newMode) {
+        this.mode = newMode;
+        localStorage.setItem('sm_app_mode', newMode);
+        this.renderStatusBar();
+    },
+
+    renderStatusBar: function() {
+        let bar = document.getElementById('app-mode-bar');
+        if(!bar) {
+            bar = document.createElement('div');
+            bar.id = 'app-mode-bar';
+            bar.style.position = 'fixed';
+            bar.style.top = '0';
+            bar.style.left = '0';
+            bar.style.width = '100%';
+            bar.style.height = '4px'; // Thin line by default
+            bar.style.zIndex = '9999';
+            document.body.appendChild(bar);
+
+            // Label
+            const label = document.createElement('div');
+            label.id = 'app-mode-label';
+            label.style.position = 'fixed';
+            label.style.top = '5px';
+            label.style.right = '10px';
+            label.style.background = 'rgba(0,0,0,0.7)';
+            label.style.padding = '2px 6px';
+            label.style.borderRadius = '4px';
+            label.style.fontSize = '0.7rem';
+            label.style.color = '#fff';
+            label.style.zIndex = '9999';
+            label.style.pointerEvents = 'none';
+            document.body.appendChild(label);
+        }
+
+        const label = document.getElementById('app-mode-label');
+        if(this.mode === 'cloud') {
+            bar.style.background = 'var(--accent-blue)';
+            label.textContent = 'MODE: CLOUD';
+            label.style.color = 'var(--accent-blue)';
+        } else if (this.mode === 'hub') {
+            bar.style.background = '#00ff88'; // Green
+            label.textContent = 'MODE: LAN-HUB';
+            label.style.color = '#00ff88';
+        } else {
+            bar.style.background = '#ff3333'; // Red
+            label.textContent = 'MODE: AIR-GAPPED';
+            label.style.color = '#ff3333';
+        }
+    }
+};
+
 // Kontakt State
 let contacts = []; // Loaded dynamically
 let contactMode = 'manage'; 
@@ -37,6 +105,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const verEl = document.getElementById('appVersion');
     if(verEl) verEl.textContent = APP_VERSION;
+
+    // Init Adapter
+    StorageAdapter.init();
 
     setupUIEvents();
     
@@ -809,8 +880,8 @@ function exportContactsCsv() {
     if (!contacts || contacts.length === 0) return showToast("Keine Kontakte vorhanden.", 'error');
 
     try {
-        // 1. Create CSV Header
-        let csvContent = "ID,Name,Group\n";
+        // 1. Create CSV Header (Added PublicKey support)
+        let csvContent = "ID,Name,Group,PublicKey\n";
 
         // Helper to escape fields
         const escapeCsvField = (field) => {
@@ -833,7 +904,8 @@ function exportContactsCsv() {
             const id = escapeCsvField(c.id);
             const name = escapeCsvField(c.name);
             const grp = escapeCsvField(c.group);
-            csvContent += `${id},${name},${grp}\n`;
+            const pk = escapeCsvField(c.publicKey || '');
+            csvContent += `${id},${name},${grp},${pk}\n`;
         });
 
         // 3. Download
@@ -912,7 +984,8 @@ function handleCsvImport(file) {
                     if(id) {
                         const name = parts.length > 1 ? parts[1].trim() : id;
                         const group = parts.length > 2 ? parts[2].trim() : "";
-                        importedData.push({ id, name, group });
+                        const publicKey = parts.length > 3 ? parts[3].trim() : ""; // Capture PublicKey
+                        importedData.push({ id, name, group, publicKey });
                     }
                 }
             }
