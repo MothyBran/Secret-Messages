@@ -328,23 +328,23 @@
             <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
         </div>
         
-        <a href="#" class="sidebar-item auth-only" id="navPost" style="display:none;"><span data-i18n="app.sidebar_post">📫 Postfach</span><span id="msgBadge" class="badge" style="display:none">0</span></a>
-        <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;" data-i18n="app.sidebar_contacts">📇 Kontaktverzeichnis</a>
+        <a href="#" class="sidebar-item auth-only" id="navPost" style="display:none;">📫 Postfach<span id="msgBadge" class="badge" style="display:none">0</span></a>
+        <a href="#" class="sidebar-item auth-only" id="navContacts" style="display:none;">📇 Kontaktverzeichnis</a>
         
-        <a href="#" class="sidebar-item" id="navGuide" data-i18n="app.sidebar_guide">📖 Anleitung</a>
-        <a href="#" class="sidebar-item" id="navInfo" data-i18n="app.sidebar_info">ℹ️ Info & Sicherheit</a>
-        <a href="/shop" class="sidebar-item" data-i18n="app.sidebar_shop">🛒 Lizenz Shop</a>
+        <a href="#" class="sidebar-item" id="navGuide">📖 Anleitung</a>
+        <a href="#" class="sidebar-item" id="navInfo">ℹ️ Info & Sicherheit</a>
+        <a href="/shop" class="sidebar-item">🛒 Lizenz Shop</a>        
         <a href="#" class="sidebar-item" id="faqBtn">
             <svg style="width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-            <span data-i18n="app.sidebar_faq">FAQ / Hilfe</span>
+            FAQ / Hilfe
         </a>
-        <a href="#" class="sidebar-item" id="navSupport" data-i18n="app.sidebar_support">🆘 Support</a>
+        <a href="#" class="sidebar-item" id="navSupport">🆘 Support</a>
 
         <div style="margin-top: auto;"></div>
 
-        <a href="#" class="sidebar-item auth-only" id="navChangeCode" style="display:none; color: var(--accent-blue);" data-i18n="app.sidebar_change_code">🔑 Code ändern</a>
-        <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;" data-i18n="app.sidebar_logout">🔒 Abmelden</a>
-        <a href="#" class="sidebar-item auth-only" id="navDelete" style="display:none; color: var(--error-red); border-top: 1px solid #333;" data-i18n="app.sidebar_delete">⚠️ Zugang löschen</a>
+        <a href="#" class="sidebar-item auth-only" id="navChangeCode" style="display:none; color: var(--accent-blue);">🔑 Code ändern</a>
+        <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
+        <a href="#" class="sidebar-item auth-only" id="navDelete" style="display:none; color: var(--error-red); border-top: 1px solid #333;">⚠️ Zugang löschen</a>
         <div style="padding: 10px 25px; font-size: 0.7rem; color: #555;">
             Version: <span id="appVersion"></span>
         </div>
@@ -353,38 +353,38 @@
     <div id="contactSidebar">
         <div class="cs-header">
             <button class="cs-close-btn" id="closeContactSidebar">←</button>
-            <h3 style="color: var(--accent-blue); letter-spacing: 2px;" data-i18n="app.contact_header">KONTAKTE</h3>
+            <h3 style="color: var(--accent-blue); letter-spacing: 2px;">KONTAKTE</h3>
             <div style="width: 24px;"></div> 
         </div>
         <div class="cs-content">
-            <input type="text" id="contactSearch" class="input-field" placeholder="Suche..." style="margin-bottom: 15px;" data-i18n="app.contact_search">
+            <input type="text" id="contactSearch" class="input-field" placeholder="Suche..." style="margin-bottom: 15px;">
             <div id="groupSelectionArea" class="group-select-container" style="display:none;">
-                <small style="width: 100%; color: #777; margin-bottom: 5px;" data-i18n="app.contact_group_check">Gruppen ankreuzen:</small>
+                <small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen:</small>
             </div>
             <div class="cs-table-header">
-                <span class="cs-col" id="sortByName" style="flex: 2;" data-i18n="app.contact_col_name">Empfänger ↕</span>
-                <span class="cs-col" id="sortByGroup" style="flex: 1; text-align: right;" data-i18n="app.contact_col_group">Gruppe ↕</span>
+                <span class="cs-col" id="sortByName" style="flex: 2;">Empfänger ↕</span>
+                <span class="cs-col" id="sortByGroup" style="flex: 1; text-align: right;">Gruppe ↕</span>
             </div>
             <div id="contactListBody" style="display: flex; flex-direction: column;"></div>
-            <div id="emptyContactMsg" style="text-align: center; color: #666; padding: 20px; display: none;" data-i18n="app.contact_empty">Keine Kontakte gefunden.</div>
-            <div style="margin-top: 20px; padding: 10px; text-align: center; font-size: 0.7rem; color: #555; border-top: 1px solid #222;" data-i18n="app.contact_hint">
+            <div id="emptyContactMsg" style="text-align: center; color: #666; padding: 20px; display: none;">Keine Kontakte gefunden.</div>
+            <div style="margin-top: 20px; padding: 10px; text-align: center; font-size: 0.7rem; color: #555; border-top: 1px solid #222;">
                 Hinweis: Kontakte werden nur lokal in Ihrem Browser gespeichert. Exportieren Sie Ihr Verzeichnis regelmäßig, um Datenverlust beim Löschen des Browser-Caches zu vermeiden.
             </div>
         </div>
 
         <div class="cs-footer" id="csImportExport" style="display: none; gap: 10px; background: rgba(0,0,0,0.8);">
-             <button class="btn" id="btnExportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;" data-i18n="app.btn_export">⬇ Export</button>
-             <button class="btn" id="btnImportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;" data-i18n="app.btn_import">⬆ Import</button>
+             <button class="btn" id="btnExportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬇ Export</button>
+             <button class="btn" id="btnImportContacts" style="flex: 1; font-size: 0.8rem; border-color: #444; color: #888;">⬆ Import</button>
              <input type="file" id="contactImportInput" accept=".csv,text/csv" style="display: none;">
         </div>
 
         <div class="cs-footer" id="csFooterManage" style="display: none;">
-            <button class="btn" id="btnEditToggle" style="flex: 1; border-color: #ffa500; color: #ffa500;" data-i18n="app.btn_edit">✎ Bearbeiten</button>
-            <button class="btn btn-primary" id="btnAddContactOpen" style="flex: 1;" data-i18n="app.btn_add">+ Hinzufügen</button>
+            <button class="btn" id="btnEditToggle" style="flex: 1; border-color: #ffa500; color: #ffa500;">✎ Bearbeiten</button>
+            <button class="btn btn-primary" id="btnAddContactOpen" style="flex: 1;">+ Hinzufügen</button>
         </div>
         <div class="cs-footer" id="csFooterSelect" style="display: none;">
-            <button class="btn" id="btnCancelSelect" style="flex: 1; border-color: #555; color: #fff;" data-i18n="app.btn_cancel">Abbrechen</button>
-            <button class="btn btn-primary" id="btnConfirmSelect" style="flex: 1;" data-i18n="app.btn_apply">Übernehmen</button>
+            <button class="btn" id="btnCancelSelect" style="flex: 1; border-color: #555; color: #fff;">Abbrechen</button>
+            <button class="btn btn-primary" id="btnConfirmSelect" style="flex: 1;">Übernehmen</button>
         </div>
     </div>
 
@@ -403,58 +403,58 @@
     <div style="flex: 1; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column;">
 
         <div id="loginSection" class="section active">
-            <h2 style="text-align:center; margin-bottom:20px;" data-i18n="app.login_title">IDENTIFIZIERUNG</h2>
+            <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
             <form id="loginForm" autocomplete="off">
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_user">Benutzername</label>
-                    <input type="text" id="u_ident_entry" name="u_ident_entry" class="input-field" placeholder="USER.ID" required autocomplete="off" spellcheck="false" data-i18n="app.placeholder_user">
+                    <label class="input-label">Benutzername</label>
+                    <input type="text" id="u_ident_entry" name="u_ident_entry" class="input-field" placeholder="USER.ID" required autocomplete="off" spellcheck="false">
                 </div>
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_code">Zugangscode</label>
+                    <label class="input-label">Zugangscode</label>
                     <input type="password" id="u_key_secure" name="u_key_secure" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn" data-i18n="app.btn_connect">VERBINDUNG HERSTELLEN</button>
+                <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
             </form>
             <div style="text-align:center; margin-top:20px;">
-                <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;" data-i18n="app.link_activate">Lizenzschlüssel aktivieren</a>
+                <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>
             </div>
             <div id="loginStatus" class="app-status-msg"></div>
         </div>
 
         <div id="activationSection" class="section">
-            <h2 style="text-align:center; margin-bottom:20px;" data-i18n="app.act_title">LIZENZIERUNG</h2>
+            <h2 style="text-align:center; margin-bottom:20px;">LIZENZIERUNG</h2>
             <form id="activationForm">
-                <div class="input-group"><label class="input-label" data-i18n="app.label_license">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
-                <div class="input-group"><label class="input-label" data-i18n="app.label_new_user">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
-                <div class="input-group"><label class="input-label" data-i18n="app.label_new_code">Neuer Zugangscode (5-Stellig)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
+                <div class="input-group"><label class="input-label">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
+                <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
+                <div class="input-group"><label class="input-label">Neuer Zugangscode (5-Stellig)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
 
                 <div class="input-group">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label class="input-label" data-i18n="app.label_repeat_code">Neuen Zugangscode wiederholen</label>
-                        <span id="codeMismatchWarning" style="color:var(--error-red); font-size:0.8rem; display:none; font-weight:bold;" data-i18n="app.warning_mismatch">Code nicht identisch</span>
+                        <label class="input-label">Neuen Zugangscode wiederholen</label>
+                        <span id="codeMismatchWarning" style="color:var(--error-red); font-size:0.8rem; display:none; font-weight:bold;">Code nicht identisch</span>
                     </div>
                     <input type="text" id="newAccessCodeRepeat" class="input-field code-input" maxlength="5" required>
                 </div>
 
                 <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; color: #ccc;">
                     <input type="checkbox" id="agbCheck" style="margin-top: 3px;">
-                    <label for="agbCheck" style="line-height: 1.4;" data-i18n="app.label_agb">
+                    <label for="agbCheck" style="line-height: 1.4;">
                         Ich akzeptiere die <a onclick="openModal('agbModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">AGB</a>, verzichte auf illegale Nutzung und bestätige die Kenntnisnahme des erlöschenden Widerrufsrechts bei digitalen Gütern. Ich habe die <a onclick="openModal('privacyModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">Datenschutzhinweise</a> gelesen.
                     </label>
                 </div>
 
-                <button type="submit" id="activateBtn" class="btn btn-primary" style="width:100%" disabled data-i18n="app.btn_bind">LIZENZ BINDEN</button>
+                <button type="submit" id="activateBtn" class="btn btn-primary" style="width:100%" disabled>LIZENZ BINDEN</button>
             </form>
-            <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;" data-i18n="app.btn_back">Zurück</button></div>
+            <div style="text-align:center; margin-top:15px;"><button class="btn" id="showLoginLink" style="border:none; background:none;">Zurück</button></div>
 
-            <div style="margin-top:20px; padding:15px; border:1px solid #333; background:rgba(255,255,0,0.05); border-radius:4px; font-size:0.8rem; color:#ccc; line-height: 1.4;" data-i18n="app.warning_loss">
+            <div style="margin-top:20px; padding:15px; border:1px solid #333; background:rgba(255,255,0,0.05); border-radius:4px; font-size:0.8rem; color:#ccc; line-height: 1.4;">
                 ⚠️ Achtung: Der Zugangscode kann nicht wiederhergestellt werden. Notieren Sie sich Ihre Zugangsdaten daher sicher. Ohne Zugangscode kein Zugriff auf Ihre Daten!
             </div>
         </div>
 
         <div id="renewalSection" class="section">
-            <h2 style="color:var(--error-red); margin-bottom:20px; text-align:center;" data-i18n="app.renew_title">LIZENZ ABGELAUFEN</h2>
-            <p style="text-align:center; color:#ccc; margin-bottom:30px;" data-i18n="app.renew_text">
+            <h2 style="color:var(--error-red); margin-bottom:20px; text-align:center;">LIZENZ ABGELAUFEN</h2>
+            <p style="text-align:center; color:#ccc; margin-bottom:30px;">
                 Deine Lizenz ist abgelaufen. Bitte verlängere deinen Zugang, um die Dienste weiter zu nutzen.
                 Dein Account und deine ID bleiben erhalten.
             </p>
@@ -478,48 +478,48 @@
                 </div>
             </div>
 
-            <button id="logoutBtnRenewal" class="btn" style="width:100%; border-color:#555; color:#aaa;" data-i18n="app.sidebar_logout">Abmelden</button>
+            <button id="logoutBtnRenewal" class="btn" style="width:100%; border-color:#555; color:#aaa;">Abmelden</button>
         </div>
 
         <div id="blockedSection" class="section">
             <div style="border: 1px solid var(--error-red); background: rgba(255, 50, 50, 0.05); padding: 30px; border-radius: 8px; box-shadow: 0 0 30px rgba(255, 50, 50, 0.1); text-align: center;">
                 <div style="font-size: 3rem; margin-bottom: 15px;">🔒</div>
-                <h2 style="color: var(--error-red); margin-bottom: 20px; letter-spacing: 2px;" data-i18n="app.blocked_title">ZUGANG GESPERRT</h2>
-                <p style="color: #ccc; margin-bottom: 10px; font-size: 1.1rem;" data-i18n="app.blocked_text">
+                <h2 style="color: var(--error-red); margin-bottom: 20px; letter-spacing: 2px;">ZUGANG GESPERRT</h2>
+                <p style="color: #ccc; margin-bottom: 10px; font-size: 1.1rem;">
                     Ihr Zugang wurde administrativ gesperrt.<br>
                     Eine Anmeldung ist nicht mehr möglich.
                 </p>
-                <p style="color: #888; font-size: 0.9rem; margin-bottom: 30px;" data-i18n="app.blocked_info">
+                <p style="color: #888; font-size: 0.9rem; margin-bottom: 30px;">
                     Für weitere Informationen kontaktieren Sie bitte den Support.
                 </p>
-                <button onclick="window.location.reload()" class="btn" style="border-color: #555; color: #aaa; width: 100%;" data-i18n="app.btn_back">Zurück</button>
+                <button onclick="window.location.reload()" class="btn" style="border-color: #555; color: #aaa; width: 100%;">Zurück</button>
             </div>
         </div>
 
         <div id="mainSection" class="section">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
-                <h3 id="modeTitle" style="color:var(--accent-blue); font-size: 2.0rem; letter-spacing: 2px; line-height: 1;" data-i18n="app.mode_encrypt">VERSCHLÜSSELUNG</h3>
-                <span id="statusIndicator" style="font-size:0.7rem; color:var(--success-green);" data-i18n="app.status_secure">● SICHER</span>
+                <h3 id="modeTitle" style="color:var(--accent-blue); font-size: 2.0rem; letter-spacing: 2px; line-height: 1;">VERSCHLÜSSELUNG</h3>
+                <span id="statusIndicator" style="font-size:0.7rem; color:var(--success-green);">● SICHER</span>
             </div>
 
             <div class="input-group" id="recipientGroup">
-                <label class="input-label" data-i18n="app.label_recipients">Empfänger ID's</label>
+                <label class="input-label">Empfänger ID's</label>
                 <div style="display:flex; gap:5px;">
-                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB..." data-i18n="app.placeholder_recipients">
+                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB...">
                     <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
                 </div>
             </div>
 
             <div class="input-group">
-                <label class="input-label" data-i18n="app.label_key">Schlüssel (5-stellig)</label>
+                <label class="input-label">Schlüssel (5-stellig)</label>
                 <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric">
             </div>
 
             <div class="input-group" style="margin-bottom: 0;">
-                <label class="input-label" id="textLabel" data-i18n="app.label_msg_input">Nachrichteneingabe</label>
+                <label class="input-label" id="textLabel">Nachrichteneingabe</label>
             </div>
             <div class="input-group-wrapper" style="position: relative; width: 100%; margin-bottom: 15px;">
-                <textarea id="messageInput" class="input-field" placeholder="Nachricht schreiben..." style="min-height: 120px; padding-right: 40px;" data-i18n="app.placeholder_msg"></textarea>
+                <textarea id="messageInput" class="input-field" placeholder="Nachricht schreiben..." style="min-height: 120px; padding-right: 40px;"></textarea>
 
                 <label for="fileInput" id="attachmentBtn" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 1.4rem; opacity: 0.7; transition: opacity 0.2s;" title="Bild oder PDF anhängen">
                     📎
@@ -537,50 +537,50 @@
                 <button onclick="clearAttachment()" style="background: none; border: none; color: #ff3333; cursor: pointer; font-weight: bold;">(Löschen ✖)</button>
             </div>
 
-            <button id="actionBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: bold; letter-spacing: 1px;" data-i18n="app.btn_encrypt">
+            <button id="actionBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: bold; letter-spacing: 1px;">
                 🔒 DATEN VERSCHLÜSSELN
             </button>
 
             <div class="input-group" id="outputGroup" style="display:none; margin-bottom:20px; border-top:1px solid #333; padding-top:15px;">
-                <label class="input-label" data-i18n="app.label_result">Ergebnis</label>
+                <label class="input-label">Ergebnis</label>
                 <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue); font-weight: bold;"></textarea>
                 <div id="mediaOutput" style="display:none; flex-direction:column; gap:10px; align-items:center; margin-top:10px;"></div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <button id="copyBtn" class="btn" data-i18n="app.btn_copy">📋 KOPIEREN</button>
-                    <button id="clearFieldsBtn" class="btn btn-danger" data-i18n="app.btn_clear">🧹 LEEREN</button>
+                    <button id="copyBtn" class="btn">📋 KOPIEREN</button>
+                    <button id="clearFieldsBtn" class="btn btn-danger">🧹 LEEREN</button>
                 </div>
                 
-                <button id="qrGenBtn" class="btn" data-i18n="app.btn_qr_show">📱 ALS QR-CODE ANZEIGEN</button>
-                <button id="saveTxtBtn" class="btn" style="display:none;" data-i18n="app.btn_save_txt">💾 ALS .TXT SPEICHERN</button>
+                <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
+                <button id="saveTxtBtn" class="btn" style="display:none;">💾 ALS .TXT SPEICHERN</button>
 
-                <button id="qrScanBtn" class="btn" style="display:none;" data-i18n="app.btn_qr_scan">📷 QR-CODE SCANNEN</button>
-                <button id="uploadTxtBtn" class="btn" style="display:none;" data-i18n="app.btn_upload_txt">📂 .TXT DATEI HOCHLADEN</button>
+                <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
+                <button id="uploadTxtBtn" class="btn" style="display:none;">📂 .TXT DATEI HOCHLADEN</button>
             </div>
         </div>
 
         <div id="inboxSection" class="section">
-            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;" data-i18n="app.inbox_title">POSTFACH</h2>
+            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;">POSTFACH</h2>
 
             <div id="inboxList">
                 <!-- Messages Injected Here -->
             </div>
 
-            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;" data-i18n="app.inbox_empty">
+            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;">
                 <div style="font-size:3rem; margin-bottom:10px;">📭</div>
                 Keine Nachrichten vorhanden.
             </div>
 
-            <button id="btnBackInbox" class="btn" style="width:100%; margin-top:20px;" data-i18n="app.btn_back_app">Zurück zur App</button>
+            <button id="btnBackInbox" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <div id="guideSection" class="section">
-            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;" data-i18n="app.guide_title">ANLEITUNG</h2>
+            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;">ANLEITUNG</h2>
             
             <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; margin-bottom:15px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;" data-i18n="app.guide_step1">1. Verschlüsseln</h3>
+                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">1. Verschlüsseln</h3>
                 <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
                     <li>Wähle oben rechts den Modus <b>VERSCHLÜSSELN</b> (Slider Links).</li>
                     <li>Wähle Empfänger aus (Klick auf 📇) oder gib User-IDs ein.</li>
@@ -592,7 +592,7 @@
             </div>
 
             <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; margin-bottom:15px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;" data-i18n="app.guide_step2">2. Entschlüsseln</h3>
+                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">2. Entschlüsseln</h3>
                 <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
                     <li>Wechsle oben rechts auf <b>ENTSCHLÜSSELN</b> (Slider Rechts).</li>
                     <li>Füge den Geheimtext ein oder scanne einen QR-Code bzw. lade die Verschlüsselte .TXT-Datei hoch</li>
@@ -603,22 +603,22 @@
             </div>
 
             <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;" data-i18n="app.guide_step3">3. Kontakte verwalten</h3>
+                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">3. Kontakte verwalten</h3>
                 <p style="color:#ccc;">
                     Öffne das Menü (oben links) und klicke auf "Kontaktverzeichnis".<br>
                     Dort kannst du User-IDs speichern, Gruppen anlegen (z.B. "Arbeit") und Kontakte schneller auswählen.
                 </p>
             </div>
             
-            <button id="btnBackGuide" class="btn" style="width:100%; margin-top:20px;" data-i18n="app.btn_back_app">Zurück zur App</button>
+            <button id="btnBackGuide" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <div id="infoSection" class="section">
-            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;" data-i18n="app.info_title">INFO & SICHERHEIT</h2>
+            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;">INFO & SICHERHEIT</h2>
 
             <div style="margin-bottom:20px;">
-                <h4 style="color:var(--success-green);" data-i18n="app.info_sec_why">🛡️ Warum ist es sicher?</h4>
-                <p style="font-size:0.9rem; color:#ccc; margin-top:5px;" data-i18n="app.info_sec_why_text">
+                <h4 style="color:var(--success-green);">🛡️ Warum ist es sicher?</h4>
+                <p style="font-size:0.9rem; color:#ccc; margin-top:5px;">
                     Wir nutzen <b>AES-256-GCM</b> Verschlüsselung direkt in deinem Browser. 
                     Der Server sieht niemals deinen Klartext und auch nicht deinen 5-stelligen Code.
                     Zusätzlich wird die Nachricht 4-fach getarnt (Obfuscation Layers), bevor sie das Gerät verlässt.
@@ -626,8 +626,8 @@
             </div>
 
             <div style="margin-bottom:20px;">
-                <h4 style="color:var(--accent-blue);" data-i18n="app.info_sec_rec">👤 Das Empfänger-Prinzip</h4>
-                <p style="font-size:0.9rem; color:#ccc; margin-top:5px;" data-i18n="app.info_sec_rec_text">
+                <h4 style="color:var(--accent-blue);">👤 Das Empfänger-Prinzip</h4>
+                <p style="font-size:0.9rem; color:#ccc; margin-top:5px;">
                     Jede Nachricht wird in digitale "Tresore" (Slots) verpackt. 
                     Nur User, deren ID du beim Verschlüsseln angibst, erhalten einen passenden "Schlüssel" für ihren Tresor.
                     Alle anderen sehen nur Datensalat – selbst wenn sie den 5-stelligen Code erraten würden.
@@ -635,8 +635,8 @@
             </div>
 
             <div style="margin-bottom:20px;">
-                <h4 style="color:#ffa500;" data-i18n="app.info_sec_adv">🚀 Vorteile für Privat & Business</h4>
-                <ul style="margin-left:20px; font-size:0.9rem; color:#ccc; margin-top:5px;" data-i18n="app.info_sec_adv_list">
+                <h4 style="color:#ffa500;">🚀 Vorteile für Privat & Business</h4>
+                <ul style="margin-left:20px; font-size:0.9rem; color:#ccc; margin-top:5px;">
                     <li><b>Keine Cloud-Speicherung:</b> Nachrichten existieren nur flüchtig.</li>
                     <li><b>Geräte-Bindung:</b> Dein Account ist fest an dein Gerät gekoppelt. Kein Fremdzugriff möglich.</li>
                     <li><b>Anonymität:</b> Keine E-Mail, keine Telefonnummer nötig.</li>
@@ -648,35 +648,35 @@
                 Encryption: PBKDF2 (100k rounds) + AES-GCM
             </div>
             
-            <button id="btnBackInfo" class="btn" style="width:100%; margin-top:20px;" data-i18n="app.btn_back_app">Zurück zur App</button>
+            <button id="btnBackInfo" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
         </div>
 
         <footer style="margin-top:auto; padding-top:40px; text-align:center; font-size:0.8rem; color:#555; padding-bottom:20px;">
-            <div style="margin-bottom:10px;" data-i18n="app.footer_address">
+            <div style="margin-bottom:10px;">
                 <strong>Secure Messages</strong><br>
                 IT-Security & Encryption Solutions<br>
                 Musterstraße 1, 10115 Berlin
             </div>
-            <div data-i18n="app.footer_support">
+            <div>
                 Support: <a href="mailto:support@secure-msg.app" style="color:var(--accent-blue); text-decoration:none;">support@secure-msg.app</a>
             </div>
             <div style="margin-top:10px; font-size: 0.75rem;">
-                <a onclick="openModal('imprintModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_imprint">Impressum</a> |
-                <a onclick="openModal('privacyModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_privacy">Datenschutz</a> |
-                <a onclick="openModal('agbModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_agb">AGB</a>
+                <a onclick="openModal('imprintModal')" style="cursor:pointer; margin:0 5px; color:#777;">Impressum</a> |
+                <a onclick="openModal('privacyModal')" style="cursor:pointer; margin:0 5px; color:#777;">Datenschutz</a> |
+                <a onclick="openModal('agbModal')" style="cursor:pointer; margin:0 5px; color:#777;">AGB</a>
             </div>
-            <div style="margin-top:10px;" data-i18n="landing.rights_reserved">
+            <div style="margin-top:10px;">
                 &copy; 2025 Secure Messages. All rights reserved.
             </div>
         </footer>
 
     </div> <div id="qrModal" class="modal">
         <div class="modal-box" style="text-align: center; background: var(--bg-panel); border: 1px solid var(--accent-blue);">
-            <h3 style="margin-bottom:15px; color: var(--accent-blue);" data-i18n="app.modal_qr_title">QR CODE</h3>
+            <h3 style="margin-bottom:15px; color: var(--accent-blue);">QR CODE</h3>
             <div id="qrDisplay"></div>
             <div style="display: flex; gap: 10px;">
-                <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;" data-i18n="app.btn_close">Schließen</button>
-                <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;" data-i18n="app.btn_save">💾 Speichern</button>
+                <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;">Schließen</button>
+                <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 Speichern</button>
             </div>
         </div>
     </div>
@@ -684,41 +684,41 @@
     <!-- Generic Confirmation Modal -->
     <div id="appConfirmModal" class="modal" style="z-index: 1100;">
         <div class="modal-box" style="text-align:center;">
-            <h3 style="color:var(--accent-blue); margin-bottom:15px;" id="appConfirmTitle" data-i18n="app.modal_confirm_title">Bestätigen</h3>
+            <h3 style="color:var(--accent-blue); margin-bottom:15px;" id="appConfirmTitle">Bestätigen</h3>
             <p id="appConfirmMessage" style="color:#ccc; margin-bottom:25px;"></p>
             <div style="display:flex; gap:10px;">
-                <button class="btn" id="btnAppConfirmNo" style="flex:1; border-color:#555; color:#aaa;" data-i18n="app.btn_no">Nein</button>
-                <button class="btn btn-primary" id="btnAppConfirmYes" style="flex:1;" data-i18n="app.btn_yes">Ja</button>
+                <button class="btn" id="btnAppConfirmNo" style="flex:1; border-color:#555; color:#aaa;">Nein</button>
+                <button class="btn btn-primary" id="btnAppConfirmYes" style="flex:1;">Ja</button>
             </div>
         </div>
     </div>
 
     <div id="changeCodeModal" class="modal">
         <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;" data-i18n="app.modal_change_code_title">ZUGANGSCODE ÄNDERN</h3>
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">ZUGANGSCODE ÄNDERN</h3>
 
-            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem;" data-i18n="app.modal_change_code_text">
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem;">
                 Zur Änderung des Codes müssen wir Ihre lokalen Daten entschlüsseln und neu verschlüsseln.
             </p>
 
             <div class="input-group">
-                <label class="input-label" data-i18n="app.label_current_code">Aktueller Code</label>
+                <label class="input-label">Aktueller Code</label>
                 <input type="password" id="currentAccessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
             </div>
 
             <div class="input-group">
-                <label class="input-label" data-i18n="app.label_new_code_simple">Neuer Code</label>
+                <label class="input-label">Neuer Code</label>
                 <input type="password" id="changeNewCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
             </div>
 
             <div class="input-group">
-                <label class="input-label" data-i18n="app.label_new_code_repeat">Neuen Code wiederholen</label>
+                <label class="input-label">Neuen Code wiederholen</label>
                 <input type="password" id="changeNewCodeRepeat" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
             </div>
 
             <div style="display:flex; gap:10px;">
-                <button class="btn" id="btnCancelChangeCode" style="flex:1; border-color:#555; color:#fff;" data-i18n="app.btn_cancel">Abbrechen</button>
-                <button class="btn btn-primary" id="btnConfirmChangeCode" style="flex:1;" data-i18n="app.btn_change">Ändern</button>
+                <button class="btn" id="btnCancelChangeCode" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmChangeCode" style="flex:1;">Ändern</button>
             </div>
         </div>
     </div>
@@ -900,43 +900,43 @@
 
     <div id="contactEditModal" class="modal">
         <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;" id="modalTitle" data-i18n="app.modal_contact_add_title">Kontakt hinzufügen</h3>
+            <h3 style="color: var(--accent-blue); margin-bottom: 20px; text-align: center;" id="modalTitle">Kontakt hinzufügen</h3>
             <form id="contactForm">
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_alias">Empfänger Bezeichnung (Alias)</label>
-                    <input type="text" id="inputName" class="input-field" placeholder="Name (optional)" data-i18n="app.placeholder_alias">
-                    <small style="color:#666; font-size:0.7rem;" data-i18n="app.hint_alias">Wenn leer, wird ID verwendet.</small>
+                    <label class="input-label">Empfänger Bezeichnung (Alias)</label>
+                    <input type="text" id="inputName" class="input-field" placeholder="Name (optional)">
+                    <small style="color:#666; font-size:0.7rem;">Wenn leer, wird ID verwendet.</small>
                 </div>
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_id_req">Benutzer-ID (Pflichtfeld)</label>
-                    <input type="text" id="inputID" class="input-field" placeholder="Exakter Benutzername/ID" required data-i18n="app.placeholder_id">
+                    <label class="input-label">Benutzer-ID (Pflichtfeld)</label>
+                    <input type="text" id="inputID" class="input-field" placeholder="Exakter Benutzername/ID" required>
                 </div>
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_group_assign">Einer Gruppe zuordnen</label>
-                    <input type="text" id="inputGroup" class="input-field" list="groupSuggestions" placeholder="Gruppe wählen oder eingeben" data-i18n="app.placeholder_group">
+                    <label class="input-label">Einer Gruppe zuordnen</label>
+                    <input type="text" id="inputGroup" class="input-field" list="groupSuggestions" placeholder="Gruppe wählen oder eingeben">
                     <datalist id="groupSuggestions"></datalist>
                 </div>
                 <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button type="button" class="btn" id="btnCancelEdit" style="flex:1; border-color:#555; color:#aaa;" data-i18n="app.btn_cancel">Abbrechen</button>
-                    <button type="submit" class="btn btn-primary" id="btnSaveContact" style="flex:1;" data-i18n="app.btn_save_contact">Speichern</button>
+                    <button type="button" class="btn" id="btnCancelEdit" style="flex:1; border-color:#555; color:#aaa;">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveContact" style="flex:1;">Speichern</button>
                 </div>
-                <button type="button" id="btnDeleteContact" class="btn btn-danger" style="width:100%; margin-top:10px; display:none;" data-i18n="app.btn_delete">Löschen</button>
+                <button type="button" id="btnDeleteContact" class="btn btn-danger" style="width:100%; margin-top:10px; display:none;">Löschen</button>
             </form>
         </div>
     </div>
 
     <div id="deleteAccountModal" class="modal">
         <div class="modal-box" style="border-color: var(--error-red); box-shadow: 0 0 30px rgba(255, 50, 50, 0.2);">
-            <h3 style="color: var(--error-red); margin-bottom: 15px; text-align: center;" data-i18n="app.modal_delete_title">⚠️ WARNUNG</h3>
+            <h3 style="color: var(--error-red); margin-bottom: 15px; text-align: center;">⚠️ WARNUNG</h3>
             
-            <p style="color: #ccc; text-align: center; margin-bottom: 20px; line-height: 1.5;" data-i18n="app.modal_delete_text">
+            <p style="color: #ccc; text-align: center; margin-bottom: 20px; line-height: 1.5;">
                 Möchtest du deinen Zugang wirklich <b>unwiderruflich löschen</b>?<br><br>
                 Deine Benutzer-ID und deine Lizenz gehen dabei verloren. Eine Wiederherstellung ist nicht möglich!
             </p>
 
             <div style="display:flex; gap:10px;">
-                <button class="btn" id="btnCancelDelete" style="flex:1; border-color:#555; color:#fff;" data-i18n="app.btn_cancel">Abbrechen</button>
-                <button class="btn btn-danger" id="btnConfirmDelete" style="flex:1; background:rgba(255,0,0,0.2);" data-i18n="app.btn_delete_final">Endgültig Löschen</button>
+                <button class="btn" id="btnCancelDelete" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-danger" id="btnConfirmDelete" style="flex:1; background:rgba(255,0,0,0.2);">Endgültig Löschen</button>
             </div>
         </div>
     </div>
@@ -944,11 +944,10 @@
     <div id="faqModal" class="modal">
         <div class="modal-box" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden;">
             <div style="padding-bottom: 15px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="color: var(--accent-blue); margin: 0;" data-i18n="app.modal_faq_title">Häufig gestellte Fragen</h3>
+                <h3 style="color: var(--accent-blue); margin: 0;">Häufig gestellte Fragen</h3>
                 <button id="closeFaqBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">✕</button>
             </div>
             <div style="overflow-y: auto; padding-right: 5px;">
-                <!-- FAQ Content is too long and static, not translating all details in this step, but title is translated -->
                 <h5 style="color: var(--text-muted); margin: 15px 0 10px 0; text-transform: uppercase; font-size: 0.8rem;">App-Installation (PWA) & Updates</h5>
                 <details>
                     <summary>Kann ich Secure Messages als App installieren?</summary>
@@ -1031,19 +1030,19 @@
     <div id="supportModal" class="modal">
         <div class="modal-box" style="max-width: 500px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h3 style="color:var(--accent-blue); margin:0;" data-i18n="app.modal_support_title">Support kontaktieren</h3>
+                <h3 style="color:var(--accent-blue); margin:0;">Support kontaktieren</h3>
                 <button id="closeSupportBtn" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
             </div>
 
             <form id="supportForm">
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_user">Benutzername / ID</label>
-                    <input type="text" id="supportUsername" class="input-field" placeholder="Benutzername oder ID (falls bekannt)" data-i18n="app.placeholder_user">
+                    <label class="input-label">Benutzername / ID</label>
+                    <input type="text" id="supportUsername" class="input-field" placeholder="Benutzername oder ID (falls bekannt)">
                 </div>
 
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_subject">Betreff</label>
-                    <input type="text" id="supportSubject" class="input-field" list="supportTopics" placeholder="Thema wählen oder eingeben" required data-i18n="app.placeholder_subject">
+                    <label class="input-label">Betreff</label>
+                    <input type="text" id="supportSubject" class="input-field" list="supportTopics" placeholder="Thema wählen oder eingeben" required>
                     <datalist id="supportTopics">
                         <option value="Account & Zugang (Login-Probleme)">
                         <option value="Lizenz & Zahlung">
@@ -1055,31 +1054,31 @@
                 </div>
 
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_email_opt">E-Mail-Adresse (für Rückmeldung)</label>
-                    <input type="email" id="supportEmail" class="input-field" placeholder="E-Mail (optional bei ID-Angabe)" data-i18n="app.placeholder_email">
-                    <div style="font-size: 0.75rem; color: #8899a6; margin-top: 5px;" data-i18n="app.hint_email">
+                    <label class="input-label">E-Mail-Adresse (für Rückmeldung)</label>
+                    <input type="email" id="supportEmail" class="input-field" placeholder="E-Mail (optional bei ID-Angabe)">
+                    <div style="font-size: 0.75rem; color: #8899a6; margin-top: 5px;">
                         Hinweis: Wenn Sie Ihre ID angeben, erhalten Sie unsere Antwort direkt in Ihr internes Postfach.
                     </div>
                 </div>
 
                 <div class="input-group">
-                    <label class="input-label" data-i18n="app.label_message">Nachricht</label>
-                    <textarea id="supportMessage" class="input-field" rows="5" placeholder="Bitte beschreiben Sie Ihr Anliegen..." required data-i18n="app.placeholder_message_body"></textarea>
+                    <label class="input-label">Nachricht</label>
+                    <textarea id="supportMessage" class="input-field" rows="5" placeholder="Bitte beschreiben Sie Ihr Anliegen..." required></textarea>
                 </div>
 
                 <div class="support-info-block">
-                    <h5 style="color:var(--text-main); margin-bottom:5px;" data-i18n="app.support_hint_title">Hinweise für eine schnelle Hilfe</h5>
+                    <h5 style="color:var(--text-main); margin-bottom:5px;">Hinweise für eine schnelle Hilfe</h5>
                     <ul style="font-size:0.8rem; color:#ccc; margin-left:20px; margin-bottom:10px;">
-                        <li data-i18n="app.support_hint_text">Damit wir Ihnen helfen können, benötigen wir: Ihre ID, eine genaue Problembeschreibung sowie Informationen zu Ihrem Browser und Gerät (z. B. Chrome auf Android).</li>
+                        <li>Damit wir Ihnen helfen können, benötigen wir: Ihre ID, eine genaue Problembeschreibung sowie Informationen zu Ihrem Browser und Gerät (z. B. Chrome auf Android).</li>
                     </ul>
-                    <div class="security-banner" data-i18n="app.support_sec_banner">
+                    <div class="security-banner">
                         WICHTIG: Wir werden Sie NIEMALS nach Ihrem persönlichen 5-stelligen Zugangscode fragen. Geben Sie diesen niemals an Dritte weiter!
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:15px;" data-i18n="app.btn_send_msg">Nachricht Senden</button>
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:15px;">Nachricht Senden</button>
 
-                <p style="font-size:0.7rem; color:#666; margin-top:10px; text-align:center;" data-i18n="app.support_privacy">
+                <p style="font-size:0.7rem; color:#666; margin-top:10px; text-align:center;">
                     Ihre Daten werden nur zur Bearbeitung der Anfrage genutzt. <br>
                     Siehe <a onclick="openModal('privacyModal')" style="color:var(--accent-blue); cursor:pointer; text-decoration:underline;">Datenschutz</a>.
                 </p>
@@ -1089,23 +1088,23 @@
 
     <div id="contactCodeModal" class="modal">
         <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;" data-i18n="app.modal_sec_code_title">SICHERHEITS-CODE</h3>
-            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;" data-i18n="app.modal_sec_code_text">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">SICHERHEITS-CODE</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
                 Bitte geben Sie einen 5-stelligen Code ein,<br>um die Daten zu verschlüsseln bzw. entschlüsseln.
             </p>
             <div class="input-group">
                 <input type="password" id="contactSecureCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
             </div>
             <div style="display:flex; gap:10px;">
-                <button class="btn" id="btnCancelContactCode" style="flex:1; border-color:#555; color:#fff;" data-i18n="app.btn_cancel">Abbrechen</button>
-                <button class="btn btn-primary" id="btnConfirmContactCode" style="flex:1;" data-i18n="app.btn_confirm">Bestätigen</button>
+                <button class="btn" id="btnCancelContactCode" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmContactCode" style="flex:1;">Bestätigen</button>
             </div>
         </div>
     </div>
 
     <div id="backupModal" class="modal">
         <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;" data-i18n="app.modal_backup_title">BACKUP SICHERUNG</h3>
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">BACKUP SICHERUNG</h3>
             <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;" id="backupModalText">
                 Code eingeben.
             </p>
@@ -1119,7 +1118,6 @@
         </div>
     </div>
 
-    <script src="translations.js"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>
