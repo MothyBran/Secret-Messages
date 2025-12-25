@@ -4,8 +4,8 @@
   "description": "Backend for Secret Messages Encryption App with User Authentication",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "start:server": "node server.js",
+    "start": "node server.js",
+    "desktop": "electron .",
     "dev": "nodemon server.js",
     "dist": "electron-builder --win",
     "setup": "node scripts/setup.js",
@@ -18,7 +18,6 @@
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
     "bcrypt": "^5.1.1",
-    "better-sqlite3": "^9.4.0",
     "body-parser": "^2.2.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -40,6 +39,7 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "better-sqlite3": "^9.4.0",
     "electron": "^28.2.1",
     "electron-builder": "^24.9.1",
     "eslint": "^8.57.0",
