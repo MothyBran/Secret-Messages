@@ -3,7 +3,7 @@
 const APP_VERSION = 'Beta v0.61';
 
 // Import encryption functions including backup helpers
-import { encryptFull, decryptFull, encryptBackup, decryptBackup } from './cryptoLayers.js';
+import { encryptFull, decryptFull } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -416,20 +416,20 @@ function setupUIEvents() {
     document.getElementById('btnCancelSelect')?.addEventListener('click', closeContactSidebar);
     document.getElementById('btnConfirmSelect')?.addEventListener('click', confirmSelection);
     
-    // Import/Export (Revised)
-    document.getElementById('btnExportContacts')?.addEventListener('click', () => openBackupModal('export'));
+    // Import/Export (Revised - CSV Only)
+    document.getElementById('btnExportContacts')?.addEventListener('click', exportContactsCsv);
     document.getElementById('btnImportContacts')?.addEventListener('click', () => document.getElementById('contactImportInput').click());
     document.getElementById('contactImportInput')?.addEventListener('change', (e) => {
-        if(e.target.files.length > 0) openBackupModal('import', e.target.files[0]);
+        if(e.target.files.length > 0) handleCsvImport(e.target.files[0]);
     });
 
-    // Backup Modal Events
+    // Backup Modal Events (Legacy/Removed for Contacts)
     document.getElementById('btnCancelBackup')?.addEventListener('click', () => {
         document.getElementById('backupModal').classList.remove('active');
         document.getElementById('backupCode').value = '';
-        document.getElementById('contactImportInput').value = ''; // Reset file input
+        document.getElementById('contactImportInput').value = '';
     });
-    document.getElementById('btnConfirmBackup')?.addEventListener('click', handleBackupAction);
+    // document.getElementById('btnConfirmBackup') -> logic moved to direct actions
 
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
@@ -803,93 +803,137 @@ function deleteContact() {
     });
 }
 
-// --- NEW BACKUP LOGIC (.SMB) ---
-let currentBackupAction = null; // 'export' or 'import'
-let currentBackupFile = null;
+// --- CSV IMPORT/EXPORT LOGIC ---
 
-function openBackupModal(action, file = null) {
-    currentBackupAction = action;
-    currentBackupFile = file;
-    document.getElementById('backupCode').value = '';
-    const txt = document.getElementById('backupModalText');
-    if(action === 'export') {
-        txt.textContent = "Wähle einen 5-stelligen Code für die Verschlüsselung.";
-    } else {
-        txt.textContent = "Gib den Code ein, um das Backup zu entschlüsseln.";
-    }
-    document.getElementById('backupModal').classList.add('active');
-    document.getElementById('backupCode').focus();
-}
-
-async function handleBackupAction() {
-    const code = document.getElementById('backupCode').value;
-    if(!code || code.length !== 5 || isNaN(code)) {
-        return showToast("Bitte 5-stelligen Zahlencode eingeben.", 'error');
-    }
-
-    const btn = document.getElementById('btnConfirmBackup');
-    const oldTxt = btn.textContent;
-    btn.textContent = "..."; btn.disabled = true;
+function exportContactsCsv() {
+    if (!contacts || contacts.length === 0) return showToast("Keine Kontakte vorhanden.", 'error');
 
     try {
-        if(currentBackupAction === 'export') {
-            await executeExport(code);
-        } else {
-            await executeImport(code);
-        }
-        document.getElementById('backupModal').classList.remove('active');
+        // 1. Create CSV Header
+        let csvContent = "ID,Name,Group\n";
+
+        // Helper to escape fields
+        const escapeCsvField = (field) => {
+            let val = String(field || "");
+            // Prevent CSV Injection
+            if (/^[=+\-@]/.test(val)) {
+                val = "'" + val;
+            }
+            // Escape double quotes by doubling them
+            val = val.replace(/"/g, '""');
+            // Wrap in quotes if it contains comma, newline or quotes
+            if (val.search(/("|,|\n)/g) >= 0) {
+                val = `"${val}"`;
+            }
+            return val;
+        };
+
+        // 2. Add Rows
+        contacts.forEach(c => {
+            const id = escapeCsvField(c.id);
+            const name = escapeCsvField(c.name);
+            const grp = escapeCsvField(c.group);
+            csvContent += `${id},${name},${grp}\n`;
+        });
+
+        // 3. Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `contacts_export_${new Date().toISOString().slice(0,10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast("Kontakte erfolgreich als .csv exportiert.", 'success');
     } catch(e) {
-        showToast("Fehler: " + e.message, 'error');
-    } finally {
-        btn.textContent = oldTxt; btn.disabled = false;
-        document.getElementById('backupCode').value = '';
-        document.getElementById('contactImportInput').value = ''; // Reset input
+        console.error(e);
+        showToast("Fehler beim Export.", 'error');
     }
 }
 
-async function executeExport(code) {
-    if (!contacts || contacts.length === 0) throw new Error("Keine Kontakte vorhanden.");
+function handleCsvImport(file) {
+    if (!file) return;
+    if (file.type !== "text/csv" && !file.name.endsWith(".csv")) {
+        showToast("Bitte nur .csv Dateien verwenden.", 'error');
+        document.getElementById('contactImportInput').value = '';
+        return;
+    }
 
-    // Serialize
-    const jsonStr = JSON.stringify(contacts);
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const text = evt.target.result;
+            // Robust CSV Parsing handling quotes
+            const parseCsvLine = (line) => {
+                const result = [];
+                let start = 0;
+                let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    if (line[i] === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (line[i] === ',' && !inQuotes) {
+                        let field = line.substring(start, i);
+                        // Remove surrounding quotes and unescape double quotes
+                        if (field.startsWith('"') && field.endsWith('"')) {
+                            field = field.slice(1, -1).replace(/""/g, '"');
+                        }
+                        result.push(field);
+                        start = i + 1;
+                    }
+                }
+                // Push last field
+                let lastField = line.substring(start);
+                if (lastField.startsWith('"') && lastField.endsWith('"')) {
+                    lastField = lastField.slice(1, -1).replace(/""/g, '"');
+                }
+                result.push(lastField);
+                return result;
+            };
 
-    // Encrypt
-    const encryptedBase64 = await encryptBackup(jsonStr, code);
+            const lines = text.split(/\r?\n/);
+            const importedData = [];
 
-    // Download
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(encryptedBase64));
-    element.setAttribute('download', `contacts_backup_${new Date().toISOString().slice(0,10)}.smb`);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-
-    showToast("Backup (.smb) erfolgreich erstellt.", 'success');
-}
-
-async function executeImport(code) {
-    if (!currentBackupFile) throw new Error("Keine Datei gewählt.");
-
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async function(evt) {
-            try {
-                const encryptedContent = evt.target.result; // Should be base64 string from file
-                // Decrypt
-                const jsonStr = await decryptBackup(encryptedContent, code);
-                const importedData = JSON.parse(jsonStr);
-
-                // Process
-                processImportedData(importedData);
-                resolve();
-            } catch(e) {
-                reject(new Error("Entschlüsselung fehlgeschlagen (Falscher Code?)."));
+            let startIndex = 0;
+            if (lines.length > 0 && lines[0].toLowerCase().includes("id")) {
+                startIndex = 1;
             }
-        };
-        reader.onerror = () => reject(new Error("Lesefehler"));
-        reader.readAsText(currentBackupFile);
-    });
+
+            for (let i = startIndex; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const parts = parseCsvLine(line);
+                if (parts.length >= 1) {
+                    const id = parts[0].trim();
+                    // Basic sanity check: prevent empty IDs
+                    if(id) {
+                        const name = parts.length > 1 ? parts[1].trim() : id;
+                        const group = parts.length > 2 ? parts[2].trim() : "";
+                        importedData.push({ id, name, group });
+                    }
+                }
+            }
+
+            if (importedData.length > 0) {
+                processImportedData(importedData);
+            } else {
+                showToast("Keine gültigen Kontakte gefunden.", 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Fehler beim Lesen der Datei.", 'error');
+        } finally {
+            document.getElementById('contactImportInput').value = '';
+        }
+    };
+    reader.onerror = () => {
+        showToast("Lesefehler.", 'error');
+        document.getElementById('contactImportInput').value = '';
+    };
+    reader.readAsText(file);
 }
 
 // Deprecated: Legacy handler (kept if contactCodeModal is still used elsewhere, otherwise unused)
