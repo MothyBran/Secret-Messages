@@ -7,7 +7,7 @@
     "start": "node server.js",
     "desktop": "electron .",
     "dev": "nodemon server.js",
-    "dist": "electron-builder --win",
+    "dist": "electron-builder --win --x64",
     "setup": "node scripts/setup.js",
     "migrate": "node migrate-to-user-auth.js",
     "generate-keys": "node scripts/generate-keys.js",
@@ -73,9 +73,23 @@
     "coverageDirectory": "coverage"
   },
   "build": {
-    "appId": "com.secret-messages.app",
+    "appId": "com.secure.messages.enterprise",
+    "productName": "SECURE MESSAGES",
+    "directories": {
+      "output": "dist"
+    },
     "win": {
-      "target": "nsis"
-    }
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "files": [
+      "**/*",
+      "public/**/*",
+      "database/**/*",
+      "email/**/*",
+      "assets/**/*"
+    ]
   }
 }
