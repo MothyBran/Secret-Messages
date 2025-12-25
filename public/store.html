@@ -219,105 +219,105 @@
   <div id="toast-container"></div>
   <div class="bg-grid"></div>
 
-  <a href="/app" class="btn btn-back">← Zurück zur App</a>
+  <a href="/app" class="btn btn-back" data-i18n="shop.back_btn">← Zurück zur App</a>
 
   <div class="store-container" id="shop-view">
     
     <!-- SHOP OFFLINE BANNER -->
     <div id="shopOfflineBanner" style="display:none; text-align:center; padding:40px; background:#000; border:2px solid var(--accent-blue); border-radius:8px; box-shadow:0 0 30px rgba(0,191,255,0.2); margin-top:50px;">
         <div style="font-size:3rem; margin-bottom:20px;">🔒</div>
-        <h2 style="color:var(--accent-blue); margin-bottom:20px; font-family:'Rajdhani', sans-serif;">SHOP VORÜBERGEHEND GESCHLOSSEN</h2>
-        <p style="color:#e0e0e0; font-size:1.1rem; max-width:600px; margin:0 auto 20px auto; line-height:1.6;">
+        <h2 style="color:var(--accent-blue); margin-bottom:20px; font-family:'Rajdhani', sans-serif;" data-i18n="shop.offline_title">SHOP VORÜBERGEHEND GESCHLOSSEN</h2>
+        <p style="color:#e0e0e0; font-size:1.1rem; max-width:600px; margin:0 auto 20px auto; line-height:1.6;" data-i18n="shop.offline_text">
             Unser Shop ist vorübergehend geschlossen. Aktuell können keine neuen Lizenzen erworben werden.
             Bestehende Lizenzen sind davon nicht betroffen und funktionieren weiterhin einwandfrei.
         </p>
-        <p style="color:#888;">Support: <a href="mailto:support@secure-msg.app" style="color:var(--accent-blue);">support@secure-msg.app</a></p>
+        <p style="color:#888;" data-i18n="shop.footer_support">Support: <a href="mailto:support@secure-msg.app" style="color:var(--accent-blue);">support@secure-msg.app</a></p>
     </div>
 
     <div id="shopContent">
-        <h1>SECURE MESSAGES - Lizenz Shop</h1>
-        <p class="subtitle">Wähle deinen Zugangsschlüssel. Anonym. Sicher. Sofort.</p>
+        <h1 data-i18n="shop.title">SECURE MESSAGES - Lizenz Shop</h1>
+        <p class="subtitle" data-i18n="shop.subtitle">Wähle deinen Zugangsschlüssel. Anonym. Sicher. Sofort.</p>
 
-        <h2>🔓 Einzel-Schlüssel</h2>
+        <h2 data-i18n="shop.cat_single">🔓 Einzel-Schlüssel</h2>
         <div class="license-grid">
       <div class="license-card">
         <div class="license-title">1 Monat Access</div>
         <div class="license-price">1,99 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Perfekt zum Testen. Voller Funktionsumfang für 30 Tage.</div>
-        <button class="btn license-btn" data-plan="1m">Auswählen</button>
+        <button class="btn license-btn" data-plan="1m" data-i18n="shop.btn_select">Auswählen</button>
       </div>
       <div class="license-card">
         <div class="card-badge">-17%</div>
         <div class="license-title">3 Monate Access</div>
         <div class="license-price">4,95 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Unser Bestseller. Maximale Sicherheit für ein Quartal.</div>
-        <button class="btn license-btn" data-plan="3m">Auswählen</button>
+        <button class="btn license-btn" data-plan="3m" data-i18n="shop.btn_select">Auswählen</button>
       </div>
       <div class="license-card">
         <div class="card-badge">-25% BEST VALUE</div>
         <div class="license-title">12 Monate Access</div>
         <div class="license-price">17,90 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Sorgenfrei für ein ganzes Jahr.</div>
-        <button class="btn license-btn" data-plan="12m">Auswählen</button>
+        <button class="btn license-btn" data-plan="12m" data-i18n="shop.btn_select">Auswählen</button>
       </div>
       <div class="license-card" style="border-color: var(--success-green);">
         <div class="card-badge" style="background: var(--success-green);">LIFETIME</div>
         <div class="license-title">Unlimited Access</div>
         <div class="license-price" style="color: var(--success-green);">59,99 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Einmal zahlen, für immer nutzen. Kein Ablaufdatum.</div>
-        <button class="btn license-btn" data-plan="unlimited" style="border-color: var(--success-green); color: var(--success-green);">Auswählen</button>
+        <button class="btn license-btn" data-plan="unlimited" style="border-color: var(--success-green); color: var(--success-green);" data-i18n="shop.btn_select">Auswählen</button>
       </div>
     </div>
 
-    <h2>📦 Team Bundles</h2>
+    <h2 data-i18n="shop.cat_bundle">📦 Team Bundles</h2>
     <div class="license-grid">
       <div class="license-card">
         <div class="license-title">2x Keys (1 Monat)</div>
         <div class="license-price">3,79 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Ideal für Päärchen oder direkte Kommunikation.</div>
-        <button class="btn license-btn" data-plan="bundle_1m_2">Bundle Kaufen</button>
+        <button class="btn license-btn" data-plan="bundle_1m_2" data-i18n="shop.btn_bundle">Bundle Kaufen</button>
       </div>
       <div class="license-card">
         <div class="card-badge">-20%</div>
         <div class="license-title">5x Keys (3 Monate)</div>
         <div class="license-price">19,80 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Für kleine Teams oder Gruppen.</div>
-        <button class="btn license-btn" data-plan="bundle_3m_5">Bundle Kaufen</button>
+        <button class="btn license-btn" data-plan="bundle_3m_5" data-i18n="shop.btn_bundle">Bundle Kaufen</button>
       </div>
       <div class="license-card">
         <div class="license-title">2x Keys (3 Monate)</div>
         <div class="license-price">8,99 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Kleines Partner-Paket.</div>
-        <button class="btn license-btn" data-plan="bundle_3m_2">Bundle Kaufen</button>
+        <button class="btn license-btn" data-plan="bundle_3m_2" data-i18n="shop.btn_bundle">Bundle Kaufen</button>
       </div>
       
       <div class="license-card">
         <div class="card-badge">-37% BUSINESS</div>
         <div class="license-title">10x Keys (1 Jahr)</div>
         <div class="license-price">149,99 €</div>
-        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
+        <div style="font-size: 0.65rem; color: #888; margin-bottom: 10px;" data-i18n="shop.tax_note">Endpreis, keine Ausweisung der MwSt. nach § 19 UStG</div>
         <div class="license-desc">Komplettlösung für Abteilungen.</div>
-        <button class="btn license-btn" data-plan="bundle_1y_10">Bundle Kaufen</button>
+        <button class="btn license-btn" data-plan="bundle_1y_10" data-i18n="shop.btn_bundle">Bundle Kaufen</button>
       </div>
     </div>
 
         </div>
 
         <div class="info-box">
-            <h3 style="margin-bottom:20px; color:#fff;">ℹ️ Wichtige Informationen</h3>
+            <h3 style="margin-bottom:20px; color:#fff;" data-i18n="shop.info_title">ℹ️ Wichtige Informationen</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:40px;">
                 <div>
                     <ul>
-                        <li>Kein Abo: Der Zugang endet automatisch.</li>
-                        <li>Anonymität: Wir speichern keine persönlichen Daten außer der Zahlungs-ID.</li>
-                        <li>Gerätebindung: Ein Key gilt für EIN Endgerät.</li>
+                        <li data-i18n="shop.info_list_1">Kein Abo: Der Zugang endet automatisch.</li>
+                        <li data-i18n="shop.info_list_2">Anonymität: Wir speichern keine persönlichen Daten außer der Zahlungs-ID.</li>
+                        <li data-i18n="shop.info_list_3">Gerätebindung: Ein Key gilt für EIN Endgerät.</li>
                     </ul>
                 </div>
                 <div>
@@ -340,54 +340,54 @@
 
     <footer style="margin-top:60px; color:#555; font-size:0.8rem;">
         <div style="margin-bottom:10px;">
-            <a onclick="openModal('imprintModal')" style="cursor:pointer; margin:0 5px; color:#777;">Impressum</a> |
-            <a onclick="openModal('privacyModal')" style="cursor:pointer; margin:0 5px; color:#777;">Datenschutz</a> |
-            <a onclick="openModal('agbModal')" style="cursor:pointer; margin:0 5px; color:#777;">AGB</a>
+            <a onclick="openModal('imprintModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_imprint">Impressum</a> |
+            <a onclick="openModal('privacyModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_privacy">Datenschutz</a> |
+            <a onclick="openModal('agbModal')" style="cursor:pointer; margin:0 5px; color:#777;" data-i18n="landing.footer_agb">AGB</a>
         </div>
-        &copy; 2025 Secure Messages | <a href="mailto:support@secure-msg.app" style="color:#777;">Support</a>
+        <span data-i18n="landing.rights_reserved">&copy; 2025 Secure Messages. All rights reserved.</span>
     </footer>
   </div>
 
   <div class="status-container" id="payment-status-section">
       
       <div id="status-processing">
-          <h2>Zahlung wird verifiziert</h2>
+          <h2 data-i18n="shop.status_processing">Zahlung wird verifiziert</h2>
           <div class="spinner"></div>
-          <p style="color:var(--text-muted)">Bitte schließen Sie dieses Fenster nicht...</p>
+          <p style="color:var(--text-muted)" data-i18n="shop.status_wait">Bitte schließen Sie dieses Fenster nicht...</p>
       </div>
 
       <div id="status-success" style="display:none;">
-          <h2 style="color:var(--success-green); margin-bottom:20px;">✅ KAUF ERFOLGREICH</h2>
-          <p>Vielen Dank. Hier sind Ihre Zugangsdaten:</p>
+          <h2 style="color:var(--success-green); margin-bottom:20px;" data-i18n="shop.status_success">✅ KAUF ERFOLGREICH</h2>
+          <p data-i18n="shop.status_thanks">Vielen Dank. Hier sind Ihre Zugangsdaten:</p>
           
           <div id="keys-output-area"></div>
 
-          <p style="color: #ffcc00; font-size:0.8rem; margin-top:20px;">⚠️ BITTE SOFORT KOPIEREN & SPEICHERN</p>
+          <p style="color: #ffcc00; font-size:0.8rem; margin-top:20px;" data-i18n="shop.status_warning">⚠️ BITTE SOFORT KOPIEREN & SPEICHERN</p>
           
           <div style="margin-top:30px; display:flex; flex-direction:column; gap:10px;">
-              <a href="/app?action=activate" class="btn">🚀 Jetzt Key Aktivieren</a>
-              <a href="/shop" style="color:var(--text-muted); font-size:0.8rem; margin-top:10px; text-decoration:none;">Zurück zum Shop</a>
+              <a href="/app?action=activate" class="btn" data-i18n="shop.btn_activate_now">🚀 Jetzt Key Aktivieren</a>
+              <a href="/shop" style="color:var(--text-muted); font-size:0.8rem; margin-top:10px; text-decoration:none;" data-i18n="shop.back_btn">Zurück zum Shop</a>
           </div>
       </div>
 
       <div id="status-error" style="display:none;">
-          <h2 style="color:var(--error-red)">❌ Fehler aufgetreten</h2>
-          <p id="error-message" style="margin:20px 0;">Zahlung konnte nicht zugeordnet werden.</p>
-          <a href="/shop" class="btn" style="border-color:var(--error-red); color:var(--error-red);">Zurück versuchen</a>
+          <h2 style="color:var(--error-red)" data-i18n="shop.status_error">❌ Fehler aufgetreten</h2>
+          <p id="error-message" style="margin:20px 0;" data-i18n="shop.msg_error">Zahlung konnte nicht zugeordnet werden.</p>
+          <a href="/shop" class="btn" style="border-color:var(--error-red); color:var(--error-red);" data-i18n="shop.btn_retry">Zurück versuchen</a>
       </div>
   </div>
 
   <div id="modalOverlay" class="modal-overlay" style="display:none;">
       <div class="modal-box">
-          <h2 style="margin-bottom:5px;">Kauf bestätigen</h2>
+          <h2 style="margin-bottom:5px;" data-i18n="shop.modal_confirm">Kauf bestätigen</h2>
           <p id="modalPlan" style="color:var(--accent-blue); font-size:1.1rem;"></p>
           <p id="modalPrice" style="font-size:1.5rem; font-weight:bold; margin-bottom:20px; font-family:'Roboto Mono'"></p>
 
-          <label style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Ihre E-Mail (für Backup)</label>
+          <label style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="shop.label_email">Ihre E-Mail (für Backup)</label>
           <input type="email" id="emailInput" class="modal-input" placeholder="name@beispiel.de">
 
-          <button id="confirmPurchaseBtn" class="btn" style="width:100%; background:var(--accent-blue); color:#000;">ZUR KASSE (STRIPE)</button>
-          <button id="closeModalBtn" class="btn" style="width:100%; background:transparent; border:none; color:var(--text-muted); margin-top:10px;">Abbrechen</button>
+          <button id="confirmPurchaseBtn" class="btn" style="width:100%; background:var(--accent-blue); color:#000;" data-i18n="shop.btn_checkout">ZUR KASSE (STRIPE)</button>
+          <button id="closeModalBtn" class="btn" style="width:100%; background:transparent; border:none; color:var(--text-muted); margin-top:10px;" data-i18n="app.btn_cancel">Abbrechen</button>
       </div>
   </div>
 
@@ -568,6 +568,7 @@
         }
     </script>
 
+  <script src="translations.js"></script>
   <script src="store.js"></script>
   <script src="https://js.stripe.com/v3/"></script>
 </body>
