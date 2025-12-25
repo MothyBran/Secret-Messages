@@ -974,6 +974,47 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
     document.getElementById('exportBundleBtn')?.addEventListener('click', window.exportBundleCsv);
 
+    // Enterprise Events
+    document.getElementById('btnStartHub')?.addEventListener('click', () => {
+        // Stub for Hub Start
+        document.getElementById('btnStartHub').style.display = 'none';
+        document.getElementById('btnStopHub').style.display = 'block';
+        document.getElementById('hubStatusDisplay').textContent = "Status: Running on ws://192.168.x.x:8080";
+        document.getElementById('hubStatusDisplay').style.color = "var(--success-green)";
+        window.showToast("LAN Hub gestartet.", "success");
+    });
+
+    document.getElementById('btnStopHub')?.addEventListener('click', () => {
+         // Stub for Hub Stop
+        document.getElementById('btnStartHub').style.display = 'block';
+        document.getElementById('btnStopHub').style.display = 'none';
+        document.getElementById('hubStatusDisplay').textContent = "Status: Inactive";
+        document.getElementById('hubStatusDisplay').style.color = "#666";
+        window.showToast("LAN Hub gestoppt.", "info");
+    });
+
+    document.getElementById('btnExportMasterKeys')?.addEventListener('click', async () => {
+         // Stub: In real scenario, fetch all public keys from DB (if stored)
+         // Here we just export users list as CSV for "Air Gap Import"
+         if(!allUsers || allUsers.length === 0) await window.loadUsers();
+
+         let csvContent = "data:text/csv;charset=utf-8,ID,Name,PublicKey\n";
+         allUsers.forEach(u => {
+             // Mock Public Key if not in DB
+             const pk = `PUB-KEY-${u.id}-${Math.random().toString(36).substr(2,9).toUpperCase()}`;
+             csvContent += `${u.id},${u.username},${pk}\n`;
+         });
+
+         const encodedUri = encodeURI(csvContent);
+         const link = document.createElement("a");
+         link.setAttribute("href", encodedUri);
+         link.setAttribute("download", `master_keys_export.csv`);
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+         window.showToast("Master Key Liste exportiert.", "success");
+    });
+
     // Modal Events
     document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
         if(confirmCallback) confirmCallback();

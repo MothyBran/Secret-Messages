@@ -546,6 +546,57 @@ app.post('/api/auth/check-license', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Serverfehler' }); }
 });
 
+app.post('/api/auth/activate-offline', async (req, res) => {
+    const { licenseKey, deviceId } = req.body;
+    if (!licenseKey || !deviceId) return res.status(400).json({ error: 'Daten unvollständig.' });
+
+    try {
+        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
+        if(keyRes.rows.length === 0) return res.status(404).json({ error: 'Key ungültig' });
+        const key = keyRes.rows[0];
+
+        // Check if Lifetime/Unlimited
+        const pc = (key.product_code || '').toLowerCase();
+        if(!pc.includes('unl') && !pc.includes('life')) {
+            return res.status(403).json({ error: 'Nur Lifetime/Unlimited Lizenzen unterstützen den Offline-Modus.' });
+        }
+
+        // Check if Key is already active/used
+        const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
+
+        // Allowed if active AND device matches (Re-Sync) OR not active
+        if (isActive) {
+             // Find user to check device
+             // Note: server.js doesn't strictly store device_id on license_keys table, but on users table.
+             // We need to join.
+             const userRes = await dbQuery('SELECT allowed_device_id FROM users WHERE license_key_id = $1', [key.id]);
+             if (userRes.rows.length > 0) {
+                 const u = userRes.rows[0];
+                 if (u.allowed_device_id && u.allowed_device_id !== deviceId) {
+                     return res.status(403).json({ error: 'Lizenz bereits an ein anderes Gerät gebunden.' });
+                 }
+             }
+        }
+
+        // Generate Certificate
+        // In a real scenario, this would be signed with a Private Key only the server knows.
+        // For this architecture, we generate a JSON object with a signature hash.
+        const certData = {
+            licenseKey: key.key_code,
+            deviceId: deviceId,
+            type: 'offline_unlimited',
+            issuedAt: new Date().toISOString(),
+            // Mock signature
+            signature: crypto.createHmac('sha256', JWT_SECRET).update(key.key_code + deviceId + 'offline').digest('hex')
+        };
+
+        res.json({ success: true, certificate: certData });
+    } catch (e) {
+        console.error("Offline Activation Error:", e);
+        res.status(500).json({ error: 'Serverfehler: ' + e.message });
+    }
+});
+
 app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
     try {
         const { newAccessCode } = req.body;
