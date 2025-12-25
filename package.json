@@ -2,10 +2,12 @@
   "name": "secret-messages-backend",
   "version": "2.0.0",
   "description": "Backend for Secret Messages Encryption App with User Authentication",
-  "main": "server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "electron .",
+    "start:server": "node server.js",
     "dev": "nodemon server.js",
+    "dist": "electron-builder --win",
     "setup": "node scripts/setup.js",
     "migrate": "node migrate-to-user-auth.js",
     "generate-keys": "node scripts/generate-keys.js",
@@ -16,6 +18,7 @@
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
     "bcrypt": "^5.1.1",
+    "better-sqlite3": "^9.4.0",
     "body-parser": "^2.2.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -37,6 +40,8 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
@@ -66,5 +71,11 @@
     "testEnvironment": "node",
     "collectCoverage": true,
     "coverageDirectory": "coverage"
+  },
+  "build": {
+    "appId": "com.secret-messages.app",
+    "win": {
+      "target": "nsis"
+    }
   }
 }

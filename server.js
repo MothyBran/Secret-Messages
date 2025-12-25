@@ -89,7 +89,7 @@ app.use(helmet({
       scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com", "ws://localhost:8080"],
       imgSrc: ["'self'", "data:", "https:"]
     }
   }
@@ -1396,6 +1396,11 @@ app.get('*', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on Port ${PORT}`);
-});
+// Modifiziert für Electron Integration
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on Port ${PORT}`);
+    });
+}
+
+module.exports = { app, startServer: (port) => app.listen(port || PORT, () => console.log(`🚀 Electron Server running on Port ${port || PORT}`)) };
