@@ -7,7 +7,7 @@
     "start": "node server.js",
     "desktop": "electron .",
     "dev": "nodemon server.js",
-    "dist": "electron-builder --win --x64",
+    "dist": "electron-builder --win --x64 --publish never",
     "setup": "node scripts/setup.js",
     "migrate": "node migrate-to-user-auth.js",
     "generate-keys": "node scripts/generate-keys.js",
