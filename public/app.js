@@ -67,18 +67,23 @@ const StorageAdapter = {
         }
 
         const label = document.getElementById('app-mode-label');
+        const lanInput = document.getElementById('lan_config');
+
         if(this.mode === 'cloud') {
             bar.style.background = 'var(--accent-blue)';
             label.textContent = 'MODE: CLOUD';
             label.style.color = 'var(--accent-blue)';
+            if(lanInput) lanInput.style.display = 'none';
         } else if (this.mode === 'hub') {
             bar.style.background = '#00ff88'; // Green
-            label.textContent = 'MODE: LAN-HUB';
+            label.innerHTML = 'MODE: LAN-SERVER <span style="animation:pulse 1.5s infinite">●</span>';
             label.style.color = '#00ff88';
+            if(lanInput) lanInput.style.display = 'block';
         } else {
             bar.style.background = '#ff3333'; // Red
             label.textContent = 'MODE: AIR-GAPPED';
             label.style.color = '#ff3333';
+            if(lanInput) lanInput.style.display = 'none';
         }
     }
 };
@@ -111,6 +116,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupUIEvents();
     
+    // Enterprise License Check
+    const storedLic = localStorage.getItem('sm_exp');
+    if (storedLic && (storedLic.includes('unlimited') || storedLic.includes('Enterprise'))) {
+        document.getElementById('itAdminLink').style.display = 'block';
+    }
+
     // URL Check (Kauf-Rückkehr)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('action') === 'activate') {

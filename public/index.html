@@ -405,7 +405,7 @@
         <div id="loginSection" class="section active">
             <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
             <form id="loginForm" autocomplete="off">
-                <div class="input-group">
+            <div class="input-group">
                     <label class="input-label">Benutzername</label>
                     <input type="text" id="u_ident_entry" name="u_ident_entry" class="input-field" placeholder="USER.ID" required autocomplete="off" spellcheck="false">
                 </div>
@@ -413,7 +413,18 @@
                     <label class="input-label">Zugangscode</label>
                     <input type="password" id="u_key_secure" name="u_key_secure" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false">
                 </div>
+
+            <!-- LAN HUB IP Input (Hidden by default, shown if Mode != Cloud) -->
+            <div id="lan_config" class="input-group" style="display:none; margin-top:15px; border-top:1px solid #333; padding-top:15px;">
+                <label class="input-label" style="color:#00ff88;">LAN HUB IP</label>
+                <input type="text" id="lan_hub_ip" class="input-field" placeholder="192.168.x.x" style="color:#00ff88; border-color:#00ff88;">
+            </div>
+
                 <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
+
+            <div id="itAdminLink" style="text-align:center; margin-top:15px; display:none;">
+                <a href="/it-admin.html" style="color:gold; font-size:0.8rem; text-decoration:none;">🛠️ IT ADMIN PANEL</a>
+            </div>
             </form>
             <div style="text-align:center; margin-top:20px;">
                 <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>

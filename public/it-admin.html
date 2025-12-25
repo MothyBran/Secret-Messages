@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECURE MESSAGES - Local IT Admin</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/admin-mail.css">
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --bg-panel: #0f1215;
+            --accent-blue: #00BFFF;
+            --accent-glow: rgba(0, 191, 255, 0.3);
+            --text-main: #e0e0e0;
+            --text-muted: #8899a6;
+            --border-color: #333;
+            --success-green: #00ff88;
+            --error-red: #ff3333;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Rajdhani', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        #login-view {
+            display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+        .login-box {
+            background: var(--bg-panel);
+            padding: 40px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            width: 100%; max-width: 400px;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .login-box h1 { margin-bottom: 20px; color: var(--accent-blue); }
+        input[type="password"] {
+            width: 100%; padding: 12px;
+            background: #000; border: 1px solid var(--border-color);
+            color: #fff; margin-bottom: 20px; font-family: 'Roboto Mono';
+            text-align: center; letter-spacing: 3px;
+        }
+        button.btn-login {
+            width: 100%; padding: 12px;
+            background: var(--accent-blue); border: none;
+            color: #000; font-weight: bold; cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        #dashboard-view { display: none; padding-bottom: 50px; }
+
+        header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .brand { font-size: 1.5rem; font-weight: 700; color: #fff; letter-spacing: 1px; }
+
+        .section-title {
+            font-size: 1.5rem; margin-bottom: 20px; color: #fff; border-left: 4px solid var(--accent-blue); padding-left: 15px;
+            margin-top: 30px;
+        }
+
+        .status-bar {
+            position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #00ff88; z-index: 9999;
+        }
+        .status-label {
+            position: fixed; top: 5px; right: 10px; background: rgba(0,0,0,0.7); padding: 2px 6px;
+            border-radius: 4px; font-size: 0.7rem; color: #00ff88; z-index: 9999; pointer-events: none;
+        }
+
+        .panel-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;
+            max-width: 1200px; margin: 30px auto; padding: 0 20px;
+        }
+        .panel-card {
+            background: var(--bg-panel); border: 1px solid #333; padding: 30px; border-radius: 8px;
+        }
+
+        .btn-action {
+            background: var(--accent-blue); border: none; color: #000; padding: 10px 20px; font-weight: bold; cursor: pointer;
+            width: 100%; margin-top: 10px; text-transform: uppercase;
+        }
+        .btn-action:hover { opacity: 0.9; }
+
+        #toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 10000;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+        }
+        .toast {
+            background: rgba(15, 18, 21, 0.95);
+            color: var(--text-main);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-blue);
+            min-width: 250px;
+            opacity: 0; transform: translateX(50px); transition: all 0.3s; pointer-events: auto;
+            display: flex; gap: 10px; align-items: center;
+        }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast.success { border-left-color: var(--success-green); }
+
+        .pulsing { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="status-bar" class="status-bar"></div>
+    <div id="status-label" class="status-label">MODE: LAN-SERVER</div>
+
+    <div id="toast-container"></div>
+
+    <!-- 1. LOGIN -->
+    <div id="login-view">
+        <form id="itLoginForm" class="login-box">
+            <h1>LOCAL IT ADMIN</h1>
+            <p style="color:#666; margin-bottom:20px;">Enterprise License Required</p>
+            <input type="password" id="itPasswordInput" placeholder="LOCAL ADMIN PASSWORD" required>
+            <button type="submit" class="btn-login">Access Control</button>
+        </form>
+    </div>
+
+    <!-- 2. DASHBOARD -->
+    <div id="dashboard-view">
+        <header>
+            <div class="brand">SECURE MSG <span style="color:#00ff88; font-size:0.8rem;">// IT ADMIN</span></div>
+            <button id="logoutBtn" style="background:#222; border:1px solid #444; color:#fff; padding:5px 15px; cursor:pointer;">LOGOUT</button>
+        </header>
+
+        <div class="panel-grid">
+
+            <!-- HUB CONTROL -->
+            <div class="panel-card">
+                <h3 style="color:#fff; margin-bottom:15px;">Local LAN Hub <span id="hubIndicator" class="pulsing" style="color:#00ff88; display:none;">●</span></h3>
+                <p style="color:#888; margin-bottom:20px;">
+                    Zentraler Kommunikations-Server für das lokale Netzwerk. Clients verbinden sich via IP.
+                </p>
+                <button id="btnStartHub" class="btn-action">Start Hub Server</button>
+                <button id="btnStopHub" class="btn-action" style="background:#333; color:#fff; display:none;">Stop Server</button>
+                <div id="hubStatusText" style="margin-top:15px; font-family:'Roboto Mono'; color:#666;">Status: Inactive</div>
+            </div>
+
+            <!-- EMPLOYEE IMPORT -->
+            <div class="panel-card">
+                <h3 style="color:#fff; margin-bottom:15px;">Mitarbeiter Import</h3>
+                <p style="color:#888; margin-bottom:20px;">
+                    Importieren Sie Mitarbeiter-Listen (CSV) inkl. Public Keys für das lokale Verzeichnis.
+                </p>
+                <input type="file" id="employeeCsvInput" accept=".csv" style="margin-bottom:10px; color:#fff;">
+                <button id="btnImportEmployees" class="btn-action" style="background:gold; color:#000;">Import CSV</button>
+            </div>
+
+            <!-- KEY EXPORT -->
+            <div class="panel-card">
+                <h3 style="color:#fff; margin-bottom:15px;">Master Key Export</h3>
+                <p style="color:#888; margin-bottom:20px;">
+                    Generieren Sie eine Master-Liste aller bekannten Public Keys für Offline-Clients.
+                </p>
+                <button id="btnExportKeys" class="btn-action" style="border:1px solid var(--accent-blue); background:transparent; color:var(--accent-blue);">Download .CSV</button>
+            </div>
+
+            <!-- DEVICE RESET -->
+            <div class="panel-card">
+                <h3 style="color:#fff; margin-bottom:15px;">Device Reset</h3>
+                <p style="color:#888; margin-bottom:20px;">
+                    Setzen Sie die Hardware-Bindung für einen Mitarbeiter zurück.
+                </p>
+                <input type="text" id="resetUserId" placeholder="User ID / Username" style="width:100%; padding:10px; background:#000; border:1px solid #333; color:#fff; margin-bottom:10px;">
+                <button id="btnResetDevice" class="btn-action" style="background:#333; color:#fff; border:1px solid #555;">Reset Binding</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="/it-admin.js"></script>
+</body>
+</html>
