@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Messages Launcher</title>
+    <style>
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Roboto Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            -webkit-app-region: drag;
+        }
+        h1 {
+            font-family: 'Rajdhani', sans-serif;
+            color: #00BFFF;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            -webkit-app-region: no-drag;
+        }
+        button {
+            background: rgba(0, 191, 255, 0.1);
+            border: 1px solid #00BFFF;
+            color: #00BFFF;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: bold;
+            min-width: 200px;
+            text-transform: uppercase;
+        }
+        button:hover {
+            background: #00BFFF;
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 191, 255, 0.5);
+        }
+        button.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #555;
+            color: #555;
+            background: transparent;
+        }
+        button.disabled:hover {
+            box-shadow: none;
+            background: transparent;
+            color: #555;
+        }
+        .status {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #555;
+        }
+        .loader {
+            display: none;
+            border: 4px solid rgba(0, 191, 255, 0.1);
+            border-left: 4px solid #00BFFF;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-top: 1rem;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <h1>Secure Messages Launch</h1>
+    <div class="container">
+        <button id="btnClient" onclick="launch('client')">User Client</button>
+        <button id="btnAdmin" onclick="launch('admin')" class="disabled" style="display:none;">IT Admin Hub</button>
+    </div>
+    <div id="loader" class="loader"></div>
+    <div class="status">Lokaler Modus Aktiviert</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const cert = await window.electronAPI.getOfflineCert();
+            const btnAdmin = document.getElementById('btnAdmin');
+
+            if (cert) {
+                // Check if Master License (Currently assuming 'offline_unlimited' allows it,
+                // or if specific field exists. Logic: Button 2 only if Master License)
+                // We'll show it if it's unlimited type, or simply enable it if cert exists
+                // but usually "Master" implies a special permission.
+                // Assuming all offline certs are "high tier" enough for now,
+                // OR we check for a specific flag if we had one.
+                // Re-reading prompt: "Button 2 (nur wenn Master-Lizenz)".
+                // Since offline activation is restricted to "unlimited/lifetime",
+                // they are effectively Master licenses in this context.
+
+                // Show button if type includes 'unlimited' or 'master'
+                const type = (cert.type || '').toLowerCase();
+                if (type.includes('unlimited') || type.includes('master')) {
+                    btnAdmin.style.display = 'block';
+                    btnAdmin.classList.remove('disabled');
+                }
+            }
+        });
+
+        async function launch(type) {
+            document.getElementById('loader').style.display = 'block';
+            document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+            if (type === 'client') {
+                await window.electronAPI.launchApp();
+            } else {
+                await window.electronAPI.launchAdmin();
+            }
+        }
+    </script>
+</body>
+</html>

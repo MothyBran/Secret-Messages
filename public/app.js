@@ -138,7 +138,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // URL Consistency Check
     if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
-        showToast("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
+        // Suppress warning if in Electron (local)
+        if (!window.electronAPI) {
+            showToast("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
+        }
     }
 
     // Wartungsmodus Check (Initial)
@@ -1156,6 +1159,17 @@ async function handleActivation(e) {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
         if(d.success) {
+            // Check if user is trying to activate OFFLINE via app
+            // Usually desktop app would use offline activation endpoint if "Local Mode"
+            // But this is standard web activation.
+
+            // --- NEW: Check for Offline Certificate ---
+            if (window.electronAPI && d.certificate) {
+                // If the backend returns a certificate (it currently doesn't for standard /activate)
+                // We might need to call /activate-offline separately or update /activate.
+                // But typically offline activation is a separate flow.
+            }
+
             showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success');
             showSection('loginSection');
             document.getElementById('u_ident_entry').value = payload.username;
