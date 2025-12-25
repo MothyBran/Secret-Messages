@@ -22,10 +22,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Rebuild native modules (sqlite3) for Electron
-      - name: Rebuild native modules
-        run: npm run rebuild
-
       - name: Build Windows .exe
         run: npm run dist
 
