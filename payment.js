@@ -24,7 +24,10 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql'))
     // Fallback für Local Mode (NeDB) - Mock Pool für Kompatibilität
     // Wenn Shop lokal läuft (unwahrscheinlich aber der Code muss kompilieren)
     const Datastore = require('nedb-promises');
-    const dbPath = './data';
+    const fs = require('fs');
+
+    let dbPath = './data';
+    if (!fs.existsSync(dbPath)){ fs.mkdirSync(dbPath); }
 
     nedb.payments = Datastore.create({ filename: path.join(dbPath, 'payments.db'), autoload: true });
     nedb.license_keys = Datastore.create({ filename: path.join(dbPath, 'license_keys.db'), autoload: true });

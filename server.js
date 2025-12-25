@@ -812,7 +812,7 @@ app.get('/api/admin/keys', requireAdmin, async (req, res) => {
 });
 
 app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
-    const keyId = req.params.id;
+    const keyId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     const { expires_at, user_id, product_code } = req.body;
     try {
         if(isPostgreSQL) {
@@ -856,7 +856,7 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
 });
 
 app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
-    const keyId = req.params.id;
+    const keyId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         if(isPostgreSQL) {
             await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
@@ -1009,31 +1009,34 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         if(isPostgreSQL) {
-            await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [req.params.id]);
+            await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [uid]);
         } else {
-            await nedb.users.update({ id: req.params.id }, { $set: { is_blocked: true } });
+            await nedb.users.update({ id: uid }, { $set: { is_blocked: true } });
         }
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
 app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     if(isPostgreSQL) {
-        await dbQuery(`UPDATE users SET is_blocked = false WHERE id = $1`, [req.params.id]);
+        await dbQuery(`UPDATE users SET is_blocked = false WHERE id = $1`, [uid]);
     } else {
-        await nedb.users.update({ id: req.params.id }, { $set: { is_blocked: false } });
+        await nedb.users.update({ id: uid }, { $set: { is_blocked: false } });
     }
     res.json({ success: true });
 });
 
 app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         if(isPostgreSQL) {
-            await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
+            await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [uid]);
         } else {
-            await nedb.users.update({ id: req.params.id }, { $set: { allowed_device_id: null } });
+            await nedb.users.update({ id: uid }, { $set: { allowed_device_id: null } });
         }
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
@@ -1086,7 +1089,7 @@ app.get('/api/admin/support-tickets', requireAdmin, async (req, res) => {
 // Update Ticket Status (Viewed/Open)
 app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) => {
     const { status } = req.body;
-    const ticketId = req.params.id;
+    const ticketId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         let ticket_id;
         if(isPostgreSQL) {
@@ -1096,7 +1099,7 @@ app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) 
             await dbQuery("UPDATE support_tickets SET status = $1 WHERE id = $2", [status, ticketId]);
             if (ticket_id) await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
         } else {
-            const t = await nedb.support_tickets.findOne({ id: ticketId }); // or _id logic if needed, assume id
+            const t = await nedb.support_tickets.findOne({ id: ticketId });
             if(!t) return res.status(404).json({ error: "Ticket not found" });
             ticket_id = t.ticket_id;
             await nedb.support_tickets.update({ id: ticketId }, { $set: { status } });
@@ -1108,7 +1111,7 @@ app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) 
 
 app.patch('/api/admin/messages/:id/status', requireAdmin, async (req, res) => {
     const { status } = req.body;
-    const ticketId = req.params.id;
+    const ticketId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         // Logic same as PUT
         if(isPostgreSQL) {
@@ -1128,7 +1131,7 @@ app.patch('/api/admin/messages/:id/status', requireAdmin, async (req, res) => {
 });
 
 app.delete('/api/admin/messages/:id', requireAdmin, async (req, res) => {
-    const ticketId = req.params.id;
+    const ticketId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         if(isPostgreSQL) {
             const ticketRes = await dbQuery("SELECT ticket_id FROM support_tickets WHERE id = $1", [ticketId]);
@@ -1147,7 +1150,7 @@ app.delete('/api/admin/messages/:id', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) => {
-    const ticketDbId = req.params.id;
+    const ticketDbId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     const { message, username } = req.body;
     if (!message || !username) return res.status(400).json({ error: "Missing data" });
 
@@ -1186,11 +1189,12 @@ app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) 
 });
 
 app.delete('/api/admin/support-tickets/:id', requireAdmin, async (req, res) => {
+    const tid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     try {
         if(isPostgreSQL) {
-            await dbQuery(`DELETE FROM support_tickets WHERE id = $1`, [req.params.id]);
+            await dbQuery(`DELETE FROM support_tickets WHERE id = $1`, [tid]);
         } else {
-            await nedb.support_tickets.remove({ id: req.params.id }, {});
+            await nedb.support_tickets.remove({ id: tid }, {});
         }
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
