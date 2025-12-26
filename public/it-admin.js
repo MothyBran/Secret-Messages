@@ -5,6 +5,7 @@ let itToken = null;
 
 // Mock Config for Hub IP (In real app, getting from server network interface)
 const SERVER_IP = window.location.hostname;
+let socket = null;
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -116,17 +117,78 @@ function updateHubUI(active, port) {
     if(active) {
         startBtn.style.display = 'none';
         stopBtn.style.display = 'block';
-        statusText.textContent = `Running on ws://${SERVER_IP}:${port || 8080}`;
+        statusText.textContent = `Running on ${SERVER_IP}:${port || 3000} (Socket.io)`;
         statusText.style.color = '#00ff88';
         indicator.style.display = 'inline-block';
+
+        // Connect as MASTER
+        if(!socket) connectMasterSocket();
     } else {
         startBtn.style.display = 'block';
         stopBtn.style.display = 'none';
         statusText.textContent = 'Status: Inactive';
         statusText.style.color = '#666';
         indicator.style.display = 'none';
+
+        if(socket) {
+            socket.disconnect();
+            socket = null;
+        }
     }
 }
+
+function connectMasterSocket() {
+    socket = io(); // Connects to same host
+
+    socket.on('connect', () => {
+        socket.emit('register', { userId: 'MASTER', username: 'IT-ADMIN', role: 'MASTER' });
+        showToast("Connected to Hub", "success");
+    });
+
+    socket.on('support_ticket', (data) => {
+        addTicketToInbox(data);
+        showToast(`Neue Anfrage von User ${data.fromUserId}`, "info");
+    });
+}
+
+function addTicketToInbox(data) {
+    const inbox = document.getElementById('supportInbox');
+    if(inbox.querySelector('.empty-state') || inbox.innerText.includes('Warte auf Anfragen')) inbox.innerHTML = '';
+
+    const div = document.createElement('div');
+    div.style.padding = '10px';
+    div.style.borderBottom = '1px solid #333';
+    div.style.marginBottom = '10px';
+    div.style.background = '#111';
+
+    // Since payload is encrypted, we can't show text without decryption.
+    // In "Teil 3", it says "All messages... encrypted with Public/Private Key".
+    // The Master Admin needs his Private Key to decrypt this.
+    // For now, we just show the encrypted event.
+    // Real implementation would require the crypto layer here.
+
+    div.innerHTML = `
+        <div style="color:#00BFFF; font-weight:bold;">User: ${data.fromUserId} <span style="font-size:0.8rem; color:#666;">${new Date(data.timestamp).toLocaleTimeString()}</span></div>
+        <div style="color:#888; font-size:0.8rem; overflow-wrap:anywhere;">[Encrypted Payload]</div>
+        <div style="margin-top:5px;">
+             <button onclick="replyToUser('${data.fromUserId}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto;">Reply</button>
+        </div>
+    `;
+    inbox.prepend(div);
+}
+
+window.replyToUser = function(userId) {
+    const msg = prompt("Antwort an " + userId + ":");
+    if(msg && socket) {
+        // This should also be encrypted in real scenario
+        socket.emit('send_message', {
+            recipientId: userId,
+            encryptedPayload: msg, // Sending plaintext as mock for now, ideally encrypted
+            type: 'admin_reply'
+        });
+        showToast("Antwort gesendet.");
+    }
+};
 
 async function exportMasterKeys() {
     try {

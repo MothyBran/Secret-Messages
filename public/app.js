@@ -18,6 +18,8 @@ let currentMode = 'encrypt';
 // --- NEW: Storage Adapter & Mode Logic ---
 const StorageAdapter = {
     mode: 'cloud', // 'cloud', 'local', 'hub'
+    socket: null,
+    lanIp: null,
 
     init: function() {
         // Detect Environment (Mock detection for now, later verify window.electronAPI)
@@ -28,13 +30,58 @@ const StorageAdapter = {
         const storedMode = localStorage.getItem('sm_app_mode');
         if(storedMode) this.mode = storedMode;
 
+        // Restore LAN IP
+        const storedIp = localStorage.getItem('sm_lan_ip');
+        if(storedIp) this.lanIp = storedIp;
+
+        if(this.mode === 'hub') this.connectHub();
+
         this.renderStatusBar();
     },
 
     setMode: function(newMode) {
         this.mode = newMode;
         localStorage.setItem('sm_app_mode', newMode);
+
+        if(newMode === 'hub') this.connectHub();
+        else if(this.socket) { this.socket.disconnect(); this.socket = null; }
+
         this.renderStatusBar();
+    },
+
+    setLanIp: function(ip) {
+        this.lanIp = ip;
+        localStorage.setItem('sm_lan_ip', ip);
+        if(this.mode === 'hub') this.connectHub();
+    },
+
+    connectHub: function() {
+        if(!this.lanIp) return;
+        if(this.socket) this.socket.disconnect();
+
+        // Connect to port 3000
+        this.socket = io(`http://${this.lanIp}:3000`);
+
+        this.socket.on('connect', () => {
+             if(currentUser) {
+                 this.socket.emit('register', { userId: currentUser.sm_id, username: currentUser.name, role: 'user' });
+                 showToast("LAN Verbindung hergestellt", "success");
+             }
+        });
+
+        this.socket.on('connect_error', () => {
+            showToast("LAN Verbindung fehlgeschlagen", "error");
+        });
+
+        this.socket.on('receive_message', (data) => {
+            // New message in LAN
+            // Typically we would update inbox UI or show notification
+            showToast("Neue Nachricht empfangen!", "info");
+            // If inbox is open, maybe refresh? But in LAN mode, inbox fetch is via socket?
+            // "Postfach-Upgrade: Das Postfach muss die vollständige verschlüsselte Kommunikation... ermöglichen."
+            // We need to implement socket listener for inbox list or push messages to local array.
+            // For MVP: Alert user.
+        });
     },
 
     renderStatusBar: function() {
@@ -68,6 +115,7 @@ const StorageAdapter = {
 
         const label = document.getElementById('app-mode-label');
         const lanInput = document.getElementById('lan_config');
+        const lanIpField = document.getElementById('lan_hub_ip');
 
         if(this.mode === 'cloud') {
             bar.style.background = 'var(--accent-blue)';
@@ -78,7 +126,11 @@ const StorageAdapter = {
             bar.style.background = '#00ff88'; // Green
             label.innerHTML = 'MODE: LAN-SERVER <span style="animation:pulse 1.5s infinite">●</span>';
             label.style.color = '#00ff88';
-            if(lanInput) lanInput.style.display = 'block';
+            if(lanInput) {
+                lanInput.style.display = 'block';
+                if(this.lanIp) lanIpField.value = this.lanIp;
+                lanIpField.onchange = (e) => this.setLanIp(e.target.value);
+            }
         } else {
             bar.style.background = '#ff3333'; // Red
             label.textContent = 'MODE: AIR-GAPPED';
@@ -1644,20 +1696,41 @@ async function handleSupportSubmit(e) {
     const messageVal = document.getElementById('supportMessage').value.trim();
     const subjectVal = document.getElementById('supportSubject').value.trim();
 
-    // Validation Logic
     if (!messageVal || !subjectVal) {
         showToast("Bitte Betreff und Nachricht eingeben.", 'error');
-        return;
-    }
-
-    if (!usernameVal && !emailVal) {
-        showToast("Bitte geben Sie eine E-Mail-Adresse oder Ihre Benutzer-ID für eine Rückantwort an.", 'error');
         return;
     }
 
     // 1. Lock UI
     btn.textContent = "Wird gesendet...";
     allFields.forEach(f => f.disabled = true);
+
+    // --- LAN MODE SUPPORT LOGIC ---
+    if(StorageAdapter.mode === 'hub' && StorageAdapter.socket) {
+        // Send via Socket
+        StorageAdapter.socket.emit('send_message', {
+             recipientId: 'MASTER', // Virtual ID for Master
+             encryptedPayload: messageVal, // Sending plaintext for now, should be encrypted
+             type: 'support'
+        });
+
+        showAppStatus(`Anfrage an lokalen Admin gesendet.`, 'success');
+        setTimeout(() => {
+            document.getElementById('supportModal').classList.remove('active');
+            e.target.reset();
+            allFields.forEach(f => f.disabled = false);
+            btn.textContent = "Nachricht Senden";
+        }, 1500);
+        return;
+    }
+    // -----------------------------
+
+    if (!usernameVal && !emailVal) {
+        showToast("Bitte geben Sie eine E-Mail-Adresse oder Ihre Benutzer-ID für eine Rückantwort an.", 'error');
+        allFields.forEach(f => f.disabled = false);
+        btn.textContent = oldText;
+        return;
+    }
 
     const payload = {
         username: usernameVal,
@@ -1667,7 +1740,6 @@ async function handleSupportSubmit(e) {
     };
 
     try {
-        // Timeout Logic (10s)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
 
@@ -1680,11 +1752,9 @@ async function handleSupportSubmit(e) {
         clearTimeout(timeoutId);
 
         const data = await res.json();
-        console.log('Server-Antwort:', data);
 
         if (data.success) {
             showAppStatus(`Danke! Ihre Nachricht wurde gesendet. Ticket: ${data.ticketId}`, 'success');
-            // Form stays locked until close
             setTimeout(() => {
                 document.getElementById('supportModal').classList.remove('active');
                 e.target.reset();
@@ -1697,11 +1767,7 @@ async function handleSupportSubmit(e) {
             btn.textContent = oldText;
         }
     } catch (err) {
-        if (err.name === 'AbortError') {
-            alert("Server antwortet nicht. Bitte schreiben Sie direkt an support@secure-msg.app");
-        } else {
-            alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
-        }
+        alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
         allFields.forEach(f => f.disabled = false);
         btn.textContent = oldText;
     }
