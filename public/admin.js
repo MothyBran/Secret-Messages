@@ -398,6 +398,42 @@ window.sendTicketReply = async function(dbId, username) {
     btn.textContent = oldText; btn.disabled = false;
 };
 
+window.generateEnterpriseBundle = async function() {
+    const btn = document.getElementById('generateEntBundleBtn');
+    const oldText = btn.textContent;
+    btn.textContent = "Generiere..."; btn.disabled = true;
+
+    const payload = {
+        name: document.getElementById('entBundleName').value,
+        userCount: document.getElementById('entUserCount').value
+    };
+
+    if(!payload.name) {
+        window.showMessage("Info", "Bitte Firmen-Namen angeben.", true);
+        btn.textContent = oldText; btn.disabled = false;
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/generate-enterprise-bundle`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            window.showMessage("Erfolg", `Enterprise Bundle #${data.bundleId} erstellt (1 Master + ${payload.userCount} Users).`);
+            window.loadBundles();
+            window.loadKeys();
+        } else {
+            window.showMessage("Fehler", data.error || "Fehler beim Erstellen", true);
+        }
+    } catch(e) { window.showMessage("Fehler", "Netzwerkfehler", true); }
+
+    btn.textContent = oldText; btn.disabled = false;
+};
+
 window.loadMailTemplate = async function() {
     try {
         const res = await fetch(`${API_BASE}/settings/ticket_reply_template`, { headers: getHeaders() });
@@ -970,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshBundlesBtn')?.addEventListener('click', window.loadBundles);
     document.getElementById('refreshSupportBtn')?.addEventListener('click', window.loadSupportTickets);
     document.getElementById('generateBundleBtn')?.addEventListener('click', window.generateBundle);
+    document.getElementById('generateEntBundleBtn')?.addEventListener('click', window.generateEnterpriseBundle);
     document.getElementById('closeBundleModalBtn')?.addEventListener('click', () => document.getElementById('bundleDetailsModal').style.display='none');
     document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
     document.getElementById('exportBundleBtn')?.addEventListener('click', window.exportBundleCsv);

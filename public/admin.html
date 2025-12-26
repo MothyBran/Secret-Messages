@@ -415,6 +415,7 @@
             </h2>
 
              <div class="control-bar" style="background:#111; padding:15px; border:1px solid #333; border-radius:6px;">
+                <h4 style="color:#888; margin-right:15px;">Standard Bundle:</h4>
                 <input type="text" id="bundleName" placeholder="Kunden-Name (z.B. Firma X)" style="width:200px;">
                 <select id="bundleProduct">
                     <option value="12m">1 Jahr</option>
@@ -426,6 +427,16 @@
                 <input type="number" id="bundleCount" value="10" min="1" style="width:70px;" placeholder="Anzahl">
 
                 <button id="generateBundleBtn" class="btn-action" style="background:gold;">Bundle Erstellen</button>
+            </div>
+
+            <!-- NEW: ENTERPRISE BUNDLE TOOL -->
+            <div class="control-bar" style="background:#111; padding:15px; border:1px solid #333; border-radius:6px; border-left: 4px solid var(--accent-blue);">
+                <h4 style="color:#888; margin-right:15px;">Enterprise Bundle (Master + Users):</h4>
+                <input type="text" id="entBundleName" placeholder="Firmen-Name" style="width:250px;">
+                <input type="number" id="entUserCount" value="5" min="1" style="width:100px;" placeholder="Anzahl User">
+
+                <button id="generateEntBundleBtn" class="btn-action" style="background:var(--accent-blue); color:#000;">Enterprise Bundle Generieren</button>
+                <small style="color:#666; margin-left:10px;">(Erstellt 1x MASTER + X Users)</small>
             </div>
 
             <div class="table-container">
