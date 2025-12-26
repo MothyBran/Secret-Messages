@@ -1707,20 +1707,36 @@ async function handleSupportSubmit(e) {
 
     // --- LAN MODE SUPPORT LOGIC ---
     if(StorageAdapter.mode === 'hub' && StorageAdapter.socket) {
-        // Send via Socket
-        StorageAdapter.socket.emit('send_message', {
-             recipientId: 'MASTER', // Virtual ID for Master
-             encryptedPayload: messageVal, // Sending plaintext for now, should be encrypted
-             type: 'support'
-        });
+        // Send via Socket (Encrypted)
+        try {
+            const code = prompt("Bitte 5-stelligen Sicherheits-Code für diese Nachricht eingeben:");
+            if(!code || code.length !== 5) {
+                btn.textContent = oldText;
+                allFields.forEach(f => f.disabled = false);
+                return showToast("Code erforderlich.", 'error');
+            }
 
-        showAppStatus(`Anfrage an lokalen Admin gesendet.`, 'success');
-        setTimeout(() => {
-            document.getElementById('supportModal').classList.remove('active');
-            e.target.reset();
+            // Encrypt for 'MASTER'
+            const encrypted = await encryptFull(messageVal, code, ['MASTER'], currentUser.name);
+
+            StorageAdapter.socket.emit('send_message', {
+                 recipientId: 'MASTER',
+                 encryptedPayload: encrypted,
+                 type: 'support'
+            });
+
+            showAppStatus(`Verschlüsselte Anfrage gesendet.`, 'success');
+            setTimeout(() => {
+                document.getElementById('supportModal').classList.remove('active');
+                e.target.reset();
+                allFields.forEach(f => f.disabled = false);
+                btn.textContent = "Nachricht Senden";
+            }, 1500);
+        } catch(e) {
+            showAppStatus("Verschlüsselungsfehler: " + e.message, 'error');
+            btn.textContent = oldText;
             allFields.forEach(f => f.disabled = false);
-            btn.textContent = "Nachricht Senden";
-        }, 1500);
+        }
         return;
     }
     // -----------------------------
@@ -1984,23 +2000,31 @@ function updatePostboxUI(unreadCount) {
 }
 
 async function checkUnreadMessages() {
-    if(!currentUser || !authToken) return;
-    try {
-        const res = await fetch(`${API_BASE}/messages`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const msgs = await res.json();
+    if(!currentUser) return;
 
-        // 1. Personal Unread
-        const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
+    // LAN Mode Override or Merge
+    let totalUnread = 0;
 
-        // 2. Broadcast Unread (Local Check)
-        const readBroadcasts = getReadBroadcasts();
-        const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
+    // 1. Fetch Cloud Messages (if online/cloud mode)
+    if(authToken && StorageAdapter.mode !== 'airgap') {
+        try {
+            const res = await fetch(`${API_BASE}/messages`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const msgs = await res.json();
+            const readBroadcasts = getReadBroadcasts();
+            const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
+            const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
+            totalUnread += (unreadPersonal + unreadBroadcasts);
+        } catch(e) {}
+    }
 
-        updatePostboxUI(unreadPersonal + unreadBroadcasts);
+    // 2. LAN Messages (Session Storage)
+    const lanMsgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+    const lanUnread = lanMsgs.filter(m => !m.is_read).length;
+    totalUnread += lanUnread;
 
-    } catch(e) { console.error("Msg Check Failed", e); }
+    updatePostboxUI(totalUnread);
 }
 
 async function loadAndShowInbox() {
@@ -2010,142 +2034,165 @@ async function loadAndShowInbox() {
     container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>';
     emptyMsg.style.display = 'none';
 
-    try {
-        const res = await fetch(`${API_BASE}/messages`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const msgs = await res.json();
+    let allMsgs = [];
 
-        // Count logic matching checkUnreadMessages
-        const readBroadcasts = getReadBroadcasts();
-        const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
-        const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
+    // 1. Cloud Fetch
+    if(authToken && StorageAdapter.mode !== 'airgap') {
+        try {
+            const res = await fetch(`${API_BASE}/messages`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const cloudMsgs = await res.json();
+            allMsgs = allMsgs.concat(cloudMsgs);
+        } catch(e) {}
+    }
 
-        updatePostboxUI(unreadPersonal + unreadBroadcasts);
+    // 2. LAN Fetch
+    const lanMsgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+    allMsgs = allMsgs.concat(lanMsgs);
 
-        container.innerHTML = '';
+    // Sort
+    allMsgs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-        if(msgs.length === 0) {
-            emptyMsg.style.display = 'block';
-            return;
+    // Update UI Count
+    checkUnreadMessages();
+
+    container.innerHTML = '';
+
+    if(allMsgs.length === 0) {
+        emptyMsg.style.display = 'block';
+        return;
+    }
+
+    const readBroadcasts = getReadBroadcasts();
+
+    allMsgs.forEach(m => {
+        const el = document.createElement('div');
+
+        const isLan = !!m.is_lan;
+        const isPersonal = !!m.recipient_id;
+        const isBroadcast = !isPersonal;
+
+        // Unread Logic
+        const isUnread = isLan ? !m.is_read : ((isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id)));
+
+        const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply' || m.type === 'admin_reply');
+
+        let classes = 'msg-card';
+        if(isUnread) classes += ' unread';
+        if(m.type === 'automated') classes += ' type-automated';
+        if(m.type === 'support') classes += ' type-support';
+        if(isTicket) classes += ' type-ticket';
+        if(isLan) classes += ' type-lan';
+
+        let icon = '📩';
+        if(m.type === 'automated') icon = '⚠️';
+        else if(m.type === 'support') icon = '💬';
+        else if(isTicket) icon = '🎫';
+        else if(!isPersonal) icon = '📢';
+        if(isLan) icon = '🖥️'; // LAN Icon
+
+        // --- TICKET BADGE LOGIC ---
+        let badgeHtml = '';
+        if (m.type === 'ticket' && m.status) {
+            let statusClass = 'msg-status-open';
+            let statusText = 'OFFEN';
+            if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; }
+            if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
+            badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
+        }
+        // ---------------------------
+
+        el.className = classes;
+        el.innerHTML = `
+            <div class="msg-header">
+                <span>${new Date(m.created_at).toLocaleString('de-DE')}</span>
+                <span>${isLan ? 'LAN Intern' : (isPersonal ? 'Persönlich' : 'Allgemein')}</span>
+            </div>
+        `;
+
+        // SECURITY: Render Subject & Body safely as text
+        const divSubject = document.createElement('div');
+        divSubject.className = 'msg-subject';
+        divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`;
+
+        const divBody = document.createElement('div');
+        divBody.className = 'msg-body';
+
+        // If LAN message, it's encrypted. Show Decrypt UI.
+        if (isLan) {
+             divBody.innerHTML = `
+                <div style="font-size:0.8rem; color:#888; margin-bottom:10px;">Verschlüsselte Nachricht</div>
+                <button class="btn" style="padding:5px 10px; font-size:0.8rem;" onclick="window.decryptLanMessage('${m.id}')">🔓 Entschlüsseln</button>
+                <div id="dec-${m.id}" style="margin-top:10px; white-space:pre-wrap; display:none;"></div>
+             `;
+             divBody.dataset.payload = m.body;
+        } else {
+             divBody.textContent = m.body;
         }
 
-        msgs.forEach(m => {
-            const el = document.createElement('div');
+        el.appendChild(divSubject);
+        el.appendChild(divBody);
 
-            const isPersonal = !!m.recipient_id;
-            const isBroadcast = !isPersonal;
+        // DELETE BUTTON
+        if (isPersonal || isLan) {
+            const btnDel = document.createElement('button');
+            btnDel.textContent = 'Löschen';
+            btnDel.className = 'btn-outline';
+            btnDel.style.fontSize = '0.7rem';
+            btnDel.style.marginTop = '10px';
+            btnDel.style.padding = '4px 8px';
 
-            // Unread Logic: Personal (server) OR Broadcast (local)
-            const isUnread = (isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id));
-
-            const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
-
-            let classes = 'msg-card';
-            if(isUnread) classes += ' unread';
-            if(m.type === 'automated') classes += ' type-automated';
-            if(m.type === 'support') classes += ' type-support';
-            if(isTicket) classes += ' type-ticket';
-
-            let icon = '📩';
-            if(m.type === 'automated') icon = '⚠️';
-            else if(m.type === 'support') icon = '💬';
-            else if(isTicket) icon = '🎫';
-            else if(!isPersonal) icon = '📢';
-
-            // --- TICKET BADGE LOGIC ---
-            let badgeHtml = '';
-            if (m.type === 'ticket' && m.status) {
-                let statusClass = 'msg-status-open';
-                let statusText = 'OFFEN';
-                if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; }
-                if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
-                badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
+            if (!isLan && m.type === 'ticket' && m.status !== 'closed') {
+                btnDel.classList.add('delete-btn-locked');
+                btnDel.style.display = 'none';
+                btnDel.disabled = true;
+                btnDel.onclick = (e) => { e.stopPropagation(); };
+            } else {
+                btnDel.onclick = (e) => {
+                    e.stopPropagation();
+                    if(isLan) deleteLanMessage(m.id, el);
+                    else deleteMessage(m.id, el);
+                };
             }
-            // ---------------------------
+            el.appendChild(btnDel);
+        }
 
-            el.className = classes;
-            el.innerHTML = `
-                <div class="msg-header">
-                    <span>${new Date(m.created_at).toLocaleString('de-DE')}</span>
-                    <span>${isPersonal ? 'Persönlich' : 'Allgemein'}</span>
-                </div>
-            `;
+        el.addEventListener('click', (e) => {
+            if(e.target.tagName === 'BUTTON') return;
 
-            // SECURITY: Render Subject & Body safely as text
-            const divSubject = document.createElement('div');
-            divSubject.className = 'msg-subject';
-            divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`; // Use innerHTML for badge, but escape subject
+            const wasExpanded = el.classList.contains('expanded');
+            document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
 
-            const divBody = document.createElement('div');
-            divBody.className = 'msg-body';
-            divBody.textContent = m.body;
+            if(!wasExpanded) {
+                el.classList.add('expanded');
 
-            el.appendChild(divSubject);
-            el.appendChild(divBody);
+                if(isUnread) {
+                    if(el.classList.contains('unread')) {
+                        el.classList.remove('unread');
 
-            // DELETE BUTTON (Custom Logic for Tickets)
-            if (isPersonal) {
-                const btnDel = document.createElement('button');
-                btnDel.textContent = 'Löschen';
-                btnDel.className = 'btn-outline';
-                btnDel.style.fontSize = '0.7rem';
-                btnDel.style.marginTop = '10px';
-                btnDel.style.padding = '4px 8px';
+                        if(isLan) {
+                            markLanMessageRead(m.id);
+                        } else if(isPersonal) {
+                            markMessageRead(m.id);
+                        } else if(isBroadcast) {
+                            markBroadcastRead(m.id);
+                        }
 
-                // Lock if Ticket and NOT closed
-                if (m.type === 'ticket' && m.status !== 'closed') {
-                    btnDel.classList.add('delete-btn-locked');
-                    btnDel.title = "Ticket ist noch offen.";
-                    btnDel.style.display = 'none'; // HIDE completely as per strict requirement "sichtbar"
-                    btnDel.disabled = true;
-                    btnDel.onclick = (e) => { e.stopPropagation(); };
-                } else {
-                    btnDel.onclick = (e) => {
-                        e.stopPropagation();
-                        deleteMessage(m.id, el);
-                    };
-                }
-                el.appendChild(btnDel);
-            }
-
-            el.addEventListener('click', () => {
-                const wasExpanded = el.classList.contains('expanded');
-                document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
-
-                if(!wasExpanded) {
-                    el.classList.add('expanded');
-
-                    // If it was unread, mark it as read now
-                    if(isUnread) {
-                        // Avoid double-triggering if already visually marked read in this session
-                        if(el.classList.contains('unread')) {
-                            el.classList.remove('unread');
-
-                            if(isPersonal) {
-                                markMessageRead(m.id);
-                            } else if(isBroadcast) {
-                                markBroadcastRead(m.id);
-                            }
-
-                            // Update Sidebar Badge immediately
-                            const navLink = document.getElementById('navPost');
-                            const match = navLink.innerText.match(/\((\d+)\)/);
-                            if(match) {
-                                let cur = parseInt(match[1]);
-                                if(cur > 0) updatePostboxUI(cur - 1);
-                            }
+                        // Update Sidebar Badge immediately
+                        const navLink = document.getElementById('navPost');
+                        const match = navLink.innerText.match(/\((\d+)\)/);
+                        if(match) {
+                            let cur = parseInt(match[1]);
+                            if(cur > 0) updatePostboxUI(cur - 1);
                         }
                     }
                 }
-            });
-
-            container.appendChild(el);
+            }
         });
 
-    } catch(e) {
-        container.innerHTML = '<div style="color:red; text-align:center;">Laden fehlgeschlagen.</div>';
-    }
+        container.appendChild(el);
+    });
 }
 
 async function markMessageRead(id) {
@@ -2158,19 +2205,8 @@ async function markMessageRead(id) {
 }
 
 async function deleteMessage(id, element) {
-    if(!confirm("Nachricht wirklich löschen?")) return; // Using native confirm for speed inside list
+    if(!confirm("Nachricht wirklich löschen?")) return;
     try {
-        // We don't have a specific delete endpoint exposed in server.js for messages?
-        // Checking server.js... There is NO DELETE endpoint for messages in server.js provided!
-        // Wait, standard user inbox deletion was not in the original requirements provided in memory,
-        // but implied by "Interaction Lock: Implement logic that disables the 'Delete' button".
-        // Use existing if avail or creating one?
-        // The provided server.js DOES NOT have app.delete('/api/messages/:id').
-        // I must add it or use a workaround.
-        // I will add the DELETE endpoint to server.js in a separate step if missing.
-        // Checking server.js content again... NO delete endpoint for messages found.
-
-        // I will implement client logic assuming endpoint exists, and fix server.js in next step.
         const res = await fetch(`${API_BASE}/messages/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${authToken}` }
@@ -2179,12 +2215,49 @@ async function deleteMessage(id, element) {
         if (res.ok) {
             element.remove();
             showToast("Nachricht gelöscht.", "success");
-            checkUnreadMessages(); // Update count
+            checkUnreadMessages();
         } else {
             showToast("Fehler beim Löschen.", "error");
         }
     } catch(e) { showToast("Verbindungsfehler", "error"); }
 }
+
+function markLanMessageRead(id) {
+    let msgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+    const idx = msgs.findIndex(m => m.id === id);
+    if(idx > -1) {
+        msgs[idx].is_read = true;
+        sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs));
+    }
+}
+
+function deleteLanMessage(id, element) {
+    if(!confirm("LAN Nachricht löschen?")) return;
+    let msgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+    msgs = msgs.filter(m => m.id !== id);
+    sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs));
+    element.remove();
+    showToast("Gelöscht.", "success");
+    checkUnreadMessages();
+}
+
+window.decryptLanMessage = async function(msgId) {
+    const el = document.getElementById('dec-'+msgId);
+    const parent = el.parentNode; // .msg-body
+    const payload = parent.dataset.payload;
+
+    const code = prompt("5-stelligen Code eingeben:");
+    if(!code) return;
+
+    try {
+        const res = await decryptFull(payload, code, currentUser.name);
+        el.innerText = res;
+        el.style.display = 'block';
+        el.style.color = '#fff';
+    } catch(e) {
+        alert("Entschlüsselung fehlgeschlagen: " + e.message);
+    }
+};
 
 function escapeHtml(text) {
     if(!text) return '';
