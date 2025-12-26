@@ -198,7 +198,8 @@ const createTables = async () => {
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_login TIMESTAMP,
             is_blocked BOOLEAN DEFAULT FALSE,
-            is_online BOOLEAN DEFAULT FALSE
+            is_online BOOLEAN DEFAULT FALSE,
+            is_admin BOOLEAN DEFAULT FALSE
         )`);
 
         await dbQuery(`CREATE TABLE IF NOT EXISTS license_keys (
@@ -543,7 +544,11 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             }
         }
 
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({
+            id: user.id,
+            username: user.username,
+            isAdmin: (user.is_admin === true || user.is_admin === 1)
+        }, JWT_SECRET, { expiresIn: '24h' });
 
         if(isPostgreSQL) {
             await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
@@ -693,7 +698,9 @@ const requireAdmin = async (req, res, next) => {
         const token = authHeader.split(' ')[1];
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            if (decoded.role === 'admin') {
+            // Check for explicit admin role OR isAdmin flag from user table
+            if (decoded.role === 'admin' || decoded.isAdmin === true) {
+                req.user = decoded; // attach to req
                 return next();
             }
         } catch (e) { }
@@ -719,8 +726,26 @@ const requireAdmin = async (req, res, next) => {
         return next();
     }
 
+    console.error("Admin Access Denied.");
     return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
 };
+
+// BOOTSTRAP ROUTE (TEMPORARY)
+app.post('/api/admin/force-setup', async (req, res) => {
+    // Only allow if no admin exists? Or just open for now as requested.
+    // The user said "without Auth".
+    const { username } = req.body;
+    if(!username) return res.status(400).json({ error: 'Username required' });
+
+    try {
+        if(isPostgreSQL) {
+            await dbQuery("UPDATE users SET is_admin = true WHERE username = $1", [username]);
+        } else {
+            await nedb.users.update({ username }, { $set: { is_admin: true } });
+        }
+        res.json({ success: true, message: `User ${username} is now Admin.` });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // Admin Auth (Simplified for NeDB)
 app.post('/api/admin/auth', async (req, res) => {
@@ -1394,10 +1419,35 @@ app.get('/api/hub/status', requireAdmin, (req, res) => {
     res.json({ active: isHubActive, port: 8080 });
 });
 
-app.post('/api/hub/start', requireAdmin, (req, res) => {
-    if (isHubActive) return res.json({ success: true, active: true, message: 'Already running' });
+app.post('/api/hub/start', authenticateUser, async (req, res) => {
+    // ENFORCEMENT: Only MASTER License can start Hub
+    // req.user is set by authenticateUser
+    // We need to check the license key type of this user.
 
     try {
+        let licenseType = '';
+        if(isPostgreSQL) {
+            const r = await dbQuery(`
+                SELECT k.product_code
+                FROM users u
+                JOIN license_keys k ON u.license_key_id = k.id
+                WHERE u.id = $1
+            `, [req.user.id]);
+            if(r.rows.length > 0) licenseType = r.rows[0].product_code;
+        } else {
+            const u = await nedb.users.findOne({ id: req.user.id });
+            if(u && u.license_key_id) {
+                const k = await nedb.license_keys.findOne({ id: u.license_key_id });
+                if(k) licenseType = k.product_code;
+            }
+        }
+
+        if (licenseType !== 'MASTER') {
+            return res.status(403).json({ error: 'Nur MASTER-Lizenzen dürfen den LAN-Hub starten.' });
+        }
+
+        if (isHubActive) return res.json({ success: true, active: true, message: 'Already running' });
+
         wss = new WebSocketServer({ port: 8080 });
         isHubActive = true;
 
