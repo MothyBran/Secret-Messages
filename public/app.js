@@ -1,4 +1,4 @@
-// app.js - Frontend Logic (Final Polish: Custom Delete Modal & Fixed Navigation)
+// app.js - Frontend Logic (Fixed LAN Persistence)
 
 const APP_VERSION = 'Beta v0.61';
 
@@ -23,17 +23,12 @@ const StorageAdapter = {
 
     init: function() {
         // 1. Strict Environment Detection
-        // If loaded via file:// or if electronAPI is present, it's Desktop.
-        // Otherwise it's Cloud Web.
         const isDesktop = (window.location.protocol === 'file:' || window.electronAPI);
 
         if (isDesktop) {
-            // Desktop can be Local (Cloud-connected exe) or Hub (LAN) or Airgapped.
-            // Check local storage preference
             const storedMode = localStorage.getItem('sm_app_mode');
             this.mode = storedMode || 'local'; // Default to local (online exe)
         } else {
-            // Web Browser: Strict Cloud Mode.
             this.mode = 'cloud';
             localStorage.setItem('sm_app_mode', 'cloud'); // Enforce
         }
@@ -81,14 +76,40 @@ const StorageAdapter = {
             showToast("LAN Verbindung fehlgeschlagen", "error");
         });
 
+        // --- FIXED: LAN Message Persistence ---
         this.socket.on('receive_message', (data) => {
-            // New message in LAN
-            // Typically we would update inbox UI or show notification
+            // Data Structure: { senderId, encryptedPayload, type, timestamp? }
+            // We need to store this in sessionStorage (ephemeral for LAN session)
+            // or localStorage (persistent). Requirement says "fully encrypted communication".
+
+            const msgId = `lan_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;
+
+            const newMsg = {
+                id: msgId,
+                recipient_id: currentUser.sm_id, // It's for me
+                sender_id: data.senderId || 'Unknown',
+                subject: "Neue Nachricht (LAN)",
+                body: data.encryptedPayload, // Encrypted Content
+                created_at: new Date().toISOString(),
+                is_read: false,
+                is_lan: true, // Flag for UI
+                type: data.type || 'message'
+            };
+
+            // Retrieve existing
+            let msgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+            msgs.push(newMsg);
+            sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs));
+
             showToast("Neue Nachricht empfangen!", "info");
-            // If inbox is open, maybe refresh? But in LAN mode, inbox fetch is via socket?
-            // "Postfach-Upgrade: Das Postfach muss die vollständige verschlüsselte Kommunikation... ermöglichen."
-            // We need to implement socket listener for inbox list or push messages to local array.
-            // For MVP: Alert user.
+
+            // If Inbox is open, refresh it
+            const inboxSection = document.getElementById('inboxSection');
+            if (inboxSection && inboxSection.classList.contains('active')) {
+                loadAndShowInbox();
+            } else {
+                checkUnreadMessages(); // Update badge
+            }
         });
     },
 
@@ -176,17 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupUIEvents();
     
-    // Enterprise License Check (Strict Desktop Only)
-    // Only show IT Admin Link if:
-    // 1. Mode is NOT 'cloud' (Web)
-    // 2. License indicates Master/Enterprise privileges
+    // Enterprise License Check
     const storedLic = localStorage.getItem('sm_exp');
-    // Check if we are in Desktop environment (StorageAdapter checks this in init, but we check mode here)
     const isWeb = (StorageAdapter.mode === 'cloud');
 
-    // We assume 'MASTER' product code maps to 'unlimited' or specific text in local storage.
-    // Ideally we check currentUser privileges.
-    // But sticking to existing logic + Web Restriction:
     if (!isWeb && storedLic && (storedLic.includes('unlimited') || storedLic.includes('Enterprise') || storedLic.includes('MASTER'))) {
         document.getElementById('itAdminLink').style.display = 'block';
     } else {
@@ -198,7 +212,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.get('action') === 'activate') {
         showSection('activationSection');
     } else {
-        // Standard-Start: Prüfen ob Session existiert, sonst Login zeigen (nicht Activation!)
         const token = localStorage.getItem('sm_token');
         if (token) {
             checkExistingSession();
@@ -209,7 +222,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // URL Consistency Check
     if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
-        // Suppress warning if in Electron (local)
         if (!window.electronAPI) {
             showToast("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
         }
@@ -233,9 +245,7 @@ window.fetch = async function(...args) {
     try {
         const response = await originalFetch(...args);
 
-        // Check for Maintenance Mode (503 Service Unavailable with specific JSON or text)
         if (response.status === 503) {
-            // Check if it's maintenance
             try {
                 const clone = response.clone();
                 const data = await clone.json();
@@ -243,13 +253,9 @@ window.fetch = async function(...args) {
                      window.location.href = '/maintenance';
                      return response;
                 }
-            } catch (e) {
-                // If text response or check failed, maybe just redirect if it was an API call?
-            }
+            } catch (e) {}
         }
 
-        // If we are redirected to /maintenance via HTTP Redirect (302/301) handled by browser,
-        // we might not catch it here unless we check response.url
         if (response.url && response.url.includes('/maintenance')) {
             window.location.href = '/maintenance';
         }
@@ -278,12 +284,10 @@ window.showToast = function(message, type = 'info') {
     toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
     container.appendChild(toast);
 
-    // Trigger animation
     requestAnimationFrame(() => {
         toast.classList.add('show');
     });
 
-    // Auto remove
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 400); // wait for fade out
@@ -417,26 +421,18 @@ function setupUIEvents() {
 
     // --- LOGO KLICK LOGIK (NEU) ---
     document.querySelector('.app-logo')?.addEventListener('click', () => {
-        // Prüfen ob eingeloggt (Token existiert)
         const isLoggedIn = !!authToken;
-
         if (!isLoggedIn) {
-            // FALL A: Nicht eingeloggt
-            // Check if on login or activation section
             const loginActive = document.getElementById('loginSection').classList.contains('active');
             const activationActive = document.getElementById('activationSection').classList.contains('active');
 
             if (loginActive || activationActive) {
                 window.location.href = 'landing.html';
             }
-        } else {
-            // FALL B: Eingeloggt -> Nichts tun (user intent: safe, no exit)
         }
     });
 
     // --- NAVIGATION & SEITEN (FIXED) ---
-    
-    // Funktion für "Zurück zur App"
     function goBackToMain() {
         if(currentUser) showSection('mainSection');
         else showSection('loginSection');
@@ -448,20 +444,16 @@ function setupUIEvents() {
 
 
     // --- ACCOUNT LÖSCHEN (NEUES LAYOUT) ---
-    
-    // 1. Klick im Menü -> Öffnet Warn-Modal
     document.getElementById('navDelete')?.addEventListener('click', (e) => {
         e.preventDefault();
-        toggleMainMenu(true); // Menü zu
-        document.getElementById('deleteAccountModal').classList.add('active'); // Modal auf
+        toggleMainMenu(true);
+        document.getElementById('deleteAccountModal').classList.add('active');
     });
 
-    // 2. "Abbrechen" im Modal
     document.getElementById('btnCancelDelete')?.addEventListener('click', () => {
         document.getElementById('deleteAccountModal').classList.remove('active');
     });
 
-    // 3. "Endgültig Löschen" im Modal -> Führt API Call aus
     document.getElementById('btnConfirmDelete')?.addEventListener('click', performAccountDeletion);
 
 
@@ -493,14 +485,13 @@ function setupUIEvents() {
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => {
         e.preventDefault();
         showSection('loginSection');
-        // Clear fields when switching to login
         const u = document.getElementById('u_ident_entry');
         const c = document.getElementById('u_key_secure');
         if(u) u.value = '';
         if(c) c.value = '';
     });
 
-    // License Key Check (Auto-Fill Assigned ID)
+    // License Key Check
     document.getElementById('licenseKey')?.addEventListener('blur', async (e) => {
         const key = e.target.value.trim();
         if(!key) return;
@@ -519,7 +510,6 @@ function setupUIEvents() {
                 uField.readOnly = true;
                 uField.style.opacity = '0.7';
 
-                // Show hint
                 let hint = document.getElementById('assignedIdHint');
                 if(!hint) {
                     hint = document.createElement('div');
@@ -539,11 +529,8 @@ function setupUIEvents() {
     // Activation Code Validation
     document.getElementById('newAccessCode')?.addEventListener('input', validateActivationInputs);
     document.getElementById('newAccessCodeRepeat')?.addEventListener('input', validateActivationInputs);
-
-    // AGB Checkbox Logic
     document.getElementById('agbCheck')?.addEventListener('change', validateActivationInputs);
 
-    // Force clear login fields on load
     const uField = document.getElementById('u_ident_entry');
     const cField = document.getElementById('u_key_secure');
     if (uField) uField.value = '';
@@ -572,20 +559,18 @@ function setupUIEvents() {
     document.getElementById('btnCancelSelect')?.addEventListener('click', closeContactSidebar);
     document.getElementById('btnConfirmSelect')?.addEventListener('click', confirmSelection);
     
-    // Import/Export (Revised - CSV Only)
+    // Import/Export
     document.getElementById('btnExportContacts')?.addEventListener('click', exportContactsCsv);
     document.getElementById('btnImportContacts')?.addEventListener('click', () => document.getElementById('contactImportInput').click());
     document.getElementById('contactImportInput')?.addEventListener('change', (e) => {
         if(e.target.files.length > 0) handleCsvImport(e.target.files[0]);
     });
 
-    // Backup Modal Events (Legacy/Removed for Contacts)
     document.getElementById('btnCancelBackup')?.addEventListener('click', () => {
         document.getElementById('backupModal').classList.remove('active');
         document.getElementById('backupCode').value = '';
         document.getElementById('contactImportInput').value = '';
     });
-    // document.getElementById('btnConfirmBackup') -> logic moved to direct actions
 
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
@@ -605,14 +590,12 @@ function setupUIEvents() {
             const file = e.target.files[0];
             if (!file) return;
 
-            // Limit: 5MB
             if (file.size > 5 * 1024 * 1024) {
                 showToast("Datei ist zu groß! Maximum sind 5MB.", 'error');
                 this.value = '';
                 return;
             }
 
-            // UI Update: Show Spinner immediately
             showLoader("Lade Datei...");
             const infoDiv = document.getElementById('fileInfo');
             const nameSpan = document.getElementById('fileName');
@@ -632,9 +615,8 @@ function setupUIEvents() {
 
             const reader = new FileReader();
             reader.onload = function(evt) {
-                currentAttachmentBase64 = evt.target.result; // Base64 speichern
+                currentAttachmentBase64 = evt.target.result;
 
-                // UI Update: Show Checkmark
                 if (spinner) spinner.style.display = 'none';
                 if (check) check.style.display = 'inline-block';
                 if (nameSpan) nameSpan.textContent = "📎 " + file.name;
@@ -685,17 +667,14 @@ async function performAccountDeletion() {
         });
         const d = await res.json();
         
-        document.getElementById('deleteAccountModal').classList.remove('active'); // Modal zu
+        document.getElementById('deleteAccountModal').classList.remove('active');
         
         if(d.success) {
-            // "Confirm" removal of contacts silently or just do it.
-            // Since we remove account, removing local contacts is safe/expected for privacy.
             if(currentUser && currentUser.sm_id) {
                 localStorage.removeItem(`sm_contacts_${currentUser.sm_id}`);
             }
 
             showToast("Dein Account wurde erfolgreich gelöscht.", 'success');
-            // Remove token and reload to force Login Screen
             setTimeout(() => {
                 localStorage.removeItem('sm_token');
                 localStorage.removeItem('sm_user');
@@ -965,26 +944,16 @@ function exportContactsCsv() {
     if (!contacts || contacts.length === 0) return showToast("Keine Kontakte vorhanden.", 'error');
 
     try {
-        // 1. Create CSV Header (Added PublicKey support)
         let csvContent = "ID,Name,Group,PublicKey\n";
 
-        // Helper to escape fields
         const escapeCsvField = (field) => {
             let val = String(field || "");
-            // Prevent CSV Injection
-            if (/^[=+\-@]/.test(val)) {
-                val = "'" + val;
-            }
-            // Escape double quotes by doubling them
+            if (/^[=+\-@]/.test(val)) val = "'" + val;
             val = val.replace(/"/g, '""');
-            // Wrap in quotes if it contains comma, newline or quotes
-            if (val.search(/("|,|\n)/g) >= 0) {
-                val = `"${val}"`;
-            }
+            if (val.search(/("|,|\n)/g) >= 0) val = `"${val}"`;
             return val;
         };
 
-        // 2. Add Rows
         contacts.forEach(c => {
             const id = escapeCsvField(c.id);
             const name = escapeCsvField(c.name);
@@ -993,22 +962,16 @@ function exportContactsCsv() {
             csvContent += `${id},${name},${grp},${pk}\n`;
         });
 
-        // 3. Download
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `contacts_export_${new Date().toISOString().slice(0,10)}.csv`);
-        link.style.visibility = 'hidden';
+        link.href = url;
+        link.download = `contacts_export_${new Date().toISOString().slice(0,10)}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
         showToast("Kontakte erfolgreich als .csv exportiert.", 'success');
-    } catch(e) {
-        console.error(e);
-        showToast("Fehler beim Export.", 'error');
-    }
+    } catch(e) { console.error(e); showToast("Fehler beim Export.", 'error'); }
 }
 
 function handleCsvImport(file) {
@@ -1023,29 +986,21 @@ function handleCsvImport(file) {
     reader.onload = function(evt) {
         try {
             const text = evt.target.result;
-            // Robust CSV Parsing handling quotes
             const parseCsvLine = (line) => {
                 const result = [];
                 let start = 0;
                 let inQuotes = false;
                 for (let i = 0; i < line.length; i++) {
-                    if (line[i] === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (line[i] === ',' && !inQuotes) {
+                    if (line[i] === '"') inQuotes = !inQuotes;
+                    else if (line[i] === ',' && !inQuotes) {
                         let field = line.substring(start, i);
-                        // Remove surrounding quotes and unescape double quotes
-                        if (field.startsWith('"') && field.endsWith('"')) {
-                            field = field.slice(1, -1).replace(/""/g, '"');
-                        }
+                        if (field.startsWith('"') && field.endsWith('"')) field = field.slice(1, -1).replace(/""/g, '"');
                         result.push(field);
                         start = i + 1;
                     }
                 }
-                // Push last field
                 let lastField = line.substring(start);
-                if (lastField.startsWith('"') && lastField.endsWith('"')) {
-                    lastField = lastField.slice(1, -1).replace(/""/g, '"');
-                }
+                if (lastField.startsWith('"') && lastField.endsWith('"')) lastField = lastField.slice(1, -1).replace(/""/g, '"');
                 result.push(lastField);
                 return result;
             };
@@ -1054,48 +1009,32 @@ function handleCsvImport(file) {
             const importedData = [];
 
             let startIndex = 0;
-            if (lines.length > 0 && lines[0].toLowerCase().includes("id")) {
-                startIndex = 1;
-            }
+            if (lines.length > 0 && lines[0].toLowerCase().includes("id")) startIndex = 1;
 
             for (let i = startIndex; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
-
                 const parts = parseCsvLine(line);
                 if (parts.length >= 1) {
                     const id = parts[0].trim();
-                    // Basic sanity check: prevent empty IDs
                     if(id) {
                         const name = parts.length > 1 ? parts[1].trim() : id;
                         const group = parts.length > 2 ? parts[2].trim() : "";
-                        const publicKey = parts.length > 3 ? parts[3].trim() : ""; // Capture PublicKey
+                        const publicKey = parts.length > 3 ? parts[3].trim() : "";
                         importedData.push({ id, name, group, publicKey });
                     }
                 }
             }
 
-            if (importedData.length > 0) {
-                processImportedData(importedData);
-            } else {
-                showToast("Keine gültigen Kontakte gefunden.", 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast("Fehler beim Lesen der Datei.", 'error');
-        } finally {
-            document.getElementById('contactImportInput').value = '';
-        }
-    };
-    reader.onerror = () => {
-        showToast("Lesefehler.", 'error');
-        document.getElementById('contactImportInput').value = '';
+            if (importedData.length > 0) processImportedData(importedData);
+            else showToast("Keine gültigen Kontakte gefunden.", 'error');
+        } catch (e) { console.error(e); showToast("Fehler beim Lesen der Datei.", 'error'); }
+        finally { document.getElementById('contactImportInput').value = ''; }
     };
     reader.readAsText(file);
 }
 
-// Deprecated: Legacy handler (kept if contactCodeModal is still used elsewhere, otherwise unused)
-async function handleContactCodeSubmit() { /* Unused now for backups */ }
+function handleContactCodeSubmit() { /* Unused now */ }
 
 function processImportedData(importedData) {
     try {
@@ -1124,14 +1063,9 @@ function processImportedData(importedData) {
             showToast(`Import: ${toAdd.length} neu, ${toUpdate.length} aktualisiert.`, 'success');
         };
 
-        if (toUpdate.length > 0) {
-            window.showAppConfirm(`${toUpdate.length} Kontakte existieren bereits und werden überschrieben. Fortfahren?`, proceedImport);
-        } else {
-            proceedImport();
-        }
-    } catch(err) {
-        showToast("Datenformat ungültig.", 'error');
-    }
+        if (toUpdate.length > 0) window.showAppConfirm(`${toUpdate.length} Kontakte existieren bereits und werden überschrieben. Fortfahren?`, proceedImport);
+        else proceedImport();
+    } catch(err) { showToast("Datenformat ungültig.", 'error'); }
 }
 
 function confirmSelection() {
@@ -1151,7 +1085,6 @@ async function handleLogin(e) {
     const u = uInput.value;
     const c = cInput.value;
 
-    // Immediately clear fields after reading values
     uInput.value = '';
     cInput.value = '';
 
@@ -1164,17 +1097,14 @@ async function handleLogin(e) {
         const data = await res.json();
         if (data.success) {
             authToken = data.token;
-
-            // Extract ID from token
             const decoded = parseJwt(authToken);
             currentUser = { name: data.username, sm_id: decoded.id };
 
             localStorage.setItem('sm_token', authToken);
-            localStorage.setItem('sm_user', JSON.stringify(currentUser)); // Store as object
+            localStorage.setItem('sm_user', JSON.stringify(currentUser));
 
-            loadUserContacts(); // Load isolated contacts
+            loadUserContacts();
 
-            // License Missing Check
             if (data.hasLicense === false) {
                 updateSidebarInfo(currentUser.name, null);
                 alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
@@ -1182,7 +1112,6 @@ async function handleLogin(e) {
                 return;
             }
 
-            // Expiry Check
             if(data.expiresAt && data.expiresAt !== 'lifetime') {
                 const expDate = new Date(String(data.expiresAt).replace(' ', 'T'));
                 if(expDate < new Date()) {
@@ -1191,16 +1120,14 @@ async function handleLogin(e) {
                     return;
                 }
             }
-
             updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
-            // Handle specific blocked error
             if (data.error === "ACCOUNT_BLOCKED") {
-                localStorage.removeItem('sm_token'); // Ensure no token is kept
+                localStorage.removeItem('sm_token');
                 showSection('blockedSection');
             } else if (data.error === "DEVICE_NOT_AUTHORIZED") {
                 localStorage.removeItem('sm_token');
-                window.showToast("Dieses Gerät ist für diesen Account nicht autorisiert. Bitte nutzen Sie Ihr registriertes Endgerät oder kontaktieren Sie den Support für einen Gerätewechsel.", 'error');
+                window.showToast("Dieses Gerät ist für diesen Account nicht autorisiert.", 'error');
             } else {
                 showAppStatus(data.error || "Login fehlgeschlagen", 'error');
             }
@@ -1210,19 +1137,10 @@ async function handleLogin(e) {
 
 async function handleActivation(e) {
     e.preventDefault();
-
-    if (!document.getElementById('agbCheck').checked) {
-        alert("Bitte akzeptieren Sie die AGB und Nutzungsbedingungen.");
-        return;
-    }
-
+    if (!document.getElementById('agbCheck').checked) return alert("Bitte akzeptieren Sie die AGB.");
     const code1 = document.getElementById('newAccessCode').value;
     const code2 = document.getElementById('newAccessCodeRepeat').value;
-
-    if (code1 !== code2) {
-        alert("Die Zugangscodes stimmen nicht überein!");
-        return;
-    }
+    if (code1 !== code2) return alert("Die Zugangscodes stimmen nicht überein!");
 
     const devId = await generateDeviceFingerprint();
     const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
@@ -1230,17 +1148,6 @@ async function handleActivation(e) {
         const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
         const d = await res.json();
         if(d.success) {
-            // Check if user is trying to activate OFFLINE via app
-            // Usually desktop app would use offline activation endpoint if "Local Mode"
-            // But this is standard web activation.
-
-            // --- NEW: Check for Offline Certificate ---
-            if (window.electronAPI && d.certificate) {
-                // If the backend returns a certificate (it currently doesn't for standard /activate)
-                // We might need to call /activate-offline separately or update /activate.
-                // But typically offline activation is a separate flow.
-            }
-
             showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success');
             showSection('loginSection');
             document.getElementById('u_ident_entry').value = payload.username;
@@ -1255,18 +1162,14 @@ async function handleLogout() {
     localStorage.removeItem('sm_user');
     currentUser=null;
     authToken=null;
-    contacts = []; // Clear contacts from memory
+    contacts = [];
     updateSidebarInfo(null);
     document.getElementById('sidebar').classList.remove('active');
     showSection('loginSection');
 }
 
 function updateAppMode(mode) {
-    // Force blur to prevent keyboard from popping up on mobile
-    if (document.activeElement) {
-        document.activeElement.blur();
-    }
-
+    if (document.activeElement) document.activeElement.blur();
     currentMode = mode;
     const isDec = (mode === 'decrypt');
     document.getElementById('modeTitle').textContent = isDec ? 'ENTSCHLÜSSELUNG' : 'VERSCHLÜSSELUNG';
@@ -1277,20 +1180,12 @@ function updateAppMode(mode) {
     if(isDec) { btn.style.border='1px solid var(--accent-blue)'; btn.style.color='var(--accent-blue)'; } else { btn.style.border=''; btn.style.color=''; }
     document.getElementById('textLabel').textContent = isDec ? 'Verschlüsselter Text' : 'Nachrichteneingabe (Klartext)';
     document.getElementById('recipientGroup').style.display = isDec ? 'none' : 'block';
-
-    // Output Buttons
     document.getElementById('qrScanBtn').style.display = isDec ? 'block' : 'none';
     document.getElementById('qrGenBtn').style.display = isDec ? 'none' : 'block';
-    document.getElementById('saveTxtBtn').style.display = 'none'; // Reset to hidden
-
-    // Import Button
+    document.getElementById('saveTxtBtn').style.display = 'none';
     document.getElementById('uploadTxtBtn').style.display = isDec ? 'block' : 'none';
-
-    // Attachment Button Logic
     const attachBtn = document.getElementById('attachmentBtn');
     if (attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
-
-    // Clear input/output on mode switch
     clearAllFields();
     document.getElementById('messageInput').value = '';
     document.getElementById('messageOutput').value = '';
@@ -1300,17 +1195,10 @@ function updateAppMode(mode) {
 async function handleMainAction() {
     const code = document.getElementById('messageCode').value;
     let payload = document.getElementById('messageInput').value;
-
-    // Logic Fix: Prioritize Attachment
-    if (currentMode === 'encrypt' && currentAttachmentBase64) {
-        payload = currentAttachmentBase64;
-    }
+    if (currentMode === 'encrypt' && currentAttachmentBase64) payload = currentAttachmentBase64;
 
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
 
-    // Pre-Action Check: Server Validierung (Only if NOT in LAN Mode)
-    // In LAN mode, we trust the local session or re-validate with Hub?
-    // The requirement says "Autarker Nachrichten-Versand... ohne Internet-Requests".
     if (StorageAdapter.mode !== 'hub') {
         const isValid = await validateSessionStrict();
         if (!isValid) return;
@@ -1323,20 +1211,15 @@ async function handleMainAction() {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
             if(!rIds.includes(currentUser.name)) rIds.push(currentUser.name);
 
-            // 1. Local Encryption
             res = await encryptFull(payload, code, rIds, currentUser.name);
 
-            // 2. LAN Mode: Send via Socket immediately
             if (StorageAdapter.mode === 'hub' && StorageAdapter.socket) {
-                // Loop through recipients and send individually or broadcast?
-                // Our Hub 'send_message' takes single recipientId.
-                // We iterate.
                 let sentCount = 0;
                 for (const recipient of rIds) {
-                    if (recipient === currentUser.name) continue; // Don't send to self via socket (local echo)
+                    if (recipient === currentUser.name) continue;
                     StorageAdapter.socket.emit('send_message', {
                         recipientId: recipient,
-                        encryptedPayload: res, // Sending the full encrypted block
+                        encryptedPayload: res,
                         type: 'message'
                     });
                     sentCount++;
@@ -1344,16 +1227,11 @@ async function handleMainAction() {
                 showAppStatus(`Verschlüsselt & an ${sentCount} Empfänger im LAN gesendet.`, 'success');
             }
 
-             // Show encrypted text result (Always show for copy/paste fallback)
              const textOut = document.getElementById('messageOutput');
              const mediaOut = document.getElementById('mediaOutput');
-             if(textOut) {
-                 textOut.value = res;
-                 textOut.style.display = 'block';
-             }
+             if(textOut) { textOut.value = res; textOut.style.display = 'block'; }
              if(mediaOut) mediaOut.style.display = 'none';
 
-             // Check length for TXT vs QR
              if (res.length > 9999) {
                  document.getElementById('qrGenBtn').style.display = 'none';
                  document.getElementById('saveTxtBtn').style.display = 'block';
@@ -1374,68 +1252,29 @@ async function handleMainAction() {
 function renderDecryptedOutput(res) {
     const textArea = document.getElementById('messageOutput');
     const mediaDiv = document.getElementById('mediaOutput');
-
-    mediaDiv.innerHTML = ''; // Clear previous media
+    mediaDiv.innerHTML = '';
 
     if (res.startsWith('data:image')) {
-        // IMAGE MODE
-        textArea.style.display = 'none';
-        mediaDiv.style.display = 'flex';
-
-        const img = document.createElement('img');
-        img.src = res;
-        img.style.maxWidth = '100%';
-        img.style.border = '1px solid #333';
-        img.style.borderRadius = '4px';
-
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'btn';
-        dlBtn.textContent = '💾 Bild speichern';
-        dlBtn.onclick = () => {
-            const a = document.createElement('a');
-            a.href = res;
-            a.download = `secure-image-${Date.now()}.png`; // or jpg detection?
-            a.click();
-        };
-
-        mediaDiv.appendChild(img);
-        mediaDiv.appendChild(dlBtn);
+        textArea.style.display = 'none'; mediaDiv.style.display = 'flex';
+        const img = document.createElement('img'); img.src = res; img.style.maxWidth = '100%'; img.style.border = '1px solid #333'; img.style.borderRadius = '4px';
+        const dlBtn = document.createElement('button'); dlBtn.className = 'btn'; dlBtn.textContent = '💾 Bild speichern';
+        dlBtn.onclick = () => { const a = document.createElement('a'); a.href = res; a.download = `secure-image-${Date.now()}.png`; a.click(); };
+        mediaDiv.appendChild(img); mediaDiv.appendChild(dlBtn);
 
     } else if (res.startsWith('data:application/pdf')) {
-        // PDF MODE
-        textArea.style.display = 'none';
-        mediaDiv.style.display = 'flex';
-
-        const icon = document.createElement('div');
-        icon.innerHTML = '📄 PDF DOKUMENT';
-        icon.style.fontSize = '1.2rem';
-        icon.style.color = 'var(--accent-blue)';
-
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'btn';
-        dlBtn.textContent = '⬇ PDF Herunterladen';
-        dlBtn.onclick = () => {
-            const a = document.createElement('a');
-            a.href = res;
-            a.download = `secure-document-${Date.now()}.pdf`;
-            a.click();
-        };
-
-        mediaDiv.appendChild(icon);
-        mediaDiv.appendChild(dlBtn);
-
+        textArea.style.display = 'none'; mediaDiv.style.display = 'flex';
+        const icon = document.createElement('div'); icon.innerHTML = '📄 PDF DOKUMENT'; icon.style.fontSize = '1.2rem'; icon.style.color = 'var(--accent-blue)';
+        const dlBtn = document.createElement('button'); dlBtn.className = 'btn'; dlBtn.textContent = '⬇ PDF Herunterladen';
+        dlBtn.onclick = () => { const a = document.createElement('a'); a.href = res; a.download = `secure-document-${Date.now()}.pdf`; a.click(); };
+        mediaDiv.appendChild(icon); mediaDiv.appendChild(dlBtn);
     } else {
-        // TEXT MODE
-        textArea.style.display = 'block';
-        mediaDiv.style.display = 'none';
-        textArea.value = res;
+        textArea.style.display = 'block'; mediaDiv.style.display = 'none'; textArea.value = res;
     }
 }
 
 async function generateDeviceFingerprint() {
     try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
         canvas.width = 200; canvas.height = 50;
         ctx.textBaseline = "top"; ctx.font = "14px 'Arial'"; ctx.textBaseline = "alphabetic";
         ctx.fillStyle = "#f60"; ctx.fillRect(125,1,62,20);
@@ -1454,70 +1293,31 @@ async function generateDeviceFingerprint() {
 }
 
 let idleTimer;
-const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 Minuten
+const IDLE_TIMEOUT = 15 * 60 * 1000;
 
 function setupIdleTimer() {
-    window.onload = resetIdleTimer;
-    window.onmousemove = resetIdleTimer;
-    window.onmousedown = resetIdleTimer;
-    window.ontouchstart = resetIdleTimer;
-    window.onclick = resetIdleTimer;
-    window.onkeypress = resetIdleTimer;
-    window.addEventListener('scroll', resetIdleTimer, true);
+    window.onload = resetIdleTimer; window.onmousemove = resetIdleTimer; window.onmousedown = resetIdleTimer;
+    window.ontouchstart = resetIdleTimer; window.onclick = resetIdleTimer; window.onkeypress = resetIdleTimer; window.addEventListener('scroll', resetIdleTimer, true);
 }
-
 function resetIdleTimer() {
     if (!currentUser) return;
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-        if(currentUser) {
-            alert("Automatische Abmeldung wegen Inaktivität.");
-            handleLogout();
-        }
-    }, IDLE_TIMEOUT);
+    idleTimer = setTimeout(() => { if(currentUser) { alert("Automatische Abmeldung wegen Inaktivität."); handleLogout(); } }, IDLE_TIMEOUT);
 }
 
 async function validateSessionStrict() {
-    if (!authToken) {
-        handleLogout();
-        return false;
-    }
+    if (!authToken) { handleLogout(); return false; }
     try {
-        const res = await fetch(`${API_BASE}/auth/validate`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ token: authToken })
-        });
+        const res = await fetch(`${API_BASE}/auth/validate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token: authToken }) });
         const data = await res.json();
-
         if (!data.valid) {
-            if (data.reason === 'blocked') {
-                alert("Sitzung beendet: Konto wurde gesperrt.");
-                handleLogout();
-                return false;
-            } else if (data.reason === 'expired') {
-                showRenewalScreen();
-                return false;
-            } else if (data.reason === 'no_license') {
-                alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
-                showRenewalScreen();
-                return false;
-            } else {
-                // Invalid token / user not found
-                alert("Sitzung abgelaufen.");
-                handleLogout();
-                return false;
-            }
+            if (data.reason === 'blocked') { alert("Sitzung beendet: Konto wurde gesperrt."); handleLogout(); return false; }
+            else if (data.reason === 'expired') { showRenewalScreen(); return false; }
+            else if (data.reason === 'no_license') { alert("Keine aktive Lizenz gefunden."); showRenewalScreen(); return false; }
+            else { alert("Sitzung abgelaufen."); handleLogout(); return false; }
         }
         return true;
-    } catch (e) {
-        console.error("Validation Check Failed", e);
-        // On network error, we might choose to fail safe or allow.
-        // Security requirement says "If Server responds with false...".
-        // If network error, maybe let user know.
-        showAppStatus("Verbindung prüfen...", 'error');
-        return false;
-    }
+    } catch (e) { showAppStatus("Verbindung prüfen...", 'error'); return false; }
 }
 
 function validateActivationInputs() {
@@ -1526,23 +1326,8 @@ function validateActivationInputs() {
     const agbChecked = document.getElementById('agbCheck').checked;
     const btn = document.getElementById('activateBtn');
     const warning = document.getElementById('codeMismatchWarning');
-
-    // Show warning if codes mismatch (only if repeat field is not empty)
-    if (code2.length > 0 && code1 !== code2) {
-        warning.style.display = 'block';
-    } else {
-        warning.style.display = 'none';
-    }
-
-    // Enable button conditions
-    const codesMatch = (code1 === code2);
-    const codeValid = (code1.length === 5);
-
-    if (agbChecked && codesMatch && codeValid) {
-        btn.disabled = false;
-    } else {
-        btn.disabled = true;
-    }
+    if (code2.length > 0 && code1 !== code2) warning.style.display = 'block'; else warning.style.display = 'none';
+    if (agbChecked && (code1 === code2) && (code1.length === 5)) btn.disabled = false; else btn.disabled = true;
 }
 
 function updateSidebarInfo(user, expiryData) {
@@ -1550,68 +1335,44 @@ function updateSidebarInfo(user, expiryData) {
     const licenseLabel = document.getElementById('sidebarLicense');
     const authElements = document.querySelectorAll('.auth-only');
 
-    // 1. User Name setzen
     if (userLabel) userLabel.textContent = user || 'Gast';
 
-    // Start Polling Messages if user is logged in
     if(user) {
         checkUnreadMessages();
-        // Clear existing interval if any
         if(window.msgPollInterval) clearInterval(window.msgPollInterval);
         window.msgPollInterval = setInterval(checkUnreadMessages, 5 * 60 * 1000);
     } else {
         if(window.msgPollInterval) clearInterval(window.msgPollInterval);
     }
 
-    // 2. Lizenz-Anzeige Logik
     if (user && licenseLabel) {
-        // Aufräumen: Falls "undefined" oder "null" als String gespeichert wurde
         if (expiryData === 'undefined' || expiryData === 'null') expiryData = null;
-
-        // Fall A: Lifetime / Unlimited
         if (expiryData === 'lifetime' || String(expiryData).toLowerCase().includes('unlimited')) {
             licenseLabel.textContent = "LIZENZ: UNLIMITED";
             licenseLabel.style.color = "#00ff41"; 
-        } 
-        // Fall B: Datum vorhanden
-        else if (expiryData) {
+        } else if (expiryData) {
             try {
-                // Versuch das Datum zu reparieren (SQL Timestamp zu ISO)
                 let cleanDateStr = String(expiryData).replace(' ', 'T'); 
-                
                 const dateObj = new Date(cleanDateStr);
-                
-                // Ist das Datum gültig?
                 if (!isNaN(dateObj.getTime())) {
-                    // FIX: Exaktes Format TT.MM.JJJJ erzwingen
                     const day = String(dateObj.getDate()).padStart(2, '0');
                     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                     const year = dateObj.getFullYear();
-                    const dateStr = `${day}.${month}.${year}`;
-
-                    licenseLabel.textContent = "LIZENZ: gültig bis " + dateStr;
+                    licenseLabel.textContent = "LIZENZ: gültig bis " + `${day}.${month}.${year}`;
                     licenseLabel.style.color = "var(--accent-blue)";
                 } else {
-                    // Fallback nur wenn Datum wirklich kaputt ist
-                    console.warn("Ungültiges Datum erkannt:", expiryData);
                     licenseLabel.textContent = "LIZENZ: Aktiv";
                     licenseLabel.style.color = "var(--text-main)";
                 }
-            } catch (e) {
-                licenseLabel.textContent = "LIZENZ: Aktiv";
-            }
+            } catch (e) { licenseLabel.textContent = "LIZENZ: Aktiv"; }
         } else {
-            // Fall C: Keine Daten (z.B. alter Account ohne Key)
             licenseLabel.textContent = "LIZENZ: Unbekannt";
             licenseLabel.style.color = "#888";
         }
     } else if (licenseLabel) {
-        // Nicht eingeloggt
         licenseLabel.textContent = "Nicht verbunden";
         licenseLabel.style.color = "#888";
     }
-
-    // 3. Menü-Buttons ein-/ausblenden
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
 }
 
@@ -1619,87 +1380,46 @@ async function checkExistingSession() {
     const token = localStorage.getItem('sm_token');
     const userStored = localStorage.getItem('sm_user');
     let savedExpiry = localStorage.getItem('sm_exp'); 
-    
-    // Attempt to parse old user string or new user object
     let userName = '';
-    try {
-        const parsed = JSON.parse(userStored);
-        userName = parsed.name || parsed;
-    } catch(e) {
-        userName = userStored;
-    }
+    try { const parsed = JSON.parse(userStored); userName = parsed.name || parsed; } catch(e) { userName = userStored; }
 
     if (token) {
         try {
-            const res = await fetch(`${API_BASE}/auth/validate`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ token })
-            });
+            const res = await fetch(`${API_BASE}/auth/validate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token }) });
             const data = await res.json();
             
             if (data.valid) {
                 authToken = token;
-                
-                // Construct new currentUser object with ID from token
                 const decoded = parseJwt(token);
                 currentUser = { name: data.username || userName, sm_id: decoded.id };
-
-                // Update storage to new format
                 localStorage.setItem('sm_user', JSON.stringify(currentUser));
+                loadUserContacts();
 
-                loadUserContacts(); // Load isolated contacts
-
-                // WICHTIG: Server-Datum hat Vorrang vor LocalStorage!
                 let finalExpiry = data.expiresAt;
-                
-                // Wenn Server nichts liefert (null), schauen wir ob wir lokal was haben oder setzen Fallback
-                if (!finalExpiry) {
-                    finalExpiry = savedExpiry || 'lifetime'; 
-                } else {
-                    // Neues Datum vom Server speichern
-                    localStorage.setItem('sm_exp', finalExpiry);
-                }
+                if (!finalExpiry) finalExpiry = savedExpiry || 'lifetime';
+                else localStorage.setItem('sm_exp', finalExpiry);
 
-                // Expiry Check
                 if(finalExpiry && finalExpiry !== 'lifetime') {
                     const expDate = new Date(String(finalExpiry).replace(' ', 'T'));
-                    if(expDate < new Date()) {
-                        updateSidebarInfo(currentUser.name, finalExpiry);
-                        showRenewalScreen();
-                        return;
-                    }
+                    if(expDate < new Date()) { updateSidebarInfo(currentUser.name, finalExpiry); showRenewalScreen(); return; }
                 }
-
-                updateSidebarInfo(currentUser.name, finalExpiry);
-                showSection('mainSection');
+                updateSidebarInfo(currentUser.name, finalExpiry); showSection('mainSection');
                 return;
             } else {
                 if (data.reason === 'no_license') {
-                    alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
-                    authToken = token; // Needed for renewal call
-
+                    alert("Keine aktive Lizenz gefunden.");
+                    authToken = token;
                     const decoded = parseJwt(token);
-                    currentUser = { name: userName, sm_id: decoded.id }; // Partial info
-
+                    currentUser = { name: userName, sm_id: decoded.id };
                     showRenewalScreen();
-                } else {
-                    // Token invalid or blocked -> Logout
-                    handleLogout();
-                }
+                } else { handleLogout(); }
             }
-        } catch(e) {
-            console.log("Session Check fehlgeschlagen", e);
-            showSection('loginSection');
-        }
-    } else {
-        showSection('loginSection');
-    }
+        } catch(e) { showSection('loginSection'); }
+    } else { showSection('loginSection'); }
 }
 
 function showRenewalScreen() {
     showSection('renewalSection');
-    // Hide contacts and encryption mode if they were visible
     const wrapper = document.getElementById('headerSwitchWrapper');
     if(wrapper) wrapper.style.display = 'none';
 }
@@ -1707,23 +1427,12 @@ function showRenewalScreen() {
 function openSupportModal() {
     const modal = document.getElementById('supportModal');
     const userField = document.getElementById('supportUsername');
-
-    // Reset fields
     document.getElementById('supportForm').reset();
-
     if (currentUser) {
-        // Fall: Eingeloggt
-        userField.value = currentUser.name;
-        userField.readOnly = true;
-        userField.style.opacity = '0.7';
+        userField.value = currentUser.name; userField.readOnly = true; userField.style.opacity = '0.7';
     } else {
-        // Fall: Nicht eingeloggt
-        userField.value = '';
-        userField.readOnly = false;
-        userField.style.opacity = '1';
-        userField.placeholder = "Benutzername oder ID (falls bekannt)";
+        userField.value = ''; userField.readOnly = false; userField.style.opacity = '1'; userField.placeholder = "Benutzername oder ID (falls bekannt)";
     }
-
     modal.classList.add('active');
 }
 
@@ -1739,34 +1448,21 @@ async function handleSupportSubmit(e) {
     const messageVal = document.getElementById('supportMessage').value.trim();
     const subjectVal = document.getElementById('supportSubject').value.trim();
 
-    if (!messageVal || !subjectVal) {
-        showToast("Bitte Betreff und Nachricht eingeben.", 'error');
-        return;
-    }
+    if (!messageVal || !subjectVal) return showToast("Bitte Betreff und Nachricht eingeben.", 'error');
 
-    // 1. Lock UI
     btn.textContent = "Wird gesendet...";
     allFields.forEach(f => f.disabled = true);
 
     // --- LAN MODE SUPPORT LOGIC ---
     if(StorageAdapter.mode === 'hub' && StorageAdapter.socket) {
-        // Send via Socket (Encrypted)
         try {
             const code = prompt("Bitte 5-stelligen Sicherheits-Code für diese Nachricht eingeben:");
             if(!code || code.length !== 5) {
-                btn.textContent = oldText;
-                allFields.forEach(f => f.disabled = false);
+                btn.textContent = oldText; allFields.forEach(f => f.disabled = false);
                 return showToast("Code erforderlich.", 'error');
             }
-
-            // Encrypt for 'MASTER'
             const encrypted = await encryptFull(messageVal, code, ['MASTER'], currentUser.name);
-
-            StorageAdapter.socket.emit('send_message', {
-                 recipientId: 'MASTER',
-                 encryptedPayload: encrypted,
-                 type: 'support'
-            });
+            StorageAdapter.socket.emit('send_message', { recipientId: 'MASTER', encryptedPayload: encrypted, type: 'support' });
 
             showAppStatus(`Verschlüsselte Anfrage gesendet.`, 'success');
             setTimeout(() => {
@@ -1777,41 +1473,24 @@ async function handleSupportSubmit(e) {
             }, 1500);
         } catch(e) {
             showAppStatus("Verschlüsselungsfehler: " + e.message, 'error');
-            btn.textContent = oldText;
-            allFields.forEach(f => f.disabled = false);
+            btn.textContent = oldText; allFields.forEach(f => f.disabled = false);
         }
         return;
     }
-    // -----------------------------
 
     if (!usernameVal && !emailVal) {
-        showToast("Bitte geben Sie eine E-Mail-Adresse oder Ihre Benutzer-ID für eine Rückantwort an.", 'error');
-        allFields.forEach(f => f.disabled = false);
-        btn.textContent = oldText;
-        return;
+        showToast("Bitte geben Sie eine E-Mail oder Benutzer-ID an.", 'error');
+        allFields.forEach(f => f.disabled = false); btn.textContent = oldText; return;
     }
 
-    const payload = {
-        username: usernameVal,
-        subject: subjectVal,
-        email: emailVal,
-        message: messageVal
-    };
+    const payload = { username: usernameVal, subject: subjectVal, email: emailVal, message: messageVal };
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-        const res = await fetch('/api/support', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller.signal
-        });
+        const res = await fetch('/api/support', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
         clearTimeout(timeoutId);
-
         const data = await res.json();
-
         if (data.success) {
             showAppStatus(`Danke! Ihre Nachricht wurde gesendet. Ticket: ${data.ticketId}`, 'success');
             setTimeout(() => {
@@ -1821,66 +1500,29 @@ async function handleSupportSubmit(e) {
                 btn.textContent = "Nachricht Senden";
             }, 3000);
         } else {
-            alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
-            allFields.forEach(f => f.disabled = false);
-            btn.textContent = oldText;
+            alert("Mail-Server Fehler."); allFields.forEach(f => f.disabled = false); btn.textContent = oldText;
         }
     } catch (err) {
-        alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
-        allFields.forEach(f => f.disabled = false);
-        btn.textContent = oldText;
+        alert("Mail-Server Fehler."); allFields.forEach(f => f.disabled = false); btn.textContent = oldText;
     }
 }
 
-// Make globally available for onclick in HTML
 window.clearAttachment = function() {
-    document.getElementById('fileInput').value = '';
-    currentAttachmentBase64 = null;
+    document.getElementById('fileInput').value = ''; currentAttachmentBase64 = null;
     document.getElementById('fileInfo').style.display = 'none';
-
-    // Reset Status Icons
-    document.getElementById('fileSpinner').style.display = 'none';
-    document.getElementById('fileCheck').style.display = 'none';
-
-    const textArea = document.getElementById('messageInput');
-    textArea.disabled = false;
-    textArea.value = '';
+    document.getElementById('fileSpinner').style.display = 'none'; document.getElementById('fileCheck').style.display = 'none';
+    const textArea = document.getElementById('messageInput'); textArea.disabled = false; textArea.value = '';
 };
 
 window.startRenewal = async function(planType) {
     if(!authToken) return showAppStatus("Bitte erst einloggen", 'error');
-
-    const btn = event.currentTarget;
-    btn.style.opacity = '0.5';
-    btn.style.pointerEvents = 'none';
-
+    const btn = event.currentTarget; btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none';
     try {
-        const res = await fetch('/api/create-checkout-session', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}` // Token mitsenden
-            },
-            body: JSON.stringify({
-                product_type: planType,
-                is_renewal: true
-            })
-        });
-
+        const res = await fetch('/api/create-checkout-session', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ product_type: planType, is_renewal: true }) });
         const data = await res.json();
-
-        if (data.success && data.checkout_url) {
-            window.location.href = data.checkout_url;
-        } else {
-            showAppStatus(data.error || "Fehler beim Checkout", 'error');
-            btn.style.opacity = '1';
-            btn.style.pointerEvents = 'auto';
-        }
-    } catch(e) {
-        showAppStatus("Verbindungsfehler", 'error');
-        btn.style.opacity = '1';
-        btn.style.pointerEvents = 'auto';
-    }
+        if (data.success && data.checkout_url) window.location.href = data.checkout_url;
+        else { showAppStatus(data.error || "Fehler beim Checkout", 'error'); btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+    } catch(e) { showAppStatus("Verbindungsfehler", 'error'); btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
 };
 
 function showAppStatus(msg, type='success') {
@@ -1889,68 +1531,38 @@ function showAppStatus(msg, type='success') {
     requestAnimationFrame(()=>d.classList.add('active')); setTimeout(()=>{d.classList.remove('active');setTimeout(()=>d.remove(),500)},4000);
 }
 function clearAllFields() {
-    document.getElementById('messageInput').value='';
-    document.getElementById('messageOutput').value='';
-    document.getElementById('messageCode').value='';
-    document.getElementById('recipientName').value='';
-    document.getElementById('outputGroup').style.display='none';
-    document.getElementById('importFeedback').style.display = 'none';
-    document.getElementById('importFeedback').textContent = '';
+    document.getElementById('messageInput').value=''; document.getElementById('messageOutput').value=''; document.getElementById('messageCode').value='';
+    document.getElementById('recipientName').value=''; document.getElementById('outputGroup').style.display='none';
+    document.getElementById('importFeedback').style.display = 'none'; document.getElementById('importFeedback').textContent = '';
     document.getElementById('txtFileInput').value = '';
-
     if (window.clearAttachment) window.clearAttachment();
-
-    // Reset output buttons if in encrypt mode
-    if (currentMode === 'encrypt') {
-        document.getElementById('qrGenBtn').style.display = 'block';
-        document.getElementById('saveTxtBtn').style.display = 'none';
-    }
+    if (currentMode === 'encrypt') { document.getElementById('qrGenBtn').style.display = 'block'; document.getElementById('saveTxtBtn').style.display = 'none'; }
 }
 function copyToClipboard() { const el=document.getElementById('messageOutput'); el.select(); navigator.clipboard.writeText(el.value); showAppStatus("Kopiert!", 'success'); }
 
 function downloadTxtFile(content) {
-    // Filename: SECURE_MSG_[FIRST_5_CHARS].txt
-    const hashPart = content.substring(0, 5);
-    const filename = `SECURE_MSG_${hashPart}.txt`;
-
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
-    element.setAttribute('download', filename);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    const hashPart = content.substring(0, 5); const filename = `SECURE_MSG_${hashPart}.txt`;
+    const element = document.createElement('a'); element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+    element.setAttribute('download', filename); element.style.display = 'none';
+    document.body.appendChild(element); element.click(); document.body.removeChild(element);
 }
 
 function handleTxtImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.type !== "text/plain" && !file.name.endsWith('.txt')) {
-        alert("Bitte nur .txt Dateien verwenden.");
-        return;
-    }
-
+    const file = e.target.files[0]; if (!file) return;
+    if (file.type !== "text/plain" && !file.name.endsWith('.txt')) { alert("Bitte nur .txt Dateien verwenden."); return; }
     const reader = new FileReader();
     reader.onload = function(evt) {
-        const content = evt.target.result;
-        document.getElementById('messageInput').value = content;
-
-        const fb = document.getElementById('importFeedback');
-        fb.textContent = `Importiert: ${file.name}`;
-        fb.style.display = 'block';
+        document.getElementById('messageInput').value = evt.target.result;
+        const fb = document.getElementById('importFeedback'); fb.textContent = `Importiert: ${file.name}`; fb.style.display = 'block';
     };
     reader.readAsText(file);
 }
 
-// QR
 function showQRModal(text) {
     document.getElementById('qrModal').classList.add('active'); const c=document.getElementById('qrDisplay'); c.innerHTML="";
     try { new QRCode(c, { text:text, width:190, height:190, colorDark:"#000", colorLight:"#fff", correctLevel:QRCode.CorrectLevel.L }); } catch(e){c.textContent="QR Lib Error";}
 }
-function downloadQR() {
-    const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); }
-}
+function downloadQR() { const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); } }
 let qrScan=null;
 function startQRScanner() {
     if(location.protocol!=='https:' && location.hostname!=='localhost') alert("HTTPS nötig.");
@@ -1972,37 +1584,20 @@ function parseJwt (token) {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
         return JSON.parse(jsonPayload);
-    } catch (e) {
-        return {};
-    }
+    } catch (e) { return {}; }
 }
 
 function loadUserContacts() {
-    if (!currentUser || !currentUser.sm_id) {
-        contacts = [];
-        return;
-    }
+    if (!currentUser || !currentUser.sm_id) { contacts = []; return; }
     const key = `sm_contacts_${currentUser.sm_id}`;
-    const globalKey = 'sm_contacts';
-
     let stored = localStorage.getItem(key);
-
-    // Migration Logic
-    if (!stored && localStorage.getItem(globalKey)) {
-        // Alte Daten vorhanden, neue noch nicht -> Migration
-        stored = localStorage.getItem(globalKey);
-        localStorage.setItem(key, stored);
-        localStorage.removeItem(globalKey);
-        console.log("Contacts migrated to user-specific storage.");
+    if (!stored && localStorage.getItem('sm_contacts')) {
+        stored = localStorage.getItem('sm_contacts'); localStorage.setItem(key, stored); localStorage.removeItem('sm_contacts');
     }
-
     contacts = stored ? JSON.parse(stored) : [];
 }
 
-function saveUserContacts() {
-    if (!currentUser || !currentUser.sm_id) return;
-    localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts));
-}
+function saveUserContacts() { if (!currentUser || !currentUser.sm_id) return; localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts)); }
 
 function getReadBroadcasts() {
     if (!currentUser || !currentUser.sm_id) return [];
@@ -2015,45 +1610,27 @@ function markBroadcastRead(id) {
     if (!currentUser || !currentUser.sm_id) return;
     const key = `sm_read_broadcasts_${currentUser.sm_id}`;
     const list = getReadBroadcasts();
-    if (!list.includes(id)) {
-        list.push(id);
-        localStorage.setItem(key, JSON.stringify(list));
-    }
+    if (!list.includes(id)) { list.push(id); localStorage.setItem(key, JSON.stringify(list)); }
 }
 
 // --- NEW POSTBOX UI LOGIC ---
 
 function updatePostboxUI(unreadCount) {
-    const navLink = document.getElementById('navPost');
-    if (!navLink) return;
-
+    const navLink = document.getElementById('navPost'); if (!navLink) return;
     if (unreadCount > 0) {
-        // Active state
         navLink.innerHTML = `📬 Postfach <span style="color:var(--accent-blue); font-weight:bold;">(${unreadCount})</span>`;
-        navLink.style.color = "var(--accent-blue)";
-        navLink.style.borderLeft = "3px solid var(--accent-blue)";
-        navLink.style.paddingLeft = "22px"; // slightly indented to indicate active/highlight
+        navLink.style.color = "var(--accent-blue)"; navLink.style.borderLeft = "3px solid var(--accent-blue)"; navLink.style.paddingLeft = "22px";
     } else {
-        // Idle state
-        navLink.innerHTML = `📪 Postfach`;
-        navLink.style.color = "var(--text-main)";
-        navLink.style.borderLeft = "none";
-        navLink.style.paddingLeft = "15px"; // Reset to default style (assuming .sidebar-item padding)
+        navLink.innerHTML = `📪 Postfach`; navLink.style.color = "var(--text-main)"; navLink.style.borderLeft = "none"; navLink.style.paddingLeft = "15px";
     }
 }
 
 async function checkUnreadMessages() {
     if(!currentUser) return;
-
-    // LAN Mode Override or Merge
     let totalUnread = 0;
-
-    // 1. Fetch Cloud Messages (if online/cloud mode)
     if(authToken && StorageAdapter.mode !== 'airgap') {
         try {
-            const res = await fetch(`${API_BASE}/messages`, {
-                headers: { 'Authorization': `Bearer ${authToken}` }
-            });
+            const res = await fetch(`${API_BASE}/messages`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const msgs = await res.json();
             const readBroadcasts = getReadBroadcasts();
             const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
@@ -2061,12 +1638,9 @@ async function checkUnreadMessages() {
             totalUnread += (unreadPersonal + unreadBroadcasts);
         } catch(e) {}
     }
-
-    // 2. LAN Messages (Session Storage)
     const lanMsgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
     const lanUnread = lanMsgs.filter(m => !m.is_read).length;
     totalUnread += lanUnread;
-
     updatePostboxUI(totalUnread);
 }
 
@@ -2074,51 +1648,32 @@ async function loadAndShowInbox() {
     showSection('inboxSection');
     const container = document.getElementById('inboxList');
     const emptyMsg = document.getElementById('inboxEmpty');
-    container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>';
-    emptyMsg.style.display = 'none';
+    container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>'; emptyMsg.style.display = 'none';
 
     let allMsgs = [];
-
-    // 1. Cloud Fetch
     if(authToken && StorageAdapter.mode !== 'airgap') {
         try {
-            const res = await fetch(`${API_BASE}/messages`, {
-                headers: { 'Authorization': `Bearer ${authToken}` }
-            });
+            const res = await fetch(`${API_BASE}/messages`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const cloudMsgs = await res.json();
             allMsgs = allMsgs.concat(cloudMsgs);
         } catch(e) {}
     }
-
-    // 2. LAN Fetch
     const lanMsgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
     allMsgs = allMsgs.concat(lanMsgs);
-
-    // Sort
     allMsgs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Update UI Count
     checkUnreadMessages();
-
     container.innerHTML = '';
 
-    if(allMsgs.length === 0) {
-        emptyMsg.style.display = 'block';
-        return;
-    }
-
+    if(allMsgs.length === 0) { emptyMsg.style.display = 'block'; return; }
     const readBroadcasts = getReadBroadcasts();
 
     allMsgs.forEach(m => {
         const el = document.createElement('div');
-
         const isLan = !!m.is_lan;
         const isPersonal = !!m.recipient_id;
         const isBroadcast = !isPersonal;
-
-        // Unread Logic
         const isUnread = isLan ? !m.is_read : ((isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id)));
-
         const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply' || m.type === 'admin_reply');
 
         let classes = 'msg-card';
@@ -2133,36 +1688,24 @@ async function loadAndShowInbox() {
         else if(m.type === 'support') icon = '💬';
         else if(isTicket) icon = '🎫';
         else if(!isPersonal) icon = '📢';
-        if(isLan) icon = '🖥️'; // LAN Icon
+        if(isLan) icon = '🖥️';
 
-        // --- TICKET BADGE LOGIC ---
         let badgeHtml = '';
         if (m.type === 'ticket' && m.status) {
-            let statusClass = 'msg-status-open';
-            let statusText = 'OFFEN';
+            let statusClass = 'msg-status-open'; let statusText = 'OFFEN';
             if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; }
             if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
             badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
         }
-        // ---------------------------
 
         el.className = classes;
         el.innerHTML = `
-            <div class="msg-header">
-                <span>${new Date(m.created_at).toLocaleString('de-DE')}</span>
-                <span>${isLan ? 'LAN Intern' : (isPersonal ? 'Persönlich' : 'Allgemein')}</span>
-            </div>
+            <div class="msg-header"><span>${new Date(m.created_at).toLocaleString('de-DE')}</span><span>${isLan ? 'LAN Intern' : (isPersonal ? 'Persönlich' : 'Allgemein')}</span></div>
         `;
 
-        // SECURITY: Render Subject & Body safely as text
-        const divSubject = document.createElement('div');
-        divSubject.className = 'msg-subject';
-        divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`;
+        const divSubject = document.createElement('div'); divSubject.className = 'msg-subject'; divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`;
+        const divBody = document.createElement('div'); divBody.className = 'msg-body';
 
-        const divBody = document.createElement('div');
-        divBody.className = 'msg-body';
-
-        // If LAN message, it's encrypted. Show Decrypt UI.
         if (isLan) {
              divBody.innerHTML = `
                 <div style="font-size:0.8rem; color:#888; margin-bottom:10px;">Verschlüsselte Nachricht</div>
@@ -2170,108 +1713,58 @@ async function loadAndShowInbox() {
                 <div id="dec-${m.id}" style="margin-top:10px; white-space:pre-wrap; display:none;"></div>
              `;
              divBody.dataset.payload = m.body;
-        } else {
-             divBody.textContent = m.body;
-        }
+        } else { divBody.textContent = m.body; }
 
-        el.appendChild(divSubject);
-        el.appendChild(divBody);
+        el.appendChild(divSubject); el.appendChild(divBody);
 
-        // DELETE BUTTON
         if (isPersonal || isLan) {
-            const btnDel = document.createElement('button');
-            btnDel.textContent = 'Löschen';
-            btnDel.className = 'btn-outline';
-            btnDel.style.fontSize = '0.7rem';
-            btnDel.style.marginTop = '10px';
-            btnDel.style.padding = '4px 8px';
-
+            const btnDel = document.createElement('button'); btnDel.textContent = 'Löschen'; btnDel.className = 'btn-outline'; btnDel.style.fontSize = '0.7rem'; btnDel.style.marginTop = '10px'; btnDel.style.padding = '4px 8px';
             if (!isLan && m.type === 'ticket' && m.status !== 'closed') {
-                btnDel.classList.add('delete-btn-locked');
-                btnDel.style.display = 'none';
-                btnDel.disabled = true;
-                btnDel.onclick = (e) => { e.stopPropagation(); };
+                btnDel.classList.add('delete-btn-locked'); btnDel.style.display = 'none'; btnDel.disabled = true; btnDel.onclick = (e) => { e.stopPropagation(); };
             } else {
-                btnDel.onclick = (e) => {
-                    e.stopPropagation();
-                    if(isLan) deleteLanMessage(m.id, el);
-                    else deleteMessage(m.id, el);
-                };
+                btnDel.onclick = (e) => { e.stopPropagation(); if(isLan) deleteLanMessage(m.id, el); else deleteMessage(m.id, el); };
             }
             el.appendChild(btnDel);
         }
 
         el.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') return;
-
             const wasExpanded = el.classList.contains('expanded');
             document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
 
             if(!wasExpanded) {
                 el.classList.add('expanded');
-
                 if(isUnread) {
                     if(el.classList.contains('unread')) {
                         el.classList.remove('unread');
-
-                        if(isLan) {
-                            markLanMessageRead(m.id);
-                        } else if(isPersonal) {
-                            markMessageRead(m.id);
-                        } else if(isBroadcast) {
-                            markBroadcastRead(m.id);
-                        }
-
-                        // Update Sidebar Badge immediately
+                        if(isLan) markLanMessageRead(m.id);
+                        else if(isPersonal) markMessageRead(m.id);
+                        else if(isBroadcast) markBroadcastRead(m.id);
                         const navLink = document.getElementById('navPost');
                         const match = navLink.innerText.match(/\((\d+)\)/);
-                        if(match) {
-                            let cur = parseInt(match[1]);
-                            if(cur > 0) updatePostboxUI(cur - 1);
-                        }
+                        if(match) { let cur = parseInt(match[1]); if(cur > 0) updatePostboxUI(cur - 1); }
                     }
                 }
             }
         });
-
         container.appendChild(el);
     });
 }
 
-async function markMessageRead(id) {
-    try {
-        await fetch(`${API_BASE}/messages/${id}/read`, {
-            method: 'PATCH',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-    } catch(e) { console.error("Mark Read Failed", e); }
-}
+async function markMessageRead(id) { try { await fetch(`${API_BASE}/messages/${id}/read`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` } }); } catch(e) {} }
 
 async function deleteMessage(id, element) {
     if(!confirm("Nachricht wirklich löschen?")) return;
     try {
-        const res = await fetch(`${API_BASE}/messages/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-
-        if (res.ok) {
-            element.remove();
-            showToast("Nachricht gelöscht.", "success");
-            checkUnreadMessages();
-        } else {
-            showToast("Fehler beim Löschen.", "error");
-        }
+        const res = await fetch(`${API_BASE}/messages/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (res.ok) { element.remove(); showToast("Nachricht gelöscht.", "success"); checkUnreadMessages(); } else { showToast("Fehler beim Löschen.", "error"); }
     } catch(e) { showToast("Verbindungsfehler", "error"); }
 }
 
 function markLanMessageRead(id) {
     let msgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
     const idx = msgs.findIndex(m => m.id === id);
-    if(idx > -1) {
-        msgs[idx].is_read = true;
-        sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs));
-    }
+    if(idx > -1) { msgs[idx].is_read = true; sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs)); }
 }
 
 function deleteLanMessage(id, element) {
@@ -2279,35 +1772,21 @@ function deleteLanMessage(id, element) {
     let msgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
     msgs = msgs.filter(m => m.id !== id);
     sessionStorage.setItem('sm_lan_msgs', JSON.stringify(msgs));
-    element.remove();
-    showToast("Gelöscht.", "success");
-    checkUnreadMessages();
+    element.remove(); showToast("Gelöscht.", "success"); checkUnreadMessages();
 }
 
 window.decryptLanMessage = async function(msgId) {
     const el = document.getElementById('dec-'+msgId);
-    const parent = el.parentNode; // .msg-body
+    const parent = el.parentNode;
     const payload = parent.dataset.payload;
-
-    const code = prompt("5-stelligen Code eingeben:");
-    if(!code) return;
-
+    const code = prompt("5-stelligen Code eingeben:"); if(!code) return;
     try {
         const res = await decryptFull(payload, code, currentUser.name);
-        el.innerText = res;
-        el.style.display = 'block';
-        el.style.color = '#fff';
-    } catch(e) {
-        alert("Entschlüsselung fehlgeschlagen: " + e.message);
-    }
+        el.innerText = res; el.style.display = 'block'; el.style.color = '#fff';
+    } catch(e) { alert("Entschlüsselung fehlgeschlagen: " + e.message); }
 };
 
 function escapeHtml(text) {
     if(!text) return '';
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
