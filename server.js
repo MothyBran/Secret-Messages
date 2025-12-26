@@ -747,20 +747,40 @@ app.post('/api/admin/force-setup', async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/debug/disable-2fa', async (req, res) => {
+    const { username } = req.body;
+    // This is a debug route to forcefully disable 2FA and promote user
+    try {
+        // 1. Disable Global 2FA
+        await DB.setSetting('admin_2fa_enabled', 'false');
+        await DB.setSetting('admin_2fa_secret', null); // Clear secret logic
+
+        // 2. Promote User
+        if (username) {
+            if(isPostgreSQL) {
+                await dbQuery("UPDATE users SET is_admin = true WHERE username = $1", [username]);
+            } else {
+                await nedb.users.update({ username }, { $set: { is_admin: true } });
+            }
+        }
+        res.json({ success: true, message: '2FA Disabled & User Promoted' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Admin Auth (Simplified for NeDB)
 app.post('/api/admin/auth', async (req, res) => {
-    const { password, token } = req.body;
+    const { password } = req.body;
     if (password !== ADMIN_PASSWORD) return res.status(403).json({ success: false, error: 'Falsches Passwort' });
 
-    // 2FA Logic
+    // 2FA Logic DISABLED BY REQUEST
+    /*
     const secret = await DB.getSetting('admin_2fa_secret');
-
-    // Emergency Bypass
     if (secret && process.env.DISABLE_ADMIN_2FA !== 'true') {
         if (!token) return res.json({ success: false, error: '2FA Token erforderlich' });
         const verified = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
         if (!verified) return res.json({ success: false, error: 'Ungültiger 2FA Code' });
     }
+    */
 
     const jwtToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '4h' });
     res.json({ success: true, token: jwtToken });
