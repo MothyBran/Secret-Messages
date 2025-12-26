@@ -11,7 +11,8 @@ const crypto = require('crypto');
 const { Resend } = require('resend');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const { WebSocketServer } = require('ws');
+const { Server } = require("socket.io");
+const http = require('http');
 require('dotenv').config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -20,6 +21,14 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const paymentRoutes = require('./payment.js');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000', 'file://'],
+        methods: ["GET", "POST"]
+    }
+});
+
 app.set('trust proxy', 1);
 
 // ==================================================================
@@ -96,14 +105,14 @@ app.use(helmet({
       scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com", "ws://localhost:8080"],
+      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com", "ws://localhost:3000", "http://localhost:3000"],
       imgSrc: ["'self'", "data:", "https:"]
     }
   }
 }));
 
 app.use(cors({
-    origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000'],
+    origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000', 'file://'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
 }));
@@ -1035,6 +1044,7 @@ app.post('/api/admin/generate-enterprise-bundle', requireAdmin, async (req, res)
         const orderNum = 'ENT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 
         // 1. Create Bundle
+        console.log(`Creating Enterprise Bundle: ${name} with ${count} Users`);
         let bundleId;
         if(isPostgreSQL) {
             let insertBundle = await dbQuery(
@@ -1429,21 +1439,111 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
 });
 
 // ==================================================================
-// LOCAL HUB ENDPOINTS (IT ADMIN)
+// LOCAL HUB ENDPOINTS (IT ADMIN & SOCKET.IO)
 // ==================================================================
 
-let wss = null;
 let isHubActive = false;
+// Connected clients map: userId -> socketId
+let connectedUsers = new Map();
+let masterAdminSocketId = null;
 
-app.get('/api/hub/status', requireAdmin, (req, res) => {
-    res.json({ active: isHubActive, port: 8080 });
+// Socket.io Logic (Running but only accepting events if Hub is "Active")
+io.on('connection', (socket) => {
+    if(!isHubActive) {
+        // Technically we accept connection but maybe we should disconnect if not active?
+        // For now, allow connection but block actions.
+    }
+
+    // 1. REGISTER USER
+    socket.on('register', (data) => {
+        if(!isHubActive) return;
+        const { userId, username, role } = data;
+        connectedUsers.set(String(userId), socket.id);
+        socket.userId = String(userId);
+        socket.role = role || 'user';
+
+        if(role === 'MASTER') {
+            masterAdminSocketId = socket.id;
+            console.log(`👑 Master Admin connected: ${username} (${socket.id})`);
+        } else {
+            console.log(`👤 User connected: ${username} (${userId})`);
+            // Notify Master Admin
+            if(masterAdminSocketId) {
+                io.to(masterAdminSocketId).emit('user_online', { userId, username });
+            }
+        }
+    });
+
+    // 2. SEND MESSAGE (RELAY)
+    socket.on('send_message', (data) => {
+        if(!isHubActive) return;
+        const { recipientId, encryptedPayload, type } = data; // Payload is full encrypted block
+
+        // Support to Master Logic
+        if(type === 'support') {
+             if(masterAdminSocketId) {
+                 io.to(masterAdminSocketId).emit('support_ticket', {
+                     fromUserId: socket.userId,
+                     payload: encryptedPayload,
+                     timestamp: new Date().toISOString()
+                 });
+                 // Ack to sender
+                 socket.emit('message_sent', { success: true });
+             } else {
+                 socket.emit('message_sent', { success: false, error: 'Support offline' });
+             }
+             return;
+        }
+
+        // Direct Message
+        const targetSocketId = connectedUsers.get(String(recipientId));
+        if(targetSocketId) {
+            io.to(targetSocketId).emit('receive_message', {
+                fromUserId: socket.userId,
+                payload: encryptedPayload,
+                timestamp: new Date().toISOString()
+            });
+            socket.emit('message_sent', { success: true });
+        } else {
+            // Store offline? OR just error for now (LAN mode usually assumes realtime)
+            // Requirement says "autarkes System". Maybe store in Master DB?
+            // For now: Error "User offline"
+            socket.emit('message_sent', { success: false, error: 'User offline' });
+        }
+    });
+
+    // 3. BROADCAST (Master Only)
+    socket.on('broadcast', (data) => {
+        if(!isHubActive) return;
+        if(socket.role !== 'MASTER') return; // Security check
+
+        socket.broadcast.emit('receive_broadcast', {
+            message: data.message,
+            timestamp: new Date().toISOString()
+        });
+    });
+
+    socket.on('disconnect', () => {
+        if(socket.userId) {
+            connectedUsers.delete(socket.userId);
+            if(masterAdminSocketId) {
+                io.to(masterAdminSocketId).emit('user_offline', { userId: socket.userId });
+            }
+        }
+        if(socket.id === masterAdminSocketId) {
+            masterAdminSocketId = null;
+            console.log("👑 Master Admin disconnected");
+        }
+    });
+});
+
+
+app.get('/api/hub/status', (req, res) => {
+    res.json({ active: isHubActive, port: 3000 });
 });
 
 app.post('/api/hub/start', authenticateUser, async (req, res) => {
     // ENFORCEMENT: Only MASTER License can start Hub
-    // req.user is set by authenticateUser
-    // We need to check the license key type of this user.
-
     try {
         let licenseType = '';
         if(isPostgreSQL) {
@@ -1466,23 +1566,11 @@ app.post('/api/hub/start', authenticateUser, async (req, res) => {
             return res.status(403).json({ error: 'Nur MASTER-Lizenzen dürfen den LAN-Hub starten.' });
         }
 
-        if (isHubActive) return res.json({ success: true, active: true, message: 'Already running' });
-
-        wss = new WebSocketServer({ port: 8080 });
         isHubActive = true;
+        const currentPort = server.address().port;
+        console.log(`📡 LAN Hub (Socket.io) Active on Port ${currentPort}`);
+        res.json({ success: true, active: true, port: currentPort });
 
-        wss.on('connection', (ws) => {
-            ws.on('message', (message) => {
-                wss.clients.forEach((client) => {
-                    if (client !== ws && client.readyState === 1) {
-                        client.send(message);
-                    }
-                });
-            });
-        });
-
-        console.log('📡 LAN Hub started on port 8080');
-        res.json({ success: true, active: true, port: 8080 });
     } catch (e) {
         console.error("Hub Start Error:", e);
         res.status(500).json({ success: false, error: e.message });
@@ -1492,11 +1580,12 @@ app.post('/api/hub/start', authenticateUser, async (req, res) => {
 app.post('/api/hub/stop', requireAdmin, (req, res) => {
     if (!isHubActive) return res.json({ success: true, active: false });
 
-    if (wss) {
-        wss.close();
-        wss = null;
-    }
     isHubActive = false;
+    // Disconnect all sockets?
+    io.disconnectSockets();
+    masterAdminSocketId = null;
+    connectedUsers.clear();
+
     console.log('📡 LAN Hub stopped');
     res.json({ success: true, active: false });
 });
@@ -1676,9 +1765,9 @@ app.get('*', (req, res) => {
 
 // Modifiziert für Electron Integration
 if (require.main === module) {
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
         console.log(`🚀 Server running on Port ${PORT}`);
     });
 }
 
-module.exports = { app, startServer: (port) => app.listen(port || PORT, () => console.log(`🚀 Electron Server running on Port ${port || PORT}`)) };
+module.exports = { app, startServer: (port) => server.listen(port || PORT, () => console.log(`🚀 Electron Server running on Port ${port || PORT}`)) };
