@@ -160,14 +160,16 @@ const initializeDatabase = async () => {
         let dbPath = './data';
         if (!fs.existsSync(dbPath)){ fs.mkdirSync(dbPath); }
 
-        nedb.users = Datastore.create({ filename: path.join(dbPath, 'users.db'), autoload: true });
-        nedb.license_keys = Datastore.create({ filename: path.join(dbPath, 'license_keys.db'), autoload: true });
-        nedb.payments = Datastore.create({ filename: path.join(dbPath, 'payments.db'), autoload: true });
-        nedb.account_deletions = Datastore.create({ filename: path.join(dbPath, 'account_deletions.db'), autoload: true });
-        nedb.settings = Datastore.create({ filename: path.join(dbPath, 'settings.db'), autoload: true });
-        nedb.license_bundles = Datastore.create({ filename: path.join(dbPath, 'license_bundles.db'), autoload: true });
-        nedb.messages = Datastore.create({ filename: path.join(dbPath, 'messages.db'), autoload: true });
-        nedb.support_tickets = Datastore.create({ filename: path.join(dbPath, 'support_tickets.db'), autoload: true });
+        try {
+            nedb.users = Datastore.create({ filename: path.join(dbPath, 'users.db'), autoload: true });
+            nedb.license_keys = Datastore.create({ filename: path.join(dbPath, 'license_keys.db'), autoload: true });
+            nedb.payments = Datastore.create({ filename: path.join(dbPath, 'payments.db'), autoload: true });
+            nedb.account_deletions = Datastore.create({ filename: path.join(dbPath, 'account_deletions.db'), autoload: true });
+            nedb.settings = Datastore.create({ filename: path.join(dbPath, 'settings.db'), autoload: true });
+            nedb.license_bundles = Datastore.create({ filename: path.join(dbPath, 'license_bundles.db'), autoload: true });
+            nedb.messages = Datastore.create({ filename: path.join(dbPath, 'messages.db'), autoload: true });
+            nedb.support_tickets = Datastore.create({ filename: path.join(dbPath, 'support_tickets.db'), autoload: true });
+        } catch(e) { console.error("NeDB Load Error (ignored):", e.message); }
 
         // Initialize Defaults
         const mCheck = await nedb.settings.findOne({ key: 'maintenance_mode' });
@@ -727,9 +729,11 @@ app.post('/api/admin/auth', async (req, res) => {
 
     // 2FA Logic
     const secret = await DB.getSetting('admin_2fa_secret');
-    if (secret) {
+
+    // Emergency Bypass
+    if (secret && process.env.DISABLE_ADMIN_2FA !== 'true') {
         if (!token) return res.json({ success: false, error: '2FA Token erforderlich' });
-        const verified = speakeasy.totp.verify({ secret, encoding: 'base32', token });
+        const verified = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 2 });
         if (!verified) return res.json({ success: false, error: 'Ungültiger 2FA Code' });
     }
 
@@ -977,6 +981,74 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
         }
         res.json({ success: true, bundleId, keys: newKeys });
     } catch(e) { res.status(500).json({ error: "Bundle Fehler: " + e.message }); }
+});
+
+app.post('/api/admin/generate-enterprise-bundle', requireAdmin, async (req, res) => {
+    try {
+        const { name, userCount } = req.body;
+        const count = parseInt(userCount) || 5;
+        const orderNum = 'ENT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+        // 1. Create Bundle
+        let bundleId;
+        if(isPostgreSQL) {
+            let insertBundle = await dbQuery(
+                `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) RETURNING id`,
+                [name, orderNum, count + 1, new Date().toISOString()]
+            );
+            bundleId = insertBundle.rows[0].id;
+        } else {
+            const doc = await nedb.license_bundles.insert({
+                name, order_number: orderNum, total_keys: count + 1, created_at: new Date().toISOString(),
+                id: Math.floor(Math.random() * 1000000)
+            });
+            bundleId = doc.id;
+        }
+
+        const newKeys = [];
+
+        // 2. Generate MASTER Key
+        const masterKeyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+        const masterKeyHash = crypto.createHash('sha256').update(masterKeyRaw).digest('hex');
+        const masterAssignedId = 'MASTER-ADMIN';
+
+        if(isPostgreSQL) {
+            await dbQuery(
+                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id) VALUES ($1, $2, 'MASTER', false, $3, $4)`,
+                [masterKeyRaw, masterKeyHash, bundleId, masterAssignedId]
+            );
+        } else {
+            await nedb.license_keys.insert({
+                key_code: masterKeyRaw, key_hash: masterKeyHash, product_code: 'MASTER', is_active: false, bundle_id: bundleId, assigned_user_id: masterAssignedId,
+                id: Math.floor(Math.random() * 1000000)
+            });
+        }
+        newKeys.push({ key: masterKeyRaw, type: 'MASTER', assignedId: masterAssignedId });
+
+        // 3. Generate User Keys (LIFETIME_USER)
+        for(let i = 0; i < count; i++) {
+            const seqNum = i + 1;
+            const assignedId = `USER-${String(seqNum).padStart(3, '0')}`;
+            const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+            const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+
+            if(isPostgreSQL) {
+                await dbQuery(
+                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id) VALUES ($1, $2, 'LIFETIME_USER', false, $3, $4)`,
+                    [keyRaw, keyHash, bundleId, assignedId]
+                );
+            } else {
+                await nedb.license_keys.insert({
+                    key_code: keyRaw, key_hash: keyHash, product_code: 'LIFETIME_USER', is_active: false, bundle_id: bundleId, assigned_user_id: assignedId,
+                    id: Math.floor(Math.random() * 1000000)
+                });
+            }
+            newKeys.push({ key: keyRaw, type: 'USER', assignedId });
+        }
+
+        res.json({ success: true, bundleId, keys: newKeys });
+
+    } catch(e) { res.status(500).json({ error: "Enterprise Bundle Error: " + e.message }); }
 });
 
 app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
