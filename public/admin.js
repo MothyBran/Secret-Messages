@@ -1000,9 +1000,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Refresh Buttons (Using IDs from HTML update)
     document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
-    document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
+    document.getElementById('refreshAllLicensesBtn')?.addEventListener('click', window.refreshLicenses);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
-    document.getElementById('refreshBundlesBtn')?.addEventListener('click', window.loadBundles);
     document.getElementById('refreshSupportBtn')?.addEventListener('click', window.loadSupportTickets);
     document.getElementById('generateBundleBtn')?.addEventListener('click', window.generateBundle);
     document.getElementById('generateEntBundleBtn')?.addEventListener('click', window.generateEnterpriseBundle);
