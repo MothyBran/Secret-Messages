@@ -22,13 +22,21 @@ const StorageAdapter = {
     lanIp: null,
 
     init: function() {
-        // Detect Environment (Mock detection for now, later verify window.electronAPI)
-        if (window.location.protocol === 'file:') {
-            this.mode = 'local';
+        // 1. Strict Environment Detection
+        // If loaded via file:// or if electronAPI is present, it's Desktop.
+        // Otherwise it's Cloud Web.
+        const isDesktop = (window.location.protocol === 'file:' || window.electronAPI);
+
+        if (isDesktop) {
+            // Desktop can be Local (Cloud-connected exe) or Hub (LAN) or Airgapped.
+            // Check local storage preference
+            const storedMode = localStorage.getItem('sm_app_mode');
+            this.mode = storedMode || 'local'; // Default to local (online exe)
+        } else {
+            // Web Browser: Strict Cloud Mode.
+            this.mode = 'cloud';
+            localStorage.setItem('sm_app_mode', 'cloud'); // Enforce
         }
-        // Check local storage override
-        const storedMode = localStorage.getItem('sm_app_mode');
-        if(storedMode) this.mode = storedMode;
 
         // Restore LAN IP
         const storedIp = localStorage.getItem('sm_lan_ip');
@@ -168,10 +176,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupUIEvents();
     
-    // Enterprise License Check
+    // Enterprise License Check (Strict Desktop Only)
+    // Only show IT Admin Link if:
+    // 1. Mode is NOT 'cloud' (Web)
+    // 2. License indicates Master/Enterprise privileges
     const storedLic = localStorage.getItem('sm_exp');
-    if (storedLic && (storedLic.includes('unlimited') || storedLic.includes('Enterprise'))) {
+    // Check if we are in Desktop environment (StorageAdapter checks this in init, but we check mode here)
+    const isWeb = (StorageAdapter.mode === 'cloud');
+
+    // We assume 'MASTER' product code maps to 'unlimited' or specific text in local storage.
+    // Ideally we check currentUser privileges.
+    // But sticking to existing logic + Web Restriction:
+    if (!isWeb && storedLic && (storedLic.includes('unlimited') || storedLic.includes('Enterprise') || storedLic.includes('MASTER'))) {
         document.getElementById('itAdminLink').style.display = 'block';
+    } else {
+        document.getElementById('itAdminLink').style.display = 'none';
     }
 
     // URL Check (Kauf-Rückkehr)
@@ -1289,9 +1308,13 @@ async function handleMainAction() {
 
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
 
-    // Pre-Action Check: Server Validierung
-    const isValid = await validateSessionStrict();
-    if (!isValid) return; // validateSessionStrict handles logout or redirect
+    // Pre-Action Check: Server Validierung (Only if NOT in LAN Mode)
+    // In LAN mode, we trust the local session or re-validate with Hub?
+    // The requirement says "Autarker Nachrichten-Versand... ohne Internet-Requests".
+    if (StorageAdapter.mode !== 'hub') {
+        const isValid = await validateSessionStrict();
+        if (!isValid) return;
+    }
 
     const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
     try {
@@ -1299,9 +1322,29 @@ async function handleMainAction() {
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s);
             if(!rIds.includes(currentUser.name)) rIds.push(currentUser.name);
+
+            // 1. Local Encryption
             res = await encryptFull(payload, code, rIds, currentUser.name);
 
-             // Show encrypted text result
+            // 2. LAN Mode: Send via Socket immediately
+            if (StorageAdapter.mode === 'hub' && StorageAdapter.socket) {
+                // Loop through recipients and send individually or broadcast?
+                // Our Hub 'send_message' takes single recipientId.
+                // We iterate.
+                let sentCount = 0;
+                for (const recipient of rIds) {
+                    if (recipient === currentUser.name) continue; // Don't send to self via socket (local echo)
+                    StorageAdapter.socket.emit('send_message', {
+                        recipientId: recipient,
+                        encryptedPayload: res, // Sending the full encrypted block
+                        type: 'message'
+                    });
+                    sentCount++;
+                }
+                showAppStatus(`Verschlüsselt & an ${sentCount} Empfänger im LAN gesendet.`, 'success');
+            }
+
+             // Show encrypted text result (Always show for copy/paste fallback)
              const textOut = document.getElementById('messageOutput');
              const mediaOut = document.getElementById('mediaOutput');
              if(textOut) {

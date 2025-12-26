@@ -1113,7 +1113,8 @@ app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
         if(isPostgreSQL) {
             const sql = `
                 SELECT b.*,
-                (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = TRUE) as active_count
+                (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = TRUE) as active_count,
+                (SELECT key_code FROM license_keys k WHERE k.bundle_id = b.id AND k.product_code = 'MASTER' LIMIT 1) as master_key
                 FROM license_bundles b ORDER BY b.created_at DESC
             `;
             const result = await dbQuery(sql);
@@ -1122,6 +1123,8 @@ app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
             const bundles = await nedb.license_bundles.find({}).sort({ created_at: -1 });
             for(let b of bundles) {
                 b.active_count = await nedb.license_keys.count({ bundle_id: b.id, is_active: true });
+                const mk = await nedb.license_keys.findOne({ bundle_id: b.id, product_code: 'MASTER' });
+                if(mk) b.master_key = mk.key_code;
             }
             res.json(bundles);
         }
