@@ -845,12 +845,11 @@ async function initDashboard() {
     } catch(e) { console.error(e); window.showMessage("Fehler", "Server nicht erreichbar.", true); }
 }
 
-async function performLogin(password, token2fa) {
+async function performLogin(password) {
     try {
         const headers = { 'Content-Type': 'application/json' };
-        if (token2fa) {
-            headers['x-admin-2fa-token'] = token2fa;
-        }
+        // 2FA Disabled in Frontend
+        // if (token2fa) headers['x-admin-2fa-token'] = token2fa;
 
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
@@ -980,8 +979,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const pw = document.getElementById('adminPasswordInput').value;
-        const t2fa = document.getElementById('admin2faInput').value; // Get 2FA Token
-        performLogin(pw, t2fa);
+        // const t2fa = document.getElementById('admin2faInput').value; // 2FA Disabled
+        performLogin(pw);
     });
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
