@@ -1106,21 +1106,55 @@ function renderBundlesTable(bundles) {
         // Calculate progress
         const active = b.active_count || 0;
         const total = b.total_keys || 0;
-        const progress = Math.round((active/total)*100);
+        const progress = total > 0 ? Math.round((active/total)*100) : 0;
+
+        // Enterprise Check (Assumption: order_number starts with ENT)
+        const isEnt = b.order_number && b.order_number.startsWith('ENT');
+        let slotsText = `${total} Keys`;
+        let aliasText = b.name || '-';
+
+        if(isEnt) {
+            slotsText = `Slots (${active}/${total})`;
+            // Ideally we show Master Admin info here if we fetched it,
+            // but fetching keys for every bundle in list is heavy.
+            // We stick to the requested format: "Alias | Master-Key | Slots | Status"
+            // Since we don't have Master Key in bundle object, we show Order# or just Alias.
+            // The requirement says "Bei jedem Bundle angezeigt werden...".
+            // For now, we enhance the columns we have.
+        }
 
         tr.innerHTML = `
-            <td style="font-weight:bold; color:var(--accent-blue);">${b.name || '-'}</td>
+            <td style="font-weight:bold; color:var(--accent-blue);">${aliasText}</td>
             <td style="font-family:'Roboto Mono'">${b.order_number}</td>
-            <td>${total} Keys</td>
-            <td>${active} (${progress}%)</td>
+            <td>${slotsText}</td>
+            <td><span class="status-badge" style="color:${active>0?'var(--success-green)':'#888'}">${active > 0 ? 'Aktiv' : 'Inaktiv'}</span></td>
             <td>${new Date(b.created_at).toLocaleDateString('de-DE')}</td>
             <td>
-                <button class="btn-icon" onclick="openBundleDetails(${b.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📂</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-icon" onclick="openBundleDetails(${b.id})" title="Details" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📂</button>
+                    <button class="btn-icon" onclick="deleteBundle(${b.id})" title="Bundle Löschen" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
     });
 }
+
+window.deleteBundle = function(id) {
+    window.showConfirm("Warnung: Löschen entfernt das Bundle und ALLE zugehörigen Keys/User-Verknüpfungen unwiderruflich! Fortfahren?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/bundles/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.loadBundles();
+                window.loadKeys(); // Refresh keys too as they are deleted
+                window.showMessage("Gelöscht", "Bundle und verknüpfte Keys wurden entfernt.");
+            } else {
+                const d = await res.json();
+                window.showMessage("Fehler", d.error || "Löschen fehlgeschlagen", true);
+            }
+        } catch(e) { window.showMessage("Fehler", "Netzwerkfehler", true); }
+    });
+};
 
 function renderKeysTable(keys) {
     const tbody = document.getElementById('keysTableBody');

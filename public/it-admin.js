@@ -1,5 +1,7 @@
 // it-admin.js - Local IT Admin Logic
 
+import { decryptFull, encryptFull } from './cryptoLayers.js';
+
 const API_BASE = '/api/admin'; // Reusing admin API structure but scoped
 let itToken = null;
 
@@ -7,7 +9,8 @@ let itToken = null;
 const SERVER_IP = window.location.hostname;
 let socket = null;
 
-function showToast(message, type = 'info') {
+// Expose functions to window because this is a module now
+window.showToast = function(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -72,6 +75,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load initial status
     if(itToken) checkHubStatus();
 });
+
+// Decryption Helper
+window.decryptMessage = async function(elementId, encryptedPayload) {
+    const code = prompt("Bitte Master-Code (5-stellig) zur Entschlüsselung eingeben:");
+    if(!code || code.length !== 5) return alert("Code ungültig.");
+
+    try {
+        // We assume Master Username is what we logged in with or stored in token context
+        // But for decryption we need the recipient ID which was used to encrypt.
+        // In LAN mode, messages to MASTER are encrypted for 'MASTER' or the specific Admin ID.
+        // Let's try to decrypt with the entered code and 'MASTER' ID first, or the logged in admin name.
+
+        // Decoding token to get username
+        const base64Url = itToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        const user = JSON.parse(jsonPayload);
+        const adminName = user.username || 'MASTER';
+
+        // NOTE: If the user encrypted for "MASTER", we decrypt as "MASTER".
+        // The sender logic in app.js sends to "MASTER".
+        const decrypted = await decryptFull(encryptedPayload, code, 'MASTER');
+
+        const el = document.getElementById(elementId);
+        if(el) {
+            el.innerText = decrypted;
+            el.style.color = '#fff';
+            el.style.fontFamily = 'sans-serif';
+        }
+    } catch(e) {
+        alert("Entschlüsselung fehlgeschlagen: " + e.message);
+    }
+};
 
 function showDashboard() {
     document.getElementById('login-view').style.display = 'none';
@@ -161,32 +199,40 @@ function addTicketToInbox(data) {
     div.style.marginBottom = '10px';
     div.style.background = '#111';
 
-    // Since payload is encrypted, we can't show text without decryption.
-    // In "Teil 3", it says "All messages... encrypted with Public/Private Key".
-    // The Master Admin needs his Private Key to decrypt this.
-    // For now, we just show the encrypted event.
-    // Real implementation would require the crypto layer here.
+    const msgId = 'msg-' + Date.now() + '-' + Math.floor(Math.random()*1000);
 
     div.innerHTML = `
         <div style="color:#00BFFF; font-weight:bold;">User: ${data.fromUserId} <span style="font-size:0.8rem; color:#666;">${new Date(data.timestamp).toLocaleTimeString()}</span></div>
-        <div style="color:#888; font-size:0.8rem; overflow-wrap:anywhere;">[Encrypted Payload]</div>
-        <div style="margin-top:5px;">
-             <button onclick="replyToUser('${data.fromUserId}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto;">Reply</button>
+        <div id="${msgId}" style="color:#888; font-size:0.8rem; overflow-wrap:anywhere; margin:5px 0;">${data.payload || '[No Payload]'}</div>
+        <div style="margin-top:5px; display:flex; gap:10px;">
+             <button onclick="window.decryptMessage('${msgId}', '${data.payload}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto; background:#333; border:1px solid #555;">🔓 Decrypt</button>
+             <button onclick="window.replyToUser('${data.fromUserId}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto;">Reply</button>
         </div>
     `;
     inbox.prepend(div);
 }
 
-window.replyToUser = function(userId) {
+window.replyToUser = async function(userId) {
     const msg = prompt("Antwort an " + userId + ":");
+    if(!msg) return;
+
+    const code = prompt("Verschlüsselungs-Code (5-stellig) für User:");
+    if(!code || code.length !== 5) return alert("Code fehlt.");
+
     if(msg && socket) {
-        // This should also be encrypted in real scenario
-        socket.emit('send_message', {
-            recipientId: userId,
-            encryptedPayload: msg, // Sending plaintext as mock for now, ideally encrypted
-            type: 'admin_reply'
-        });
-        showToast("Antwort gesendet.");
+        try {
+            // Encrypt for User
+            const encrypted = await encryptFull(msg, code, [userId], 'MASTER'); // Master sending
+
+            socket.emit('send_message', {
+                recipientId: userId,
+                encryptedPayload: encrypted,
+                type: 'admin_reply'
+            });
+            showToast("Verschlüsselte Antwort gesendet.");
+        } catch(e) {
+            alert("Fehler beim Verschlüsseln: " + e.message);
+        }
     }
 };
 

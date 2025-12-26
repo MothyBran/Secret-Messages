@@ -1065,7 +1065,9 @@ app.post('/api/admin/generate-enterprise-bundle', requireAdmin, async (req, res)
         // 2. Generate MASTER Key
         const masterKeyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
         const masterKeyHash = crypto.createHash('sha256').update(masterKeyRaw).digest('hex');
-        const masterAssignedId = 'MASTER-ADMIN';
+        // Task 1: Enforce Unique Master Identity using Customer Name
+        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '');
+        const masterAssignedId = `${sanitizedName}_Admin`;
 
         if(isPostgreSQL) {
             await dbQuery(
@@ -1154,6 +1156,33 @@ app.put('/api/admin/bundles/:id/extend', requireAdmin, async (req, res) => {
         }
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/bundles/:id', requireAdmin, async (req, res) => {
+    const bundleId = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        if(isPostgreSQL) {
+            // Unlink users first
+            await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id IN (SELECT id FROM license_keys WHERE bundle_id = $1)`, [bundleId]);
+            // Delete keys
+            await dbQuery(`DELETE FROM license_keys WHERE bundle_id = $1`, [bundleId]);
+            // Delete bundle
+            await dbQuery(`DELETE FROM license_bundles WHERE id = $1`, [bundleId]);
+        } else {
+            const keys = await nedb.license_keys.find({ bundle_id: bundleId });
+            for(let k of keys) {
+                // Find users with this key and unlink
+                const users = await nedb.users.find({ license_key_id: k.id });
+                for(let u of users) await nedb.users.update({ id: u.id }, { $set: { license_key_id: null } });
+                await nedb.license_keys.remove({ id: k.id }, {});
+            }
+            await nedb.license_bundles.remove({ id: bundleId }, {});
+        }
+        res.json({ success: true });
+    } catch(e) {
+        console.error("Bundle delete error:", e);
+        res.status(500).json({ error: "Löschen fehlgeschlagen: " + e.message });
+    }
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
