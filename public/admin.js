@@ -1,4 +1,4 @@
-// admin.js - Admin Panel Logic (Fixed Filtering & Search)
+// admin.js - Admin Panel Logic (Fixed Filtering & Search & Button Actions)
 
 console.log("🚀 ADMIN.JS GELADEN");
 
@@ -107,6 +107,32 @@ window.loadSupportTickets = async function() {
     } catch(e) { console.error("Load Tickets Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
+
+window.loadSystemStatus = async function() {
+     try {
+        const res = await fetch(`${API_BASE}/system-status`, { headers: getHeaders() });
+        const data = await res.json();
+        if(data.success) {
+            const st = data.status;
+            const elDb = document.getElementById('sysDbStatus');
+            const elTime = document.getElementById('sysTime');
+            const elUptime = document.getElementById('sysUptime');
+
+            if(elDb) {
+                elDb.textContent = st.dbConnection;
+                elDb.style.color = st.dbConnection === 'OK' ? 'var(--success-green)' : 'red';
+            }
+            if(elTime) {
+                const d = new Date(st.serverTime);
+                elTime.textContent = d.toLocaleTimeString('de-DE');
+            }
+            if(elUptime) {
+                const uptimeH = (st.uptime / 3600).toFixed(1);
+                elUptime.textContent = `${uptimeH} h`;
+            }
+        }
+    } catch(e) { console.error("Sys Status Failed", e); }
+}
 
 // --- LICENSE MANAGEMENT ---
 
@@ -334,11 +360,27 @@ window.openBundleDetails = async function(id, isEnterprise) {
     currentBundleId = id;
     const modal = document.getElementById('bundleDetailsModal');
     const tbody = document.getElementById('bundleKeysBody');
+    const thead = modal.querySelector('thead tr');
     const controls = document.getElementById('massExtendControls');
 
     // Hide mass extend for Enterprise
     if(controls) controls.style.display = isEnterprise ? 'none' : 'flex';
     document.getElementById('bundleModalTitle').textContent = isEnterprise ? "Enterprise Bundle Details" : "Bundle Details";
+
+    // Privacy Mode for Enterprise: Adjust Table Headers
+    if (isEnterprise) {
+        thead.innerHTML = `
+            <th>Role</th>
+            <th>Key</th>
+        `;
+    } else {
+        thead.innerHTML = `
+            <th>Assigned ID</th>
+            <th>Key</th>
+            <th>Status</th>
+            <th>Ablauf</th>
+        `;
+    }
 
     tbody.innerHTML = '<tr><td colspan="4">Lade...</td></tr>';
     modal.style.display = 'flex';
@@ -350,16 +392,31 @@ window.openBundleDetails = async function(id, isEnterprise) {
         tbody.innerHTML = '';
         keys.forEach(k => {
             const tr = document.createElement('tr');
-            const expStr = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '-';
-            const statusStyle = k.is_active ? 'color:var(--success-green);' : 'color: #888;';
-            const statusText = k.is_active ? 'Aktiv' : 'Frei';
 
-            tr.innerHTML = `
-                <td style="font-weight:bold; color:var(--accent-blue);">${k.assigned_user_id || '-'}</td>
-                <td style="font-family:'Roboto Mono';">${k.key_code}</td>
-                <td style="${statusStyle}">${statusText}</td>
-                <td>${expStr}</td>
-            `;
+            if (isEnterprise) {
+                // Enterprise View: Only Role/ID and Key
+                // Identify Master by Assigned ID convention or product code if available (API returns basic fields)
+                // We use assigned_user_id to guess.
+                const isMaster = k.assigned_user_id && k.assigned_user_id.includes('_Admin');
+                const roleStyle = isMaster ? 'color:gold; font-weight:bold;' : 'color:#fff;';
+
+                tr.innerHTML = `
+                    <td style="${roleStyle}">${k.assigned_user_id || 'User'}</td>
+                    <td style="font-family:'Roboto Mono';">${k.key_code}</td>
+                `;
+            } else {
+                // Standard View
+                const expStr = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '-';
+                const statusStyle = k.is_active ? 'color:var(--success-green);' : 'color: #888;';
+                const statusText = k.is_active ? 'Aktiv' : 'Frei';
+
+                tr.innerHTML = `
+                    <td style="font-weight:bold; color:var(--accent-blue);">${k.assigned_user_id || '-'}</td>
+                    <td style="font-family:'Roboto Mono';">${k.key_code}</td>
+                    <td style="${statusStyle}">${statusText}</td>
+                    <td>${expStr}</td>
+                `;
+            }
             tbody.appendChild(tr);
         });
     } catch(e) { tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Fehler beim Laden.</td></tr>'; }
@@ -670,7 +727,8 @@ async function initDashboard() {
             window.loadUsers();
             window.loadPurchases();
             window.loadSupportTickets();
-            window.refreshLicenses(); // New Unified Loader
+            window.refreshLicenses();
+            window.loadSystemStatus(); // FIXED: Restore Sys Status
 
             window.switchTab('dashboard');
             window.check2FAStatus();
@@ -754,12 +812,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('searchKey')?.addEventListener('input', () => filterAndRenderSingleKeys());
 
-    // NEW SEARCH LISTENERS
     document.getElementById('searchStandardBundle')?.addEventListener('input', () => filterAndRenderStandardBundles());
     document.getElementById('searchEntBundle')?.addEventListener('input', () => filterAndRenderEnterpriseBundles());
 
     document.getElementById('searchPurchase')?.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
         renderPurchasesTable(allPurchases.filter(p => p.email?.toLowerCase().includes(term) || p.product?.toLowerCase().includes(term)));
+    });
+
+    // FIXED: Restore Missing Button Event Listeners
+    document.getElementById('maintenanceToggle')?.addEventListener('change', window.toggleMaintenance);
+    document.getElementById('shopToggle')?.addEventListener('change', window.toggleShop);
+
+    document.getElementById('generateBtn')?.addEventListener('click', window.generateKeys);
+    document.getElementById('saveLicenseBtn')?.addEventListener('click', window.saveLicenseChanges);
+    document.getElementById('cancelLicenseBtn')?.addEventListener('click', () => {
+        document.getElementById('editLicenseModal').style.display = 'none';
+    });
+
+    document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
+    document.getElementById('refreshAllLicensesBtn')?.addEventListener('click', window.refreshLicenses);
+    document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
+    document.getElementById('refreshSupportBtn')?.addEventListener('click', window.loadSupportTickets);
+
+    document.getElementById('generateBundleBtn')?.addEventListener('click', window.generateBundle);
+    document.getElementById('generateEntBundleBtn')?.addEventListener('click', window.generateEnterpriseBundle);
+    document.getElementById('closeBundleModalBtn')?.addEventListener('click', () => document.getElementById('bundleDetailsModal').style.display='none');
+    document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
+    document.getElementById('exportBundleBtn')?.addEventListener('click', window.exportBundleCsv);
+
+    document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
+        if(confirmCallback) confirmCallback();
+        document.getElementById('confirmModal').style.display = 'none';
+        confirmCallback = null;
+    });
+    document.getElementById('btnConfirmNo')?.addEventListener('click', () => {
+        document.getElementById('confirmModal').style.display = 'none';
+        confirmCallback = null;
+    });
+    document.getElementById('btnMsgOk')?.addEventListener('click', () => {
+        document.getElementById('messageModal').style.display = 'none';
     });
 });
