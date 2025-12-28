@@ -1798,6 +1798,17 @@ app.use('/api', paymentRoutes);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// ENTERPRISE SANDBOX ROUTES
+app.get('/test/enterprise-admin', (req, res) => {
+    if (req.query.dev !== 'true') return res.status(403).send('Sandbox Access Denied. Query param ?dev=true required.');
+    res.sendFile(path.join(__dirname, 'public', 'it-admin.html'));
+});
+app.get('/test/enterprise-user', (req, res) => {
+    if (req.query.dev !== 'true') return res.status(403).send('Sandbox Access Denied. Query param ?dev=true required.');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'store.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/maintenance', (req, res) => res.sendFile(path.join(__dirname, 'public', 'maintenance.html')));

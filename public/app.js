@@ -1,4 +1,4 @@
-// app.js - Frontend Logic (Fixed LAN Persistence)
+// app.js - Frontend Logic (Fixed LAN Persistence & Sandbox Mode)
 
 const APP_VERSION = 'Beta v0.61';
 
@@ -15,6 +15,9 @@ let authToken = null;
 let currentAttachmentBase64 = null;
 let currentMode = 'encrypt'; 
 
+// --- SANDBOX MODE DETECTION ---
+const IS_SANDBOX_USER = window.location.pathname.includes('/test/enterprise-user');
+
 // --- NEW: Storage Adapter & Mode Logic ---
 const StorageAdapter = {
     mode: 'cloud', // 'cloud', 'local', 'hub'
@@ -28,6 +31,9 @@ const StorageAdapter = {
         if (isDesktop) {
             const storedMode = localStorage.getItem('sm_app_mode');
             this.mode = storedMode || 'local'; // Default to local (online exe)
+        } else if (IS_SANDBOX_USER) {
+            this.mode = 'hub'; // Force Hub Mode for Sandbox
+            console.log("⚠️ SANDBOX USER MODE ACTIVE");
         } else {
             this.mode = 'cloud';
             localStorage.setItem('sm_app_mode', 'cloud'); // Enforce
@@ -59,11 +65,14 @@ const StorageAdapter = {
     },
 
     connectHub: function() {
-        if(!this.lanIp) return;
+        if(!this.lanIp && !IS_SANDBOX_USER) return;
         if(this.socket) this.socket.disconnect();
 
+        // In Sandbox, we might not have a real hub, or we connect to localhost
+        const hubUrl = IS_SANDBOX_USER ? 'http://localhost:3000' : `http://${this.lanIp}:3000`;
+
         // Connect to port 3000
-        this.socket = io(`http://${this.lanIp}:3000`);
+        this.socket = io(hubUrl);
 
         this.socket.on('connect', () => {
              if(currentUser) {
@@ -216,6 +225,40 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         document.getElementById('itAdminLink').style.display = 'none';
     }
+
+    // --- SANDBOX OVERRIDE ---
+    if (IS_SANDBOX_USER) {
+        authToken = 'DUMMY_TOKEN';
+        currentUser = { name: 'Sandbox_User', sm_id: 999 };
+        contacts = [
+            { id: '101', name: 'M. Schmidt', group: 'IT' },
+            { id: '102', name: 'A. Weber', group: 'Marketing' },
+            { id: '103', name: 'Vertrieb_04', group: 'Sales' },
+            { id: '104', name: 'L. Müller', group: 'IT' },
+            { id: '105', name: 'K. Jansen', group: 'HR' },
+            { id: '106', name: 'T. Hoffmann', group: 'Geschäftsführung' },
+            { id: '107', name: 'S. Wagner', group: 'Sales' },
+            { id: '108', name: 'J. Becker', group: 'IT' },
+            { id: '109', name: 'B. Schulz', group: 'Marketing' },
+            { id: '110', name: 'Admin_01', group: 'IT' }
+        ];
+
+        // Dummy Messages in Session Storage
+        let dummyMsgs = JSON.parse(sessionStorage.getItem('sm_lan_msgs') || '[]');
+        if(dummyMsgs.length === 0) {
+            dummyMsgs = [
+                { id: 'dm1', subject: 'Willkommen', body: 'Willkommen im Enterprise LAN Modus.', is_read: false, created_at: new Date().toISOString(), type: 'automated', is_lan: true },
+                { id: 'dm2', subject: 'Support Ticket #123', body: 'Ihr Ticket wurde bearbeitet.', is_read: true, created_at: new Date(Date.now()-3600000).toISOString(), type: 'support', is_lan: true },
+                { id: 'dm3', subject: 'Verschlüsseltes Bild', body: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==', is_read: false, created_at: new Date().toISOString(), type: 'message', is_lan: true }
+            ];
+            sessionStorage.setItem('sm_lan_msgs', JSON.stringify(dummyMsgs));
+        }
+
+        showSection('mainSection');
+        updateSidebarInfo(currentUser.name, 'unlimited');
+        return; // Skip normal init
+    }
+    // ------------------------
 
     // URL Check (Kauf-Rückkehr)
     const urlParams = new URLSearchParams(window.location.search);
@@ -1502,7 +1545,7 @@ async function handleSupportSubmit(e) {
             const encrypted = await encryptFull(messageVal, code, ['MASTER'], currentUser.name);
             StorageAdapter.socket.emit('send_message', { recipientId: 'MASTER', encryptedPayload: encrypted, type: 'support' });
 
-            showAppStatus(`Verschlüsselte Anfrage gesendet.`, 'success');
+            showAppStatus(`Verschlüsseltes Support-Ticket an LAN-Hub gesendet.`, 'success');
             setTimeout(() => {
                 document.getElementById('supportModal').classList.remove('active');
                 e.target.reset();
