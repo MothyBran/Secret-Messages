@@ -69,11 +69,21 @@ const StorageAdapter = {
              if(currentUser) {
                  this.socket.emit('register', { userId: currentUser.sm_id, username: currentUser.name, role: 'user' });
                  showToast("LAN Verbindung hergestellt", "success");
+
+                 // Process Outbox
+                 const outbox = JSON.parse(localStorage.getItem('sm_lan_outbox') || '[]');
+                 if (outbox.length > 0) {
+                     outbox.forEach(msg => {
+                         this.socket.emit('send_message', msg);
+                     });
+                     localStorage.removeItem('sm_lan_outbox');
+                     showToast(`${outbox.length} geparkte Nachrichten gesendet.`, 'success');
+                 }
              }
         });
 
         this.socket.on('connect_error', () => {
-            showToast("LAN Verbindung fehlgeschlagen", "error");
+            // Quiet fail or toast
         });
 
         // --- FIXED: LAN Message Persistence ---
@@ -1217,14 +1227,24 @@ async function handleMainAction() {
                 let sentCount = 0;
                 for (const recipient of rIds) {
                     if (recipient === currentUser.name) continue;
-                    StorageAdapter.socket.emit('send_message', {
+                    const msgData = {
                         recipientId: recipient,
                         encryptedPayload: res,
                         type: 'message'
-                    });
-                    sentCount++;
+                    };
+
+                    if (StorageAdapter.socket && StorageAdapter.socket.connected) {
+                        StorageAdapter.socket.emit('send_message', msgData);
+                        sentCount++;
+                    } else {
+                        // Park Message
+                        const outbox = JSON.parse(localStorage.getItem('sm_lan_outbox') || '[]');
+                        outbox.push(msgData);
+                        localStorage.setItem('sm_lan_outbox', JSON.stringify(outbox));
+                        showToast("Keine LAN-Verbindung. Nachricht geparkt.", 'info');
+                    }
                 }
-                showAppStatus(`Verschlüsselt & an ${sentCount} Empfänger im LAN gesendet.`, 'success');
+                if(sentCount > 0) showAppStatus(`Verschlüsselt & an ${sentCount} Empfänger im LAN gesendet.`, 'success');
             }
 
              const textOut = document.getElementById('messageOutput');
@@ -1238,6 +1258,24 @@ async function handleMainAction() {
              } else {
                  document.getElementById('qrGenBtn').style.display = 'block';
                  document.getElementById('saveTxtBtn').style.display = 'none';
+             }
+
+             // Offline Export Option (Enterprise)
+             const exportBtn = document.getElementById('exportEncBtn');
+             if (exportBtn) exportBtn.style.display = 'block';
+             else {
+                 // Inject if missing
+                 const grp = document.getElementById('outputGroup');
+                 const btn = document.createElement('button');
+                 btn.id = 'exportEncBtn';
+                 btn.className = 'btn-outline';
+                 btn.textContent = '💾 Export als .msg-enc (Offline)';
+                 btn.style.marginTop = '10px';
+                 btn.style.width = '100%';
+                 btn.onclick = () => downloadOfflineMessage(res);
+                 // Insert after text area or before media output
+                 const ta = document.getElementById('messageOutput');
+                 ta.parentNode.insertBefore(btn, ta.nextSibling);
              }
 
         } else {
@@ -1642,6 +1680,18 @@ async function checkUnreadMessages() {
     const lanUnread = lanMsgs.filter(m => !m.is_read).length;
     totalUnread += lanUnread;
     updatePostboxUI(totalUnread);
+}
+
+function downloadOfflineMessage(encryptedContent) {
+    const filename = `OFFLINE_MSG_${Date.now()}.msg-enc`;
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(encryptedContent));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    showToast("Nachricht für Offline-Transfer exportiert.", 'success');
 }
 
 async function loadAndShowInbox() {

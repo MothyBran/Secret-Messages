@@ -327,7 +327,7 @@ const DB = {
         if(isPostgreSQL) {
             // Include license info via JOIN
             const res = await dbQuery(`
-                SELECT u.*, l.expires_at
+                SELECT u.*, l.expires_at, l.product_code
                 FROM users u
                 LEFT JOIN license_keys l ON u.license_key_id = l.id
                 WHERE u.username = $1
@@ -337,7 +337,10 @@ const DB = {
             const user = await nedb.users.findOne({ username });
             if(user && user.license_key_id) {
                 const license = await nedb.license_keys.findOne({ id: user.license_key_id });
-                if(license) user.expires_at = license.expires_at;
+                if(license) {
+                    user.expires_at = license.expires_at;
+                    user.product_code = license.product_code;
+                }
             }
             return user;
         }
@@ -536,6 +539,17 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         if (isBlocked) {
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
+
+        // --- NEW: Enterprise Access Denial (Cloud Only) ---
+        if (isPostgreSQL) {
+            const productCode = user.product_code || '';
+            const isEnterprise = productCode === 'MASTER' || productCode === 'LIFETIME_USER';
+
+            if (isEnterprise) {
+                return res.status(403).json({ success: false, error: "Enterprise-Lizenz: Nutzung nur über die Desktop-Anwendung gestattet" });
+            }
+        }
+        // ------------------------------------------------
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
@@ -1531,9 +1545,10 @@ io.on('connection', (socket) => {
         const targetSocketId = connectedUsers.get(String(recipientId));
         if(targetSocketId) {
             io.to(targetSocketId).emit('receive_message', {
-                fromUserId: socket.userId,
+                senderId: socket.userId, // ADDED: Sender ID for receiver to identify
                 payload: encryptedPayload,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                type: type || 'message'
             });
             socket.emit('message_sent', { success: true });
         } else {
