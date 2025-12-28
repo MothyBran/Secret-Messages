@@ -2,41 +2,103 @@
 
 import { decryptFull, encryptFull } from './cryptoLayers.js';
 
-const API_BASE = '/api/admin'; // Reusing admin API structure but scoped
+const API_BASE = '/api/admin';
 let itToken = null;
-
-// Mock Config for Hub IP (In real app, getting from server network interface)
 const SERVER_IP = window.location.hostname;
 let socket = null;
 
-// Expose functions to window because this is a module now
+// TEST MODE DETECTION
+const IS_TEST_MODE = window.location.pathname.includes('/test/enterprise-admin');
+
+// Mock Data
+const DUMMY_SLOTS = [
+    { id: 101, name: 'M. Schmidt', dept: 'IT', status: 'online' },
+    { id: 102, name: 'A. Weber', dept: 'Marketing', status: 'offline' },
+    { id: 103, name: 'Vertrieb_04', dept: 'Sales', status: 'online' },
+    { id: 104, name: 'L. Müller', dept: 'IT', status: 'online' },
+    { id: 105, name: 'K. Jansen', dept: 'HR', status: 'offline' },
+    { id: 106, name: 'T. Hoffmann', dept: 'Geschäftsführung', status: 'online' },
+    { id: 107, name: 'S. Wagner', dept: 'Sales', status: 'offline' },
+    { id: 108, name: 'J. Becker', dept: 'IT', status: 'online' },
+    { id: 109, name: 'B. Schulz', dept: 'Marketing', status: 'offline' },
+    { id: 110, name: 'Admin_01', dept: 'IT', status: 'online' },
+    { id: 111, name: 'Frei', dept: '-', status: 'free' },
+    { id: 112, name: 'Frei', dept: '-', status: 'free' },
+    { id: 113, name: 'Frei', dept: '-', status: 'free' },
+    { id: 114, name: 'Frei', dept: '-', status: 'free' },
+    { id: 115, name: 'Frei', dept: '-', status: 'free' },
+];
+
 window.showToast = function(message, type = 'info') {
-    const container = document.getElementById('toast-container');
+    let container = document.getElementById('toast-container');
+    if(!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '10000';
+        document.body.appendChild(container);
+    }
+
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.style.background = '#222';
+    toast.style.color = type === 'error' ? '#ff3333' : (type === 'success' ? '#00ff88' : '#e0e0e0');
+    toast.style.padding = '10px 20px';
+    toast.style.marginTop = '10px';
+    toast.style.borderRadius = '4px';
+    toast.style.borderLeft = `4px solid ${toast.style.color}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+window.showTab = function(tabName) {
+    document.querySelectorAll('.tab-section').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+
+    document.getElementById(`tab-${tabName}`).style.display = 'block';
+    const btns = document.querySelectorAll('.menu-item');
+    btns.forEach(btn => {
+        if(btn.getAttribute('onclick').includes(tabName)) btn.classList.add('active');
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Check Session
-    const stored = sessionStorage.getItem('sm_it_token');
-    if (stored) {
-        itToken = stored;
-        showDashboard();
+    // TEST MODE BYPASS
+    if (IS_TEST_MODE) {
+        console.log("⚠️ TEST MODE ACTIVE");
+        itToken = "DUMMY_TOKEN";
+
+        // Hide login if present
+        const loginView = document.getElementById('login-view');
+        if (loginView) loginView.style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+
+        // Mock Hub Status
+        updateHubUI(false, null);
+
+        // Render Dummy Slots
+        renderUserSlots(DUMMY_SLOTS);
+
+        // Mock Logs
+        logEvent("System initialized in Sandbox Mode.");
+        logEvent("15 Slots loaded.");
+
+    } else {
+        // Real Mode: Check Session
+        const stored = sessionStorage.getItem('sm_it_token');
+        if (stored) {
+            itToken = stored;
+            showDashboard();
+        } else {
+            document.getElementById('login-view').style.display = 'flex';
+        }
     }
 
-    document.getElementById('itLoginForm').addEventListener('submit', async (e) => {
+    document.getElementById('itLoginForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const pw = document.getElementById('itPasswordInput').value;
-
-        // Simple auth check against server (reusing admin auth for now, or specific IT auth)
-        // In Local Mode, server.js uses the same ADMIN_PASSWORD env
         try {
             const res = await fetch(`${API_BASE}/auth`, {
                 method: 'POST',
@@ -45,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if(data.success) {
-                itToken = data.token; // Using JWT
+                itToken = data.token;
                 sessionStorage.setItem('sm_it_token', itToken);
                 showDashboard();
             } else {
@@ -54,62 +116,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e) { showToast("Verbindungsfehler", "error"); }
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
         sessionStorage.removeItem('sm_it_token');
         location.reload();
     });
 
-    // Hub Control
-    document.getElementById('btnStartHub').addEventListener('click', toggleHub);
-    document.getElementById('btnStopHub').addEventListener('click', toggleHub);
-
-    // Export
-    document.getElementById('btnExportKeys').addEventListener('click', exportMasterKeys);
-
-    // Import
-    document.getElementById('btnImportEmployees').addEventListener('click', importEmployees);
-
-    // Device Reset
-    document.getElementById('btnResetDevice').addEventListener('click', resetDeviceBinding);
-
-    // Load initial status
-    if(itToken) checkHubStatus();
+    document.getElementById('btnStartHub')?.addEventListener('click', toggleHub);
+    document.getElementById('btnStopHub')?.addEventListener('click', toggleHub);
+    document.getElementById('btnExportKeys')?.addEventListener('click', exportMasterKeys);
+    document.getElementById('btnImportEmployees')?.addEventListener('click', importEmployees);
+    document.getElementById('btnResetDevice')?.addEventListener('click', resetDeviceBinding);
 });
-
-// Decryption Helper
-window.decryptMessage = async function(elementId, encryptedPayload) {
-    const code = prompt("Bitte Master-Code (5-stellig) zur Entschlüsselung eingeben:");
-    if(!code || code.length !== 5) return alert("Code ungültig.");
-
-    try {
-        // We assume Master Username is what we logged in with or stored in token context
-        // But for decryption we need the recipient ID which was used to encrypt.
-        // In LAN mode, messages to MASTER are encrypted for 'MASTER' or the specific Admin ID.
-        // Let's try to decrypt with the entered code and 'MASTER' ID first, or the logged in admin name.
-
-        // Decoding token to get username
-        const base64Url = itToken.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        const user = JSON.parse(jsonPayload);
-        const adminName = user.username || 'MASTER';
-
-        // NOTE: If the user encrypted for "MASTER", we decrypt as "MASTER".
-        // The sender logic in app.js sends to "MASTER".
-        const decrypted = await decryptFull(encryptedPayload, code, 'MASTER');
-
-        const el = document.getElementById(elementId);
-        if(el) {
-            el.innerText = decrypted;
-            el.style.color = '#fff';
-            el.style.fontFamily = 'sans-serif';
-        }
-    } catch(e) {
-        alert("Entschlüsselung fehlgeschlagen: " + e.message);
-    }
-};
 
 function showDashboard() {
     document.getElementById('login-view').style.display = 'none';
@@ -117,7 +134,65 @@ function showDashboard() {
     checkHubStatus();
 }
 
+function renderUserSlots(slots) {
+    const list = document.getElementById('userSlotList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.marginTop = '10px';
+
+    table.innerHTML = `
+        <thead style="background:#1a1a1a; color:#888; font-size:0.8rem;">
+            <tr>
+                <th style="padding:10px; text-align:left;">ID</th>
+                <th style="padding:10px; text-align:left;">Name</th>
+                <th style="padding:10px; text-align:left;">Dept</th>
+                <th style="padding:10px; text-align:center;">Status</th>
+                <th style="padding:10px; text-align:right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
+
+    const tbody = table.querySelector('tbody');
+
+    slots.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #222';
+
+        let statusIcon = '⚪';
+        if (s.status === 'online') statusIcon = '🟢';
+        if (s.status === 'free') statusIcon = '−';
+
+        tr.innerHTML = `
+            <td style="padding:10px; color:#666; font-family:'Roboto Mono';">${s.id}</td>
+            <td style="padding:10px; font-weight:bold; color:${s.name==='Frei'?'#444':'#fff'};">${s.name}</td>
+            <td style="padding:10px; color:#aaa;">${s.dept}</td>
+            <td style="padding:10px; text-align:center; font-size:1.2rem;">${statusIcon}</td>
+            <td style="padding:10px; text-align:right;">
+                ${s.status !== 'free' ? '<button class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:#333; border:1px solid #555;">Edit</button>' : ''}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    list.appendChild(table);
+}
+
+function logEvent(msg) {
+    const log = document.getElementById('hubLog');
+    if(log) {
+        const line = document.createElement('div');
+        line.textContent = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+        log.prepend(line);
+    }
+}
+
 async function checkHubStatus() {
+    if(IS_TEST_MODE) return;
     try {
         const res = await fetch('/api/hub/status', {
             headers: { 'Authorization': `Bearer ${itToken}` }
@@ -128,6 +203,14 @@ async function checkHubStatus() {
 }
 
 async function toggleHub(e) {
+    if (IS_TEST_MODE) {
+        const isStart = e.target.id === 'btnStartHub';
+        showToast(isStart ? "LAN-Hub erfolgreich gestartet (Simulation)" : "LAN-Hub gestoppt", "success");
+        updateHubUI(isStart, 3000);
+        logEvent(isStart ? "Hub Process STARTED on Port 3000" : "Hub Process STOPPED");
+        return;
+    }
+
     const isStart = e.target.id === 'btnStartHub';
     const endpoint = isStart ? '/api/hub/start' : '/api/hub/stop';
 
@@ -149,24 +232,31 @@ async function toggleHub(e) {
 function updateHubUI(active, port) {
     const startBtn = document.getElementById('btnStartHub');
     const stopBtn = document.getElementById('btnStopHub');
-    const statusText = document.getElementById('hubStatusText');
-    const indicator = document.getElementById('hubIndicator');
+    const badge = document.getElementById('hubStatusBadge');
+    const display = document.getElementById('hubIpDisplay');
 
     if(active) {
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'block';
-        statusText.textContent = `Running on ${SERVER_IP}:${port || 3000} (Socket.io)`;
-        statusText.style.color = '#00ff88';
-        indicator.style.display = 'inline-block';
+        if(startBtn) startBtn.style.display = 'none';
+        if(stopBtn) stopBtn.style.display = 'block';
+        if(badge) {
+            badge.textContent = "HUB ONLINE";
+            badge.classList.add('online');
+            badge.style.color = '#00ff88';
+            badge.style.borderColor = '#00ff88';
+        }
+        if(display) display.textContent = `${SERVER_IP}:${port || 3000}`;
 
-        // Connect as MASTER
-        if(!socket) connectMasterSocket();
+        if(!socket && !IS_TEST_MODE) connectMasterSocket();
     } else {
-        startBtn.style.display = 'block';
-        stopBtn.style.display = 'none';
-        statusText.textContent = 'Status: Inactive';
-        statusText.style.color = '#666';
-        indicator.style.display = 'none';
+        if(startBtn) startBtn.style.display = 'block';
+        if(stopBtn) stopBtn.style.display = 'none';
+        if(badge) {
+            badge.textContent = "HUB OFFLINE";
+            badge.classList.remove('online');
+            badge.style.color = '#888';
+            badge.style.borderColor = '#333';
+        }
+        if(display) display.textContent = "---";
 
         if(socket) {
             socket.disconnect();
@@ -176,13 +266,11 @@ function updateHubUI(active, port) {
 }
 
 function connectMasterSocket() {
-    socket = io(); // Connects to same host
-
+    socket = io();
     socket.on('connect', () => {
         socket.emit('register', { userId: 'MASTER', username: 'IT-ADMIN', role: 'MASTER' });
         showToast("Connected to Hub", "success");
     });
-
     socket.on('support_ticket', (data) => {
         addTicketToInbox(data);
         showToast(`Neue Anfrage von User ${data.fromUserId}`, "info");
@@ -190,40 +278,62 @@ function connectMasterSocket() {
 }
 
 function addTicketToInbox(data) {
-    const inbox = document.getElementById('supportInbox');
-    if(inbox.querySelector('.empty-state') || inbox.innerText.includes('Warte auf Anfragen')) inbox.innerHTML = '';
-
+    const inbox = document.getElementById('ticketList'); // Fixed ID
+    // Logic to add ticket UI...
+    // Simplified for brevity/restoration:
     const div = document.createElement('div');
-    div.style.padding = '10px';
-    div.style.borderBottom = '1px solid #333';
-    div.style.marginBottom = '10px';
-    div.style.background = '#111';
-
-    const msgId = 'msg-' + Date.now() + '-' + Math.floor(Math.random()*1000);
-
-    div.innerHTML = `
-        <div style="color:#00BFFF; font-weight:bold;">User: ${data.fromUserId} <span style="font-size:0.8rem; color:#666;">${new Date(data.timestamp).toLocaleTimeString()}</span></div>
-        <div id="${msgId}" style="color:#888; font-size:0.8rem; overflow-wrap:anywhere; margin:5px 0;">${data.payload || '[No Payload]'}</div>
-        <div style="margin-top:5px; display:flex; gap:10px;">
-             <button onclick="window.decryptMessage('${msgId}', '${data.payload}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto; background:#333; border:1px solid #555;">🔓 Decrypt</button>
-             <button onclick="window.replyToUser('${data.fromUserId}')" class="btn-action" style="font-size:0.8rem; padding:5px; width:auto;">Reply</button>
-        </div>
-    `;
+    div.className = 'ticket-item unread';
+    div.innerHTML = `<div style="font-weight:bold; color:#fff;">User: ${data.fromUserId}</div><div style="font-size:0.8rem; color:#888;">${new Date(data.timestamp).toLocaleTimeString()}</div>`;
+    div.onclick = () => {
+        const detail = document.getElementById('ticketDetail');
+        detail.innerHTML = `
+            <h3>Anfrage von ${data.fromUserId}</h3>
+            <p style="color:#ccc; margin-top:10px;">Payload (Encrypted):</p>
+            <div style="background:#000; padding:10px; font-family:monospace; color:#00ff88; word-break:break-all;">${data.payload}</div>
+            <div style="margin-top:20px;">
+                <button onclick="window.decryptMessage('dec-${Date.now()}', '${data.payload}')" class="btn-action">Decrypt</button>
+                <button onclick="window.replyToUser('${data.fromUserId}')" class="btn-action" style="margin-top:10px;">Reply</button>
+            </div>
+            <div id="dec-${Date.now()}"></div>
+        `;
+    };
     inbox.prepend(div);
 }
 
+// Decryption Helper
+window.decryptMessage = async function(elementId, encryptedPayload) {
+    const code = prompt("Bitte Master-Code (5-stellig) zur Entschlüsselung eingeben:");
+    if(!code || code.length !== 5) return alert("Code ungültig.");
+
+    try {
+        const decrypted = await decryptFull(encryptedPayload, code, 'MASTER');
+        const el = document.getElementById(elementId);
+        if(el) {
+            el.innerText = decrypted;
+            el.style.color = '#fff';
+            el.style.fontFamily = 'sans-serif';
+            el.style.padding = '10px';
+            el.style.border = '1px solid #444';
+            el.style.marginTop = '10px';
+        }
+    } catch(e) {
+        alert("Entschlüsselung fehlgeschlagen: " + e.message);
+    }
+};
+
 window.replyToUser = async function(userId) {
+    if(IS_TEST_MODE) {
+        alert("Reply Simulation: Nachricht gesendet.");
+        return;
+    }
     const msg = prompt("Antwort an " + userId + ":");
     if(!msg) return;
-
-    const code = prompt("Verschlüsselungs-Code (5-stellig) für User:");
-    if(!code || code.length !== 5) return alert("Code fehlt.");
+    const code = prompt("Verschlüsselungs-Code für User:");
+    if(!code) return;
 
     if(msg && socket) {
         try {
-            // Encrypt for User
-            const encrypted = await encryptFull(msg, code, [userId], 'MASTER'); // Master sending
-
+            const encrypted = await encryptFull(msg, code, [userId], 'MASTER');
             socket.emit('send_message', {
                 recipientId: userId,
                 encryptedPayload: encrypted,
@@ -231,53 +341,45 @@ window.replyToUser = async function(userId) {
             });
             showToast("Verschlüsselte Antwort gesendet.");
         } catch(e) {
-            alert("Fehler beim Verschlüsseln: " + e.message);
+            alert("Fehler: " + e.message);
         }
     }
 };
 
 async function exportMasterKeys() {
+    if(IS_TEST_MODE) {
+        showToast("Export Simulation: Keys downloaded.", "success");
+        return;
+    }
     try {
-        // Mock export based on local users
         const res = await fetch(`${API_BASE}/users`, { headers: { 'Authorization': `Bearer ${itToken}` } });
         const users = await res.json();
-
         let csv = "ID,Name,PublicKey\n";
-        users.forEach(u => {
-             // Mock PK if missing
-             const pk = u.public_key || `MOCK-PK-${u.id}`;
-             csv += `${u.id},${u.username},${pk}\n`;
-        });
-
+        users.forEach(u => { csv += `${u.id},${u.username},${u.public_key||''}\n`; });
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'local_master_keys.csv';
-        a.click();
+        const a = document.createElement('a'); a.href = url; a.download = 'master_keys.csv'; a.click();
         showToast("Export erfolgreich", "success");
     } catch(e) { showToast("Export Fehler", "error"); }
 }
 
 async function importEmployees() {
-    const file = document.getElementById('employeeCsvInput').files[0];
-    if(!file) return showToast("Bitte CSV wählen", "error");
-
-    // In a real app, we'd upload this to the backend.
-    // For now, we simulate success as the requirement focuses on the interface existence.
+    if(IS_TEST_MODE) {
+        showToast("Import Simulation: Employees loaded.", "success");
+        return;
+    }
+    // Real logic would be upload
     showToast("Import wird verarbeitet...", "info");
-    setTimeout(() => showToast("Mitarbeiter importiert.", "success"), 1000);
 }
 
 async function resetDeviceBinding() {
     const userId = document.getElementById('resetUserId').value;
     if(!userId) return showToast("ID eingeben", "error");
-
-    // Using admin endpoint but locally
-    // First need to resolve username to ID if needed, but assuming ID
-    // We reuse the existing admin reset endpoint
+    if(IS_TEST_MODE) {
+        showToast("Reset Simulation: Device cleared.", "success");
+        return;
+    }
     try {
-        // Need ID. If input is string, might need lookup. Assuming ID for MVP.
         const res = await fetch(`${API_BASE}/reset-device/${userId}`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${itToken}` }
