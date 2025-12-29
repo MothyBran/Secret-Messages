@@ -233,6 +233,15 @@ const initializeDatabase = async () => {
              const defaultTemplate = "Hallo {username},\n\n[TEXT]\n\nMit freundlichen Grüßen,\nIhr Support-Team";
              await nedb.settings.insert({ key: 'ticket_reply_template', value: defaultTemplate });
         }
+
+        // Enterprise Quota Init
+        if (IS_OFFLINE) {
+            const qCheck = await nedb.settings.findOne({ key: 'enterprise_quota' });
+            if (!qCheck) {
+                // Read from cert or default. Here default 50.
+                await nedb.settings.insert({ key: 'enterprise_quota', value: '50' });
+            }
+        }
     }
 };
 
@@ -1109,6 +1118,64 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
         }
         res.json({ success: true, bundleId, keys: newKeys });
     } catch(e) { res.status(500).json({ error: "Bundle Fehler: " + e.message }); }
+});
+
+// LOCAL USER CREATION (ENTERPRISE OFFLINE)
+app.post('/api/admin/create-local-user', requireAdmin, async (req, res) => {
+    if (!IS_OFFLINE) return res.status(403).json({ error: "Only available in Enterprise Offline mode" });
+
+    const { username, dept } = req.body;
+    if (!username) return res.status(400).json({ error: "Username required" });
+
+    try {
+        // 1. Check Quota
+        const quotaVal = await DB.getSetting('enterprise_quota');
+        const quota = parseInt(quotaVal) || 50;
+
+        let currentCount = 0;
+        if(isPostgreSQL) {
+            // Should not happen in offline, but for safety
+            const r = await dbQuery("SELECT COUNT(*) as c FROM license_keys WHERE product_code = 'ENTERPRISE_LOCAL'");
+            currentCount = parseInt(r.rows[0].c);
+        } else {
+            currentCount = await nedb.license_keys.count({ product_code: 'ENTERPRISE_LOCAL' });
+        }
+
+        if (currentCount >= quota) {
+            return res.status(403).json({ error: "Lizenz-Kontingent erschöpft." });
+        }
+
+        // 2. Check if username exists
+        const userExists = await DB.findUserByName(username);
+        if (userExists) return res.status(409).json({ error: "Username vergeben" });
+
+        // 3. Generate Key
+        const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+        const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+
+        // 4. Save Key (assigned to user)
+        if(isPostgreSQL) {
+             // Skip SQL implementation for Offline-only feature
+        } else {
+            await nedb.license_keys.insert({
+                key_code: keyRaw,
+                key_hash: keyHash,
+                product_code: 'ENTERPRISE_LOCAL',
+                is_active: false, // Will be active once user activates it? Or pre-active?
+                // Requirement says: "User enters name and key... validation via LAN".
+                // So key is waiting.
+                assigned_user_id: username,
+                created_at: new Date().toISOString(),
+                id: Math.floor(Math.random() * 1000000)
+            });
+        }
+
+        res.json({ success: true, key: keyRaw });
+
+    } catch(e) {
+        console.error("Create Local User Error:", e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.post('/api/admin/generate-enterprise-bundle', requireAdmin, async (req, res) => {

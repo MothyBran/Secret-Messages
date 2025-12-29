@@ -87,13 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Render Dummy Slots
         renderUserSlots(DUMMY_SLOTS);
+        updateQuotaDisplay(10, 15); // Mock Quota
 
         // Render Dummy Tickets
         renderTickets(DUMMY_TICKETS);
 
         // Mock Logs
         logEvent("System initialized in Sandbox Mode.");
-        logEvent("15 Slots loaded.");
+        logEvent("15 Slots loaded. Quota: 10/15 Used.");
         logEvent("3 Mock Tickets loaded.");
 
     } else {
@@ -211,21 +212,32 @@ let currentEditingId = null;
 
 function openUserModal(id = null) {
     const modal = document.getElementById('userModal');
-    if(!modal) return; // Should create if missing or assumes it exists in HTML
+    if(!modal) return;
 
-    // Find user in DUMMY_SLOTS if testing
-    const user = DUMMY_SLOTS.find(u => u.id === id);
+    document.getElementById('keyDisplayArea').style.display = 'none';
+    document.getElementById('generatedKeyVal').textContent = '';
+    const btn = document.getElementById('btnSaveUser');
+    btn.style.display = 'block';
+    btn.textContent = 'Generieren & Speichern';
 
     currentEditingId = id;
 
+    // Find user logic (Mock vs Real would be separate but simpler here)
+    let user = null;
+    if(IS_TEST_MODE) user = DUMMY_SLOTS.find(u => u.id === id);
+    // Real mode would need lookup from loaded data
+
     if(user && user.status !== 'free') {
         document.getElementById('editUserName').value = user.name;
+        document.getElementById('editUserName').readOnly = true; // Cannot change ID once set usually
         document.getElementById('editUserDept').value = user.dept;
         document.getElementById('btnBlockUser').style.display = 'inline-block';
         document.getElementById('btnBlockUser').textContent = user.status === 'blocked' ? 'Unblock' : 'Block';
         document.getElementById('btnDeleteUser').style.display = 'inline-block';
+        btn.style.display = 'none'; // No re-gen for now
     } else {
         document.getElementById('editUserName').value = '';
+        document.getElementById('editUserName').readOnly = false;
         document.getElementById('editUserDept').value = '';
         document.getElementById('btnBlockUser').style.display = 'none';
         document.getElementById('btnDeleteUser').style.display = 'none';
@@ -234,26 +246,109 @@ function openUserModal(id = null) {
     modal.classList.add('active');
 }
 
-function handleUserSave(e) {
+async function handleUserSave(e) {
     e.preventDefault();
     const name = document.getElementById('editUserName').value;
     const dept = document.getElementById('editUserDept').value;
+    const btn = document.getElementById('btnSaveUser');
+    const keyDisplay = document.getElementById('keyDisplayArea');
+    const keyVal = document.getElementById('generatedKeyVal');
 
+    if(!name) return showToast("Name/ID erforderlich", "error");
+
+    // MOCK MODE
     if(IS_TEST_MODE) {
-        const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
-        if(idx > -1) {
-            DUMMY_SLOTS[idx].name = name;
-            DUMMY_SLOTS[idx].dept = dept;
-            DUMMY_SLOTS[idx].status = 'offline'; // Assume allocated
-            renderUserSlots(DUMMY_SLOTS);
-            showToast("User updated (Mock)", "success");
+        if(currentEditingId) {
+            // EDIT EXISTING
+            const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
+            if(idx > -1) {
+                DUMMY_SLOTS[idx].name = name;
+                DUMMY_SLOTS[idx].dept = dept;
+                renderUserSlots(DUMMY_SLOTS);
+                showToast("User updated (Mock)", "success");
+                document.getElementById('userModal').classList.remove('active');
+            }
+        } else {
+            // CREATE NEW
+            // Check Quota (Mock: 10 used, 15 total)
+            const used = DUMMY_SLOTS.filter(s => s.status !== 'free').length;
+            if(used >= 15) return showToast("Quota exhausted (Mock)", "error");
+
+            // Mock Key Gen
+            const fakeKey = `TEST-KEY-${Math.floor(Math.random()*10000)}`;
+            keyDisplay.style.display = 'block';
+            keyVal.textContent = fakeKey;
+
+            // Add to Dummy Slots (Find first free)
+            const freeIdx = DUMMY_SLOTS.findIndex(s => s.status === 'free');
+            if(freeIdx > -1) {
+                DUMMY_SLOTS[freeIdx] = { id: DUMMY_SLOTS[freeIdx].id, name: name, dept: dept || 'General', status: 'offline' };
+                renderUserSlots(DUMMY_SLOTS);
+                updateQuotaDisplay(used + 1, 15);
+                btn.style.display = 'none'; // Prevent double submit or force close manually
+                showToast("User created & Key generated", "success");
+            }
         }
-        document.getElementById('userModal').classList.remove('active');
         return;
     }
 
-    // Real API call would go here
-    showToast("API call not implemented for this action yet.", "info");
+    // REAL MODE
+    try {
+        btn.disabled = true;
+        btn.textContent = "...";
+
+        let res;
+        if(currentEditingId) {
+            // Edit not fully impl in this snippet, focus on Create
+            showToast("Edit API not implemented", "info");
+        } else {
+            // Create Local User
+            res = await fetch(`${API_BASE}/create-local-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${itToken}` },
+                body: JSON.stringify({ username: name, dept })
+            });
+            const data = await res.json();
+
+            if(data.success) {
+                keyDisplay.style.display = 'block';
+                keyVal.textContent = data.key;
+                showToast("User angelegt!", "success");
+                btn.style.display = 'none';
+
+                // Refresh list
+                loadUsers(); // Assume this exists or call render
+            } else {
+                showToast(data.error || "Fehler", "error");
+            }
+        }
+    } catch(err) {
+        showToast("Verbindungsfehler", "error");
+    } finally {
+        btn.disabled = false;
+        if(btn.textContent === "...") btn.textContent = "Generieren & Speichern";
+    }
+}
+
+function updateQuotaDisplay(used, total) {
+    const el = document.getElementById('quotaDisplay');
+    if(el) {
+        el.textContent = `${used} / ${total}`;
+        if(used >= total) el.style.color = '#ff3333';
+        else el.style.color = '#00ff88';
+    }
+}
+
+async function loadUsers() {
+    if(IS_TEST_MODE) return;
+    // Implementation to fetch users from server and update UI and Quota
+    try {
+        const res = await fetch(`${API_BASE}/users`, { headers: { 'Authorization': `Bearer ${itToken}` } });
+        const users = await res.json();
+        // Calculate quota from server stats or user count
+        // For now, minimal impl
+        // renderUserSlots(users.map(...));
+    } catch(e) {}
 }
 
 function toggleBlockUser() {
