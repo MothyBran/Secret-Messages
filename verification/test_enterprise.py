@@ -12,9 +12,6 @@ def run(playwright):
     try:
         page.goto("http://localhost:3000/test/enterprise-admin?dev=true")
 
-        # Take a screenshot immediately to see what's rendering
-        page.screenshot(path="verification/debug_initial.png")
-
         # Wait for the dashboard tab content
         page.wait_for_selector("#tab-dashboard", state="visible")
 
@@ -23,17 +20,31 @@ def run(playwright):
         page.click("#btnStartHub")
         page.wait_for_selector("#hubStatusBadge.online")
 
+        # Verify Quota Display
+        print("Verifying Quota Display...")
+        page.wait_for_selector("#quotaDisplay")
+
         # Verify User Management
         print("Verifying User Management...")
         page.click("text=User Management")
         page.wait_for_selector("#userSlotList table")
 
-        # Click "Edit" on M. Schmidt (ID 101)
-        page.click("text=M. Schmidt >> xpath=.. >> button")
+        # Click "Add User"
+        page.click("#btnAddUser")
         page.wait_for_selector("#userModal.active")
 
-        # Take Screenshot 1: User Edit Modal
-        page.screenshot(path="verification/screenshot_admin_modal.png")
+        # Fill Form
+        page.fill("#editUserName", "NewUser_99")
+        page.fill("#editUserDept", "Testing")
+
+        # Save
+        page.click("#btnSaveUser")
+
+        # Verify Key Generation (Mock)
+        page.wait_for_selector("#keyDisplayArea", state="visible")
+
+        # Take Screenshot 1: User Modal with Key
+        page.screenshot(path="verification/screenshot_admin_key_gen.png")
         print("Screenshot 1 taken.")
 
         page.click("#btnCancelUserModal")
