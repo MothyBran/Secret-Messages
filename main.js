@@ -17,13 +17,24 @@ async function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        frame: false, // Frameless as requested
+        frame: true, // Standard Window Controls
         backgroundColor: '#050505',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true
         }
+    });
+
+    // Set Custom User Agent for Platform Identification
+    const userAgent = mainWindow.webContents.getUserAgent() + " SecureMessages-Desktop";
+    mainWindow.webContents.setUserAgent(userAgent);
+
+    // Also inject a custom header for all requests (API calls etc.)
+    const filter = { urls: ['*://*/*'] };
+    mainWindow.webContents.session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+        details.requestHeaders['X-App-Client'] = 'SecureMessages-Desktop';
+        callback({ requestHeaders: details.requestHeaders });
     });
 
     // Check for offline certificate

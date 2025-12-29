@@ -581,13 +581,29 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
 
-        // --- NEW: Enterprise Access Denial (Cloud Only) ---
-        if (isPostgreSQL) {
-            const productCode = user.product_code || '';
-            const isEnterprise = productCode === 'MASTER' || productCode === 'LIFETIME_USER';
+        // --- PLATFORM & ENTERPRISE CHECKS ---
+        const productCode = user.product_code || '';
+        const isEnterpriseUser = productCode === 'MASTER' || productCode === 'LIFETIME_USER';
 
-            if (isEnterprise) {
+        // Check Platform Header/UA
+        const isDesktopApp = req.headers['x-app-client'] === 'SecureMessages-Desktop' || (req.headers['user-agent'] && req.headers['user-agent'].includes('SecureMessages-Desktop'));
+
+        // 1. CLOUD ACCESS CHECK:
+        // If user is Enterprise/Master, they MUST be on Desktop App (unless in dev mode/localhost?)
+        // Actually, Cloud means accessing via Browser.
+        // If IS_OFFLINE is FALSE (Cloud Mode):
+        if (!IS_OFFLINE) {
+            if (isEnterpriseUser && !isDesktopApp) {
                 return res.status(403).json({ success: false, error: "Enterprise-Lizenz: Nutzung nur über die Desktop-Anwendung gestattet" });
+            }
+        }
+
+        // 2. ENTERPRISE/OFFLINE ACCESS CHECK:
+        // If IS_OFFLINE is TRUE (Enterprise Mode):
+        // Only MASTER or LIFETIME_USER allowed. Standard Users blocked.
+        if (IS_OFFLINE) {
+            if (!isEnterpriseUser) {
+                return res.status(403).json({ success: false, error: "Enterprise-Modus: Nur Enterprise-Lizenzen zulässig." });
             }
         }
         // ------------------------------------------------

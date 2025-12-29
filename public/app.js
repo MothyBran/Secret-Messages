@@ -166,8 +166,29 @@ const StorageAdapter = {
         const lanIpField = document.getElementById('lan_hub_ip');
 
         // Hide Cloud elements if in HUB/Enterprise mode
-        const shopLink = document.querySelector('a[href="shop"]');
-        if(shopLink) shopLink.style.display = (this.mode === 'cloud') ? 'block' : 'none';
+        const isEnterprise = (this.mode === 'hub' || this.mode === 'local'); // local is air-gapped
+
+        if (isEnterprise) {
+            document.body.classList.add('enterprise-mode');
+            // Hide Shop, Upgrade Buttons, External Links
+            document.querySelectorAll('a[href="shop"], #navGuide, #navInfo, #faqBtn').forEach(el => el.style.display = 'none');
+            // Hide renewal options in renewal section if they exist
+            const renewalOptions = document.querySelectorAll('#renewalSection .btn');
+            renewalOptions.forEach(btn => {
+                if(btn.textContent.includes('EUR') || btn.textContent.includes('MONAT')) btn.style.display = 'none';
+            });
+        } else {
+            document.body.classList.remove('enterprise-mode');
+            // Show defaults (some might be hidden by auth logic, but reset display property)
+            // Ideally we only unhide what was hidden above, but user state handles auth-only links.
+            // Safe to reset Shop and FAQ if not auth-dependent logic overrides it immediately.
+            const shopLink = document.querySelector('a[href="shop"]');
+            if(shopLink) shopLink.style.display = 'flex'; // sidebar-item is flex
+            // Other links managed by updateSidebarInfo mostly, but reset visibility just in case
+            document.getElementById('navGuide').style.display = 'flex';
+            document.getElementById('navInfo').style.display = 'flex';
+            document.getElementById('faqBtn').style.display = 'flex';
+        }
 
         if(this.mode === 'cloud') {
             bar.style.background = 'var(--accent-blue)';
