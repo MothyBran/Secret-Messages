@@ -15,7 +15,23 @@ const { Server } = require("socket.io");
 const http = require('http');
 require('dotenv').config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const IS_OFFLINE = process.env.IS_OFFLINE === 'true' || process.env.IS_ENTERPRISE === 'true';
+let resend;
+if (!IS_OFFLINE && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+} else {
+    // Mock Resend object to prevent crashes
+    resend = {
+        emails: {
+            send: async (data) => {
+                console.log("🔒 [MOCK EMAIL] Enterprise/Offline Mode");
+                console.log("To:", data.to);
+                console.log("Subject:", data.subject);
+                return { data: { id: 'mock-id' }, error: null };
+            }
+        }
+    };
+}
 
 // Payment Routes
 const paymentRoutes = require('./payment.js');
@@ -170,17 +186,42 @@ const initializeDatabase = async () => {
         if (!fs.existsSync(dbPath)){ fs.mkdirSync(dbPath); }
 
         try {
-            nedb.users = Datastore.create({ filename: path.join(dbPath, 'users.db'), autoload: true });
-            nedb.license_keys = Datastore.create({ filename: path.join(dbPath, 'license_keys.db'), autoload: true });
-            nedb.payments = Datastore.create({ filename: path.join(dbPath, 'payments.db'), autoload: true });
-            nedb.account_deletions = Datastore.create({ filename: path.join(dbPath, 'account_deletions.db'), autoload: true });
-            nedb.settings = Datastore.create({ filename: path.join(dbPath, 'settings.db'), autoload: true });
-            nedb.license_bundles = Datastore.create({ filename: path.join(dbPath, 'license_bundles.db'), autoload: true });
-            nedb.messages = Datastore.create({ filename: path.join(dbPath, 'messages.db'), autoload: true });
-            nedb.support_tickets = Datastore.create({ filename: path.join(dbPath, 'support_tickets.db'), autoload: true });
-        } catch(e) { console.error("NeDB Load Error (ignored):", e.message); }
+            // Initialize sequentially with fallback to in-memory if file system fails (Sandbox/CI environment)
+            const createDB = async (name) => {
+                if (process.env.USE_MEMORY_DB === 'true') {
+                     const memDb = Datastore.create({ inMemoryOnly: true });
+                     await memDb.load();
+                     return memDb;
+                }
+                try {
+                    const db = Datastore.create({ filename: path.join(dbPath, name), autoload: false });
+                    await db.load();
+                    return db;
+                } catch (e) {
+                    console.warn(`NeDB File Init Failed for ${name}, falling back to In-Memory. Error: ${e.message}`);
+                    const memDb = Datastore.create({ inMemoryOnly: true });
+                    await memDb.load();
+                    return memDb;
+                }
+            };
+
+            nedb.users = await createDB('users.db');
+            nedb.license_keys = await createDB('license_keys.db');
+            nedb.payments = await createDB('payments.db');
+            nedb.account_deletions = await createDB('account_deletions.db');
+            nedb.settings = await createDB('settings.db');
+            nedb.license_bundles = await createDB('license_bundles.db');
+            nedb.messages = await createDB('messages.db');
+            nedb.support_tickets = await createDB('support_tickets.db');
+
+        } catch(e) { console.error("NeDB Critical Load Error:", e.message); }
 
         // Initialize Defaults
+        // Ensure nedb.settings exists before querying
+        if (!nedb.settings) {
+             console.warn("NeDB Settings DB not initialized. Skipping defaults.");
+             return;
+        }
         const mCheck = await nedb.settings.findOne({ key: 'maintenance_mode' });
         if (!mCheck) await nedb.settings.insert({ key: 'maintenance_mode', value: 'false' });
 
@@ -734,6 +775,9 @@ const requireAdmin = async (req, res, next) => {
     if (sentPassword === ADMIN_PASSWORD) {
         // Check if 2FA is enabled globally
         let is2FA = false;
+        // Check DB for 2FA only if we are online or have full DB access?
+        // In local/offline mode, we might want to be less strict if 2FA relies on time sync?
+        // But for security, keep it.
         if(isPostgreSQL) {
             const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
             is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';

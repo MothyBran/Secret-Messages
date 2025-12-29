@@ -1,7 +1,21 @@
 const { Resend } = require('resend');
 require('dotenv').config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// DETECT OFFLINE MODE
+// We assume offline if explicitly set or if critical API keys are missing in production
+const IS_OFFLINE = process.env.IS_OFFLINE === 'true' || process.env.IS_ENTERPRISE === 'true';
+
+let resend;
+if (!IS_OFFLINE && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+} else {
+    // If offline or no key, we might mock, but this file exports `sendLicenseEmail`.
+    // We'll handle the mock logic inside the function if needed,
+    // OR we rely on the caller to swap the module.
+    // But since `require` is cached, swapping modules is tricky.
+    // Better to handle it here.
+    if(IS_OFFLINE) console.log("⚠️ Mailer initialized in OFFLINE/MOCK mode.");
+}
 
 /**
  * Sends a license email to the customer.
@@ -10,6 +24,12 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * @param {string} productType - Description of the product.
  */
 async function sendLicenseEmail(toEmail, licenseKey, productType) {
+    if (IS_OFFLINE || !resend) {
+        // Fallback to Mock
+        const { sendLicenseEmail: mockSend } = require('./mock-mailer');
+        return await mockSend(toEmail, licenseKey, productType);
+    }
+
     if (!toEmail) {
         console.warn("sendLicenseEmail: No recipient email provided.");
         return;

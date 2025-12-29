@@ -165,6 +165,10 @@ const StorageAdapter = {
         const lanInput = document.getElementById('lan_config');
         const lanIpField = document.getElementById('lan_hub_ip');
 
+        // Hide Cloud elements if in HUB/Enterprise mode
+        const shopLink = document.querySelector('a[href="shop"]');
+        if(shopLink) shopLink.style.display = (this.mode === 'cloud') ? 'block' : 'none';
+
         if(this.mode === 'cloud') {
             bar.style.background = 'var(--accent-blue)';
             label.textContent = 'MODE: CLOUD';
@@ -172,7 +176,7 @@ const StorageAdapter = {
             if(lanInput) lanInput.style.display = 'none';
         } else if (this.mode === 'hub') {
             bar.style.background = '#00ff88'; // Green
-            label.innerHTML = 'MODE: LAN-SERVER <span style="animation:pulse 1.5s infinite">●</span>';
+            label.innerHTML = 'MODE: ENTERPRISE LAN <span style="animation:pulse 1.5s infinite">●</span>';
             label.style.color = '#00ff88';
             if(lanInput) {
                 lanInput.style.display = 'block';
