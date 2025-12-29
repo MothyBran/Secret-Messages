@@ -132,6 +132,28 @@ const StorageAdapter = {
         });
     },
 
+    applyEnterpriseMode: function() {
+        document.body.classList.add('enterprise-mode');
+
+        // Inject CSS if not present
+        if (!document.getElementById('enterprise-css')) {
+            const link = document.createElement('link');
+            link.id = 'enterprise-css';
+            link.rel = 'stylesheet';
+            link.href = '/assets/css/enterprise.css';
+            document.head.appendChild(link);
+        }
+
+        // Hide Cloud Elements
+        document.querySelectorAll('a[href="shop"], #navGuide, #navInfo, #faqBtn').forEach(el => el.style.display = 'none');
+
+        // Hide renewal options
+        const renewalOptions = document.querySelectorAll('#renewalSection .btn');
+        renewalOptions.forEach(btn => {
+            if(btn.textContent.includes('EUR') || btn.textContent.includes('MONAT')) btn.style.display = 'none';
+        });
+    },
+
     renderStatusBar: function() {
         let bar = document.getElementById('app-mode-bar');
         if(!bar) {
@@ -169,22 +191,11 @@ const StorageAdapter = {
         const isEnterprise = (this.mode === 'hub' || this.mode === 'local'); // local is air-gapped
 
         if (isEnterprise) {
-            document.body.classList.add('enterprise-mode');
-            // Hide Shop, Upgrade Buttons, External Links
-            document.querySelectorAll('a[href="shop"], #navGuide, #navInfo, #faqBtn').forEach(el => el.style.display = 'none');
-            // Hide renewal options in renewal section if they exist
-            const renewalOptions = document.querySelectorAll('#renewalSection .btn');
-            renewalOptions.forEach(btn => {
-                if(btn.textContent.includes('EUR') || btn.textContent.includes('MONAT')) btn.style.display = 'none';
-            });
+            this.applyEnterpriseMode();
         } else {
             document.body.classList.remove('enterprise-mode');
-            // Show defaults (some might be hidden by auth logic, but reset display property)
-            // Ideally we only unhide what was hidden above, but user state handles auth-only links.
-            // Safe to reset Shop and FAQ if not auth-dependent logic overrides it immediately.
             const shopLink = document.querySelector('a[href="shop"]');
-            if(shopLink) shopLink.style.display = 'flex'; // sidebar-item is flex
-            // Other links managed by updateSidebarInfo mostly, but reset visibility just in case
+            if(shopLink) shopLink.style.display = 'flex';
             document.getElementById('navGuide').style.display = 'flex';
             document.getElementById('navInfo').style.display = 'flex';
             document.getElementById('faqBtn').style.display = 'flex';
@@ -241,15 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupUIEvents();
     
-    // Enterprise License Check
-    const storedLic = localStorage.getItem('sm_exp');
-    const isWeb = (StorageAdapter.mode === 'cloud');
-
-    if (!isWeb && storedLic && (storedLic.includes('unlimited') || storedLic.includes('Enterprise') || storedLic.includes('MASTER'))) {
-        document.getElementById('itAdminLink').style.display = 'block';
-    } else {
-        document.getElementById('itAdminLink').style.display = 'none';
-    }
+    // Enterprise License Check logic moved to checkExistingSession/handleLogin to handle redirections
 
     // --- SANDBOX OVERRIDE ---
     if (IS_SANDBOX_USER) {
@@ -1198,6 +1201,15 @@ async function handleLogin(e) {
                     return;
                 }
             }
+
+            // Enterprise Redirect Check
+            const isEnterprise = (StorageAdapter.mode === 'hub' || StorageAdapter.mode === 'local');
+            // Detect Admin via token payload usually, but for now rely on API response or token
+            if (isEnterprise && (data.username.includes('Admin') || decoded.isAdmin)) {
+                 window.location.href = 'it-admin.html';
+                 return;
+            }
+
             updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
             if (data.error === "ACCOUNT_BLOCKED") {
@@ -1509,6 +1521,14 @@ async function checkExistingSession() {
                     const expDate = new Date(String(finalExpiry).replace(' ', 'T'));
                     if(expDate < new Date()) { updateSidebarInfo(currentUser.name, finalExpiry); showRenewalScreen(); return; }
                 }
+
+                // Enterprise Redirect Check
+                const isEnterprise = (StorageAdapter.mode === 'hub' || StorageAdapter.mode === 'local');
+                if (isEnterprise && (currentUser.name.includes('Admin') || decoded.isAdmin)) {
+                     window.location.href = 'it-admin.html';
+                     return;
+                }
+
                 updateSidebarInfo(currentUser.name, finalExpiry); showSection('mainSection');
                 return;
             } else {
@@ -1695,6 +1715,27 @@ function parseJwt (token) {
 
 function loadUserContacts() {
     if (!currentUser || !currentUser.sm_id) { contacts = []; return; }
+
+    // Enterprise Global Directory
+    const isEnterprise = (StorageAdapter.mode === 'hub' || StorageAdapter.mode === 'local');
+    if (isEnterprise) {
+        // In a real app, fetch from Hub. For simulation, use a fixed set or what IT Admin pushed.
+        // We'll mock 10 "Admin Managed" contacts.
+        contacts = [
+            { id: 'CEO_Office', name: 'Geschäftsleitung', group: 'Management' },
+            { id: 'IT_Support', name: 'IT Helpdesk', group: 'IT' },
+            { id: 'HR_Dept', name: 'Personalabteilung', group: 'HR' },
+            { id: 'Sales_01', name: 'Vertrieb Nord', group: 'Sales' },
+            { id: 'Sales_02', name: 'Vertrieb Süd', group: 'Sales' },
+            { id: 'Dev_Lead', name: 'Entwicklung', group: 'R&D' },
+            { id: 'Sec_Officer', name: 'Sicherheitsbeauftragter', group: 'Security' },
+            { id: 'Logistics', name: 'Logistik', group: 'Ops' },
+            { id: 'Facility', name: 'Gebäudemanagement', group: 'Ops' },
+            { id: 'Legal', name: 'Rechtsabteilung', group: 'Legal' }
+        ];
+        return;
+    }
+
     const key = `sm_contacts_${currentUser.sm_id}`;
     let stored = localStorage.getItem(key);
     if (!stored && localStorage.getItem('sm_contacts')) {
