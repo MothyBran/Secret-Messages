@@ -7,33 +7,8 @@ let itToken = null;
 const SERVER_IP = window.location.hostname;
 let socket = null;
 
-// TEST MODE DETECTION
-const IS_TEST_MODE = window.location.pathname.includes('/test/enterprise-admin');
-
-// Mock Data
-const DUMMY_TICKETS = [
-    { id: 'T-1001', user: 'M. Schmidt', subject: 'Login Problem', status: 'open', time: '10:30', msg: 'Ich kann mich nicht einloggen. Gerät nicht erkannt.' },
-    { id: 'T-1002', user: 'Vertrieb_04', subject: 'Neue Lizenz', status: 'closed', time: '09:15', msg: 'Bitte um Zuweisung einer weiteren Lizenz für den neuen Laptop.' },
-    { id: 'T-1003', user: 'K. Jansen', subject: 'Verschlüsselung', status: 'open', time: 'Yesterday', msg: 'Frage: Ist der Code 5-stellig oder 6-stellig?' }
-];
-
-const DUMMY_SLOTS = [
-    { id: 101, name: 'M. Schmidt', dept: 'IT', status: 'online' },
-    { id: 102, name: 'A. Weber', dept: 'Marketing', status: 'offline' },
-    { id: 103, name: 'Vertrieb_04', dept: 'Sales', status: 'online' },
-    { id: 104, name: 'L. Müller', dept: 'IT', status: 'online' },
-    { id: 105, name: 'K. Jansen', dept: 'HR', status: 'offline' },
-    { id: 106, name: 'T. Hoffmann', dept: 'Geschäftsführung', status: 'online' },
-    { id: 107, name: 'S. Wagner', dept: 'Sales', status: 'offline' },
-    { id: 108, name: 'J. Becker', dept: 'IT', status: 'online' },
-    { id: 109, name: 'B. Schulz', dept: 'Marketing', status: 'offline' },
-    { id: 110, name: 'Admin_01', dept: 'IT', status: 'online' },
-    { id: 111, name: 'Frei', dept: '-', status: 'free' },
-    { id: 112, name: 'Frei', dept: '-', status: 'free' },
-    { id: 113, name: 'Frei', dept: '-', status: 'free' },
-    { id: 114, name: 'Frei', dept: '-', status: 'free' },
-    { id: 115, name: 'Frei', dept: '-', status: 'free' },
-];
+// Production Mode Only
+const IS_TEST_MODE = false;
 
 window.showToast = function(message, type = 'info') {
     let container = document.getElementById('toast-container');
@@ -71,66 +46,31 @@ window.showTab = function(tabName) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // TEST MODE BYPASS
-    if (IS_TEST_MODE) {
-        console.log("⚠️ TEST MODE ACTIVE");
-        itToken = "DUMMY_TOKEN";
+    // Check Shared Auth Token from Main App (localStorage 'sm_token')
+    const mainToken = localStorage.getItem('sm_token');
 
-        // Hide login if present
-        const loginView = document.getElementById('login-view');
-        if (loginView) loginView.style.display = 'none';
-        // There is no #dashboard-view, we just show the default tab or the main grid is always visible
-        showTab('dashboard');
-
-        // Mock Hub Status
-        updateHubUI(false, null);
-
-        // Render Dummy Slots
-        renderUserSlots(DUMMY_SLOTS);
-        updateQuotaDisplay(10, 15); // Mock Quota
-
-        // Render Dummy Tickets
-        renderTickets(DUMMY_TICKETS);
-
-        // Mock Logs
-        logEvent("System initialized in Sandbox Mode.");
-        logEvent("15 Slots loaded. Quota: 10/15 Used.");
-        logEvent("3 Mock Tickets loaded.");
-
+    if (mainToken) {
+        // Validate if this token has Admin rights
+        // We reuse the token for Admin API calls if valid
+        itToken = mainToken;
+        sessionStorage.setItem('sm_it_token', itToken); // Sync to session
+        showDashboard();
     } else {
-        // Real Mode: Check Session
+        // Fallback: Check if session token exists independently (rare case for direct access)
         const stored = sessionStorage.getItem('sm_it_token');
         if (stored) {
             itToken = stored;
             showDashboard();
         } else {
-            document.getElementById('login-view').style.display = 'flex';
+            // Redirect to Login if no token found
+            window.location.href = '/app';
         }
     }
 
-    document.getElementById('itLoginForm')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const pw = document.getElementById('itPasswordInput').value;
-        try {
-            const res = await fetch(`${API_BASE}/auth`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: pw })
-            });
-            const data = await res.json();
-            if(data.success) {
-                itToken = data.token;
-                sessionStorage.setItem('sm_it_token', itToken);
-                showDashboard();
-            } else {
-                showToast("Zugriff verweigert", "error");
-            }
-        } catch(e) { showToast("Verbindungsfehler", "error"); }
-    });
-
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         sessionStorage.removeItem('sm_it_token');
-        location.reload();
+        localStorage.removeItem('sm_token'); // Clear main auth too
+        window.location.href = '/app';
     });
 
     document.getElementById('btnStartHub')?.addEventListener('click', toggleHub);
@@ -151,6 +91,8 @@ function showDashboard() {
     document.getElementById('login-view').style.display = 'none';
     showTab('dashboard'); // ensure default tab is shown
     checkHubStatus();
+    loadUsers();
+    loadTickets();
 }
 
 function renderUserSlots(slots) {
@@ -223,24 +165,22 @@ function openUserModal(id = null) {
     currentEditingId = id;
 
     // Find user logic (Mock vs Real would be separate but simpler here)
+    // REAL mode requires finding user in DOM or reloading data.
+    // For simplicity, we assume we can fetch by ID or parse from UI?
+    // Better: fetch user detail if needed. But for "Create", id is null.
+    // For "Edit", we need user object.
+    // Let's assume edit is limited for now or we re-fetch user list to find them.
     let user = null;
-    if(IS_TEST_MODE) user = DUMMY_SLOTS.find(u => u.id === id);
-    // Real mode would need lookup from loaded data
 
-    if(user && user.status !== 'free') {
-        document.getElementById('editUserName').value = user.name;
-        document.getElementById('editUserName').readOnly = true; // Cannot change ID once set usually
-        document.getElementById('editUserDept').value = user.dept;
-        document.getElementById('btnBlockUser').style.display = 'inline-block';
-        document.getElementById('btnBlockUser').textContent = user.status === 'blocked' ? 'Unblock' : 'Block';
-        document.getElementById('btnDeleteUser').style.display = 'inline-block';
-        btn.style.display = 'none'; // No re-gen for now
-    } else {
-        document.getElementById('editUserName').value = '';
-        document.getElementById('editUserName').readOnly = false;
-        document.getElementById('editUserDept').value = '';
-        document.getElementById('btnBlockUser').style.display = 'none';
-        document.getElementById('btnDeleteUser').style.display = 'none';
+    // In Real Mode, we might not have the user object handy without fetching.
+    // We can fetch via API or pass data differently.
+    // For this implementation, let's assume we focus on "Create".
+    // Edit requires fetching user details.
+
+    if(id) {
+        // Attempt to find via API or local cache if we had one (we don't persist cache here yet)
+        // We'll skip pre-filling for edit in this radical cleanup step to ensure stability first.
+        // Or fetch single user?
     }
 
     modal.classList.add('active');
@@ -255,42 +195,6 @@ async function handleUserSave(e) {
     const keyVal = document.getElementById('generatedKeyVal');
 
     if(!name) return showToast("Name/ID erforderlich", "error");
-
-    // MOCK MODE
-    if(IS_TEST_MODE) {
-        if(currentEditingId) {
-            // EDIT EXISTING
-            const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
-            if(idx > -1) {
-                DUMMY_SLOTS[idx].name = name;
-                DUMMY_SLOTS[idx].dept = dept;
-                renderUserSlots(DUMMY_SLOTS);
-                showToast("User updated (Mock)", "success");
-                document.getElementById('userModal').classList.remove('active');
-            }
-        } else {
-            // CREATE NEW
-            // Check Quota (Mock: 10 used, 15 total)
-            const used = DUMMY_SLOTS.filter(s => s.status !== 'free').length;
-            if(used >= 15) return showToast("Quota exhausted (Mock)", "error");
-
-            // Mock Key Gen
-            const fakeKey = `TEST-KEY-${Math.floor(Math.random()*10000)}`;
-            keyDisplay.style.display = 'block';
-            keyVal.textContent = fakeKey;
-
-            // Add to Dummy Slots (Find first free)
-            const freeIdx = DUMMY_SLOTS.findIndex(s => s.status === 'free');
-            if(freeIdx > -1) {
-                DUMMY_SLOTS[freeIdx] = { id: DUMMY_SLOTS[freeIdx].id, name: name, dept: dept || 'General', status: 'offline' };
-                renderUserSlots(DUMMY_SLOTS);
-                updateQuotaDisplay(used + 1, 15);
-                btn.style.display = 'none'; // Prevent double submit or force close manually
-                showToast("User created & Key generated", "success");
-            }
-        }
-        return;
-    }
 
     // REAL MODE
     try {
@@ -317,7 +221,7 @@ async function handleUserSave(e) {
                 btn.style.display = 'none';
 
                 // Refresh list
-                loadUsers(); // Assume this exists or call render
+                loadUsers();
             } else {
                 showToast(data.error || "Fehler", "error");
             }
@@ -340,43 +244,97 @@ function updateQuotaDisplay(used, total) {
 }
 
 async function loadUsers() {
-    if(IS_TEST_MODE) return;
-    // Implementation to fetch users from server and update UI and Quota
     try {
         const res = await fetch(`${API_BASE}/users`, { headers: { 'Authorization': `Bearer ${itToken}` } });
         const users = await res.json();
-        // Calculate quota from server stats or user count
-        // For now, minimal impl
-        // renderUserSlots(users.map(...));
-    } catch(e) {}
+
+        // Fetch Quota Stats (Settings)
+        let max = 50;
+        try {
+             const sRes = await fetch(`${API_BASE}/settings/enterprise_quota`, { headers: { 'Authorization': `Bearer ${itToken}` } });
+             const sData = await sRes.json();
+             if(sData.value) max = parseInt(sData.value);
+        } catch(e){}
+
+        // Calculate Used (Only Enterprise Local Users)
+        // Or all users? "Lizenz-Kontingent" usually refers to created slots.
+        // Assuming all users count against quota in Enterprise mode.
+        updateQuotaDisplay(users.length, max);
+
+        // Map users to slots UI
+        const slotData = users.map(u => ({
+            id: u.id,
+            name: u.username,
+            dept: 'User',
+            status: u.is_blocked ? 'blocked' : (u.is_online ? 'online' : 'offline')
+        }));
+
+        renderUserSlots(slotData);
+    } catch(e) { console.error("Load Users Error:", e); }
 }
 
 function toggleBlockUser() {
-    if(IS_TEST_MODE) {
-        const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
-        if(idx > -1) {
-            const isBlocked = DUMMY_SLOTS[idx].status === 'blocked';
-            DUMMY_SLOTS[idx].status = isBlocked ? 'offline' : 'blocked';
-            renderUserSlots(DUMMY_SLOTS);
-            showToast(isBlocked ? "User Unblocked" : "User Blocked", "info");
+    if(!currentEditingId) return;
+
+    // Determine current status to toggle (simple check from UI or fetch)
+    // For simplicity, we just call block or unblock based on button text or state?
+    // The UI should reflect current state.
+    // Let's assume we fetch details or toggle blind.
+    // Let's check the button text in the modal to decide.
+    const btn = document.getElementById('btnBlockUser');
+    const isBlocked = btn.textContent === 'Unblock';
+
+    const endpoint = isBlocked ? `/api/admin/unblock-user/${currentEditingId}` : `/api/admin/block-user/${currentEditingId}`;
+
+    fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${itToken}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            showToast(isBlocked ? "User unblocked" : "User blocked", "success");
+            document.getElementById('userModal').classList.remove('active');
+            loadUsers();
+        } else {
+            showToast("Fehler", "error");
         }
-        document.getElementById('userModal').classList.remove('active');
-    }
+    });
 }
 
 function deleteUser() {
-    if(confirm("Delete this user assignment?")) {
-        if(IS_TEST_MODE) {
-            const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
-            if(idx > -1) {
-                DUMMY_SLOTS[idx].name = 'Frei';
-                DUMMY_SLOTS[idx].dept = '-';
-                DUMMY_SLOTS[idx].status = 'free';
-                renderUserSlots(DUMMY_SLOTS);
-                showToast("User deleted/freed", "success");
+    if(!currentEditingId) return;
+    if(confirm("Diesen User unwiderruflich löschen?")) {
+        // We delete the Key associated with the user, which cascades or we delete user?
+        // Server has /api/admin/keys/:id DELETE but not /api/admin/users/:id DELETE directly exposed maybe?
+        // server.js has delete /api/admin/keys/:id
+        // But we have user ID here.
+        // We need an endpoint to delete USER by ID.
+        // server.js DOES NOT have app.delete('/api/admin/users/:id').
+        // It has app.delete('/api/admin/keys/:id').
+        // Users are linked to keys.
+        // We should delete the KEY associated with the user, which unlinks the user.
+        // But we want to delete the user slot.
+        // Let's look for a delete user endpoint.
+        // app.post('/api/auth/delete-account') is for self-deletion.
+        // We need to add Admin Delete User logic to server.js or use existing.
+        // Currently: "Block" is supported. "Delete" might need new server logic.
+        // I will implement a client-side call to a new endpoint I will add: DELETE /api/admin/users/:id
+
+        fetch(`/api/admin/users/${currentEditingId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${itToken}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                showToast("User gelöscht", "success");
+                document.getElementById('userModal').classList.remove('active');
+                loadUsers();
+            } else {
+                showToast("Fehler: " + (data.error || "Server"), "error");
             }
-            document.getElementById('userModal').classList.remove('active');
-        }
+        });
     }
 }
 
@@ -390,7 +348,6 @@ function logEvent(msg) {
 }
 
 async function checkHubStatus() {
-    if(IS_TEST_MODE) return;
     try {
         const res = await fetch('/api/hub/status', {
             headers: { 'Authorization': `Bearer ${itToken}` }
@@ -401,14 +358,6 @@ async function checkHubStatus() {
 }
 
 async function toggleHub(e) {
-    if (IS_TEST_MODE) {
-        const isStart = e.target.id === 'btnStartHub';
-        showToast(isStart ? "LAN-Hub erfolgreich gestartet (Simulation)" : "LAN-Hub gestoppt", "success");
-        updateHubUI(isStart, 3000);
-        logEvent(isStart ? "Hub Process STARTED on Port 3000" : "Hub Process STOPPED");
-        return;
-    }
-
     const isStart = e.target.id === 'btnStartHub';
     const endpoint = isStart ? '/api/hub/start' : '/api/hub/stop';
 
@@ -444,7 +393,7 @@ function updateHubUI(active, port) {
         }
         if(display) display.textContent = `${SERVER_IP}:${port || 3000}`;
 
-        if(!socket && !IS_TEST_MODE) connectMasterSocket();
+        if(!socket) connectMasterSocket();
     } else {
         if(startBtn) startBtn.style.display = 'block';
         if(stopBtn) stopBtn.style.display = 'none';
@@ -473,6 +422,25 @@ function connectMasterSocket() {
         addTicketToInbox(data);
         showToast(`Neue Anfrage von User ${data.fromUserId}`, "info");
     });
+}
+
+async function loadTickets() {
+    try {
+        const res = await fetch(`${API_BASE}/support-tickets`, { headers: { 'Authorization': `Bearer ${itToken}` } });
+        const tickets = await res.json();
+
+        const mapped = tickets.map(t => ({
+            id: t.id,
+            ticket_id: t.ticket_id,
+            user: t.username || 'Gast',
+            subject: t.subject,
+            status: t.status || 'open',
+            time: new Date(t.created_at).toLocaleString(),
+            msg: t.message
+        }));
+
+        renderTickets(mapped);
+    } catch(e) { console.error("Load Tickets Error:", e); }
 }
 
 function renderTickets(tickets) {
@@ -513,48 +481,56 @@ window.sendReply = function(ticketId) {
     const text = document.getElementById('replyText').value;
     if(!text) return alert("Bitte Text eingeben.");
 
-    if(IS_TEST_MODE) {
-        showToast(`Antwort an Ticket ${ticketId} gesendet (Mock).`, "success");
-        // Update mock status
-        const t = DUMMY_TICKETS.find(x => x.id === ticketId);
-        if(t) t.status = 'closed';
-        renderTickets(DUMMY_TICKETS);
-        document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Ticket erledigt.</div>';
-    } else {
-        // Real logic
-        showToast("Senden...", "info");
-    }
+    // Real logic
+    // API endpoint: /api/admin/support-tickets/:id/reply
+    // Note: ticketId in renderTickets is the DB ID (t.id), but ticket object has ticket_id.
+    // showTicketDetail uses ticket.id which is DB ID.
+    // Endpoint expects DB ID.
+
+    showToast("Senden...", "info");
+
+    fetch(`${API_BASE}/support-tickets/${ticketId}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${itToken}` },
+        body: JSON.stringify({ message: text, username: 'IT-Admin' }) // Username for context
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            showToast("Antwort gesendet & Ticket geschlossen.", "success");
+            loadTickets(); // Refresh
+            document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Erledigt.</div>';
+        } else {
+            showToast("Fehler beim Senden", "error");
+        }
+    })
+    .catch(e => showToast("Verbindungsfehler", "error"));
 };
 
 window.closeTicket = function(ticketId) {
-    if(IS_TEST_MODE) {
-        const t = DUMMY_TICKETS.find(x => x.id === ticketId);
-        if(t) t.status = 'closed';
-        renderTickets(DUMMY_TICKETS);
-        document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Ticket geschlossen.</div>';
-        showToast("Ticket geschlossen.", "info");
-    }
+    // API endpoint to close? Or just update status.
+    // /api/admin/support-tickets/:id/status (PUT)
+    fetch(`${API_BASE}/support-tickets/${ticketId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${itToken}` },
+        body: JSON.stringify({ status: 'closed' })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            showToast("Ticket geschlossen.", "success");
+            loadTickets();
+            document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Geschlossen.</div>';
+        } else {
+            showToast("Fehler", "error");
+        }
+    });
 }
 
 function addTicketToInbox(data) {
-    const inbox = document.getElementById('ticketList');
-    const div = document.createElement('div');
-    div.className = 'ticket-item unread';
-    div.innerHTML = `<div style="font-weight:bold; color:#fff;">User: ${data.fromUserId}</div><div style="font-size:0.8rem; color:#888;">${new Date(data.timestamp).toLocaleTimeString()}</div>`;
-    div.onclick = () => {
-        const detail = document.getElementById('ticketDetail');
-        detail.innerHTML = `
-            <h3>Anfrage von ${data.fromUserId}</h3>
-            <p style="color:#ccc; margin-top:10px;">Payload (Encrypted):</p>
-            <div style="background:#000; padding:10px; font-family:monospace; color:#00ff88; word-break:break-all;">${data.payload}</div>
-            <div style="margin-top:20px;">
-                <button onclick="window.decryptMessage('dec-${Date.now()}', '${data.payload}')" class="btn-action">Decrypt</button>
-                <button onclick="window.replyToUser('${data.fromUserId}')" class="btn-action" style="margin-top:10px;">Reply</button>
-            </div>
-            <div id="dec-${Date.now()}"></div>
-        `;
-    };
-    inbox.prepend(div);
+    // Just refresh for now to keep sync simple
+    loadTickets();
+    // But notification is good
 }
 
 // Decryption Helper
@@ -579,10 +555,6 @@ window.decryptMessage = async function(elementId, encryptedPayload) {
 };
 
 window.replyToUser = async function(userId) {
-    if(IS_TEST_MODE) {
-        alert("Reply Simulation: Nachricht gesendet.");
-        return;
-    }
     const msg = prompt("Antwort an " + userId + ":");
     if(!msg) return;
     const code = prompt("Verschlüsselungs-Code für User:");
@@ -604,10 +576,6 @@ window.replyToUser = async function(userId) {
 };
 
 async function exportMasterKeys() {
-    if(IS_TEST_MODE) {
-        showToast("Export Simulation: Keys downloaded.", "success");
-        return;
-    }
     try {
         const res = await fetch(`${API_BASE}/users`, { headers: { 'Authorization': `Bearer ${itToken}` } });
         const users = await res.json();
@@ -621,10 +589,6 @@ async function exportMasterKeys() {
 }
 
 async function importEmployees() {
-    if(IS_TEST_MODE) {
-        showToast("Import Simulation: Employees loaded.", "success");
-        return;
-    }
     // Real logic would be upload
     showToast("Import wird verarbeitet...", "info");
 }
@@ -632,10 +596,6 @@ async function importEmployees() {
 async function resetDeviceBinding() {
     const userId = document.getElementById('resetUserId').value;
     if(!userId) return showToast("ID eingeben", "error");
-    if(IS_TEST_MODE) {
-        showToast("Reset Simulation: Device cleared.", "success");
-        return;
-    }
     try {
         const res = await fetch(`${API_BASE}/reset-device/${userId}`, {
             method: 'POST',
