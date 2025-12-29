@@ -1717,22 +1717,28 @@ function loadUserContacts() {
     if (!currentUser || !currentUser.sm_id) { contacts = []; return; }
 
     // Enterprise Global Directory
+    // Enterprise Global Directory
     const isEnterprise = (StorageAdapter.mode === 'hub' || StorageAdapter.mode === 'local');
     if (isEnterprise) {
-        // In a real app, fetch from Hub. For simulation, use a fixed set or what IT Admin pushed.
-        // We'll mock 10 "Admin Managed" contacts.
-        contacts = [
-            { id: 'CEO_Office', name: 'Geschäftsleitung', group: 'Management' },
-            { id: 'IT_Support', name: 'IT Helpdesk', group: 'IT' },
-            { id: 'HR_Dept', name: 'Personalabteilung', group: 'HR' },
-            { id: 'Sales_01', name: 'Vertrieb Nord', group: 'Sales' },
-            { id: 'Sales_02', name: 'Vertrieb Süd', group: 'Sales' },
-            { id: 'Dev_Lead', name: 'Entwicklung', group: 'R&D' },
-            { id: 'Sec_Officer', name: 'Sicherheitsbeauftragter', group: 'Security' },
-            { id: 'Logistics', name: 'Logistik', group: 'Ops' },
-            { id: 'Facility', name: 'Gebäudemanagement', group: 'Ops' },
-            { id: 'Legal', name: 'Rechtsabteilung', group: 'Legal' }
-        ];
+        // Fetch from Hub/Server
+        fetch(`${API_BASE}/users`)
+            .then(res => res.json())
+            .then(users => {
+                contacts = users.map(u => ({
+                    id: u.username,
+                    name: u.username, // Or specific display name if available
+                    group: 'Enterprise Directory'
+                }));
+                // Filter out self
+                contacts = contacts.filter(c => c.id !== currentUser.name);
+
+                // If the sidebar is open, refresh list
+                const sidebar = document.getElementById('contactSidebar');
+                if(sidebar && sidebar.classList.contains('active')) {
+                    renderContactList(document.getElementById('contactSearch').value);
+                }
+            })
+            .catch(err => console.error("Error fetching Enterprise Directory:", err));
         return;
     }
 

@@ -241,6 +241,21 @@ const initializeDatabase = async () => {
                 // Read from cert or default. Here default 50.
                 await nedb.settings.insert({ key: 'enterprise_quota', value: '50' });
             }
+
+            // Bootstrap Default Admin if no users
+            const userCount = await nedb.users.count({});
+            if (userCount === 0) {
+                console.log("⚡ Bootstrapping Default Admin (Offline Mode)...");
+                const hash = await bcrypt.hash('admin123', 10);
+                await nedb.users.insert({
+                    username: 'Admin_User',
+                    access_code_hash: hash,
+                    is_admin: true,
+                    is_blocked: false,
+                    allowed_device_id: 'dev-123',
+                    product_code: 'MASTER'
+                });
+            }
         }
     }
 };
@@ -1360,6 +1375,39 @@ app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        // Also delete associated license key if any? Or just user.
+        // If we delete user, the key remains active but unassigned?
+        // Logic: Delete user, set key.assigned_user_id to null if we want to free it up?
+        // Or delete both. "Unwiderruflich löschen".
+
+        let user;
+        if(isPostgreSQL) {
+            const r = await dbQuery("SELECT license_key_id FROM users WHERE id = $1", [uid]);
+            user = r.rows[0];
+        } else {
+            user = await nedb.users.findOne({ id: uid });
+        }
+
+        if(user && user.license_key_id) {
+            if(isPostgreSQL) {
+                await dbQuery("DELETE FROM license_keys WHERE id = $1", [user.license_key_id]);
+            } else {
+                await nedb.license_keys.remove({ id: user.license_key_id }, {});
+            }
+        }
+
+        if(isPostgreSQL) {
+            await dbQuery("DELETE FROM users WHERE id = $1", [uid]);
+        } else {
+            await nedb.users.remove({ id: uid }, {});
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
     const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
     if(isPostgreSQL) {
@@ -1925,16 +1973,6 @@ app.use('/api', paymentRoutes);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-// ENTERPRISE SANDBOX ROUTES
-app.get('/test/enterprise-admin', (req, res) => {
-    if (req.query.dev !== 'true') return res.status(403).send('Sandbox Access Denied. Query param ?dev=true required.');
-    res.sendFile(path.join(__dirname, 'public', 'it-admin.html'));
-});
-app.get('/test/enterprise-user', (req, res) => {
-    if (req.query.dev !== 'true') return res.status(403).send('Sandbox Access Denied. Query param ?dev=true required.');
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'store.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
