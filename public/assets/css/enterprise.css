@@ -1,0 +1,95 @@
+/* enterprise.css - Enterprise & Air-Gapped Mode Styles */
+
+:root {
+    --ent-bg: #050505;
+    --ent-panel: #0a0a0a;
+    --ent-accent: #00ff88; /* Green for Local/Secure */
+    --ent-danger: #ff3333;
+    --ent-border: #333;
+}
+
+body.enterprise-mode {
+    background-color: var(--ent-bg);
+    background-image:
+        radial-gradient(circle at 10% 10%, rgba(0, 255, 136, 0.05) 0%, transparent 10%),
+        linear-gradient(rgba(0, 255, 136, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 136, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* Hide Cloud Elements */
+.enterprise-mode .cloud-only,
+.enterprise-mode a[href="shop"],
+.enterprise-mode #navGuide,
+.enterprise-mode #navInfo,
+.enterprise-mode #faqBtn,
+.enterprise-mode .btn-upgrade {
+    display: none !important;
+}
+
+/* Adjust Sidebar */
+.enterprise-mode .sidebar {
+    border-right-color: var(--ent-accent);
+}
+
+.enterprise-mode .sidebar-item:hover {
+    background: rgba(0, 255, 136, 0.1);
+    color: var(--ent-accent);
+}
+
+.enterprise-mode #app-mode-bar {
+    background-color: var(--ent-accent) !important;
+    box-shadow: 0 0 10px var(--ent-accent);
+}
+
+/* Enterprise Header */
+.enterprise-mode header {
+    border-bottom-color: var(--ent-accent);
+}
+
+.enterprise-mode .app-logo svg {
+    fill: var(--ent-accent);
+}
+
+/* Buttons */
+.enterprise-mode .btn-primary {
+    background: var(--ent-accent);
+    color: #000;
+    border-color: var(--ent-accent);
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.enterprise-mode .btn:not(.btn-primary) {
+    border-color: #444;
+    color: #ccc;
+}
+
+/* Offline Export Button (Highlight) */
+.enterprise-mode #exportEncBtn {
+    display: block !important;
+    border: 1px solid var(--ent-accent);
+    color: var(--ent-accent);
+    background: rgba(0, 255, 136, 0.05);
+}
+
+/* Contact List (Admin Managed) */
+.enterprise-mode #contactSidebar {
+    border-right-color: var(--ent-accent);
+}
+
+.enterprise-mode .cs-table-header {
+    border-bottom-color: var(--ent-accent);
+    color: var(--ent-accent);
+}
+
+/* Status Indicators */
+.enterprise-mode #statusIndicator {
+    color: var(--ent-accent);
+    text-shadow: 0 0 5px var(--ent-accent);
+}
+
+/* Command Center Specifics (if shared) */
+.command-center-panel {
+    border: 1px solid var(--ent-accent);
+    background: var(--ent-panel);
+}
