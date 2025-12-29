@@ -238,6 +238,32 @@
             </div>
         </div>
 
+        <!-- EDIT USER MODAL (Hidden by default, styled manually) -->
+        <div id="userModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; justify-content:center; align-items:center;">
+             <div style="background:#111; padding:30px; border:1px solid #444; width:400px; box-shadow:0 0 30px rgba(0,0,0,0.5);">
+                 <h3 style="color:#fff; margin-bottom:20px;">Edit User Slot</h3>
+                 <form id="userForm">
+                     <label style="color:#888; display:block; margin-bottom:5px;">Name</label>
+                     <input type="text" id="editUserName" style="width:100%; margin-bottom:15px; background:#000; color:#fff; border:1px solid #333; padding:8px;">
+
+                     <label style="color:#888; display:block; margin-bottom:5px;">Abteilung</label>
+                     <input type="text" id="editUserDept" style="width:100%; margin-bottom:20px; background:#000; color:#fff; border:1px solid #333; padding:8px;">
+
+                     <div style="display:flex; justify-content:space-between; margin-top:20px;">
+                        <button type="button" id="btnCancelUserModal" style="background:transparent; color:#888; border:1px solid #333; padding:8px 15px; cursor:pointer;">Cancel</button>
+                        <button type="submit" style="background:var(--accent-primary); color:#000; border:none; padding:8px 15px; font-weight:bold; cursor:pointer;">Save</button>
+                     </div>
+                     <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; display:flex; justify-content:space-between;">
+                        <button type="button" id="btnBlockUser" style="background:#ff3333; color:#fff; border:none; padding:5px 10px; font-size:0.8rem; cursor:pointer;">Block User</button>
+                        <button type="button" id="btnDeleteUser" style="background:transparent; color:#ff3333; border:1px solid #ff3333; padding:5px 10px; font-size:0.8rem; cursor:pointer;">Clear Slot</button>
+                     </div>
+                 </form>
+             </div>
+        </div>
+        <style>
+            #userModal.active { display:flex !important; }
+        </style>
+
         <!-- SUPPORT TAB -->
         <div id="tab-support" class="tab-section" style="display:none;">
             <h2>Local Support Inbox</h2>

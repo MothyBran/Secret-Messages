@@ -28,12 +28,15 @@ async function createWindow() {
 
     // Check for offline certificate
     if (fs.existsSync(certPath)) {
-        console.log("Offline certificate found. Showing launcher.");
-        mainWindow.loadFile(path.join(__dirname, 'public', 'launcher.html'));
+        console.log("Offline certificate found. Starting Local Server & Launcher.");
+        // Ensure local server is running for the offline app
+        await ensureLocalServer();
+        // Load the local launcher which can then redirect to localhost:3000/app or localhost:3000/it-admin.html
+        mainWindow.loadURL(`http://localhost:${serverPort}/launcher.html`);
     } else {
-        console.log("No offline certificate. Cloud mode.");
-        // Cloud Mode: Load remote app
-        mainWindow.loadURL('https://www.secure-msg.app/app');
+        console.log("No offline certificate. Cloud mode (License Check).");
+        // Cloud Mode: Load remote app to activate license
+        mainWindow.loadURL('https://www.secure-msg.app/app?action=activate');
     }
 
     mainWindow.on('closed', () => {

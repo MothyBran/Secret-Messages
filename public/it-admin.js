@@ -11,6 +11,12 @@ let socket = null;
 const IS_TEST_MODE = window.location.pathname.includes('/test/enterprise-admin');
 
 // Mock Data
+const DUMMY_TICKETS = [
+    { id: 'T-1001', user: 'M. Schmidt', subject: 'Login Problem', status: 'open', time: '10:30', msg: 'Ich kann mich nicht einloggen. Gerät nicht erkannt.' },
+    { id: 'T-1002', user: 'Vertrieb_04', subject: 'Neue Lizenz', status: 'closed', time: '09:15', msg: 'Bitte um Zuweisung einer weiteren Lizenz für den neuen Laptop.' },
+    { id: 'T-1003', user: 'K. Jansen', subject: 'Verschlüsselung', status: 'open', time: 'Yesterday', msg: 'Frage: Ist der Code 5-stellig oder 6-stellig?' }
+];
+
 const DUMMY_SLOTS = [
     { id: 101, name: 'M. Schmidt', dept: 'IT', status: 'online' },
     { id: 102, name: 'A. Weber', dept: 'Marketing', status: 'offline' },
@@ -73,7 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide login if present
         const loginView = document.getElementById('login-view');
         if (loginView) loginView.style.display = 'none';
-        document.getElementById('dashboard-view').style.display = 'block';
+        // There is no #dashboard-view, we just show the default tab or the main grid is always visible
+        showTab('dashboard');
 
         // Mock Hub Status
         updateHubUI(false, null);
@@ -81,9 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render Dummy Slots
         renderUserSlots(DUMMY_SLOTS);
 
+        // Render Dummy Tickets
+        renderTickets(DUMMY_TICKETS);
+
         // Mock Logs
         logEvent("System initialized in Sandbox Mode.");
         logEvent("15 Slots loaded.");
+        logEvent("3 Mock Tickets loaded.");
 
     } else {
         // Real Mode: Check Session
@@ -126,11 +137,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnExportKeys')?.addEventListener('click', exportMasterKeys);
     document.getElementById('btnImportEmployees')?.addEventListener('click', importEmployees);
     document.getElementById('btnResetDevice')?.addEventListener('click', resetDeviceBinding);
+
+    // User Management Events
+    document.getElementById('btnAddUser')?.addEventListener('click', () => openUserModal());
+    document.getElementById('userForm')?.addEventListener('submit', handleUserSave);
+    document.getElementById('btnCancelUserModal')?.addEventListener('click', () => document.getElementById('userModal').classList.remove('active'));
+    document.getElementById('btnBlockUser')?.addEventListener('click', toggleBlockUser);
+    document.getElementById('btnDeleteUser')?.addEventListener('click', deleteUser);
 });
 
 function showDashboard() {
     document.getElementById('login-view').style.display = 'none';
-    document.getElementById('dashboard-view').style.display = 'block';
+    showTab('dashboard'); // ensure default tab is shown
     checkHubStatus();
 }
 
@@ -166,6 +184,7 @@ function renderUserSlots(slots) {
         let statusIcon = '⚪';
         if (s.status === 'online') statusIcon = '🟢';
         if (s.status === 'free') statusIcon = '−';
+        if (s.status === 'blocked') statusIcon = '🚫';
 
         tr.innerHTML = `
             <td style="padding:10px; color:#666; font-family:'Roboto Mono';">${s.id}</td>
@@ -173,13 +192,97 @@ function renderUserSlots(slots) {
             <td style="padding:10px; color:#aaa;">${s.dept}</td>
             <td style="padding:10px; text-align:center; font-size:1.2rem;">${statusIcon}</td>
             <td style="padding:10px; text-align:right;">
-                ${s.status !== 'free' ? '<button class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:#333; border:1px solid #555;">Edit</button>' : ''}
+                ${s.status !== 'free' ? `<button onclick="window.editUser(${s.id})" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:#333; border:1px solid #555;">Edit</button>` : `<button onclick="window.editUser(${s.id})" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:var(--accent-primary); color:#000;">Assign</button>`}
             </td>
         `;
         tbody.appendChild(tr);
     });
 
     list.appendChild(table);
+}
+
+// Global scope for inline onclick
+window.editUser = function(id) {
+    openUserModal(id);
+};
+
+// USER MANAGEMENT LOGIC
+let currentEditingId = null;
+
+function openUserModal(id = null) {
+    const modal = document.getElementById('userModal');
+    if(!modal) return; // Should create if missing or assumes it exists in HTML
+
+    // Find user in DUMMY_SLOTS if testing
+    const user = DUMMY_SLOTS.find(u => u.id === id);
+
+    currentEditingId = id;
+
+    if(user && user.status !== 'free') {
+        document.getElementById('editUserName').value = user.name;
+        document.getElementById('editUserDept').value = user.dept;
+        document.getElementById('btnBlockUser').style.display = 'inline-block';
+        document.getElementById('btnBlockUser').textContent = user.status === 'blocked' ? 'Unblock' : 'Block';
+        document.getElementById('btnDeleteUser').style.display = 'inline-block';
+    } else {
+        document.getElementById('editUserName').value = '';
+        document.getElementById('editUserDept').value = '';
+        document.getElementById('btnBlockUser').style.display = 'none';
+        document.getElementById('btnDeleteUser').style.display = 'none';
+    }
+
+    modal.classList.add('active');
+}
+
+function handleUserSave(e) {
+    e.preventDefault();
+    const name = document.getElementById('editUserName').value;
+    const dept = document.getElementById('editUserDept').value;
+
+    if(IS_TEST_MODE) {
+        const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
+        if(idx > -1) {
+            DUMMY_SLOTS[idx].name = name;
+            DUMMY_SLOTS[idx].dept = dept;
+            DUMMY_SLOTS[idx].status = 'offline'; // Assume allocated
+            renderUserSlots(DUMMY_SLOTS);
+            showToast("User updated (Mock)", "success");
+        }
+        document.getElementById('userModal').classList.remove('active');
+        return;
+    }
+
+    // Real API call would go here
+    showToast("API call not implemented for this action yet.", "info");
+}
+
+function toggleBlockUser() {
+    if(IS_TEST_MODE) {
+        const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
+        if(idx > -1) {
+            const isBlocked = DUMMY_SLOTS[idx].status === 'blocked';
+            DUMMY_SLOTS[idx].status = isBlocked ? 'offline' : 'blocked';
+            renderUserSlots(DUMMY_SLOTS);
+            showToast(isBlocked ? "User Unblocked" : "User Blocked", "info");
+        }
+        document.getElementById('userModal').classList.remove('active');
+    }
+}
+
+function deleteUser() {
+    if(confirm("Delete this user assignment?")) {
+        if(IS_TEST_MODE) {
+            const idx = DUMMY_SLOTS.findIndex(u => u.id === currentEditingId);
+            if(idx > -1) {
+                DUMMY_SLOTS[idx].name = 'Frei';
+                DUMMY_SLOTS[idx].dept = '-';
+                DUMMY_SLOTS[idx].status = 'free';
+                renderUserSlots(DUMMY_SLOTS);
+                showToast("User deleted/freed", "success");
+            }
+            document.getElementById('userModal').classList.remove('active');
+        }
+    }
 }
 
 function logEvent(msg) {
@@ -277,10 +380,69 @@ function connectMasterSocket() {
     });
 }
 
+function renderTickets(tickets) {
+    const list = document.getElementById('ticketList');
+    if(!list) return;
+    list.innerHTML = '';
+
+    tickets.forEach(t => {
+        const div = document.createElement('div');
+        div.className = `ticket-item ${t.status === 'open' ? 'unread' : ''}`;
+        div.innerHTML = `
+            <div style="font-weight:bold; color:#fff;">${t.user}</div>
+            <div style="font-size:0.9rem; color:#aaa;">${t.subject}</div>
+            <div style="font-size:0.7rem; color:#666; margin-top:5px;">${t.time}</div>
+        `;
+        div.onclick = () => showTicketDetail(t);
+        list.appendChild(div);
+    });
+}
+
+function showTicketDetail(ticket) {
+    const detail = document.getElementById('ticketDetail');
+    detail.innerHTML = `
+        <h3 style="color:#fff; margin-bottom:10px;">${ticket.subject}</h3>
+        <div style="color:#888; font-size:0.9rem; margin-bottom:20px;">Von: <strong style="color:var(--accent-primary);">${ticket.user}</strong> | ID: ${ticket.id}</div>
+        <div style="background:rgba(255,255,255,0.05); padding:15px; border:1px solid #333; color:#ccc; line-height:1.5;">
+            ${ticket.msg}
+        </div>
+        <div style="margin-top:20px;">
+            <textarea id="replyText" style="width:100%; height:100px; background:#000; color:#fff; border:1px solid #333; padding:10px; margin-bottom:10px;" placeholder="Antwort eingeben..."></textarea>
+            <button onclick="window.sendReply('${ticket.id}')" class="btn-action">Senden</button>
+            <button onclick="window.closeTicket('${ticket.id}')" class="btn-action" style="background:transparent; border:1px solid #555; color:#aaa;">Schließen</button>
+        </div>
+    `;
+}
+
+window.sendReply = function(ticketId) {
+    const text = document.getElementById('replyText').value;
+    if(!text) return alert("Bitte Text eingeben.");
+
+    if(IS_TEST_MODE) {
+        showToast(`Antwort an Ticket ${ticketId} gesendet (Mock).`, "success");
+        // Update mock status
+        const t = DUMMY_TICKETS.find(x => x.id === ticketId);
+        if(t) t.status = 'closed';
+        renderTickets(DUMMY_TICKETS);
+        document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Ticket erledigt.</div>';
+    } else {
+        // Real logic
+        showToast("Senden...", "info");
+    }
+};
+
+window.closeTicket = function(ticketId) {
+    if(IS_TEST_MODE) {
+        const t = DUMMY_TICKETS.find(x => x.id === ticketId);
+        if(t) t.status = 'closed';
+        renderTickets(DUMMY_TICKETS);
+        document.getElementById('ticketDetail').innerHTML = '<div style="color:#666; text-align:center; padding-top:50px;">Ticket geschlossen.</div>';
+        showToast("Ticket geschlossen.", "info");
+    }
+}
+
 function addTicketToInbox(data) {
-    const inbox = document.getElementById('ticketList'); // Fixed ID
-    // Logic to add ticket UI...
-    // Simplified for brevity/restoration:
+    const inbox = document.getElementById('ticketList');
     const div = document.createElement('div');
     div.className = 'ticket-item unread';
     div.innerHTML = `<div style="font-weight:bold; color:#fff;">User: ${data.fromUserId}</div><div style="font-size:0.8rem; color:#888;">${new Date(data.timestamp).toLocaleTimeString()}</div>`;
