@@ -172,12 +172,8 @@ ipcMain.handle('connect-hub', async (event, url) => {
 ipcMain.handle('activate-admin', async (event, licenseKey) => {
     try {
         console.log(`🌐 Verifying Key: ${licenseKey}`);
-        // In real world, we fetch from https://secure-msg.app
-        // Here we simulate the request to our own mock logic or external API
-        // Since we are building the standalone, we might not have internet access code here if strictly offline?
-        // But activation allows internet once.
 
-        // Use Node's built-in fetch (Node 18+)
+        // Use fetch (Node 18+) for Cloud Verification
         const response = await fetch('https://secure-msg.app/api/auth/verify-master', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -192,7 +188,7 @@ ipcMain.handle('activate-admin', async (event, licenseKey) => {
         const data = await response.json();
 
         if (data.success) {
-            // SECURELY SAVE VAULT
+            // SECURELY SAVE VAULT LOCALLY
             licenseVault.createVault(data.bundleId, data.quota);
 
             console.log("✅ Activation Successful. Vault Created.");
