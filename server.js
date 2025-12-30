@@ -15,6 +15,9 @@ const { Server } = require("socket.io");
 const http = require('http');
 require('dotenv').config();
 
+// Enterprise License Vault
+const licenseVault = require('./utils/licenseVault');
+
 const IS_OFFLINE = process.env.IS_OFFLINE === 'true' || process.env.IS_ENTERPRISE === 'true';
 let resend;
 if (!IS_OFFLINE && process.env.RESEND_API_KEY) {
@@ -236,11 +239,8 @@ const initializeDatabase = async () => {
 
         // Enterprise Quota Init
         if (IS_OFFLINE) {
-            const qCheck = await nedb.settings.findOne({ key: 'enterprise_quota' });
-            if (!qCheck) {
-                // Read from cert or default. Here default 50.
-                await nedb.settings.insert({ key: 'enterprise_quota', value: '50' });
-            }
+            // Initialize Vault with default quota (e.g. 50 from Cert in real app)
+            licenseVault.initVault(50);
 
             // Bootstrap Default Admin if no users
             const userCount = await nedb.users.count({});
@@ -1143,21 +1143,11 @@ app.post('/api/admin/create-local-user', requireAdmin, async (req, res) => {
     if (!username) return res.status(400).json({ error: "Username required" });
 
     try {
-        // 1. Check Quota
-        const quotaVal = await DB.getSetting('enterprise_quota');
-        const quota = parseInt(quotaVal) || 50;
-
-        let currentCount = 0;
-        if(isPostgreSQL) {
-            // Should not happen in offline, but for safety
-            const r = await dbQuery("SELECT COUNT(*) as c FROM license_keys WHERE product_code = 'ENTERPRISE_LOCAL'");
-            currentCount = parseInt(r.rows[0].c);
-        } else {
-            currentCount = await nedb.license_keys.count({ product_code: 'ENTERPRISE_LOCAL' });
-        }
-
-        if (currentCount >= quota) {
-            return res.status(403).json({ error: "Lizenz-Kontingent erschöpft." });
+        // 1. Check & Increment Vault Quota
+        try {
+            licenseVault.incrementUsed();
+        } catch(err) {
+            return res.status(403).json({ error: err.message }); // "Quota exceeded" or "Tampered"
         }
 
         // 2. Check if username exists
@@ -1176,9 +1166,7 @@ app.post('/api/admin/create-local-user', requireAdmin, async (req, res) => {
                 key_code: keyRaw,
                 key_hash: keyHash,
                 product_code: 'ENTERPRISE_LOCAL',
-                is_active: false, // Will be active once user activates it? Or pre-active?
-                // Requirement says: "User enters name and key... validation via LAN".
-                // So key is waiting.
+                is_active: false,
                 assigned_user_id: username,
                 created_at: new Date().toISOString(),
                 id: Math.floor(Math.random() * 1000000)
