@@ -493,86 +493,6 @@ window.exportBundleCsv = async function() {
     } catch(e) { window.showMessage("Fehler", "Export fehlgeschlagen.", true); }
 };
 
-// --- GLOBAL SETTINGS ACTIONS ---
-
-window.toggleMaintenance = async function(e) {
-    const active = e.target.checked;
-    try {
-        const res = await fetch(`${API_BASE}/toggle-maintenance`, {
-            method: 'POST', headers: getHeaders(), body: JSON.stringify({ active })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('maintenanceStateText').textContent = active ? "WARTUNG" : "ONLINE";
-            document.getElementById('maintenanceStateText').style.color = active ? "orange" : "var(--success-green)";
-            window.showToast(`Wartungsmodus ${active ? 'aktiviert' : 'deaktiviert'}`, 'success');
-        } else {
-            e.target.checked = !active; // Revert
-            window.showToast("Fehler beim Umschalten", 'error');
-        }
-    } catch(err) { e.target.checked = !active; window.showToast("Netzwerkfehler", 'error'); }
-};
-
-window.toggleShop = async function(e) {
-    const active = e.target.checked;
-    try {
-        const res = await fetch(`${API_BASE}/toggle-shop`, {
-            method: 'POST', headers: getHeaders(), body: JSON.stringify({ active })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('shopStateText').textContent = active ? "AKTIV" : "OFFLINE";
-            document.getElementById('shopStateText').style.color = active ? "var(--success-green)" : "gray";
-            window.showToast(`Shop ${active ? 'aktiviert' : 'deaktiviert'}`, 'success');
-        } else {
-            e.target.checked = !active;
-            window.showToast("Fehler beim Umschalten", 'error');
-        }
-    } catch(err) { e.target.checked = !active; window.showToast("Netzwerkfehler", 'error'); }
-};
-
-// --- USER ACTIONS (FIXED) ---
-
-window.resetDevice = function(id) {
-    window.showConfirm("Geräte-ID wirklich zurücksetzen? Der User kann sich dann an einem neuen Gerät anmelden.", async () => {
-        try {
-            const res = await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
-            if(res.ok) {
-                window.showToast("Device Reset erfolgreich.", "success");
-                window.loadUsers();
-            } else { window.showToast("Fehler beim Reset.", "error"); }
-        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
-    });
-};
-
-window.toggleUserBlock = function(id, isBlocked) {
-    const action = isBlocked ? 'unblock' : 'block';
-    // Confirmation for block
-    if(action === 'block' && !confirm("User wirklich sperren?")) return;
-
-    fetch(`${API_BASE}/${action}-user/${id}`, { method: 'POST', headers: getHeaders() })
-        .then(res => res.json())
-        .then(data => {
-            if(data.success) {
-                window.showToast(`User ${isBlocked ? 'entsperrt' : 'gesperrt'}.`, "success");
-                window.loadUsers();
-            } else { window.showToast("Fehler", "error"); }
-        })
-        .catch(() => window.showToast("Netzwerkfehler", "error"));
-};
-
-window.deleteUser = function(id) {
-    window.showConfirm("⚠️ ACHTUNG: User unwiderruflich löschen? Alle Daten und Lizenzen werden entfernt!", async () => {
-        try {
-            const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE', headers: getHeaders() });
-            if(res.ok) {
-                window.showToast("User gelöscht.", "success");
-                window.loadUsers();
-            } else { window.showToast("Löschen fehlgeschlagen.", "error"); }
-        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
-    });
-};
-
 // --- SINGLE KEY ACTIONS ---
 
 window.deleteKey = function(id) {
@@ -648,9 +568,8 @@ function renderUsersTable(users) {
             <td style="text-align:center;">${deviceIcon}</td>
             <td>
                 <div style="display:flex; gap:10px;">
-                    <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Gerät zurücksetzen (Reset)">📱</button>
-                    <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="${u.is_blocked ? 'Entsperren' : 'Sperren'}">${u.is_blocked ? '🔓' : '🛑'}</button>
-                    <button class="btn-icon" onclick="deleteUser('${u.id}')" title="User Löschen" style="color:var(--error-red);">🗑️</button>
+                    <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Reset Device">📱</button>
+                    <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Block">${u.is_blocked ? '🔓' : '🛑'}</button>
                 </div>
             </td>
         `;
