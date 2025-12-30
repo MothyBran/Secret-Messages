@@ -320,21 +320,26 @@ document.addEventListener('DOMContentLoaded', function() {
     setupIdleTimer();
 });
 
-// GLOBAL FETCH INTERCEPTOR to handle Maintenance Mode Redirects
+// GLOBAL FETCH INTERCEPTOR (Optimized & Robust)
 const originalFetch = window.fetch;
 window.fetch = async function(...args) {
     try {
-        const response = await originalFetch(...args);
+        // Fix: Use apply to preserve correct context (window)
+        const response = await originalFetch.apply(window, args);
 
         if (response.status === 503) {
             try {
                 const clone = response.clone();
-                const data = await clone.json();
-                if (data.error === 'MAINTENANCE_MODE') {
+                const text = await clone.text();
+                // Robust Check: Parse JSON only if it looks like JSON, or check generic error text
+                if (text.includes('MAINTENANCE_MODE')) {
                      window.location.href = '/maintenance';
-                     return response;
+                     // Return a dummy response to prevent downstream errors during redirect
+                     return new Response(JSON.stringify({ error: 'MAINTENANCE_MODE' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn("Maintenance Check Failed:", e);
+            }
         }
 
         if (response.url && response.url.includes('/maintenance')) {
@@ -606,6 +611,23 @@ function setupUIEvents() {
             }
         } catch(e) { console.error(e); }
     });
+
+    // Encryption Key Validation (Strict Input Masking)
+    const keyInput = document.getElementById('messageCode');
+    if (keyInput) {
+        keyInput.addEventListener('input', (e) => {
+            // Remove any non-digit characters immediately
+            e.target.value = e.target.value.replace(/\D/g, '');
+            // Limit to 5 digits
+            if (e.target.value.length > 5) e.target.value = e.target.value.slice(0, 5);
+        });
+        keyInput.addEventListener('keypress', (e) => {
+            // Prevent entering non-digits (except control keys)
+            if (!/\d/.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+    }
 
     // Activation Code Validation
     document.getElementById('newAccessCode')?.addEventListener('input', validateActivationInputs);
@@ -1287,7 +1309,9 @@ async function handleMainAction() {
     let payload = document.getElementById('messageInput').value;
     if (currentMode === 'encrypt' && currentAttachmentBase64) payload = currentAttachmentBase64;
 
-    if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
+    // Strict Validation: Must be exactly 5 digits
+    if (!/^\d{5}$/.test(code)) return showAppStatus("Der Key muss aus exakt 5 Zahlen bestehen.", 'error');
+    if (!payload || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
 
     if (StorageAdapter.mode !== 'hub') {
         const isValid = await validateSessionStrict();

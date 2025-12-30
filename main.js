@@ -11,7 +11,36 @@ let isServerRunning = false;
 
 // Path to offline certificate
 const userDataPath = app.getPath('userData');
-const certPath = path.join(userDataPath, 'offline-cert.json');
+// Initialize Vault Path immediately
+licenseVault.setPath(userDataPath);
+const vaultFilePath = path.join(userDataPath, 'license.vault');
+
+// --- MDNS LOGIC ---
+function startBonjourService() {
+    // SECURITY: Ensure we are in Hub Mode before publishing
+    if (!isHubMode) return;
+
+    try {
+        bonjourInstance = new Bonjour();
+        console.log("📡 Publishing mDNS Service: SecureMsgHub");
+        bonjourInstance.publish({ name: 'SecureMsgHub', type: 'http', port: serverPort });
+    } catch (e) { console.error("Bonjour Error:", e); }
+}
+
+function findHubService(callback) {
+    console.log("🔍 Searching for SecureMsgHub...");
+    try {
+        const browser = new Bonjour();
+        browser.find({ type: 'http' }, (service) => {
+            if (service.name === 'SecureMsgHub' || service.name.includes('SecureMsgHub')) {
+                console.log('✅ Hub Found:', service.host, service.port, service.addresses);
+                const ip = service.addresses.find(addr => addr.includes('.')) || service.addresses[0];
+                callback(`http://${ip}:${service.port}`);
+                browser.stop();
+            }
+        });
+    } catch(e) { console.error("Discovery Error:", e); callback(null); }
+}
 
 async function createWindow() {
     mainWindow = new BrowserWindow({
