@@ -666,6 +666,36 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ==================================================================
+// 4. FRONTEND ROUTES (Explicit Serving)
+// ==================================================================
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
+app.get('/app', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/shop', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/maintenance', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'maintenance.html'));
+});
+
+// Fallback / Catch-All
+app.get('*', (req, res) => {
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Endpoint not found' });
+    res.redirect('/');
+});
+
 // SERVER START
 if (require.main === module) {
     server.listen(PORT, () => {
