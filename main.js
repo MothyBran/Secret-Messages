@@ -18,6 +18,9 @@ const vaultFilePath = path.join(userDataPath, 'license.vault');
 
 // --- MDNS LOGIC ---
 function startBonjourService() {
+    // SECURITY: Ensure we are in Hub Mode before publishing
+    if (!isHubMode) return;
+
     try {
         bonjourInstance = new Bonjour();
         console.log("📡 Publishing mDNS Service: SecureMsgHub");

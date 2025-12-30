@@ -19,21 +19,24 @@ require('dotenv').config();
 const licenseVault = require('./utils/licenseVault');
 
 // Environment Flags
-const IS_OFFLINE = process.env.IS_OFFLINE === 'true' || process.env.IS_ENTERPRISE === 'true';
+const IS_OFFLINE = process.env.IS_OFFLINE === 'true' || process.env.IS_ENTERPRISE === 'true' || process.env.APP_MODE === 'ENTERPRISE';
 const IS_CLOUD = !IS_OFFLINE;
 
-// Mailer Setup (Mock for Offline)
+// Mailer Setup (Strict Check for Enterprise Mode)
 let resend;
 if (IS_CLOUD && process.env.RESEND_API_KEY) {
     resend = new Resend(process.env.RESEND_API_KEY);
 } else {
-    // Mock Resend object to prevent crashes
+    // Mock Resend object to prevent crashes and ensure offline strictness
     resend = {
         emails: {
             send: async (data) => {
-                console.log("🔒 [MOCK EMAIL] Enterprise/Offline Mode");
+                if (IS_OFFLINE) {
+                     console.log("🔒 [ENTERPRISE BLOCKED] Outgoing Email blocked in Offline Mode.");
+                     return { data: null, error: 'Offline Mode: Emails disabled' };
+                }
+                console.log("🔒 [MOCK EMAIL] Missing API Key");
                 console.log("To:", data.to);
-                console.log("Subject:", data.subject);
                 return { data: { id: 'mock-id' }, error: null };
             }
         }
@@ -388,6 +391,26 @@ app.post('/api/auth/verify-master', async (req, res) => {
 // Standard Routes
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
 
+// Enterprise Directory Endpoint (Protected, Read-Only)
+app.get('/api/users', authenticateUser, async (req, res) => {
+    try {
+        // Return only username/id for directory listing
+        // In Cloud mode, this might be restricted or require specific logic
+        // In Enterprise mode, it returns the local user list
+        if (isPostgreSQL) {
+             // Cloud Directory Logic (if enabled, or return empty if privacy strict)
+             // Assuming Cloud users don't see global directory unless specific feature enabled
+             // Return empty for now on Cloud to maintain privacy unless Enterprise flag specific
+             res.json([]);
+        } else {
+             // NeDB (Offline Hub) - Return all users
+             const users = await nedb.users.find({});
+             const directory = users.map(u => ({ username: u.username, id: u.id }));
+             res.json(directory);
+        }
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/support', rateLimiter, async (req, res) => {
     // ... (Existing Support Logic - Shortened for brevity, use previous implementation if needed or assume IS_OFFLINE handles mock)
     // For Enterprise, support is handled via SocketIO mostly, but this endpoint might be used by local UI
@@ -439,9 +462,9 @@ app.post('/api/admin/create-local-user', async (req, res) => {
     // Auth Check
     const authHeader = req.headers['authorization'];
     if (!authHeader) return res.status(403).send();
-    // Verify Admin... (simplified)
 
-    if (!IS_OFFLINE) return res.status(403).json({ error: "Only available in Enterprise Offline mode" });
+    // STRICT OFFLINE/ENTERPRISE CHECK
+    if (!IS_OFFLINE) return res.status(403).json({ error: "BLOCKED: Only available in Enterprise Offline mode" });
 
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: "Username required" });
@@ -478,16 +501,88 @@ app.get('/api/hub/status', (req, res) => res.json({ active: true, port: PORT }))
 
 app.use('/api', paymentRoutes);
 
-// ADMIN API (Simplified for brevity, include necessary ones)
-app.get('/api/admin/users', async (req, res) => {
-    if(!IS_OFFLINE) return res.status(403);
-    const users = await nedb.users.find({});
-    res.json(users);
+// ADMIN API
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+    try {
+        if(isPostgreSQL) {
+            const sql = `SELECT u.*, k.key_code FROM users u LEFT JOIN license_keys k ON u.license_key_id = k.id ORDER BY u.registered_at DESC LIMIT 100`;
+            const result = await dbQuery(sql);
+            res.json(result.rows);
+        } else {
+            const users = await nedb.users.find({}).sort({ registered_at: -1 }).limit(100);
+            for(let u of users) {
+                if(u.license_key_id) {
+                    const k = await nedb.license_keys.findOne({ id: u.license_key_id });
+                    if(k) u.key_code = k.key_code;
+                }
+            }
+            res.json(users);
+        }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.delete('/api/admin/users/:id', async (req, res) => {
-    if(!IS_OFFLINE) return res.status(403);
-    await nedb.users.remove({ id: parseInt(req.params.id) });
-    res.json({ success: true });
+
+app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        if(isPostgreSQL) {
+            await dbQuery("UPDATE users SET is_blocked = TRUE WHERE id = $1", [uid]);
+        } else {
+            await nedb.users.update({ id: uid }, { $set: { is_blocked: true } });
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        if(isPostgreSQL) {
+            await dbQuery("UPDATE users SET is_blocked = FALSE WHERE id = $1", [uid]);
+        } else {
+            await nedb.users.update({ id: uid }, { $set: { is_blocked: false } });
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        if(isPostgreSQL) {
+            await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [uid]);
+        } else {
+            await nedb.users.update({ id: uid }, { $set: { allowed_device_id: null } });
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+    const uid = isPostgreSQL ? req.params.id : parseInt(req.params.id);
+    try {
+        let user;
+        if(isPostgreSQL) {
+            const r = await dbQuery("SELECT license_key_id FROM users WHERE id = $1", [uid]);
+            user = r.rows[0];
+        } else {
+            user = await nedb.users.findOne({ id: uid });
+        }
+
+        if(user && user.license_key_id) {
+            if(isPostgreSQL) {
+                await dbQuery("DELETE FROM license_keys WHERE id = $1", [user.license_key_id]);
+            } else {
+                await nedb.license_keys.remove({ id: user.license_key_id }, {});
+            }
+        }
+
+        if(isPostgreSQL) {
+            await dbQuery("DELETE FROM users WHERE id = $1", [uid]);
+        } else {
+            await nedb.users.remove({ id: uid }, {});
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // SERVER START

@@ -537,11 +537,17 @@ window.resetDevice = function(id) {
     window.showConfirm("Geräte-ID wirklich zurücksetzen? Der User kann sich dann an einem neuen Gerät anmelden.", async () => {
         try {
             const res = await fetch(`${API_BASE}/reset-device/${id}`, { method: 'POST', headers: getHeaders() });
-            if(res.ok) {
+            const data = await res.json();
+            if(data.success) {
                 window.showToast("Device Reset erfolgreich.", "success");
                 window.loadUsers();
-            } else { window.showToast("Fehler beim Reset.", "error"); }
-        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+            } else {
+                window.showToast("Fehler beim Reset: " + (data.error || 'Unbekannt'), "error");
+            }
+        } catch(e) {
+            console.error(e);
+            window.showToast("Netzwerkfehler", "error");
+        }
     });
 };
 
@@ -565,11 +571,17 @@ window.deleteUser = function(id) {
     window.showConfirm("⚠️ ACHTUNG: User unwiderruflich löschen? Alle Daten und Lizenzen werden entfernt!", async () => {
         try {
             const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE', headers: getHeaders() });
-            if(res.ok) {
+            const data = await res.json();
+            if(data.success) {
                 window.showToast("User gelöscht.", "success");
                 window.loadUsers();
-            } else { window.showToast("Löschen fehlgeschlagen.", "error"); }
-        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+            } else {
+                window.showToast("Löschen fehlgeschlagen: " + (data.error || 'Unbekannt'), "error");
+            }
+        } catch(e) {
+            console.error(e);
+            window.showToast("Netzwerkfehler", "error");
+        }
     });
 };
 
