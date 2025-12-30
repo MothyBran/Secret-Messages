@@ -13,12 +13,30 @@ const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 require('dotenv').config();
 
-const resend = process.env.RESEND_API_KEY
-    ? new Resend(process.env.RESEND_API_KEY)
-    : { emails: { send: async () => { console.log(">> MOCK MAIL SENT (No API Key)"); return { id: 'mock' }; } } };
+// ENTERPRISE SWITCH
+const IS_ENTERPRISE = process.env.APP_MODE === 'ENTERPRISE';
+let enterpriseManager, socketServer;
 
-// Payment Routes
-const paymentRoutes = require('./payment.js');
+if (IS_ENTERPRISE) {
+    console.log("🏢 ENTERPRISE MODE ACTIVE");
+    enterpriseManager = require('./enterprise/manager');
+    socketServer = require('./enterprise/socketServer');
+    // Initialize discovery ONLY if Activated (Hub Mode)
+    // We check activation status async or via config load
+    enterpriseManager.init().then(config => {
+        if(config.activated) {
+            require('./enterprise/discovery').start(process.env.PORT || 3000);
+        }
+    });
+}
+
+// MOCK CLOUD SERVICES IF ENTERPRISE
+const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
+    ? new Resend(process.env.RESEND_API_KEY)
+    : { emails: { send: async () => { console.log(">> MOCK MAIL SENT (Enterprise/No Key)"); return { id: 'mock' }; } } };
+
+// Payment Routes (Mock if Enterprise)
+const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./payment.js');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -135,7 +153,7 @@ let dbQuery;
 const initializeDatabase = async () => {
     console.log('🔧 Initializing Database...');
     
-    if (DATABASE_URL && DATABASE_URL.includes('postgresql')) {
+    if (!IS_ENTERPRISE && DATABASE_URL && DATABASE_URL.includes('postgresql')) {
         console.log('📡 PostgreSQL detected');
         isPostgreSQL = true;
         const { Pool } = require('pg');
@@ -1278,6 +1296,76 @@ setTimeout(checkLicenseExpiries, 10000);
 // 5. START
 // ==================================================================
 
+// ENTERPRISE ROUTES
+if (IS_ENTERPRISE) {
+    app.get('/api/config', async (req, res) => {
+        const stats = await enterpriseManager.init();
+        res.json({
+            mode: 'ENTERPRISE',
+            activated: stats.activated,
+            stats: enterpriseManager.getStats()
+        });
+    });
+
+    app.post('/api/enterprise/activate', async (req, res) => {
+        try {
+            const { key } = req.body;
+            const result = await enterpriseManager.activate(key);
+            res.json(result);
+        } catch(e) { res.status(400).json({ error: e.message }); }
+    });
+
+    app.post('/api/enterprise/users', async (req, res) => {
+        try {
+            const { username, openRecipient } = req.body;
+            const result = await enterpriseManager.createUser(username, openRecipient);
+            res.json(result);
+        } catch(e) { res.status(400).json({ error: e.message }); }
+    });
+
+    app.get('/api/enterprise/users', async (req, res) => {
+        res.json(enterpriseManager.getUsers());
+    });
+
+    // Enterprise Admin Messages (Support Inbox)
+    app.get('/api/enterprise/admin/messages', async (req, res) => {
+        try {
+            // Fetch messages addressed to Admin or System Support
+            // In socketServer we emit "admin_support_alert".
+            // We need to query `enterprise_messages` where recipient is NULL (Broadcast) or specifically Admin?
+            // "Support-Anfragen ... als Nachrichten mit dem Typ SYSTEM_SUPPORT direkt in das Admin-Postfach"
+            // Let's assume we filter by type='support' or similar.
+            // In socketServer we didn't explicitly implement `send_support` saving to DB?
+            // We implemented `send_message`.
+            // Support messages usually go to the Admin.
+            // Let's query all messages for now to see what's happening.
+            if(dbQuery) {
+                const r = await dbQuery("SELECT * FROM enterprise_messages ORDER BY created_at DESC");
+                // Map to ticket format for frontend compatibility
+                const tickets = r.rows.map(m => ({
+                    id: m.id,
+                    ticket_id: m.id, // Use msg ID as ticket ID
+                    username: m.sender_id,
+                    subject: m.subject,
+                    message: m.body,
+                    created_at: m.created_at,
+                    status: m.is_read ? 'closed' : 'open', // Simplistic status
+                    email: ''
+                }));
+                res.json(tickets);
+            } else {
+                res.json([]);
+            }
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+} else {
+    // Cloud Config
+    app.get('/api/config', (req, res) => {
+        res.json({ mode: 'CLOUD' });
+    });
+}
+
 app.use('/api', paymentRoutes);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
@@ -1294,6 +1382,26 @@ app.get('*', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
     console.log(`🚀 Server running on Port ${PORT}`);
+    if (IS_ENTERPRISE) {
+        // Init extra table for Enterprise Messages
+        if(!isPostgreSQL) {
+            db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (
+                id TEXT PRIMARY KEY,
+                sender_id TEXT,
+                recipient_id TEXT,
+                subject TEXT,
+                body TEXT,
+                attachment TEXT,
+                is_read INTEGER DEFAULT 0,
+                created_at DATETIME
+            )`, (err) => {
+                if(err) console.error("EntDB Error", err);
+            });
+        }
+
+        socketServer.attach(httpServer, dbQuery);
+        enterpriseManager.init();
+    }
 });
