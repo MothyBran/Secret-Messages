@@ -1,16 +1,15 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// We will load the server module but control its start
 const { startServer } = require('./server.js');
-const Bonjour = require('bonjour-service');
-const licenseVault = require('./utils/licenseVault');
 
 let mainWindow;
-let tray = null;
 let serverPort = 3000;
-let isHubMode = false;
-let bonjourInstance = null;
+let isServerRunning = false;
 
+// Path to offline certificate
 const userDataPath = app.getPath('userData');
 // Initialize Vault Path immediately
 licenseVault.setPath(userDataPath);
@@ -43,12 +42,11 @@ function findHubService(callback) {
     } catch(e) { console.error("Discovery Error:", e); callback(null); }
 }
 
-// --- WINDOW LOGIC ---
 async function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        frame: true,
+        frame: true, // Standard Window Controls
         backgroundColor: '#050505',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -57,152 +55,115 @@ async function createWindow() {
         }
     });
 
+    // Set Custom User Agent for Platform Identification
     const userAgent = mainWindow.webContents.getUserAgent() + " SecureMessages-Desktop";
     mainWindow.webContents.setUserAgent(userAgent);
 
-    mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+    // Also inject a custom header for all requests (API calls etc.)
+    const filter = { urls: ['*://*/*'] };
+    mainWindow.webContents.session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
         details.requestHeaders['X-App-Client'] = 'SecureMessages-Desktop';
         callback({ requestHeaders: details.requestHeaders });
     });
 
-    // STARTUP CHECK: Check for signed Vault instead of raw JSON
-    if (fs.existsSync(vaultFilePath)) {
-        // VALIDATE VAULT
-        try {
-            const vaultData = licenseVault.readVault();
-            if (vaultData.tampered) {
-                console.error("❌ Vault Tampered!");
-                // Could show error page, but for now we might just fail to start server or show error
-            }
-
-            // HUB MODE
-            console.log(`🚀 Starting in HUB MODE (Bundle: ${vaultData.bundleId})`);
-            isHubMode = true;
-
-            // Start Server with UserData Path
-            startServer(serverPort, userDataPath);
-            startBonjourService();
-            createTray();
-
-            setTimeout(() => {
-                mainWindow.loadURL(`http://localhost:${serverPort}/it-admin.html`);
-            }, 1000);
-
-        } catch (e) {
-            console.error("Startup Check Failed:", e);
-        }
+    // Check for offline certificate
+    if (fs.existsSync(certPath)) {
+        console.log("Offline certificate found. Starting Local Server & Launcher.");
+        // Ensure local server is running for the offline app
+        await ensureLocalServer();
+        // Load the local launcher which can then redirect to localhost:3000/app or localhost:3000/it-admin.html
+        mainWindow.loadURL(`http://localhost:${serverPort}/launcher.html`);
     } else {
-        // SETUP / CLIENT MODE
-        console.log("🔍 Starting in SETUP/CLIENT MODE");
-        try {
-            // Start server anyway to serve Launcher UI locally
-            startServer(serverPort, userDataPath);
-            setTimeout(() => {
-                 mainWindow.loadURL(`http://localhost:${serverPort}/launcher.html`);
-            }, 500);
-        } catch(e) { console.error("Server start fail:", e); }
+        console.log("No offline certificate. Cloud mode (License Check).");
+        // Cloud Mode: Load remote app to activate license
+        mainWindow.loadURL('https://www.secure-msg.app/app?action=activate');
     }
 
     mainWindow.on('closed', () => {
-        if (!isHubMode) mainWindow = null;
+        mainWindow = null;
     });
 
-    mainWindow.on('close', (event) => {
-        if (isHubMode && tray) {
-            event.preventDefault();
-            mainWindow.hide();
-            return false;
+    // Handle external links in default browser
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('http:') || url.startsWith('https:')) {
+            shell.openExternal(url);
+            return { action: 'deny' };
         }
+        return { action: 'allow' };
     });
 }
 
-function createTray() {
-    if (tray) return;
-    const iconPath = path.join(__dirname, 'public/images/Logo_SM.png');
-    // Ensure icon exists or fallback to avoid crash
-    if(fs.existsSync(iconPath)) {
-        tray = new Tray(iconPath);
-    } else {
-        // Fallback or skip tray icon if missing
-        console.warn("Tray icon missing, skipping.");
-        return;
+async function ensureLocalServer() {
+    if (!isServerRunning) {
+        console.log("Starting local server...");
+        // In a real desktop app, you might want to find a free port.
+        // For now, we try 3000, if busy, we might fail or need retry logic.
+        // But since this is a dedicated bundle, we assume control.
+        try {
+            startServer(serverPort);
+            isServerRunning = true;
+            // Allow some time for server to boot? Usually fast enough.
+            await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+            console.error("Failed to start local server:", e);
+        }
     }
-
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'Secure Messages Hub', enabled: false },
-        { type: 'separator' },
-        { label: 'Open Dashboard', click: () => mainWindow.show() },
-        { label: 'Quit Hub', click: () => {
-            isHubMode = false;
-            app.quit();
-        }}
-    ]);
-    tray.setToolTip('Secure Messages LAN Hub');
-    tray.setContextMenu(contextMenu);
-    tray.on('double-click', () => mainWindow.show());
 }
 
 app.whenReady().then(() => {
     createWindow();
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
-        else mainWindow.show();
     });
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin' && !isHubMode) app.quit();
+    if (process.platform !== 'darwin') app.quit();
 });
 
-// IPC HANDLERS
+// IPC Handlers
 
-ipcMain.handle('scan-hub', async () => {
-    return new Promise((resolve) => {
-        findHubService((url) => {
-            resolve(url);
-        });
-        setTimeout(() => resolve(null), 5000);
-    });
+ipcMain.handle('check-offline-cert', () => {
+    return fs.existsSync(certPath);
 });
 
-ipcMain.handle('connect-hub', async (event, url) => {
-    mainWindow.loadURL(`${url}/app`);
-});
-
-ipcMain.handle('activate-admin', async (event, licenseKey) => {
+ipcMain.handle('get-offline-cert', () => {
     try {
-        console.log(`🌐 Verifying Key: ${licenseKey}`);
-
-        // Use fetch (Node 18+) for Cloud Verification
-        const response = await fetch('https://secure-msg.app/api/auth/verify-master', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ licenseKey, deviceId: 'HUB-ADMIN' })
-        });
-
-        if(!response.ok) {
-             const errText = await response.text();
-             return { success: false, error: `Server Error: ${response.status} ${errText}` };
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-            // SECURELY SAVE VAULT LOCALLY
-            licenseVault.createVault(data.bundleId, data.quota);
-
-            console.log("✅ Activation Successful. Vault Created.");
-
-            app.relaunch();
-            app.quit();
-            return { success: true };
-        } else {
-            return { success: false, error: data.error };
+        if (fs.existsSync(certPath)) {
+            const data = fs.readFileSync(certPath, 'utf8');
+            return JSON.parse(data);
         }
     } catch (e) {
-        console.error("Activation Exception:", e);
-        return { success: false, error: "Verbindung fehlgeschlagen: " + e.message };
+        console.error("Error reading cert:", e);
+    }
+    return null;
+});
+
+ipcMain.handle('save-offline-cert', (event, cert) => {
+    try {
+        fs.writeFileSync(certPath, JSON.stringify(cert));
+        return true;
+    } catch (e) {
+        console.error("Failed to save cert:", e);
+        return false;
     }
 });
 
-ipcMain.handle('get-app-version', () => app.getVersion());
+ipcMain.handle('launch-app', async () => {
+    await ensureLocalServer();
+    mainWindow.loadURL(`http://localhost:${serverPort}/app`);
+});
+
+ipcMain.handle('launch-admin', async () => {
+    await ensureLocalServer();
+    // Assuming IT Admin Hub is /admin or public/it-admin.html served via express
+    // The prompt says "it-admin.html".
+    // If served by express: http://localhost:3000/it-admin.html
+    mainWindow.loadURL(`http://localhost:${serverPort}/it-admin.html`);
+});
+
+ipcMain.handle('start-local-server', async () => {
+    await ensureLocalServer();
+    return true;
+});
