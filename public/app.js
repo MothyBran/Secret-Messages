@@ -68,6 +68,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ENTERPRISE CHECK
+    fetch(API_BASE + '/config').then(r=>r.json()).then(conf => {
+        if(conf.mode === 'ENTERPRISE') {
+            document.body.classList.add('mode-enterprise');
+            // Load Enterprise Script
+            const script = document.createElement('script');
+            script.src = '/js/enterprise-client.js';
+            script.onload = () => {
+                if(window.initEnterpriseClient) window.initEnterpriseClient();
+            };
+            document.body.appendChild(script);
+        }
+    }).catch(e=>console.log("Config check failed", e));
+
     setupIdleTimer();
 });
 
@@ -992,6 +1006,11 @@ async function handleLogin(e) {
     const cInput = document.getElementById('u_key_secure');
     const u = uInput.value;
     const c = cInput.value;
+
+    // Store access code temporarily for Enterprise Socket Auth (Session only)
+    if(document.body.classList.contains('mode-enterprise')) {
+        sessionStorage.setItem('sm_auth_code_temp', c);
+    }
 
     // Immediately clear fields after reading values
     uInput.value = '';
