@@ -13,7 +13,9 @@ const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 require('dotenv').config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY
+    ? new Resend(process.env.RESEND_API_KEY)
+    : { emails: { send: async () => { console.log(">> MOCK MAIL SENT (No API Key)"); return { id: 'mock' }; } } };
 
 // Payment Routes
 const paymentRoutes = require('./payment.js');
