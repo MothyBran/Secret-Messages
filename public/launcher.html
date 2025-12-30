@@ -3,124 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Messages Launcher</title>
+    <title>Secure Messages - Enterprise Launcher</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             background-color: #050505;
             color: #e0e0e0;
-            font-family: 'Roboto Mono', monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             margin: 0;
-            -webkit-app-region: drag;
+            overflow: hidden;
         }
-        h1 {
-            font-family: 'Rajdhani', sans-serif;
-            color: #00BFFF;
-            margin-bottom: 2rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        .launcher-card {
+            background: rgba(16, 20, 24, 0.95);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 40px;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            position: relative;
         }
-        .container {
-            display: flex;
-            gap: 20px;
-            -webkit-app-region: no-drag;
+        .logo {
+            width: 80px;
+            margin-bottom: 20px;
         }
-        button {
-            background: rgba(0, 191, 255, 0.1);
-            border: 1px solid #00BFFF;
-            color: #00BFFF;
-            padding: 15px 30px;
-            font-size: 1.1rem;
+        h2 {
+            margin-bottom: 10px;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        p {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Rajdhani', sans-serif;
-            font-weight: bold;
-            min-width: 200px;
-            text-transform: uppercase;
+            transition: all 0.2s;
+            font-weight: 600;
         }
-        button:hover {
+        .btn-primary {
             background: #00BFFF;
             color: #000;
-            box-shadow: 0 0 15px rgba(0, 191, 255, 0.5);
         }
-        button.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            border-color: #555;
-            color: #555;
+        .btn-primary:hover {
+            background: #009ACD;
+            box-shadow: 0 0 15px rgba(0, 191, 255, 0.4);
+        }
+        .btn-secondary {
             background: transparent;
+            border: 1px solid #444;
+            color: #ccc;
         }
-        button.disabled:hover {
-            box-shadow: none;
-            background: transparent;
-            color: #555;
+        .btn-secondary:hover {
+            border-color: #666;
+            color: #fff;
         }
-        .status {
-            margin-top: 2rem;
-            font-size: 0.8rem;
-            color: #555;
-        }
-        .loader {
-            display: none;
-            border: 4px solid rgba(0, 191, 255, 0.1);
-            border-left: 4px solid #00BFFF;
+        .hidden { display: none; }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            border-top: 3px solid #00BFFF;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
-            margin-top: 1rem;
+            margin: 20px auto;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            background: #222;
+            color: #888;
+            margin-top: 20px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.8em;
+            color: #aaa;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #00BFFF;
+        }
     </style>
 </head>
 <body>
-    <h1>Secure Messages Launch</h1>
-    <div class="container">
-        <button id="btnClient" onclick="launch('client')">User Client</button>
-        <button id="btnAdmin" onclick="launch('admin')" class="disabled" style="display:none;">IT Admin Hub</button>
+
+    <div class="launcher-card" id="mainView">
+        <img src="images/Logo_SM.png" alt="Logo" class="logo">
+        <h2>SECURE MESSAGES</h2>
+        <p>Enterprise Edition</p>
+
+        <div id="scanSection">
+            <button class="btn btn-primary" onclick="startScan()">
+                <i class="fas fa-network-wired"></i> Hub suchen
+            </button>
+            <div id="loader" class="hidden">
+                <div class="spinner"></div>
+                <p>Suche im Netzwerk...</p>
+            </div>
+        </div>
+
+        <div id="hubFound" class="hidden">
+            <p style="color: #00BFFF;">Hub gefunden!</p>
+            <p id="hubUrl" style="font-family: monospace; background: #111; padding: 5px;"></p>
+            <button class="btn btn-primary" onclick="connectHub()">Verbinden</button>
+        </div>
+
+        <div id="noHub" class="hidden">
+            <p style="color: #ff4444;">Kein Hub gefunden.</p>
+            <button class="btn btn-secondary" onclick="startScan()">Erneut suchen</button>
+            <hr style="border-color: #222; margin: 20px 0;">
+            <button class="btn btn-secondary" style="font-size: 0.8em;" onclick="showAdminSetup()">
+                Dieses Gerät als IT-Admin Hub einrichten
+            </button>
+        </div>
     </div>
-    <div id="loader" class="loader"></div>
-    <div class="status">Lokaler Modus Aktiviert</div>
+
+    <div class="launcher-card hidden" id="adminView">
+        <h3>Admin Aktivierung</h3>
+        <p>Geben Sie Ihren Enterprise Master Key ein, um diesen PC als LAN-Hub zu aktivieren.</p>
+
+        <div class="input-group">
+            <label>Lizenzschlüssel (Master)</label>
+            <input type="text" id="licenseKey" placeholder="XXXX-XXXX-XXXX-XXXX">
+        </div>
+
+        <button class="btn btn-primary" onclick="activateAdmin()">Aktivieren</button>
+        <button class="btn btn-secondary" onclick="location.reload()">Zurück</button>
+
+        <div id="activationLoader" class="hidden">
+            <div class="spinner"></div>
+        </div>
+        <p id="activationMsg" style="color: #ff4444; margin-top: 10px;"></p>
+    </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const cert = await window.electronAPI.getOfflineCert();
-            const btnAdmin = document.getElementById('btnAdmin');
+        let foundHubUrl = null;
 
-            if (cert) {
-                // Check if Master License (Currently assuming 'offline_unlimited' allows it,
-                // or if specific field exists. Logic: Button 2 only if Master License)
-                // We'll show it if it's unlimited type, or simply enable it if cert exists
-                // but usually "Master" implies a special permission.
-                // Assuming all offline certs are "high tier" enough for now,
-                // OR we check for a specific flag if we had one.
-                // Re-reading prompt: "Button 2 (nur wenn Master-Lizenz)".
-                // Since offline activation is restricted to "unlimited/lifetime",
-                // they are effectively Master licenses in this context.
+        async function startScan() {
+            document.getElementById('scanSection').querySelector('button').classList.add('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('noHub').classList.add('hidden');
 
-                // Show button if type includes 'unlimited' or 'master'
-                const type = (cert.type || '').toLowerCase();
-                if (type.includes('unlimited') || type.includes('master')) {
-                    btnAdmin.style.display = 'block';
-                    btnAdmin.classList.remove('disabled');
-                }
-            }
-        });
+            const url = await window.electron.scanHub();
 
-        async function launch(type) {
-            document.getElementById('loader').style.display = 'block';
-            document.querySelectorAll('button').forEach(b => b.disabled = true);
+            document.getElementById('loader').classList.add('hidden');
 
-            if (type === 'client') {
-                await window.electronAPI.launchApp();
+            if (url) {
+                foundHubUrl = url;
+                document.getElementById('hubFound').classList.remove('hidden');
+                document.getElementById('hubUrl').textContent = url;
             } else {
-                await window.electronAPI.launchAdmin();
+                document.getElementById('noHub').classList.remove('hidden');
             }
         }
+
+        function connectHub() {
+            if (foundHubUrl) {
+                window.electron.connectHub(foundHubUrl);
+            }
+        }
+
+        function showAdminSetup() {
+            document.getElementById('mainView').classList.add('hidden');
+            document.getElementById('adminView').classList.remove('hidden');
+        }
+
+        async function activateAdmin() {
+            const key = document.getElementById('licenseKey').value.trim();
+            if (!key) return;
+
+            document.getElementById('activationLoader').classList.remove('hidden');
+            document.getElementById('activationMsg').textContent = '';
+
+            const result = await window.electron.activateAdmin(key);
+
+            if (result.success) {
+                document.getElementById('activationMsg').style.color = '#00BFFF';
+                document.getElementById('activationMsg').textContent = 'Erfolg! Neustart...';
+            } else {
+                document.getElementById('activationLoader').classList.add('hidden');
+                document.getElementById('activationMsg').style.color = '#ff4444';
+                document.getElementById('activationMsg').textContent = result.error || 'Fehler';
+            }
+        }
+
+        // Auto-scan on load
+        setTimeout(startScan, 500);
     </script>
 </body>
 </html>
