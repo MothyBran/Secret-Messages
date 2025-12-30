@@ -14,6 +14,7 @@ let allKeys = [];
 let allPurchases = [];
 let allBundles = [];
 let allTickets = [];
+let allEnterpriseKeys = [];
 let currentBundleId = null;
 
 // New Data Store for Ticket Inbox
@@ -45,71 +46,10 @@ window.switchTab = function(tabName) {
         }
     });
 
-    // Enterprise Logic
-    if (document.body.classList.contains('mode-enterprise')) {
-        if(tabName === 'dashboard') loadEnterpriseDashboard();
-        if(tabName === 'users') loadEnterpriseUsers();
-        return;
-    }
-
     if(tabName === 'mail') {
         window.loadSupportTickets();
     }
 }
-
-// --- ENTERPRISE FUNCTIONS ---
-window.loadEnterpriseDashboard = async function() {
-    try {
-        const res = await fetch('/api/config');
-        const data = await res.json();
-        const stats = data.stats;
-
-        document.getElementById('stUsersActive').textContent = stats.used;
-        document.getElementById('stUsersBlocked').textContent = stats.total; // Total quota
-        document.getElementById('stKeysActive').textContent = stats.activated ? 'YES' : 'NO';
-    } catch(e) {}
-};
-
-window.loadEnterpriseUsers = async function() {
-    try {
-        const res = await fetch(ENT_API_BASE + '/users');
-        const users = await res.json();
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = '';
-        users.forEach(u => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${u.id}</td>
-                <td style="font-weight:bold; color:#fff;">${u.username}</td>
-                <td>AKTIV</td>
-                <td>-</td>
-                <td>-</td>
-                <td>${u.isOpenRecipient ? 'Open' : 'Private'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } catch(e) {}
-};
-
-window.createEnterpriseUser = async function() {
-    const username = prompt("Benutzername:");
-    if(!username) return;
-    const open = confirm("Darf dieser User externe Kontakte adden? (Open Recipient)");
-    try {
-        const res = await fetch(ENT_API_BASE + '/users', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ username, openRecipient: open })
-        });
-        const data = await res.json();
-        if(data.accessCode) {
-            alert(`User erstellt!\nUsername: ${data.username}\nAccess Code: ${data.accessCode}\nBITTE NOTIEREN!`);
-            loadEnterpriseUsers();
-        } else {
-            alert("Fehler: " + data.error);
-        }
-    } catch(e) { alert("Netzwerkfehler"); }
-};
 
 
 // --- HELPERS (MODALS & FEEDBACK) ---
@@ -156,8 +96,6 @@ window.showToast = function(message, type = 'info') {
 
 // Global functions
 window.loadUsers = async function() {
-    if(document.body.classList.contains('mode-enterprise')) return loadEnterpriseUsers();
-
     const btn = document.getElementById('refreshUsersBtn');
     if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
@@ -168,15 +106,43 @@ window.loadUsers = async function() {
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
-window.loadKeys = async function() {
-    const btn = document.getElementById('refreshKeysBtn');
-    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
+window.loadKeys = async function(silent = false) {
     try {
         const res = await fetch(`${API_BASE}/keys`, { headers: getHeaders() });
         allKeys = await res.json();
-        renderKeysTable(allKeys);
+        filterKeys();
     } catch(e) { console.error("Load Keys Failed", e); }
-    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+window.loadBundles = async function(silent = false) {
+    try {
+        const res = await fetch(`${API_BASE}/bundles`, { headers: getHeaders() });
+        allBundles = await res.json();
+        filterBundles();
+    } catch(e) { console.error("Load Bundles Failed", e); }
+};
+
+window.loadEnterpriseKeys = async function(silent = false) {
+    try {
+        const res = await fetch(`${API_BASE}/enterprise-keys`, { headers: getHeaders() });
+        allEnterpriseKeys = await res.json();
+        filterEnterpriseKeys();
+    } catch(e) { console.error("Load Ent Keys Failed", e); }
+};
+
+window.globalRefreshLicenses = async function() {
+    const btn = document.getElementById('globalRefreshLicensesBtn');
+    if(btn) { btn.textContent = "⏳ Lade..."; btn.disabled = true; }
+
+    try {
+        await Promise.all([
+            window.loadKeys(true),
+            window.loadBundles(true),
+            window.loadEnterpriseKeys(true)
+        ]);
+    } catch(e) { console.error("Global Refresh Failed", e); }
+
+    if(btn) { btn.textContent = "↻ GLOBAL REFRESH"; btn.disabled = false; }
 };
 
 window.loadPurchases = async function() {
@@ -190,46 +156,132 @@ window.loadPurchases = async function() {
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
-window.loadBundles = async function() {
-    const btn = document.getElementById('refreshBundlesBtn');
-    if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
-    try {
-        const res = await fetch(`${API_BASE}/bundles`, { headers: getHeaders() });
-        allBundles = await res.json();
-        renderBundlesTable(allBundles);
-    } catch(e) { console.error("Load Bundles Failed", e); }
-    if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
-};
-
 window.loadSupportTickets = async function() {
     const btn = document.getElementById('refreshSupportBtn');
     if(btn) { btn.textContent = "⏳..."; btn.disabled = true; }
     try {
-        // Enterprise Support Handling
-        if(document.body.classList.contains('mode-enterprise')) {
-            // Fetch from Enterprise Socket/DB logic?
-            // We need an endpoint for this in server.js or fetch from socket.
-            // Let's assume server.js exposes /api/enterprise/messages or we filter.
-            // But currently server.js uses `messages` table for /api/messages.
-            // Enterprise uses `enterprise_messages`.
-            // We need to add an endpoint in server.js: /api/enterprise/messages/all (admin only)
-
-            const res = await fetch('/api/enterprise/admin/messages');
-            if(res.ok) {
-                allTickets = await res.json();
-                renderSupportTickets(allTickets);
-                renderMailInbox(allTickets);
-            }
-        } else {
-            const res = await fetch(`${API_BASE}/support-tickets`, { headers: getHeaders() });
-            allTickets = await res.json();
-            renderSupportTickets(allTickets);
-            renderMailInbox(allTickets);
-        }
+        const res = await fetch(`${API_BASE}/support-tickets`, { headers: getHeaders() });
+        allTickets = await res.json();
+        renderSupportTickets(allTickets);
+        renderMailInbox(allTickets);
     } catch(e) { console.error("Load Tickets Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
 };
 
+// --- ENTERPRISE LOGIC ---
+
+window.generateEnterpriseKey = async function() {
+    const client = document.getElementById('entClientName').value;
+    const quota = document.getElementById('entQuota').value;
+    const expiry = document.getElementById('entExpiry').value;
+
+    if(!client || !quota) return window.showToast("Bitte Kunde und Quota angeben.", "error");
+
+    const btn = document.getElementById('generateEnterpriseBtn');
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`${API_BASE}/generate-enterprise`, {
+            method: 'POST', headers: getHeaders(),
+            body: JSON.stringify({ clientName: client, quota, expiresAt: expiry || null })
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            window.showToast("Enterprise Key generiert!", "success");
+            const area = document.getElementById('newEntKeyArea');
+            area.style.display = 'block';
+            area.textContent = `KEY: ${data.key}\nClient: ${client}\nQuota: ${quota}`;
+            window.loadEnterpriseKeys();
+        } else {
+            window.showToast("Fehler: " + data.error, "error");
+        }
+    } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+    btn.disabled = false;
+};
+
+window.deleteEnterpriseKey = function(id) {
+    window.showConfirm("Master Key unwiderruflich löschen? Alle verknüpften User werden getrennt.", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/enterprise-keys/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.showToast("Gelöscht.", "success");
+                window.loadEnterpriseKeys();
+            } else {
+                window.showToast("Fehler beim Löschen.", "error");
+            }
+        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+    });
+};
+
+window.editQuota = function(id, current) {
+    const newVal = prompt("Neues Quota (Max User):", current);
+    if(newVal && !isNaN(newVal)) {
+        updateEnterpriseQuota(id, newVal);
+    }
+};
+
+async function updateEnterpriseQuota(id, quota) {
+    try {
+        const res = await fetch(`${API_BASE}/enterprise-keys/${id}/quota`, {
+            method: 'PUT', headers: getHeaders(),
+            body: JSON.stringify({ quota: parseInt(quota) })
+        });
+        if(res.ok) {
+            window.showToast("Quota aktualisiert.", "success");
+            window.loadEnterpriseKeys();
+        }
+    } catch(e) { window.showToast("Fehler", "error"); }
+}
+
+window.toggleEnterpriseBlock = function(id, isBlocked) {
+    window.showConfirm(`Master-Key ${isBlocked ? 'entsperren' : 'sperren'}?`, async () => {
+        try {
+            const res = await fetch(`${API_BASE}/enterprise-keys/${id}/toggle-block`, {
+                method: 'POST', headers: getHeaders(),
+                body: JSON.stringify({ blocked: !isBlocked })
+            });
+            if(res.ok) {
+                window.showToast(isBlocked ? "Entsperrt." : "Gesperrt.", "success");
+                window.loadEnterpriseKeys();
+            } else {
+                window.showToast("Fehler beim Ändern des Status.", "error");
+            }
+        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+    });
+};
+
+// --- RENDERING & FILTERING ---
+
+function filterKeys() {
+    const q = document.getElementById('searchKey').value.toLowerCase();
+    const filtered = allKeys.filter(k =>
+        k.key_code.toLowerCase().includes(q) ||
+        (k.user_id && String(k.user_id).includes(q))
+    );
+    renderKeysTable(filtered);
+}
+
+function filterBundles() {
+    const q = document.getElementById('searchBundle').value.toLowerCase();
+    const filtered = allBundles.filter(b =>
+        (b.name && b.name.toLowerCase().includes(q)) ||
+        b.order_number.toLowerCase().includes(q)
+    );
+    renderBundlesTable(filtered);
+}
+
+function filterEnterpriseKeys() {
+    const q = document.getElementById('searchEnterprise').value.toLowerCase();
+    const filtered = allEnterpriseKeys.filter(k =>
+        k.key_code.toLowerCase().includes(q) ||
+        (k.client_name && k.client_name.toLowerCase().includes(q))
+    );
+    renderEnterpriseTable(filtered);
+}
+
+
+// ... (Mail Service and other existing functions kept same)
 window.closeTicket = function(id) {
     window.deleteTicket(id);
 };
@@ -260,9 +312,6 @@ window.markTicketClosed = async function(id) {
         if(res.ok) {
             window.loadSupportTickets();
             window.showToast("Ticket manuell abgeschlossen.", "success");
-            if(currentTicketId === id) {
-                // Refresh Detail View if active?
-            }
         } else {
             window.showToast("Fehler beim Abschließen.", "error");
         }
@@ -270,7 +319,7 @@ window.markTicketClosed = async function(id) {
 };
 
 // =========================================================
-// NEW: MAIL SERVICE INBOX LOGIC
+// MAIL SERVICE INBOX LOGIC
 // =========================================================
 
 window.showMailView = function(viewName) {
@@ -467,9 +516,6 @@ window.saveMailTemplate = async function() {
     } catch(e) { window.showToast("Fehler beim Speichern.", "error"); }
 };
 
-// ... Legacy bundle code omitted for brevity but preserved implicitly by not overwriting relevant sections if modular.
-// However, I'm overwriting the whole file, so I need to include the rest.
-// Wait, I am overwriting the file. I must include everything.
 
 window.generateBundle = async function() {
     const btn = document.getElementById('generateBundleBtn');
@@ -801,26 +847,6 @@ async function loadSystemStatus() {
 }
 
 async function initDashboard() {
-    // ENTERPRISE CHECK IN DASHBOARD INIT
-    try {
-        const confRes = await fetch('/api/config');
-        const conf = await confRes.json();
-        if(conf.mode === 'ENTERPRISE') {
-            document.body.classList.add('mode-enterprise');
-            // Hide non-relevant tabs
-            document.getElementById('tab-purchases').style.display = 'none'; // Content
-            document.querySelector("button[onclick*='purchases']").style.display = 'none'; // Nav
-
-            // Override Auth for local admin (no password check for now or local check)
-            // If Enterprise, assume Admin is accessing locally via Electron or LAN
-            // We should still require Login?
-            // The prompt says "IT-Admin Command Center".
-            // We will reuse the login view but maybe bypass for MVP if localhost?
-            // "Admin-PC... verlangt Master Key".
-            // Let's stick to standard flow.
-        }
-    } catch(e) {}
-
     try {
         const res = await fetch(`${API_BASE}/stats`, { headers: getHeaders() });
         const data = await res.json();
@@ -832,20 +858,12 @@ async function initDashboard() {
             document.getElementById('login-view').style.display = 'none';
             document.getElementById('dashboard-view').style.display = 'block';
 
-            if(document.body.classList.contains('mode-enterprise')) {
-                loadEnterpriseDashboard();
-                loadEnterpriseUsers();
-                window.switchTab('dashboard');
-                return;
-            }
-
             renderStats(data.stats);
             window.loadMaintenanceStatus();
             window.loadShopStatus();
             window.loadUsers();
-            window.loadKeys();
+            window.globalRefreshLicenses(); // Loads Keys, Bundles, Enterprise
             window.loadPurchases();
-            window.loadBundles();
             window.loadSupportTickets();
             loadSystemStatus();
             window.switchTab('dashboard');
@@ -1010,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
-    document.getElementById('refreshKeysBtn')?.addEventListener('click', window.loadKeys);
+    document.getElementById('globalRefreshLicensesBtn')?.addEventListener('click', window.globalRefreshLicenses);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
     document.getElementById('refreshBundlesBtn')?.addEventListener('click', window.loadBundles);
     document.getElementById('refreshSupportBtn')?.addEventListener('click', window.loadSupportTickets);
@@ -1018,6 +1036,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeBundleModalBtn')?.addEventListener('click', () => document.getElementById('bundleDetailsModal').style.display='none');
     document.getElementById('massExtendBtn')?.addEventListener('click', window.massExtendBundle);
     document.getElementById('exportBundleBtn')?.addEventListener('click', window.exportBundleCsv);
+
+    document.getElementById('generateEnterpriseBtn')?.addEventListener('click', window.generateEnterpriseKey);
+    document.getElementById('searchKey')?.addEventListener('input', window.filterKeys);
+    document.getElementById('searchBundle')?.addEventListener('input', window.filterBundles);
+    document.getElementById('searchEnterprise')?.addEventListener('input', window.filterEnterpriseKeys);
 
     document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
         if(confirmCallback) confirmCallback();
@@ -1031,15 +1054,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMsgOk')?.addEventListener('click', () => {
         document.getElementById('messageModal').style.display = 'none';
     });
-
-    // Add Create User Button for Enterprise
-    if(document.body.classList.contains('mode-enterprise')) {
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = '+ Create User';
-        btn.onclick = createEnterpriseUser;
-        document.querySelector('#tab-users .admin-toolbar').appendChild(btn);
-    }
 });
 
 function renderStats(stats) {
@@ -1139,6 +1153,38 @@ function renderKeysTable(keys) {
     });
 }
 
+function renderEnterpriseTable(keys) {
+    const tbody = document.getElementById('enterpriseTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    keys.forEach(k => {
+        const tr = document.createElement('tr');
+        const used = k.used_slots || 0;
+        const total = k.max_users || 0;
+
+        let status = '<span style="color:orange;">OFFEN</span>';
+        if (k.is_blocked) status = '<span style="color:var(--error-red); font-weight:bold;">GESPERRT</span>';
+        else if (k.is_active) status = '<span style="color:var(--success-green);">AKTIV</span>';
+
+        const blockIcon = k.is_blocked ? '🔓' : '🛑';
+        const blockTitle = k.is_blocked ? 'Entsperren' : 'Sperren';
+
+        tr.innerHTML = `
+            <td style="font-family:'Roboto Mono'; font-weight:bold; color:orange;">${k.key_code}</td>
+            <td>${k.client_name || '-'}</td>
+            <td>${used} / ${total}</td>
+            <td>${status}</td>
+            <td>${new Date(k.created_at).toLocaleDateString('de-DE')}</td>
+            <td>
+                <button class="btn-icon" onclick="toggleEnterpriseBlock(${k.id}, ${k.is_blocked})" title="${blockTitle}" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">${blockIcon}</button>
+                <button class="btn-icon" onclick="editQuota(${k.id}, ${total})" title="Quota bearbeiten" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">✏️</button>
+                <button class="btn-icon" onclick="deleteEnterpriseKey(${k.id})" title="Löschen" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
 function renderPurchasesTable(purchases) {
     const tbody = document.getElementById('purchasesTableBody');
     if(!tbody) return;
@@ -1155,3 +1201,8 @@ function renderPurchasesTable(purchases) {
         tbody.appendChild(tr);
     });
 }
+
+// Attach to window so filter events work
+window.filterKeys = filterKeys;
+window.filterBundles = filterBundles;
+window.filterEnterpriseKeys = filterEnterpriseKeys;

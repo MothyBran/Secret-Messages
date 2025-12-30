@@ -270,6 +270,9 @@ const createTables = async () => {
         // Add columns to license_keys if missing (Schema Migration)
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN client_name VARCHAR(100)`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN max_users INTEGER DEFAULT 1`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}`); } catch (e) { }
 
         // Add columns to messages for Ticket System
         try { await dbQuery(`ALTER TABLE messages ADD COLUMN status VARCHAR(20) DEFAULT 'open'`); } catch (e) { }
@@ -447,7 +450,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;
         const userRes = await dbQuery(`
-            SELECT u.*, l.expires_at
+            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
             FROM users u
             LEFT JOIN license_keys l ON u.license_key_id = l.id
             WHERE u.username = $1
@@ -455,6 +458,12 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
 
         if (userRes.rows.length === 0) return res.status(401).json({ success: false, error: "Benutzer nicht gefunden" });
         const user = userRes.rows[0];
+
+        // CHECK IF LICENSE IS BLOCKED (Enterprise/Admin Block)
+        const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
+        if (isKeyBlocked) {
+            return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
+        }
 
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
@@ -508,6 +517,10 @@ app.post('/api/auth/activate', async (req, res) => {
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
         const key = keyRes.rows[0];
         if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
+
+        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
+
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
         // CHECK ASSIGNED ID
@@ -555,10 +568,14 @@ app.post('/api/auth/check-license', async (req, res) => {
     try {
         const { licenseKey } = req.body;
         if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
-        const keyRes = await dbQuery('SELECT assigned_user_id, is_active FROM license_keys WHERE key_code = $1', [licenseKey]);
+        const keyRes = await dbQuery('SELECT assigned_user_id, is_active, is_blocked FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.json({ isValid: false });
 
         const key = keyRes.rows[0];
+
+        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        if (isBlocked) return res.json({ isValid: false, error: 'Lizenz gesperrt' });
+
         const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
         if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
 
@@ -633,12 +650,15 @@ app.post('/api/auth/validate', async (req, res) => {
     if (!token) return res.json({ valid: false });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const userRes = await dbQuery(`SELECT u.*, l.expires_at FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
+        const userRes = await dbQuery(`SELECT u.*, l.expires_at, l.is_blocked as key_blocked FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
 
         if (userRes.rows.length > 0) {
             const user = userRes.rows[0];
             const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
             if (isBlocked) return res.json({ valid: false, reason: 'blocked' });
+
+            const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
+            if (isKeyBlocked) return res.json({ valid: false, reason: 'license_blocked' });
             if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
             let isExpired = false;
             if (user.expires_at) {
@@ -805,7 +825,11 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT k.*, u.username, u.id as user_id FROM license_keys k LEFT JOIN users u ON u.license_key_id = k.id ORDER BY k.created_at DESC LIMIT 200`;
+        const sql = `SELECT k.*, u.username, u.id as user_id
+                     FROM license_keys k
+                     LEFT JOIN users u ON u.license_key_id = k.id
+                     WHERE (k.product_code != 'ENTERPRISE' OR k.product_code IS NULL)
+                     ORDER BY k.created_at DESC LIMIT 200`;
         const result = await dbQuery(sql);
         const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
@@ -844,6 +868,75 @@ app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
         await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message }); }
+});
+
+// ENTERPRISE MANAGEMENT
+app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
+    try {
+        const { clientName, quota, expiresAt } = req.body;
+
+        // Generate Unique Master Key
+        const keyRaw = 'ENT-' + crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+        const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+
+        const quotaInt = parseInt(quota) || 5;
+
+        // Insert
+        let insertSql = `INSERT INTO license_keys (key_code, key_hash, product_code, client_name, max_users, expires_at, is_active)
+                         VALUES ($1, $2, 'ENTERPRISE', $3, $4, $5, ${isPostgreSQL ? 'false' : '0'})`;
+
+        await dbQuery(insertSql, [keyRaw, keyHash, clientName, quotaInt, expiresAt || null]);
+
+        res.json({ success: true, key: keyRaw });
+    } catch (e) { res.status(500).json({ error: "Fehler: " + e.message }); }
+});
+
+app.get('/api/admin/enterprise-keys', requireAdmin, async (req, res) => {
+    try {
+        // Fetch Enterprise keys and count associated users
+        const sql = `
+            SELECT k.*,
+            (SELECT COUNT(*) FROM users u WHERE u.license_key_id = k.id) as used_slots
+            FROM license_keys k
+            WHERE k.product_code = 'ENTERPRISE'
+            ORDER BY k.created_at DESC
+        `;
+        const result = await dbQuery(sql);
+        const keys = result.rows.map(r => ({
+            ...r,
+            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1),
+            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1)
+        }));
+        res.json(keys);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/enterprise-keys/:id/toggle-block', requireAdmin, async (req, res) => {
+    try {
+        const { blocked } = req.body;
+        const val = isPostgreSQL ? blocked : (blocked ? 1 : 0);
+        await dbQuery(`UPDATE license_keys SET is_blocked = $1 WHERE id = $2`, [val, req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/enterprise-keys/:id/quota', requireAdmin, async (req, res) => {
+    try {
+        const { quota } = req.body;
+        await dbQuery(`UPDATE license_keys SET max_users = $1 WHERE id = $2`, [quota, req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/enterprise-keys/:id', requireAdmin, async (req, res) => {
+    try {
+        const keyId = req.params.id;
+        // Unlink users first
+        await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
+        // Delete key
+        await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
