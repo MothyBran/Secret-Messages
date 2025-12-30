@@ -5,83 +5,34 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { sendLicenseEmail } = require('./email/mailer');
-const path = require('path');
 
 const router = express.Router();
 
-// DB Connection Setup
+// DB Connection Setup (identisch zu vorher)
 let pool;
-let isPostgreSQL = false;
-let nedb = {};
-
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql')) {
-    isPostgreSQL = true;
     pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
     });
 } else {
-    // Fallback für Local Mode (NeDB) - Mock Pool für Kompatibilität
-    // Wenn Shop lokal läuft (unwahrscheinlich aber der Code muss kompilieren)
-    const Datastore = require('nedb-promises');
-    const fs = require('fs');
-
-    let dbPath = './data';
-    if (!fs.existsSync(dbPath)){ fs.mkdirSync(dbPath); }
-
-    nedb.payments = Datastore.create({ filename: path.join(dbPath, 'payments.db'), autoload: true });
-    nedb.license_keys = Datastore.create({ filename: path.join(dbPath, 'license_keys.db'), autoload: true });
-    nedb.settings = Datastore.create({ filename: path.join(dbPath, 'settings.db'), autoload: true });
-    nedb.users = Datastore.create({ filename: path.join(dbPath, 'users.db'), autoload: true });
-
+    // Fallback für SQLite (Development) - Mock Pool für Kompatibilität
+    const sqlite3 = require('sqlite3').verbose();
+    const db = new sqlite3.Database('./secret_messages.db');
     pool = {
-        query: async (text, params) => {
-            // Very limited adapter for specific queries used in payment.js
-            // NOTE: Ideally payments run on Cloud only.
-            const t = text.trim().toLowerCase();
-
-            if(t.includes("from settings where key =")) {
-                const res = await nedb.settings.findOne({ key: params[0] });
-                return { rows: res ? [res] : [] };
-            }
-            if(t.includes("from users where id =")) {
-                const res = await nedb.users.findOne({ id: params[0] });
-                return { rows: res ? [res] : [] };
-            }
-            if(t.includes("from payments where payment_id =")) {
-                const res = await nedb.payments.findOne({ payment_id: params[0] });
-                return { rows: res ? [res] : [] };
-            }
-            if(t.includes("from license_keys where id =")) {
-                const res = await nedb.license_keys.findOne({ id: params[0] });
-                return { rows: res ? [res] : [] };
-            }
-            if(t.startsWith("update license_keys set")) {
-                // Mock Update: UPDATE license_keys SET expires_at = $1, is_active = $2 WHERE id = $3
-                await nedb.license_keys.update({ id: params[2] }, { $set: { expires_at: params[0], is_active: params[1] } });
-                return { rowCount: 1 };
-            }
-            if(t.startsWith("insert into license_keys")) {
-                // INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code) VALUES ...
-                await nedb.license_keys.insert({
-                    key_code: params[0], key_hash: params[1], created_at: params[2],
-                    expires_at: params[3], is_active: params[4], product_code: params[5],
-                    id: Math.floor(Math.random() * 1000000) // Mock ID
-                });
-                return { rowCount: 1 };
-            }
-            if(t.startsWith("insert into payments")) {
-                // INSERT INTO payments ...
-                await nedb.payments.insert({
-                    payment_id: params[0], amount: params[1], currency: params[2],
-                    status: params[3], payment_method: params[4], completed_at: new Date().toISOString(),
-                    metadata: params[5]
-                });
-                return { rowCount: 1 };
-            }
-
-            console.warn("Unhandled NeDB Query in payment.js:", text);
-            return { rows: [] };
+        query: (text, params) => {
+            return new Promise((resolve, reject) => {
+                // Einfacher Wrapper für SQLite damit der Code unten gleich bleibt
+                if (text.trim().toLowerCase().startsWith('select')) {
+                    db.all(text.replace(/\$\d/g, '?'), params, (err, rows) => {
+                        if (err) reject(err); else resolve({ rows });
+                    });
+                } else {
+                    db.run(text.replace(/\$\d/g, '?'), params, function(err) {
+                        if (err) reject(err); else resolve({ rowCount: this.changes });
+                    });
+                }
+            });
         }
     };
 }
@@ -119,7 +70,7 @@ router.post("/create-checkout-session", async (req, res) => {
 
     // Check Shop Status
     try {
-        const sRes = await pool.query("SELECT value FROM settings WHERE key = 'shop_active'", ['shop_active']);
+        const sRes = await pool.query("SELECT value FROM settings WHERE key = 'shop_active'");
         if (sRes.rows.length > 0 && sRes.rows[0].value === 'false') {
              return res.status(503).json({ error: 'Shop is currently offline.' });
         }
@@ -259,7 +210,7 @@ async function handleSuccessfulPayment(session) {
           // Update
           await pool.query(
               `UPDATE license_keys SET expires_at = $1, is_active = $2 WHERE id = $3`,
-              [newExpiresAt, (isPostgreSQL ? true : 1), license_key_id]
+              [newExpiresAt, (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? true : 1), license_key_id]
           );
 
           console.log(`✅ Lizenz verlängert bis ${newExpiresAt}`);
