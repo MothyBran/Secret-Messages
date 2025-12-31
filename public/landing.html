@@ -6,7 +6,6 @@
     <title>SECURE MESSAGES - High End Encryption</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> -->
     <link rel="stylesheet" href="/assets/fontawesome-css/all.min.css">
     <style>
         :root {
@@ -19,6 +18,10 @@
             --border-color: #333;
 
             --hero-gradient: linear-gradient(180deg, rgba(0,191,255,0.05) 0%, rgba(5,5,5,0) 100%);
+
+            --accent-orange: #ff9d00;
+            --accent-glow-orange: rgba(255, 157, 0, 0.3);
+            --error-red: #ff4444;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -47,6 +50,9 @@
         h3 { font-size: 1.5rem; margin-bottom: 15px; color: var(--accent-blue); }
         p { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 20px; }
         .tech-font { font-family: 'Roboto Mono', monospace; font-size: 0.9rem; }
+        .text-center-mb { text-align: center; margin-bottom: 60px; }
+        .note-highlight { margin-top: 15px; font-size: 0.95rem; color: #ccc; }
+        .icon-check { margin-right: 8px; }
 
         /* Animation Classes */
         .reveal {
@@ -92,6 +98,7 @@
         /* Layout */
         .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
         section { padding: 100px 0; }
+        .section-alt-dark { background: #0b0d10; }
 
         /* Header */
         header {
@@ -126,6 +133,93 @@
             box-shadow: 0 0 80px rgba(0,191,255,0.05);
             border: 1px solid #333;
         }
+
+        /* 3 Steps Section */
+        .steps-container {
+            display: flex; justify-content: center; align-items: center; flex-wrap: nowrap; gap: 0; margin-top: 60px; overflow-x: auto;
+            padding-bottom: 20px; /* For hover effects */
+        }
+
+        .step-card {
+            flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        .step-icon {
+            font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;
+        }
+
+        .step-card h3 { margin-bottom: 15px; }
+
+        /* Reveal Animation triggered by intersection observer on parent .reveal */
+        .reveal.active .step-card {
+            animation: fadeInUp 0.8s forwards;
+        }
+        /* Animations for steps */
+        .reveal.active .step-card:nth-child(1) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0s, 0s; animation-iteration-count: 1, infinite; }
+        .reveal.active .step-card:nth-child(3) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.3s, 1.33s; animation-iteration-count: 1, infinite; }
+        .reveal.active .step-card:nth-child(5) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.6s, 2.66s; animation-iteration-count: 1, infinite; }
+
+        .step-card:hover {
+            box-shadow: 0 0 30px rgba(0, 191, 255, 0.4);
+            border-color: var(--accent-blue);
+            transform: translateY(-10px);
+        }
+
+        /* Connector Line */
+        .connector {
+            flex: 1;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            position: relative;
+            min-width: 50px;
+            max-width: 150px;
+            align-self: center;
+            overflow: hidden;
+        }
+
+        /* Moving Dot */
+        .data-dot {
+            position: absolute;
+            top: 50%; left: 0;
+            width: 40px; height: 4px;
+            background: linear-gradient(90deg, transparent, var(--accent-blue), #fff);
+            border-radius: 2px;
+            transform: translateY(-50%) translateX(-100%);
+            box-shadow: 0 0 15px var(--accent-blue);
+            opacity: 0;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+        @keyframes pulseSequence {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; }
+            10% { box-shadow: 0 0 30px 0 rgba(0,191,255,0.4); border-color: var(--accent-blue); transform: scale(1.02); }
+            20% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; transform: scale(1); }
+        }
+
+        @keyframes dotMove {
+            0% { transform: translateY(-50%) translateX(-100%); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-50%) translateX(400%); opacity: 0; } /* Move fully across */
+        }
+
+        .reveal.active .data-dot.delay-1 {
+            animation: dotMove 1.5s linear infinite;
+            animation-delay: 0.8s;
+            animation-duration: 4s;
+        }
+
+        .reveal.active .data-dot.delay-2 {
+            animation: dotMove 1.5s linear infinite;
+            animation-delay: 2.1s;
+            animation-duration: 4s;
+        }
+
 
         /* Feature Grid */
         .grid-section { background: #080a0c; border-top: 1px solid #222; border-bottom: 1px solid #222; }
@@ -367,6 +461,58 @@
             font-size: 1.3rem;
         }
 
+        /* --- NEW COMPARISON SECTION STYLES --- */
+        /* Accordion */
+        .accordion-wrapper { max-width: 1000px; margin: 0 auto; }
+        .accordion-item { background: #050505; border: 1px solid #333; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+        .accordion-header { padding: 20px 30px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); transition: background 0.3s; }
+        .accordion-header:hover { background: rgba(255,255,255,0.05); }
+        .accordion-header h3 { margin: 0; font-size: 1.3rem; color: #fff; }
+        .accordion-icon { color: var(--accent-blue); transition: transform 0.3s ease; }
+        .accordion-item.active .accordion-icon { transform: rotate(180deg); }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.5s cubic-bezier(0, 1, 0, 1); }
+        .accordion-item.active .accordion-content { max-height: 2000px; transition: max-height 0.8s ease-in-out; }
+        .accordion-body { padding: 30px; border-top: 1px solid #333; }
+
+        /* Table */
+        .comparison-table { width: 100%; border-collapse: collapse; }
+        .comparison-table th, .comparison-table td { padding: 15px; text-align: left; vertical-align: top; border-bottom: 1px solid #222; }
+        .comparison-table th { border-bottom: 2px solid #333; color: #fff; font-size: 1.1rem; }
+        .comparison-table th.col-webapp { color: var(--accent-blue); }
+        .comparison-table th.col-enterprise { color: var(--accent-orange); }
+        .cell-webapp { transition: box-shadow 0.3s; border-left: 1px solid transparent; }
+        .cell-enterprise { transition: box-shadow 0.3s; border-left: 1px solid transparent; }
+
+        .comparison-table tr:hover .cell-webapp { box-shadow: inset 0 0 15px rgba(0, 191, 255, 0.05); color: #fff; }
+        .comparison-table tr:hover .cell-enterprise { box-shadow: inset 0 0 15px rgba(255, 157, 0, 0.05); color: #fff; }
+
+        /* Work Modes */
+        .work-modes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+        .mode-card { padding: 30px; border: 1px solid #333; border-radius: 8px; transition: all 0.3s ease; position: relative; height: 100%; display: flex; flex-direction: column; }
+        .mode-card h4 { font-size: 1.4rem; margin-bottom: 15px; }
+        .mode-card p { flex-grow: 1; }
+
+        .mode-card.webapp:hover { border-color: var(--accent-blue); box-shadow: 0 0 30px rgba(0, 191, 255, 0.15); }
+        .mode-card.enterprise:hover { border-color: var(--accent-orange); box-shadow: 0 0 30px rgba(255, 157, 0, 0.15); }
+
+        .text-blue { color: var(--accent-blue); }
+        .text-orange { color: var(--accent-orange); }
+
+        .btn-enterprise {
+            margin-top: 20px;
+            display: inline-block;
+            padding: 12px 24px;
+            border: 1px solid var(--accent-orange);
+            color: var(--accent-orange);
+            background: linear-gradient(45deg, rgba(255,157,0,0.1), transparent);
+            text-transform: uppercase;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.3s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        .btn-enterprise:hover { background: var(--accent-orange); color: #000; box-shadow: 0 0 20px var(--accent-glow-orange); }
+
         /* Responsive */
         @media (max-width: 768px) {
             .carousel-container { padding: 0; }
@@ -377,6 +523,34 @@
             h1 { font-size: 2.5rem; }
             h2 { font-size: 2rem; }
             .hero { padding-top: 120px; }
+
+            .steps-container { flex-direction: column; gap: 20px; }
+            .connector { width: 2px; height: 50px; min-width: 0; }
+            .data-dot {
+                width: 4px; height: 40px;
+                top: 0; left: 50%;
+                transform: translateX(-50%) translateY(-100%);
+                background: linear-gradient(180deg, transparent, var(--accent-blue), #fff);
+            }
+            @keyframes dotMove {
+                0% { transform: translateX(-50%) translateY(-100%); opacity: 0; }
+                100% { transform: translateX(-50%) translateY(400%); opacity: 0; }
+            }
+
+            /* Comparison Section Responsive */
+            .work-modes-grid { grid-template-columns: 1fr; }
+
+            /* Card View for Table */
+            .comparison-table thead { display: none; }
+            .comparison-table tr { display: flex; flex-direction: column; margin-bottom: 30px; border: 1px solid #333; padding: 20px; border-radius: 8px; background: #080a0c; }
+            .comparison-table td { padding: 10px 0; border-bottom: 1px solid #222; display: block; }
+            .comparison-table td:last-child { border-bottom: none; }
+
+            /* First cell becomes header */
+            .comparison-table td:first-child { font-size: 1.3rem; color: #fff; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #333; }
+
+            .comparison-table td:nth-child(2)::before { content: "WebApp: "; color: var(--accent-blue); font-weight: bold; }
+            .comparison-table td:nth-child(3)::before { content: "Enterprise: "; color: var(--accent-orange); font-weight: bold; }
         }
     </style>
 </head>
@@ -412,14 +586,14 @@
         <div class="container" style="text-align: center; position: relative;">
             <h2>In 3 Schritten zur totalen Sicherheit</h2>
 
-            <div class="steps-container" style="display: flex; justify-content: center; align-items: center; flex-wrap: nowrap; gap: 0; margin-top: 60px; overflow-x: auto;">
+            <div class="steps-container">
 
                 <!-- 1. INPUT -->
-                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
-                    <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
+                <div class="step-card">
+                    <div class="step-icon">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">1. Input</h3>
+                    <h3>1. Input</h3>
                     <p>Nachricht verfassen & Empfänger wählen.</p>
                 </div>
 
@@ -429,11 +603,11 @@
                 </div>
 
                 <!-- 2. ENCRYPTION -->
-                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
-                    <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
+                <div class="step-card">
+                    <div class="step-icon">
                         <i class="fa-solid fa-lock"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">2. Verschlüsselung</h3>
+                    <h3>2. Verschlüsselung</h3>
                     <p>Lokale 4-Layer-Verschlüsselung (Zero-Knowledge).</p>
                 </div>
 
@@ -443,117 +617,16 @@
                 </div>
 
                 <!-- 3. OUTPUT -->
-                <div class="step-card" style="flex: 0 0 250px; background: #050505; padding: 30px; border-radius: 12px; border: 1px solid #333; z-index:2;">
-                    <div class="step-icon" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 20px;">
+                <div class="step-card">
+                    <div class="step-icon">
                         <i class="fa-solid fa-paper-plane"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">3. Versand</h3>
+                    <h3>3. Versand</h3>
                     <p>Verschlüsseltes Paket über beliebigen Kanal versenden.</p>
                 </div>
 
             </div>
         </div>
-        <style>
-            .steps-container {
-                padding-bottom: 20px; /* For hover effects */
-            }
-
-            .step-card {
-                transition: all 0.3s ease;
-                opacity: 0;
-                transform: translateY(30px);
-            }
-
-            /* Reveal Animation triggered by intersection observer on parent .reveal */
-            .reveal.active .step-card {
-                animation: fadeInUp 0.8s forwards;
-            }
-            /* Animations for steps */
-            .reveal.active .step-card:nth-child(1) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0s, 0s; animation-iteration-count: 1, infinite; }
-            .reveal.active .step-card:nth-child(3) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.3s, 1.33s; animation-iteration-count: 1, infinite; }
-            .reveal.active .step-card:nth-child(5) { animation-name: fadeInUp, pulseSequence; animation-duration: 0.8s, 4s; animation-delay: 0.6s, 2.66s; animation-iteration-count: 1, infinite; }
-
-            .step-card:hover {
-                box-shadow: 0 0 30px rgba(0, 191, 255, 0.4);
-                border-color: var(--accent-blue);
-                transform: translateY(-10px);
-            }
-
-            /* Connector Line */
-            .connector {
-                flex: 1;
-                height: 2px;
-                background: rgba(255, 255, 255, 0.1);
-                position: relative;
-                min-width: 50px;
-                max-width: 150px;
-                align-self: center;
-                overflow: hidden;
-            }
-
-            /* Moving Dot */
-            .data-dot {
-                position: absolute;
-                top: 50%; left: 0;
-                width: 40px; height: 4px;
-                background: linear-gradient(90deg, transparent, var(--accent-blue), #fff);
-                border-radius: 2px;
-                transform: translateY(-50%) translateX(-100%);
-                box-shadow: 0 0 15px var(--accent-blue);
-                opacity: 0;
-            }
-
-            /* Animations */
-            @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
-
-            @keyframes pulseSequence {
-                0%, 100% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; }
-                10% { box-shadow: 0 0 30px 0 rgba(0,191,255,0.4); border-color: var(--accent-blue); transform: scale(1.02); }
-                20% { box-shadow: 0 0 0 0 rgba(0,191,255,0); border-color: #333; transform: scale(1); }
-            }
-
-            @keyframes dotMove {
-                0% { transform: translateY(-50%) translateX(-100%); opacity: 0; }
-                10% { opacity: 1; }
-                90% { opacity: 1; }
-                100% { transform: translateY(-50%) translateX(400%); opacity: 0; } /* Move fully across */
-            }
-
-            /* Sequence Logic (Total 4s cycle)
-               0.0s: Card 1 Pulse Start
-               0.8s: Dot 1 Start
-               1.3s: Card 2 Pulse Start
-               2.1s: Dot 2 Start
-               2.6s: Card 3 Pulse Start
-            */
-            .reveal.active .data-dot.delay-1 {
-                animation: dotMove 1.5s linear infinite;
-                animation-delay: 0.8s;
-                /* Data Beam Flow Animation */
-                animation-duration: 4s;
-            }
-
-            .reveal.active .data-dot.delay-2 {
-                animation: dotMove 1.5s linear infinite;
-                animation-delay: 2.1s;
-                animation-duration: 4s;
-            }
-
-            @media (max-width: 768px) {
-                .steps-container { flex-direction: column; gap: 20px; }
-                .connector { width: 2px; height: 50px; min-width: 0; }
-                .data-dot {
-                    width: 4px; height: 40px;
-                    top: 0; left: 50%;
-                    transform: translateX(-50%) translateY(-100%);
-                    background: linear-gradient(180deg, transparent, var(--accent-blue), #fff);
-                }
-                @keyframes dotMove {
-                    0% { transform: translateX(-50%) translateY(-100%); opacity: 0; }
-                    100% { transform: translateX(-50%) translateY(400%); opacity: 0; }
-                }
-            }
-        </style>
     </section>
 
     <section class="grid-section reveal">
@@ -678,6 +751,106 @@
         </div>
     </section>
 
+    <!-- COMPARISON & DEEP DIVE SECTION -->
+    <section class="reveal section-alt-dark">
+        <div class="container">
+            <h2 class="text-center-mb">Zwei Wege, ein Ziel: Maximale Sicherheit.</h2>
+
+            <div class="accordion-wrapper">
+
+                <!-- Accordion 1: Vergleichstabelle -->
+                <div class="accordion-item active">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>WebApp vs. Enterprise im direkten Vergleich</h3>
+                        <div class="accordion-icon"><i class="fa-solid fa-chevron-down"></i></div>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            <table class="comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>Feature / Eigenschaft</th>
+                                        <th class="col-webapp">SECURE-MSG WebApp</th>
+                                        <th class="col-enterprise">SECURE-MSG Enterprise</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Datenschutz-Garantie</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Keine Speicherung von Inhalten. <br>Nur Lizenzprüfung & ID auf dem Server.</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Vollständige Isolation. <br>Daten verlassen niemals das eigene Firmennetzwerk.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Infrastruktur & Support</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Bereitgestellt & gewartet durch SECURE-MSG.</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Eigenverwaltung durch den internen IT-Bereich (Hub).</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Nachrichten-Versand</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Manuell: Verschlüsselte Daten werden über Drittanbieter (z.B. WhatsApp, Mail) versendet.</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Automatisch: Integriertes Nachrichtensystem über das lokale Netzwerk.</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Ver- & Entschlüsselung</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Tool für Text, Bilder & PDF-Dokumente <br>(Lokal auf Endgerät).</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Tool für Text, Bilder & PDF-Dokumente <br>(Lokal im Netzwerk).</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Internetverbindung</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Erforderlich für die Lizenzprüfung.</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Nur einmalig zur Aktivierung <br>(danach 100% offline).</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Endgeräte</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-laptop icon-check" style="color:var(--accent-blue)"></i><i class="fa-solid fa-mobile-screen icon-check" style="color:var(--accent-blue)"></i>Alle Browser <br>(Windows, Android, iOS, Linux, macOS).</td>
+                                        <td class="cell-enterprise"><i class="fa-brands fa-windows icon-check" style="color:var(--accent-orange)"></i>Installierbare Desktop-Anwendung (Windows).</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Empfänger-Verwaltung</td>
+                                        <td class="cell-webapp"><i class="fa-solid fa-check icon-check" style="color:var(--accent-blue)"></i>Jeder Benutzer verwaltet seine Kontakte selbst.</td>
+                                        <td class="cell-enterprise"><i class="fa-solid fa-check icon-check" style="color:var(--accent-orange)"></i>Zentrale Verzeichnis-Hoheit durch den IT-Admin.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accordion 2: Arbeitsweise -->
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Wie es funktioniert: Die Technik hinter deiner Sicherheit</h3>
+                        <div class="accordion-icon"><i class="fa-solid fa-chevron-down"></i></div>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            <div class="work-modes-grid">
+                                <!-- WebApp Card -->
+                                <div class="mode-card webapp">
+                                    <h4 class="text-blue">SECURE-MSG WebApp <br><span style="font-size:0.9rem; font-weight:normal; color:#888;">(Flexibilität & Mobilität)</span></h4>
+                                    <p>Die WebApp ist ein mathematisches Werkzeug auf deinem Endgerät. Sie verschlüsselt Daten lokal im Browser. Der Server dient ausschließlich der Lizenzverifizierung.</p>
+                                    <p class="note-highlight">
+                                        <strong>Wichtig:</strong> Keine sensiblen Daten oder Nachrichten verlassen jemals unverschlüsselt dein Gerät oder werden in einer Cloud gespeichert. Du nutzt deine gewohnten Versandwege (Messenger, Mail), um das verschlüsselte Ergebnis zu übertragen.
+                                    </p>
+                                </div>
+
+                                <!-- Enterprise Card -->
+                                <div class="mode-card enterprise">
+                                    <h4 class="text-orange">SECURE-MSG Enterprise <br><span style="font-size:0.9rem; font-weight:normal; color:#888;">(Maximale Autarkie)</span></h4>
+                                    <p>Ein geschlossenes System für dein Unternehmen. Ein lokaler PC wird zum „Admin-Hub“. Alle Mitarbeiter-Geräte kommunizieren direkt und ausschließlich mit diesem Hub im lokalen Netzwerk (LAN/WLAN).</p>
+                                    <p class="note-highlight">
+                                        Dein IT-Bereich hat die volle Kontrolle. Nachrichten und Daten werden direkt über das interne System versendet – physisch vom Internet getrennt.
+                                    </p>
+                                    <a href="mailto:info@secure-msg.app?subject=Anfrage SECURE-MSG Enterprise" class="btn-enterprise">Jetzt beraten lassen</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
 
     <section class="grid-section use-cases reveal">
         <div class="container">
@@ -1038,6 +1211,14 @@
             if (event.target.classList.contains('modal')) {
                 event.target.classList.remove('active');
             }
+        }
+
+        // === ACCORDION ===
+        function toggleAccordion(element) {
+            const item = element.parentElement;
+
+            // Toggle active class
+            item.classList.toggle('active');
         }
     </script>
 
