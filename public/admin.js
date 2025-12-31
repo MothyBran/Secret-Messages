@@ -214,6 +214,20 @@ window.deleteEnterpriseKey = function(id) {
     });
 };
 
+window.deleteBundle = function(id) {
+    window.showConfirm("Bundle wirklich unwiderruflich löschen?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/bundles/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.showToast("Bundle gelöscht.", "success");
+                window.loadBundles();
+            } else {
+                window.showToast("Fehler beim Löschen.", "error");
+            }
+        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+    });
+};
+
 window.editQuota = function(id, current) {
     const newVal = prompt("Neues Quota (Max User):", current);
     if(newVal && !isNaN(newVal)) {
@@ -1111,6 +1125,7 @@ function renderBundlesTable(bundles) {
             <td>${new Date(b.created_at).toLocaleDateString('de-DE')}</td>
             <td>
                 <button class="btn-icon" onclick="openBundleDetails(${b.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📂</button>
+                <button class="btn-icon" onclick="deleteBundle(${b.id})" title="Bundle löschen" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -1159,7 +1174,6 @@ function renderEnterpriseTable(keys) {
     tbody.innerHTML = '';
     keys.forEach(k => {
         const tr = document.createElement('tr');
-        const used = k.used_slots || 0;
         const total = k.max_users || 0;
 
         let status = '<span style="color:orange;">OFFEN</span>';
@@ -1172,7 +1186,7 @@ function renderEnterpriseTable(keys) {
         tr.innerHTML = `
             <td style="font-family:'Roboto Mono'; font-weight:bold; color:orange;">${k.key_code}</td>
             <td>${k.client_name || '-'}</td>
-            <td>${used} / ${total}</td>
+            <td>${total}</td>
             <td>${status}</td>
             <td>${new Date(k.created_at).toLocaleDateString('de-DE')}</td>
             <td>

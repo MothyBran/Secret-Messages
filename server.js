@@ -893,10 +893,9 @@ app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/enterprise-keys', requireAdmin, async (req, res) => {
     try {
-        // Fetch Enterprise keys and count associated users
+        // Fetch Enterprise keys (Privacy Update: No usage tracking from Global Server)
         const sql = `
-            SELECT k.*,
-            (SELECT COUNT(*) FROM users u WHERE u.license_key_id = k.id) as used_slots
+            SELECT k.*
             FROM license_keys k
             WHERE k.product_code = 'ENTERPRISE'
             ORDER BY k.created_at DESC
@@ -1011,6 +1010,25 @@ app.put('/api/admin/bundles/:id/extend', requireAdmin, async (req, res) => {
         await dbQuery(`UPDATE license_bundles SET expires_at = $1 WHERE id = $2`, [expires_at, req.params.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/bundles/:id', requireAdmin, async (req, res) => {
+    try {
+        const bundleId = req.params.id;
+        // 1. Unlink Users assigned to keys in this bundle
+        await dbQuery(`
+            UPDATE users SET license_key_id = NULL
+            WHERE license_key_id IN (SELECT id FROM license_keys WHERE bundle_id = $1)
+        `, [bundleId]);
+
+        // 2. Delete Keys
+        await dbQuery(`DELETE FROM license_keys WHERE bundle_id = $1`, [bundleId]);
+
+        // 3. Delete Bundle
+        await dbQuery(`DELETE FROM license_bundles WHERE id = $1`, [bundleId]);
+
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: "Fehler beim Löschen: " + e.message }); }
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
