@@ -1,0 +1,39 @@
+name: Build Enterprise Edition
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows Exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Enterprise App
+        env:
+          APP_MODE: ENTERPRISE
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build:enterprise
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Enterprise-Windows-Build
+          path: dist/
+          if-no-files-found: warn
