@@ -52,7 +52,12 @@ function createWindow() {
     const PORT = process.env.PORT || 3000;
 
     // Default load: The local server app
-    mainWindow.loadURL(`http://localhost:${PORT}/`);
+    // Enterprise Mode: Load the IT-Admin Interface directly
+    if (process.env.APP_MODE === 'ENTERPRISE') {
+        mainWindow.loadURL(`http://localhost:${PORT}/enterprise`);
+    } else {
+        mainWindow.loadURL(`http://localhost:${PORT}/`);
+    }
 
     mainWindow.on('minimize', (event) => {
         event.preventDefault();
