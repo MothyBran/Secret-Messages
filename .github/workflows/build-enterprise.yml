@@ -10,11 +10,14 @@ on:
 jobs:
   build:
     name: Build Windows Exe
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,7 +32,7 @@ jobs:
         env:
           APP_MODE: ENTERPRISE
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:enterprise
+        run: npm run dist
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
