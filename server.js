@@ -875,8 +875,9 @@ app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
     try {
         const { clientName, quota, expiresAt } = req.body;
 
-        // Generate Unique Master Key
-        const keyRaw = 'ENT-' + crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+        // Generate Unique Master Key (Max 17 chars DB limit: ENT-XXXXX-XXXXX = 15 chars)
+        const rand = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 chars
+        const keyRaw = 'ENT-' + rand.substring(0, 5) + '-' + rand.substring(5, 10);
         const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
 
         const quotaInt = parseInt(quota) || 5;
