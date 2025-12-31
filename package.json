@@ -12,8 +12,8 @@
     "test": "jest",
     "lint": "eslint .",
     "deploy": "pm2 start ecosystem.config.js",
-    "dist": "cross-env APP_MODE=ENTERPRISE electron-builder",
-    "build:enterprise": "cross-env APP_MODE=ENTERPRISE electron-builder"
+    "dist": "cross-env APP_MODE=ENTERPRISE electron-builder --publish never",
+    "build:enterprise": "cross-env APP_MODE=ENTERPRISE electron-builder --publish never"
   },
   "build": {
     "appId": "com.secure-msg.enterprise",
