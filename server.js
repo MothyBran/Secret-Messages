@@ -1487,7 +1487,21 @@ if (IS_ENTERPRISE) {
 
 app.use('/api', paymentRoutes);
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+app.get('/enterprise', (req, res) => {
+    if (IS_ENTERPRISE) {
+        res.sendFile(path.join(__dirname, 'public', 'it-admin.html'));
+    } else {
+        res.redirect('/');
+    }
+});
+
+app.get('/', (req, res) => {
+    if (IS_ENTERPRISE) {
+        return res.redirect('/enterprise');
+    }
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'store.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
