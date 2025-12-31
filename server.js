@@ -8,7 +8,14 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
-const { Resend } = require('resend');
+let Resend;
+try {
+    const resendModule = require('resend');
+    Resend = resendModule.Resend;
+} catch (e) {
+    console.warn("Resend module not found or failed to load:", e.message);
+    Resend = class { emails = { send: async () => ({ id: 'mock' }) } };
+}
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 require('dotenv').config();

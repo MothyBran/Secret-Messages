@@ -65,7 +65,9 @@
     "speakeasy": "^2.0.0",
     "@vscode/sqlite3": "^5.0.8",
     "stripe": "^12.18.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
