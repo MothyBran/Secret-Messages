@@ -10,11 +10,14 @@ on:
 jobs:
   build:
     name: Build Windows Exe
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
