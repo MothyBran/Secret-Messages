@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENTERPRISE ACTIVATION</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --bg-panel: #0a0a0a;
+            --accent-primary: #ffcc00;
+            --text-main: #e0e0e0;
+            --font-head: 'Rajdhani', sans-serif;
+            --font-mono: 'Roboto Mono', monospace;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-head);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            margin: 0;
+        }
+        .auth-box {
+            background: var(--bg-panel);
+            padding: 40px;
+            border: 1px solid var(--accent-primary);
+            text-align: center;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 0 30px rgba(255, 204, 0, 0.2);
+            position: relative;
+        }
+        .auth-box::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, var(--accent-primary), transparent, var(--accent-primary));
+            z-index: -1;
+            opacity: 0.3;
+        }
+        h1 {
+            color: var(--accent-primary);
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        p {
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        input {
+            width: 100%;
+            padding: 15px;
+            background: #000;
+            border: 1px solid #333;
+            color: var(--accent-primary);
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.2);
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: var(--accent-primary);
+            border: none;
+            color: #000;
+            font-weight: bold;
+            font-family: var(--font-head);
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background: #333;
+            color: #555;
+            cursor: not-allowed;
+        }
+        .error-msg {
+            color: #ff3333;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-box">
+    <h1>Enterprise Activation</h1>
+    <p>Bitte geben Sie Ihren Master-Lizenzschlüssel ein, um diesen Hub freizuschalten.</p>
+
+    <form id="activationForm">
+        <input type="text" id="licenseKey" placeholder="ENT-XXXXX-XXXXX" required autocomplete="off" spellcheck="false">
+        <button type="submit" id="btnActivate">Aktivieren</button>
+    </form>
+
+    <div class="error-msg" id="errorMsg"></div>
+</div>
+
+<script>
+    const API_BASE = '/api/enterprise';
+    const btn = document.getElementById('btnActivate');
+    const input = document.getElementById('licenseKey');
+    const errorDisplay = document.getElementById('errorMsg');
+
+    document.getElementById('activationForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const key = input.value.trim();
+
+        if(!key) {
+            showError("Bitte Key eingeben.");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Verbinde...";
+        showError("");
+
+        try {
+            const res = await fetch(`${API_BASE}/activate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            });
+
+            const data = await res.json();
+
+            if(data.success) {
+                btn.textContent = "Erfolg!";
+                btn.style.background = "#00ff88";
+                setTimeout(() => {
+                    window.location.href = '/enterprise';
+                }, 1000);
+            } else {
+                showError(data.error || "Aktivierung fehlgeschlagen.");
+                btn.disabled = false;
+                btn.textContent = "Aktivieren";
+            }
+        } catch(err) {
+            console.error(err);
+            showError("Verbindungsfehler. Ist der Server online?");
+            btn.disabled = false;
+            btn.textContent = "Aktivieren";
+        }
+    });
+
+    function showError(msg) {
+        errorDisplay.textContent = msg;
+        if(msg) {
+            input.style.borderColor = "#ff3333";
+            // Shake effect
+            const box = document.querySelector('.auth-box');
+            box.style.transform = "translateX(5px)";
+            setTimeout(() => box.style.transform = "translateX(-5px)", 50);
+            setTimeout(() => box.style.transform = "translateX(5px)", 100);
+            setTimeout(() => box.style.transform = "translateX(0)", 150);
+        } else {
+            input.style.borderColor = "#333";
+        }
+    }
+</script>
+
+</body>
+</html>

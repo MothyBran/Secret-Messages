@@ -1,41 +1,120 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Bonjour } = require('bonjour-service');
+const { exec } = require('child_process');
 
 // FORCE ENTERPRISE MODE for Standalone .exe
 process.env.APP_MODE = 'ENTERPRISE';
 
-const server = require('./server'); // Requires and starts the server instance in this process
+// Require Server Logic (But do not auto-start yet, we control it)
+const { startServer, stopServer } = require('./server');
 
 // State
 let mainWindow;
 let tray;
 let hubService = null;
-let isHub = false;
+let httpServer = null;
 
-// Check Enterprise Config
-const configPath = path.join(__dirname, 'data', 'enterprise_config.json');
-let config = {};
-try {
-    if(fs.existsSync(configPath)) {
-        // Simple read (encryption handled in enterprise/config.js but we just need existence check here)
-        // We assume if file exists and has content, we might be a hub.
-        // But for simplicity, we let the Server process determine if it should ACT as a Hub (Activation).
-        // Here we decide UI behavior.
-        // However, server.js handles the APP_MODE logic.
-        // If we are Client, we still run server.js to serve the UI?
-        // YES, because we need to serve /app files.
-        // But the Client shouldn't broadcast.
-        // server.js checks APP_MODE=ENTERPRISE.
-        // We need to tell server.js if it's a HUB or CLIENT?
-        // Actually, server.js logic I wrote: "if (IS_ENTERPRISE) { ... discovery.start() }"
-        // This starts broadcasting ALWAYS.
-        // We need to change server.js to only broadcast if ACTIVATED (Hub).
-        // If not activated, it might be a Client searching.
+// Helper: Kill Zombie Instances on Port 3000
+function killZombieInstances(port) {
+    return new Promise((resolve) => {
+        const platform = process.platform;
+        const cmd = platform === 'win32'
+            ? `netstat -ano | findstr :${port}`
+            : `lsof -i :${port} -t`;
+
+        exec(cmd, (err, stdout) => {
+            if (err || !stdout) return resolve(); // No process found or error
+
+            const lines = stdout.trim().split('\n');
+            if (lines.length === 0) return resolve();
+
+            // Extract PID
+            let pids = [];
+            if (platform === 'win32') {
+                // TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING       12345
+                lines.forEach(line => {
+                    const parts = line.trim().split(/\s+/);
+                    const pid = parts[parts.length - 1];
+                    if (pid && !isNaN(pid) && pid !== '0') pids.push(pid);
+                });
+            } else {
+                pids = lines.map(l => l.trim()).filter(l => l);
+            }
+
+            // Exclude Self
+            const myPid = process.pid.toString();
+            pids = pids.filter(p => p !== myPid);
+
+            if (pids.length === 0) return resolve();
+
+            console.log(`Killing zombies on port ${port}:`, pids);
+
+            // Kill
+            const killCmd = platform === 'win32'
+                ? `taskkill /F /PID ${pids.join(' /PID ')}`
+                : `kill -9 ${pids.join(' ')}`;
+
+            exec(killCmd, () => {
+                // Wait a bit for release
+                setTimeout(resolve, 1000);
+            });
+        });
+    });
+}
+
+// Check Port Availability
+function checkPort(port) {
+    return new Promise((resolve, reject) => {
+        const net = require('net');
+        const server = net.createServer();
+        server.once('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                resolve(false); // Port busy
+            } else {
+                reject(err);
+            }
+        });
+        server.once('listening', () => {
+            server.close();
+            resolve(true); // Port free
+        });
+        server.listen(port);
+    });
+}
+
+async function initServer() {
+    const PORT = process.env.PORT || 3000;
+
+    // 0. Try to kill zombies first
+    await killZombieInstances(PORT);
+
+    // 1. Check if port is free
+    const isFree = await checkPort(PORT);
+
+    if (!isFree) {
+        // Port is still busy.
+        console.error(`Port ${PORT} is busy.`);
+        dialog.showErrorBox(
+            "Portkonflikt",
+            `Der Port ${PORT} ist belegt. Bitte schließen Sie andere Web-Server oder Instanzen von SECURE-MSG.`
+        );
+        app.quit();
+        return false;
     }
-} catch(e) {}
 
+    // 2. Start Server
+    try {
+        httpServer = startServer(PORT);
+        return true;
+    } catch (e) {
+        console.error("Server Start Failed:", e);
+        dialog.showErrorBox("Server Fehler", "Der interne Server konnte nicht gestartet werden: " + e.message);
+        app.quit();
+        return false;
+    }
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -53,6 +132,7 @@ function createWindow() {
 
     // Default load: The local server app
     // Enterprise Mode: Load the IT-Admin Interface directly
+    // The Server will redirect to /activation if not activated
     if (process.env.APP_MODE === 'ENTERPRISE') {
         mainWindow.loadURL(`http://localhost:${PORT}/enterprise`);
     } else {
@@ -121,11 +201,27 @@ ipcMain.handle('get-hub-config', () => {
 });
 
 
-app.whenReady().then(() => {
-    createWindow();
-    createTray();
+app.whenReady().then(async () => {
+    const serverStarted = await initServer();
+    if (serverStarted) {
+        createWindow();
+        createTray();
+    }
 });
 
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+// Clean Exit
+app.on('before-quit', async (event) => {
+    console.log("Closing App...");
+    app.isQuitting = true;
+    if (httpServer) {
+        event.preventDefault(); // Wait for server close
+        await stopServer();
+        console.log("Server Closed. Quitting Electron.");
+        httpServer = null;
+        app.quit();
+    }
 });
