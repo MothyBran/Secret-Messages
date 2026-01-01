@@ -20,6 +20,8 @@
     "productName": "Secure Messages Enterprise",
     "files": [
       "**/*",
+      "node_modules/react/**/*",
+      "node_modules/react-dom/**/*",
       "!**/*.ts",
       "!*.map",
       "!coverage",
