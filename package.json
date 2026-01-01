@@ -33,7 +33,8 @@
       "!data/*.sqlite"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/assets/icon.png"
     },
     "directories": {
       "output": "dist"
