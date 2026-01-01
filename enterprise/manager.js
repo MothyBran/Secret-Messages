@@ -40,7 +40,7 @@ module.exports = {
         return new Promise((resolve, reject) => {
             const data = JSON.stringify({ key: masterKey });
             const req = https.request({
-                hostname: 'secure-msg.app',
+                hostname: 'www.secure-msg.app',
                 port: 443,
                 path: '/api/enterprise/activate', // Official Endpoint
                 method: 'POST',
