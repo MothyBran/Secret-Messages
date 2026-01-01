@@ -28,13 +28,7 @@ if (IS_ENTERPRISE) {
     console.log("🏢 ENTERPRISE MODE ACTIVE");
     enterpriseManager = require('./enterprise/manager');
     socketServer = require('./enterprise/socketServer');
-    // Initialize discovery ONLY if Activated (Hub Mode)
-    // We check activation status async or via config load
-    enterpriseManager.init().then(config => {
-        if(config.activated) {
-            require('./enterprise/discovery').start(process.env.PORT || 3000);
-        }
-    });
+    // Init will be called in startServer
 }
 
 // MOCK CLOUD SERVICES IF ENTERPRISE
@@ -46,28 +40,36 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./payment.js');
 
 const app = express();
+// Cloud-Security: Trust Proxy für korrekte Erkennung von SSL und IPs hinter Load Balancern (Railway)
 app.set('trust proxy', 1);
 
 // ==================================================================
 // 1. MIDDLEWARE
 // ==================================================================
 
-// SSL & Canonical Redirect (WWW + HTTPS)
+// HTTPS Redirect Middleware (Optimized for Railway & Enterprise Localhost)
 app.use((req, res, next) => {
-    // Skip localhost (Development)
+    // 1. Skip localhost (Development & Enterprise Local Mode)
     if (req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
 
+    // 2. Determine Protocol via X-Forwarded-Proto (Standard for Proxies/Railway)
     const isHttps = req.headers['x-forwarded-proto'] === 'https';
     const isRoot = req.hostname === 'secure-msg.app';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    // 1. Optimize: Redirect Root directly to WWW HTTPS (Avoids double redirect)
-    if (isRoot) {
-        return res.redirect(301, `https://www.secure-msg.app${req.url}`);
+    // 3. Cloud Production Logic: Force HTTPS
+    // Only apply strict HTTPS enforcement if we are in Production AND NOT in Enterprise Mode
+    // (Although req.hostname check above already catches most Enterprise/Local cases, this is extra safety)
+    if (isProduction && !IS_ENTERPRISE) {
+        if (!isHttps) {
+             return res.redirect(301, `https://${req.headers.host}${req.url}`);
+        }
     }
 
-    // 2. Force HTTPS for everything else (e.g. www)
-    if (!isHttps) {
-        return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    // 4. Canonical Redirect (Root -> WWW)
+    // Only applies if we are hitting the naked domain
+    if (isRoot) {
+        return res.redirect(301, `https://www.secure-msg.app${req.url}`);
     }
 
     next();
@@ -118,6 +120,12 @@ app.use(helmet({
       connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
     }
+  },
+  // HSTS Config: Force browsers to remember HTTPS for 1 year
+  strictTransportSecurity: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
   }
 }));
 
@@ -140,10 +148,6 @@ app.use(express.json({
 }));
 
 app.use(express.static('public', { index: false }));
-
-app.use((req, res, next) => {
-    next();
-});
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
@@ -1412,7 +1416,7 @@ setInterval(checkLicenseExpiries, 12 * 60 * 60 * 1000);
 setTimeout(checkLicenseExpiries, 10000);
 
 // ==================================================================
-// 5. START
+// 5. START & ROUTING
 // ==================================================================
 
 // ENTERPRISE ROUTES
@@ -1446,29 +1450,18 @@ if (IS_ENTERPRISE) {
         res.json(enterpriseManager.getUsers());
     });
 
-    // Enterprise Admin Messages (Support Inbox)
     app.get('/api/enterprise/admin/messages', async (req, res) => {
         try {
-            // Fetch messages addressed to Admin or System Support
-            // In socketServer we emit "admin_support_alert".
-            // We need to query `enterprise_messages` where recipient is NULL (Broadcast) or specifically Admin?
-            // "Support-Anfragen ... als Nachrichten mit dem Typ SYSTEM_SUPPORT direkt in das Admin-Postfach"
-            // Let's assume we filter by type='support' or similar.
-            // In socketServer we didn't explicitly implement `send_support` saving to DB?
-            // We implemented `send_message`.
-            // Support messages usually go to the Admin.
-            // Let's query all messages for now to see what's happening.
             if(dbQuery) {
                 const r = await dbQuery("SELECT * FROM enterprise_messages ORDER BY created_at DESC");
-                // Map to ticket format for frontend compatibility
                 const tickets = r.rows.map(m => ({
                     id: m.id,
-                    ticket_id: m.id, // Use msg ID as ticket ID
+                    ticket_id: m.id,
                     username: m.sender_id,
                     subject: m.subject,
                     message: m.body,
                     created_at: m.created_at,
-                    status: m.is_read ? 'closed' : 'open', // Simplistic status
+                    status: m.is_read ? 'closed' : 'open',
                     email: ''
                 }));
                 res.json(tickets);
@@ -1487,16 +1480,34 @@ if (IS_ENTERPRISE) {
 
 app.use('/api', paymentRoutes);
 
-app.get('/enterprise', (req, res) => {
+// ACTIVATION & ROUTING LOGIC
+app.get('/activation', (req, res) => {
     if (IS_ENTERPRISE) {
+        res.sendFile(path.join(__dirname, 'public', 'activation.html'));
+    } else {
+        res.redirect('/');
+    }
+});
+
+app.get('/enterprise', async (req, res) => {
+    if (IS_ENTERPRISE) {
+        // STRICT ACTIVATION CHECK
+        const stats = await enterpriseManager.init();
+        if(!stats.activated) {
+            return res.redirect('/activation');
+        }
         res.sendFile(path.join(__dirname, 'public', 'it-admin.html'));
     } else {
         res.redirect('/');
     }
 });
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
     if (IS_ENTERPRISE) {
+        const stats = await enterpriseManager.init();
+        if(!stats.activated) {
+            return res.redirect('/activation');
+        }
         return res.redirect('/enterprise');
     }
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
@@ -1515,26 +1526,79 @@ app.get('*', (req, res) => {
     }
 });
 
-const httpServer = app.listen(PORT, () => {
-    console.log(`🚀 Server running on Port ${PORT}`);
-    if (IS_ENTERPRISE) {
-        // Init extra table for Enterprise Messages
-        if(!isPostgreSQL) {
-            db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (
-                id TEXT PRIMARY KEY,
-                sender_id TEXT,
-                recipient_id TEXT,
-                subject TEXT,
-                body TEXT,
-                attachment TEXT,
-                is_read INTEGER DEFAULT 0,
-                created_at DATETIME
-            )`, (err) => {
-                if(err) console.error("EntDB Error", err);
-            });
+let httpServer;
+let activeSockets = new Set();
+
+// EXPORTABLE START FUNCTION
+function startServer(port = PORT) {
+    if (httpServer) {
+        console.warn("Server already running");
+        return httpServer;
+    }
+
+    httpServer = app.listen(port, () => {
+        console.log(`🚀 Server running on Port ${port}`);
+        if (IS_ENTERPRISE) {
+            // Init extra table for Enterprise Messages
+            if(!isPostgreSQL && db) {
+                db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (
+                    id TEXT PRIMARY KEY,
+                    sender_id TEXT,
+                    recipient_id TEXT,
+                    subject TEXT,
+                    body TEXT,
+                    attachment TEXT,
+                    is_read INTEGER DEFAULT 0,
+                    created_at DATETIME
+                )`, (err) => {
+                    if(err) console.error("EntDB Error", err);
+                });
+            }
+
+            if(socketServer) socketServer.attach(httpServer, dbQuery);
+            if(enterpriseManager) {
+                enterpriseManager.init().then(config => {
+                    if(config.activated) {
+                        require('./enterprise/discovery').start(port);
+                    }
+                });
+            }
+        }
+    });
+
+    // Track connections for graceful shutdown
+    httpServer.on('connection', (socket) => {
+        activeSockets.add(socket);
+        socket.on('close', () => activeSockets.delete(socket));
+    });
+
+    return httpServer;
+}
+
+// EXPORTABLE STOP FUNCTION
+function stopServer() {
+    return new Promise((resolve) => {
+        if (!httpServer) return resolve();
+
+        console.log("🛑 Stopping Server...");
+
+        // Destroy all open sockets to force close
+        for (const socket of activeSockets) {
+            socket.destroy();
+            activeSockets.delete(socket);
         }
 
-        socketServer.attach(httpServer, dbQuery);
-        enterpriseManager.init();
-    }
-});
+        httpServer.close(() => {
+            console.log("✅ Server stopped.");
+            httpServer = null;
+            resolve();
+        });
+    });
+}
+
+// AUTO-START if run directly (node server.js)
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = { app, startServer, stopServer };
