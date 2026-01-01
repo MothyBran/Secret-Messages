@@ -1476,6 +1476,47 @@ if (IS_ENTERPRISE) {
     app.get('/api/config', (req, res) => {
         res.json({ mode: 'CLOUD' });
     });
+
+    // CLOUD-SIDE ENTERPRISE ACTIVATION ENDPOINT
+    // Validates the Master Key from a Local Hub
+    app.post('/api/enterprise/activate', async (req, res) => {
+        try {
+            const { key } = req.body;
+            if (!key) return res.status(400).json({ error: 'Missing Key' });
+
+            const result = await dbQuery("SELECT * FROM license_keys WHERE key_code = $1 AND product_code = 'ENTERPRISE'", [key]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ valid: false, error: 'Invalid Enterprise Key' });
+            }
+
+            const license = result.rows[0];
+            const isBlocked = isPostgreSQL ? license.is_blocked : (license.is_blocked === 1);
+
+            if (isBlocked) {
+                return res.status(403).json({ valid: false, error: 'License Blocked' });
+            }
+
+            // Update Activated status on Cloud if strictly needed, or just validate.
+            // Usually we mark it as "In Use" or track connection, but for this "Offline" logic, we just validate.
+            // Let's update activated_at if null to mark first activation.
+            if(!license.activated_at) {
+                await dbQuery("UPDATE license_keys SET is_active = $1, activated_at = $2 WHERE id = $3",
+                    [(isPostgreSQL ? true : 1), new Date().toISOString(), license.id]);
+            }
+
+            res.json({
+                valid: true,
+                bundleId: license.bundle_id || 'ENT-BUNDLE',
+                quota: license.max_users || 5,
+                clientName: license.client_name || 'Enterprise Customer'
+            });
+
+        } catch (e) {
+            console.error("Cloud Activation Error:", e);
+            res.status(500).json({ error: "Server Error" });
+        }
+    });
 }
 
 app.use('/api', paymentRoutes);
