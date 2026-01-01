@@ -131,11 +131,11 @@ function renderUserSlots(slots) {
 
         tr.innerHTML = `
             <td style="padding:10px; color:#666; font-family:'Roboto Mono';">${s.id}</td>
-            <td style="padding:10px; font-weight:bold; color:${s.name==='Frei'?'#444':'#fff'};">${s.name}</td>
+            <td style="padding:10px; font-weight:bold; color:${s.name==='Frei'?'#444':'#fff'};">${s.name} <span style="font-size:0.7rem; color:#aaa;">${s.isOpenRecipient ? '(Ext. Open)' : ''}</span></td>
             <td style="padding:10px; color:#aaa;">${s.dept}</td>
             <td style="padding:10px; text-align:center; font-size:1.2rem;">${statusIcon}</td>
             <td style="padding:10px; text-align:right;">
-                ${s.status !== 'free' ? `<button onclick="window.editUser(${s.id})" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:#333; border:1px solid #555;">Edit</button>` : `<button onclick="window.editUser(${s.id})" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:var(--accent-primary); color:#000;">Assign</button>`}
+                ${s.status !== 'free' ? `<button onclick="window.editUser('${s.id}')" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:#333; border:1px solid #555;">Edit</button>` : `<button onclick="window.editUser(null)" class="btn-action" style="padding:2px 5px; font-size:0.7rem; background:var(--accent-primary); color:#000;">Assign</button>`}
             </td>
         `;
         tbody.appendChild(tr);
@@ -190,6 +190,7 @@ async function handleUserSave(e) {
     e.preventDefault();
     const name = document.getElementById('editUserName').value;
     const dept = document.getElementById('editUserDept').value;
+    const openRecipient = document.getElementById('editOpenRecipient').checked;
     const btn = document.getElementById('btnSaveUser');
     const keyDisplay = document.getElementById('keyDisplayArea');
     const keyVal = document.getElementById('generatedKeyVal');
@@ -207,10 +208,10 @@ async function handleUserSave(e) {
             showToast("Edit API not implemented", "info");
         } else {
             // Create Local User
-            res = await fetch(`${API_BASE}/create-local-user`, {
+            res = await fetch(`${API_BASE}/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${itToken}` },
-                body: JSON.stringify({ username: name, dept })
+                body: JSON.stringify({ username: name, openRecipient })
             });
             const data = await res.json();
 
@@ -266,6 +267,7 @@ async function loadUsers() {
             id: u.id,
             name: u.username,
             dept: 'User',
+            isOpenRecipient: u.isOpenRecipient,
             status: u.is_blocked ? 'blocked' : (u.is_online ? 'online' : 'offline')
         }));
 
