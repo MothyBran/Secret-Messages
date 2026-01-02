@@ -1480,13 +1480,20 @@ if (IS_ENTERPRISE) {
     // CLOUD-SIDE ENTERPRISE ACTIVATION ENDPOINT
     // Validates the Master Key from a Local Hub
     app.post('/api/enterprise/activate', async (req, res) => {
+        // CORS HEADERS FOR ELECTRON (Allow any origin for this specific endpoint or specific ones)
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+
         try {
             const { key } = req.body;
+            console.log("Enterprise Activation Request for Key:", key); // LOGGING
+
             if (!key) return res.status(400).json({ error: 'Missing Key' });
 
             const result = await dbQuery("SELECT * FROM license_keys WHERE key_code = $1 AND product_code = 'ENTERPRISE'", [key]);
 
             if (result.rows.length === 0) {
+                console.log("Key not found in DB");
                 return res.status(404).json({ valid: false, error: 'Invalid Enterprise Key' });
             }
 
@@ -1494,6 +1501,7 @@ if (IS_ENTERPRISE) {
             const isBlocked = isPostgreSQL ? license.is_blocked : (license.is_blocked === 1);
 
             if (isBlocked) {
+                console.log("Key Blocked");
                 return res.status(403).json({ valid: false, error: 'License Blocked' });
             }
 
@@ -1505,6 +1513,8 @@ if (IS_ENTERPRISE) {
                     [(isPostgreSQL ? true : 1), new Date().toISOString(), license.id]);
             }
 
+            console.log("Activation Success for", license.client_name);
+
             res.json({
                 valid: true,
                 bundleId: license.bundle_id || 'ENT-BUNDLE',
@@ -1514,7 +1524,8 @@ if (IS_ENTERPRISE) {
 
         } catch (e) {
             console.error("Cloud Activation Error:", e);
-            res.status(500).json({ error: "Server Error" });
+            // Detailed JSON Error
+            res.status(500).json({ error: "Server Error", details: e.message });
         }
     });
 }
