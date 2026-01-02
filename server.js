@@ -176,7 +176,7 @@ const initializeDatabase = async () => {
         await createTables();
     } else {
         console.log('📁 Using SQLite (local)');
-        const sqlite3 = require('sqlite3').verbose();
+        const sqlite3 = require('@vscode/sqlite3').verbose();
         db = new sqlite3.Database('./secret_messages.db');
         dbQuery = (text, params = []) => {
             return new Promise((resolve, reject) => {
