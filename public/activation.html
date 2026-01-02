@@ -117,7 +117,8 @@
 
 <script>
     const API_BASE = '/api/enterprise'; // Local API Base
-    const REMOTE_URL = 'https://secure-msg.app/api/enterprise/activate'; // Cloud API
+    // FIX: Use 'www.' to avoid 301 Redirects which break CORS Preflight
+    const REMOTE_URL = 'https://www.secure-msg.app/api/enterprise/activate';
     const btn = document.getElementById('btnActivate');
     const input = document.getElementById('licenseKey');
     const errorDisplay = document.getElementById('errorMsg');
