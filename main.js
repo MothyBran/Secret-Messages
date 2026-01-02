@@ -7,6 +7,12 @@ const { exec } = require('child_process');
 // FORCE ENTERPRISE MODE for Standalone .exe
 process.env.APP_MODE = 'ENTERPRISE';
 
+// 1. SET USER DATA PATH (Fix for SQLite/Config write permissions in .exe)
+// We must do this BEFORE requiring server.js so the process.env is set
+const userDataPath = app.getPath('userData');
+process.env.USER_DATA_PATH = userDataPath;
+console.log("📂 USER_DATA_PATH set to:", userDataPath);
+
 // Require Server Logic (But do not auto-start yet, we control it)
 const { startServer, stopServer } = require('./server');
 

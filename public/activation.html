@@ -116,7 +116,8 @@
 </div>
 
 <script>
-    const API_BASE = '/api/enterprise';
+    const API_BASE = '/api/enterprise'; // Local API Base
+    const REMOTE_URL = 'https://secure-msg.app/api/enterprise/activate'; // Cloud API
     const btn = document.getElementById('btnActivate');
     const input = document.getElementById('licenseKey');
     const errorDisplay = document.getElementById('errorMsg');
@@ -131,36 +132,55 @@
         }
 
         btn.disabled = true;
-        btn.textContent = "Verbinde...";
+        btn.textContent = "Validiere...";
         showError("");
 
         try {
-            const res = await fetch(`${API_BASE}/activate`, {
+            // STEP 1: REMOTE VALIDATION
+            console.log("Connecting to Cloud:", REMOTE_URL);
+            const res = await fetch(REMOTE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ licenseKey: key })
             });
 
-            if (res.status === 400 || res.status === 404) {
-                throw new Error("Server konnte Anfrage nicht verarbeiten. Bitte Jules/Support kontaktieren.");
-            }
-
             const data = await res.json();
 
-            if(data.success) {
-                btn.textContent = "Erfolg!";
-                btn.style.background = "#00ff88";
-                setTimeout(() => {
-                    window.location.href = '/enterprise';
-                }, 1000);
-            } else {
-                showError(data.error || "Aktivierung fehlgeschlagen.");
-                btn.disabled = false;
-                btn.textContent = "Aktivieren";
+            if (!res.ok || !data.success) {
+                // Better Error Handling
+                throw new Error(data.error || res.statusText || "Unbekannter Fehler");
             }
+
+            // STEP 2: LOCAL SAVE
+            btn.textContent = "Speichere...";
+            console.log("Validation Success. Saving locally...", data);
+
+            // Send full cloud response back to local server to persist
+            // We inject the licenseKey back in if missing, though Cloud should return context
+            const payload = { ...data, licenseKey: key };
+
+            const localRes = await fetch(`${API_BASE}/complete-activation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const localData = await localRes.json();
+
+            if (!localRes.ok || !localData.success) {
+                throw new Error("Lokaler Speicherfehler: " + (localData.error || localRes.statusText));
+            }
+
+            // SUCCESS
+            btn.textContent = "Erfolg!";
+            btn.style.background = "#00ff88";
+            setTimeout(() => {
+                window.location.href = '/enterprise';
+            }, 1000);
+
         } catch(err) {
             console.error(err);
-            showError("Verbindungsfehler. Ist der Server online?");
+            showError("Fehler: " + err.message);
             btn.disabled = false;
             btn.textContent = "Aktivieren";
         }

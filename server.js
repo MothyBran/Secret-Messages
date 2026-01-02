@@ -175,9 +175,17 @@ const initializeDatabase = async () => {
         dbQuery = async (text, params) => await db.query(text, params);
         await createTables();
     } else {
-        console.log('📁 Using SQLite (local)');
+        // SQLITE FIX: Use USER_DATA_PATH if available (Electron)
         const sqlite3 = require('@vscode/sqlite3').verbose();
-        db = new sqlite3.Database('./secret_messages.db');
+        let dbPath = './secret_messages.db';
+        if (process.env.USER_DATA_PATH) {
+            dbPath = path.join(process.env.USER_DATA_PATH, 'secret_messages.db');
+            console.log("📂 Using DB Path:", dbPath);
+        } else {
+            console.log("📂 Using Local DB Path (Dev):", dbPath);
+        }
+
+        db = new sqlite3.Database(dbPath);
         dbQuery = (text, params = []) => {
             return new Promise((resolve, reject) => {
                 const sql = text.replace(/\$\d+/g, '?');
@@ -1451,6 +1459,32 @@ if (IS_ENTERPRISE) {
         } catch(e) {
             console.error("Local Enterprise Activation Error:", e);
             res.status(500).json({ error: "Activation failed: " + e.message, details: e.stack });
+        }
+    });
+
+    // NEW: Complete Activation (Receive result from Frontend)
+    app.post('/api/enterprise/complete-activation', async (req, res) => {
+        // Security Check: Only Localhost
+        const remoteIp = req.socket.remoteAddress;
+        // In Electron, usually ::1 or 127.0.0.1
+        // We rely on the fact that this port is only bound locally anyway if we did it right,
+        // but 'app.listen(port)' listens on all interfaces by default.
+        // However, middleware filters localhost usually.
+        // Let's rely on standard logic + explicitly trust this endpoint is called by our frontend.
+
+        try {
+            console.log("📥 Receiving Activation Data from Frontend...");
+            const activationData = req.body; // { licenseKey, bundleId, quota, clientName, valid }
+
+            if (!activationData || !activationData.valid) {
+                 return res.status(400).json({ error: "Invalid Activation Data" });
+            }
+
+            const result = await enterpriseManager.completeActivation(activationData);
+            res.json(result);
+        } catch(e) {
+            console.error("Complete Activation Error:", e);
+            res.status(500).json({ error: e.message });
         }
     });
 

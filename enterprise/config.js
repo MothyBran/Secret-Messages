@@ -5,7 +5,14 @@ const crypto = require('crypto');
 const { machineIdSync } = require('node-machine-id');
 
 // File path for the vault
-const CONFIG_FILE = path.join(__dirname, '..', 'data', 'enterprise_config.json');
+// FIX: Use USER_DATA_PATH if available
+let CONFIG_FILE;
+if (process.env.USER_DATA_PATH) {
+    CONFIG_FILE = path.join(process.env.USER_DATA_PATH, 'enterprise_config.json');
+} else {
+    CONFIG_FILE = path.join(__dirname, '..', 'data', 'enterprise_config.json');
+}
+console.log("📂 Config File Path:", CONFIG_FILE);
 
 // Ensure data directory exists
 const dataDir = path.dirname(CONFIG_FILE);
