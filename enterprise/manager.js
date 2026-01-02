@@ -38,7 +38,8 @@ module.exports = {
 
         // Real Call Implementation
         return new Promise((resolve, reject) => {
-            const data = JSON.stringify({ key: masterKey });
+            // Update: Send 'licenseKey' instead of 'key' to match Server expectations
+            const data = JSON.stringify({ licenseKey: masterKey });
             const req = https.request({
                 hostname: 'www.secure-msg.app',
                 port: 443,
