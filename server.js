@@ -1442,10 +1442,16 @@ if (IS_ENTERPRISE) {
 
     app.post('/api/enterprise/activate', async (req, res) => {
         try {
-            const { key } = req.body;
-            const result = await enterpriseManager.activate(key);
+            const { licenseKey } = req.body; // Adjusted to match Client Payload
+            if (!licenseKey) return res.status(400).json({ error: "licenseKey is required" });
+
+            // Pass to manager (which calls Cloud)
+            const result = await enterpriseManager.activate(licenseKey);
             res.json(result);
-        } catch(e) { res.status(400).json({ error: e.message }); }
+        } catch(e) {
+            console.error("Local Enterprise Activation Error:", e);
+            res.status(500).json({ error: "Activation failed: " + e.message, details: e.stack });
+        }
     });
 
     app.post('/api/enterprise/users', async (req, res) => {

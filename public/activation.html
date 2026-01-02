@@ -138,8 +138,12 @@
             const res = await fetch(`${API_BASE}/activate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key })
+                body: JSON.stringify({ licenseKey: key })
             });
+
+            if (res.status === 400 || res.status === 404) {
+                throw new Error("Server konnte Anfrage nicht verarbeiten. Bitte Jules/Support kontaktieren.");
+            }
 
             const data = await res.json();
 
