@@ -124,5 +124,20 @@ module.exports = {
         return user;
     },
 
+    // NEW: Complete Activation Locally
+    completeActivation: async (data) => {
+        console.log("🏢 Finalizing Activation Locally...");
+        config.activated = true;
+        config.masterKey = data.licenseKey; // Correct field name
+        config.bundleId = data.bundleId;
+        config.totalLicenses = data.quota;
+        if (!config.users) config.users = [];
+
+        configStore.save(config);
+        console.log("✅ Configuration Saved.");
+
+        return { success: true };
+    },
+
     getUsers: () => config.users.map(u => ({ username: u.username, id: u.id, isOpenRecipient: u.isOpenRecipient }))
 };
