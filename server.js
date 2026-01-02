@@ -278,6 +278,16 @@ const createTables = async () => {
             status VARCHAR(20) DEFAULT 'open'
         )`);
 
+        // Enterprise Keys Table (Recovery / Specific)
+        await dbQuery(`CREATE TABLE IF NOT EXISTS enterprise_keys (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            key TEXT UNIQUE NOT NULL,
+            bundle_id TEXT,
+            quota_max INTEGER DEFAULT 10,
+            activated_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
+            is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT TRUE' : 'INTEGER DEFAULT 1'}
+        )`);
+
         // Add columns to license_keys if missing (Schema Migration)
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
@@ -1480,52 +1490,69 @@ if (IS_ENTERPRISE) {
     // CLOUD-SIDE ENTERPRISE ACTIVATION ENDPOINT
     // Validates the Master Key from a Local Hub
     app.post('/api/enterprise/activate', async (req, res) => {
-        // CORS HEADERS FOR ELECTRON (Allow any origin for this specific endpoint or specific ones)
+        // CORS HEADERS FOR ELECTRON (Allow any origin for this specific endpoint)
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
 
         try {
-            const { key } = req.body;
-            console.log("Enterprise Activation Request for Key:", key); // LOGGING
+            const { licenseKey } = req.body;
+            console.log("Enterprise Activation Request for Key:", licenseKey); // LOGGING
 
-            if (!key) return res.status(400).json({ error: 'Missing Key' });
+            if (!licenseKey) {
+                return res.status(400).json({ success: false, error: "EMPTY_PAYLOAD", details: "licenseKey missing in body" });
+            }
 
-            const result = await dbQuery("SELECT * FROM license_keys WHERE key_code = $1 AND product_code = 'ENTERPRISE'", [key]);
+            // 1. Try license_keys (Main Table)
+            let result = await dbQuery("SELECT * FROM license_keys WHERE key_code = $1 AND product_code = 'ENTERPRISE'", [licenseKey]);
+
+            // 2. Fallback to enterprise_keys (Recovery Table) if empty
+            if (result.rows.length === 0) {
+                 result = await dbQuery("SELECT * FROM enterprise_keys WHERE key = $1", [licenseKey]);
+            }
 
             if (result.rows.length === 0) {
                 console.log("Key not found in DB");
-                return res.status(404).json({ valid: false, error: 'Invalid Enterprise Key' });
+                return res.status(404).json({ success: false, valid: false, error: 'Invalid Enterprise Key' });
             }
 
             const license = result.rows[0];
             const isBlocked = isPostgreSQL ? license.is_blocked : (license.is_blocked === 1);
 
+            // Handle schema diffs (license_keys vs enterprise_keys)
+            // license_keys has: key_code, product_code, max_users, client_name
+            // enterprise_keys has: key, quota_max, bundle_id
+
+            // Normalize
+            const quota = license.max_users || license.quota_max || 10;
+            const bundleId = license.bundle_id || 'ENT-BUNDLE';
+            const clientName = license.client_name || 'Enterprise Customer';
+            const dbId = license.id;
+            const tableUsed = license.key_code ? 'license_keys' : 'enterprise_keys';
+
             if (isBlocked) {
                 console.log("Key Blocked");
-                return res.status(403).json({ valid: false, error: 'License Blocked' });
+                return res.status(403).json({ success: false, valid: false, error: 'License Blocked' });
             }
 
-            // Update Activated status on Cloud if strictly needed, or just validate.
-            // Usually we mark it as "In Use" or track connection, but for this "Offline" logic, we just validate.
-            // Let's update activated_at if null to mark first activation.
+            // Update Activated status
             if(!license.activated_at) {
-                await dbQuery("UPDATE license_keys SET is_active = $1, activated_at = $2 WHERE id = $3",
-                    [(isPostgreSQL ? true : 1), new Date().toISOString(), license.id]);
+                await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`,
+                    [(isPostgreSQL ? true : 1), new Date().toISOString(), dbId]);
             }
 
-            console.log("Activation Success for", license.client_name);
+            console.log("Activation Success for", clientName);
 
             res.json({
+                success: true,
                 valid: true,
-                bundleId: license.bundle_id || 'ENT-BUNDLE',
-                quota: license.max_users || 5,
-                clientName: license.client_name || 'Enterprise Customer'
+                bundleId: bundleId,
+                quota: quota,
+                clientName: clientName
             });
 
         } catch (e) {
-            console.error("Cloud Activation Error:", e);
-            // Detailed JSON Error
-            res.status(500).json({ error: "Server Error", details: e.message });
+            console.error("DETAILED_ERROR:", e.stack);
+            res.status(500).json({ success: false, error: "Server Error", details: e.message });
         }
     });
 }
