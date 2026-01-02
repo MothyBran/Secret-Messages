@@ -117,7 +117,7 @@ app.use(helmet({
       scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://api.stripe.com", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://secure-msg.app", "https://www.secure-msg.app", "https://api.stripe.com", "https://js.stripe.com"],
       imgSrc: ["'self'", "data:", "https:"]
     }
   },
