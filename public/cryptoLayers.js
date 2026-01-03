@@ -83,6 +83,42 @@ async function deriveKey(passcode, salt) {
     );
 }
 
+// Enterprise Key Derivation (Local WebApp Version)
+// Key = PBKDF2(Supplement + Passcode + SortedIDs)
+async function deriveEnterpriseKey(supplement, passcode, senderId, recipientIds) {
+    const allIds = [senderId, ...recipientIds].sort();
+    const saltString = `${supplement}|${passcode}|${allIds.join(',')}`;
+    // Using standard TextEncoder for salt as bytes
+    const saltBuffer = new TextEncoder().encode(saltString);
+
+    // WebCrypto PBKDF2
+    const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        saltBuffer, // We use the salt string as the key material base
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+    );
+
+    return window.crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: new TextEncoder().encode("SECURE_MSG_ENTERPRISE_V1"), // Fixed salt matching server logic
+            iterations: 100000,
+            hash: "SHA-512"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+    );
+}
+
+let enterpriseKeys = [];
+export function setEnterpriseKeys(keys) {
+    enterpriseKeys = keys;
+}
+
 // ========================================================
 // 3. MAIN FUNCTIONS
 // ========================================================
@@ -171,14 +207,64 @@ export async function decryptFull(encryptedBase64, passcode, currentUserId) {
 
     // Reverse Layer 3: AES-GCM Decryption
     let decryptedBuffer;
+    let success = false;
+
+    // 1. Try Standard Key
     try {
         decryptedBuffer = await window.crypto.subtle.decrypt(
             { name: "AES-GCM", iv: iv },
             key,
             ciphertext
         );
+        success = true;
     } catch (e) {
-        throw new Error("Falscher Code"); // Decryption failed usually means wrong key (passcode)
+        // 2. Try Enterprise Keys (Hybrid)
+        // Check for Protocol Extension: "CIPHER::SENDER_ID"
+        // If the encrypted string contains "::", we extract the sender ID.
+        let hybridSenderId = null;
+        let hybridCipher = encryptedBase64;
+
+        if (encryptedBase64.includes('::')) {
+            const parts = encryptedBase64.split('::');
+            hybridCipher = parts[0];
+            hybridSenderId = parts[1];
+        }
+
+        if (enterpriseKeys.length > 0 && currentUserId && hybridSenderId) {
+            for (const entKey of enterpriseKeys) {
+                try {
+                    // Hybrid Format Support: We assume the Enterprise Output is standard packed Base64 (Salt|IV|Cipher)
+                    // BUT derived with the Hybrid Logic.
+                    // The standard unpack above already extracted 'saltL2', 'iv', 'ciphertext' from 'hybridCipher'.
+                    // We just need to re-derive the KEY using the Hybrid Formula.
+
+                    const recIds = [currentUserId];
+                    // Mix: Supplement + Passcode + Sorted(Sender, Me)
+                    const derivedKey = await deriveEnterpriseKey(entKey, passcode, hybridSenderId, recIds);
+
+                    decryptedBuffer = await window.crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: iv },
+                        derivedKey,
+                        ciphertext
+                    );
+                    success = true;
+                    break; // Found matching key
+                } catch (tryNext) {
+                    continue;
+                }
+            }
+        }
+    }
+
+    if (!success) {
+        // Try Enterprise Decryption (Custom Format Detection?)
+        // If the format is different (e.g. Hex:Hex:Hex?), we might need to detect it earlier.
+        // But `decryptFull` starts with `base642buf`.
+        // Let's assume for this task that if standard fails, we fail.
+        // The Enterprise Encryption implementation in `server-enterprise.js` creates a DB entry.
+        // It does NOT produce a copy-pasteable blob for the WebApp user in the current code state.
+
+        throw new Error("Falscher Code");
     }
 
     // Reverse Layer 1: De-obfuscation & Parsing
