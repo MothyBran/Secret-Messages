@@ -124,7 +124,7 @@ const createTables = async () => {
 // 4. Static Files
 // Serve public folder. 'index: false' is crucial so we don't auto-serve index.html at '/'
 // allowing our Router to handle the landing logic.
-app.use(express.static('public', { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // 5. Start Server
 initializeDatabase().then(() => {

@@ -167,10 +167,13 @@ module.exports = (dbQuery) => {
             // 4. Encrypt
             const encryptedData = cryptoLib.encrypt(payload, derivedKey); // { payload, iv }
 
-            // 5. Store
+            // 5. Store (Append SenderID to payload for Hybrid Decryption Support)
+            // Format: "Ciphertext:AuthTag::SenderID"
+            const finalPayload = `${encryptedData.payload}::${senderId}`;
+
             await dbQuery(
                 `INSERT INTO messages (sender_id, recipient_id, payload, iv, created_at) VALUES ($1, $2, $3, $4, datetime('now'))`,
-                [senderId, recipientId, encryptedData.payload, encryptedData.iv]
+                [senderId, recipientId, finalPayload, encryptedData.iv]
             );
 
             res.json({ success: true });
@@ -225,8 +228,10 @@ module.exports = (dbQuery) => {
             const count = result.rows[0].c;
 
             if (count > 0) {
-                // System initialized -> Login/Portal
-                res.redirect('/portal.html');
+                // System initialized -> FORCE LOGIN
+                // We do not redirect to portal directly. The portal is protected client-side,
+                // but for root navigation, we send them to login.
+                res.redirect('/login-enterprise.html');
             } else {
                 // No users -> Setup
                 res.redirect('/admin-setup.html');

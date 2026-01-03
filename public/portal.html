@@ -96,10 +96,13 @@
             alert("Key copied to clipboard!");
         }
 
-        // LOCK
+        // LOCK / LOGOUT
         document.getElementById('lockBtn').addEventListener('click', async () => {
-            await fetch('/api/lock', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+            try {
+                await fetch('/api/lock', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+            } catch(e) {}
             sessionStorage.clear();
+            // Redirect to LOCAL Login, not WebApp
             window.location.href = '/login-enterprise.html';
         });
 
