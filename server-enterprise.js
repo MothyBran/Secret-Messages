@@ -88,6 +88,7 @@ const createTables = async () => {
         access_code_hash TEXT,
         license_key_id INTEGER,
         is_blocked INTEGER DEFAULT 0,
+        is_admin INTEGER DEFAULT 0,
         registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 

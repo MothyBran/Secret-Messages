@@ -4,15 +4,94 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enterprise Setup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #050505; color: #e0e0e0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        h1 { color: #ff9d00; }
+        :root {
+            --bg-dark: #050505;
+            --bg-panel: #0a0a0a;
+            --accent-primary: #ff9d00;
+            --text-main: #e0e0e0;
+            --font-head: 'Rajdhani', sans-serif;
+            --font-mono: 'Roboto Mono', monospace;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-head);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+        .setup-box {
+            background: var(--bg-panel);
+            padding: 40px;
+            border: 1px solid var(--accent-primary);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 0 30px rgba(255, 157, 0, 0.2);
+        }
+        h1 { color: var(--accent-primary); text-transform: uppercase; letter-spacing: 2px; }
+        input {
+            width: 100%; padding: 12px; margin: 10px 0;
+            background: #000; border: 1px solid #333;
+            color: var(--accent-primary); font-family: var(--font-mono);
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%; padding: 12px;
+            background: var(--accent-primary); border: none;
+            color: #000; font-weight: bold; text-transform: uppercase;
+            cursor: pointer; margin-top: 20px;
+        }
+        button:hover { opacity: 0.9; }
+        .error { color: #ff3333; margin-top: 10px; min-height: 20px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <div>
+    <div class="setup-box">
         <h1>System Setup</h1>
-        <p>Bitte führen Sie die Erstkonfiguration durch.</p>
+        <p>Erstellen Sie das lokale Admin-Konto.</p>
+        <form id="setupForm">
+            <input type="text" id="username" placeholder="Admin Benutzername" required autocomplete="off">
+            <input type="password" id="password" placeholder="Passwort / Zugangscode" required>
+            <button type="submit">Setup Abschließen</button>
+        </form>
+        <div class="error" id="msg"></div>
     </div>
+
+    <script>
+        document.getElementById('setupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+
+            msg.textContent = "Verarbeite...";
+
+            try {
+                const res = await fetch('/api/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    msg.style.color = "#00ff88";
+                    msg.textContent = "Erfolg! Weiterleitung...";
+                    setTimeout(() => window.location.href = '/', 1000);
+                } else {
+                    msg.style.color = "#ff3333";
+                    msg.textContent = "Fehler: " + (data.error || "Unbekannt");
+                }
+            } catch (err) {
+                msg.textContent = "Netzwerkfehler";
+            }
+        });
+    </script>
 </body>
 </html>
