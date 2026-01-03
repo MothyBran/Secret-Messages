@@ -52,9 +52,10 @@
 </head>
 <body>
     <div class="setup-box">
-        <h1>System Setup</h1>
-        <p>Erstellen Sie das lokale Admin-Konto.</p>
+        <h1>Enterprise Setup</h1>
+        <p>Aktivierung & Admin-Erstellung</p>
         <form id="setupForm">
+            <input type="text" id="masterKey" placeholder="Master Lizenzschlüssel" required autocomplete="off">
             <input type="text" id="username" placeholder="Admin Benutzername" required autocomplete="off">
             <input type="password" id="password" placeholder="Passwort / Zugangscode" required>
             <button type="submit">Setup Abschließen</button>
@@ -65,31 +66,34 @@
     <script>
         document.getElementById('setupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const key = document.getElementById('masterKey').value;
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
             const msg = document.getElementById('msg');
 
-            msg.textContent = "Verarbeite...";
+            msg.style.color = "#ff9d00"; // Processing color
+            msg.textContent = "Validiere Lizenz...";
 
             try {
                 const res = await fetch('/api/setup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: user, password: pass })
+                    body: JSON.stringify({ masterKey: key, username: user, password: pass })
                 });
 
                 const data = await res.json();
 
                 if (res.ok && data.success) {
                     msg.style.color = "#00ff88";
-                    msg.textContent = "Erfolg! Weiterleitung...";
-                    setTimeout(() => window.location.href = '/', 1000);
+                    msg.textContent = "Erfolg! Weiterleitung zum Login...";
+                    setTimeout(() => window.location.href = '/login-enterprise.html', 1500);
                 } else {
                     msg.style.color = "#ff3333";
                     msg.textContent = "Fehler: " + (data.error || "Unbekannt");
                 }
             } catch (err) {
-                msg.textContent = "Netzwerkfehler";
+                msg.style.color = "#ff3333";
+                msg.textContent = "Netzwerkfehler: Server nicht erreichbar.";
             }
         });
     </script>
