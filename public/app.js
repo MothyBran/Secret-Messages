@@ -1109,6 +1109,7 @@ async function handleLogout() {
     currentUser=null;
     authToken=null;
     contacts = []; // Clear contacts from memory
+    setEnterpriseKeys([]); // Clear enterprise keys from memory
     updateSidebarInfo(null);
     document.getElementById('sidebar').classList.remove('active');
     showSection('loginSection');
@@ -1863,11 +1864,16 @@ async function checkUnreadMessages() {
 
 // --- ENTERPRISE KEY MANAGEMENT ---
 function initEnterpriseKeys() {
-    const stored = localStorage.getItem('ent_keys');
+    if (!currentUser || !currentUser.sm_id) return;
+
+    // User-Specific Storage Key
+    const storageKey = `sm_ent_keys_${currentUser.sm_id}`;
+
+    const stored = localStorage.getItem(storageKey);
     const keys = stored ? JSON.parse(stored) : [];
 
     // Inject into Crypto Layer
-    if(keys.length > 0) setEnterpriseKeys(keys);
+    setEnterpriseKeys(keys);
 
     // UI Logic
     const list = document.getElementById('entKeyList');
@@ -1881,27 +1887,43 @@ function initEnterpriseKeys() {
         });
     }
 
-    document.getElementById('btnAddEntKey')?.addEventListener('click', () => {
-        const input = document.getElementById('newEntKey');
-        const val = input.value.trim();
-        if(!val) return;
-
-        if(!keys.includes(val)) {
-            keys.push(val);
-            localStorage.setItem('ent_keys', JSON.stringify(keys));
-            setEnterpriseKeys(keys); // Update live crypto
-            initEnterpriseKeys(); // Refresh UI
-            input.value = '';
-            showToast("Schlüssel hinzugefügt", 'success');
-        }
-    });
+    // Event Listener logic handled carefully to avoid duplicates
+    // Since init might be called multiple times, we remove old listener if possible or use a named function wrapper.
+    // Simpler: Just check if listener attached or attach once in setupUIEvents.
+    // Here, we just handle the ADD logic inside this scope or externalize it.
+    // Best practice: Move event listener setup to setupUIEvents and only use this function for Data/UI Refresh.
 }
 
+// Move Add Logic to global scope or attach once
+document.getElementById('btnAddEntKey')?.addEventListener('click', () => {
+    if (!currentUser || !currentUser.sm_id) return;
+    const storageKey = `sm_ent_keys_${currentUser.sm_id}`;
+
+    const input = document.getElementById('newEntKey');
+    const val = input.value.trim();
+    if(!val) return;
+
+    let stored = localStorage.getItem(storageKey);
+    let keys = stored ? JSON.parse(stored) : [];
+
+    if(!keys.includes(val)) {
+        keys.push(val);
+        localStorage.setItem(storageKey, JSON.stringify(keys));
+        setEnterpriseKeys(keys); // Update live crypto
+        initEnterpriseKeys(); // Refresh UI
+        input.value = '';
+        showToast("Schlüssel hinzugefügt", 'success');
+    }
+});
+
 window.removeEntKey = function(key) {
-    const stored = localStorage.getItem('ent_keys');
+    if (!currentUser || !currentUser.sm_id) return;
+    const storageKey = `sm_ent_keys_${currentUser.sm_id}`;
+
+    const stored = localStorage.getItem(storageKey);
     let keys = stored ? JSON.parse(stored) : [];
     keys = keys.filter(k => k !== key);
-    localStorage.setItem('ent_keys', JSON.stringify(keys));
+    localStorage.setItem(storageKey, JSON.stringify(keys));
     setEnterpriseKeys(keys);
     initEnterpriseKeys();
 };
