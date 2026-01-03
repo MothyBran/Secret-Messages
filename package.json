@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "deploy": "pm2 start ecosystem.config.js",
     "dist": "cross-env APP_MODE=ENTERPRISE electron-builder --publish never",
-    "build:enterprise": "cross-env APP_MODE=ENTERPRISE electron-builder --publish never",
+    "build:enterprise": "cross-env APP_MODE=ENTERPRISE electron-builder --publish always",
     "rebuild": "electron-rebuild -f -w sqlite3"
   },
   "build": {

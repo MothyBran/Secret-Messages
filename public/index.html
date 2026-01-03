@@ -333,6 +333,7 @@
         
         <a href="#" class="sidebar-item" id="navGuide">📖 Anleitung</a>
         <a href="#" class="sidebar-item" id="navInfo">ℹ️ Info & Sicherheit</a>
+        <a href="#" class="sidebar-item" id="navEnterpriseKeys" onclick="openModal('enterpriseKeysModal')">🏢 Enterprise-Schlüssel</a>
         <a href="/shop" class="sidebar-item" id="navShop">🛒 Lizenz Shop</a>
         <a href="#" class="sidebar-item" id="faqBtn">
             <svg style="width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -1115,6 +1116,26 @@
                 <button class="btn" id="btnCancelBackup" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
                 <button class="btn btn-primary" id="btnConfirmBackup" style="flex:1;">OK</button>
             </div>
+        </div>
+    </div>
+
+    <!-- ENTERPRISE KEYS MODAL -->
+    <div id="enterpriseKeysModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">ENTERPRISE SCHLÜSSEL</h3>
+            <p style="color: #ccc; font-size: 0.9rem; margin-bottom: 20px;">
+                Fügen Sie hier Schlüssel-Zusätze hinzu, um Nachrichten von Enterprise-Kontakten zu entschlüsseln.
+            </p>
+
+            <div id="entKeyList" style="margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
+                <!-- Keys go here -->
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="newEntKey" class="input-field" placeholder="Schlüssel-Zusatz eingeben" style="text-align:center;">
+            </div>
+            <button class="btn btn-primary" id="btnAddEntKey" style="width:100%;">Hinzufügen</button>
+            <button onclick="document.getElementById('enterpriseKeysModal').classList.remove('active')" class="btn" style="width:100%; margin-top:10px; border-color:#555; color:#fff;">Schließen</button>
         </div>
     </div>
 

@@ -35,6 +35,19 @@
     </header>
 
     <div class="dashboard">
+        <!-- STATUS & KEYS -->
+        <div class="card" style="grid-column: span 2;">
+            <h2>Status & Hybrid Keys</h2>
+            <p>System Active. Secure Environment.</p>
+            <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                <label style="color:#888; font-size: 0.8rem;">HYBRID KEY SUPPLEMENT (For external contacts)</label>
+                <div style="display:flex; gap:10px; margin-top:5px;">
+                    <input type="text" id="keySupplement" readonly style="color:var(--accent-primary); letter-spacing: 2px; width: 300px;">
+                    <button class="action-btn" onclick="copyKey()">COPY</button>
+                </div>
+            </div>
+        </div>
+
         <!-- WRITE -->
         <div class="card">
             <h2>Secure Message</h2>
@@ -63,6 +76,25 @@
 
         if (!token) window.location.href = '/login-enterprise.html';
         document.getElementById('displayUser').textContent = "Logged in as: " + user;
+
+        // FETCH SUPPLEMENT
+        async function loadSupplement() {
+            try {
+                const res = await fetch('/api/settings/supplement', { headers: { 'Authorization': 'Bearer ' + token } });
+                const data = await res.json();
+                if(data.supplement) {
+                    document.getElementById('keySupplement').value = data.supplement;
+                }
+            } catch(e) { console.error(e); }
+        }
+        loadSupplement();
+
+        function copyKey() {
+            const el = document.getElementById('keySupplement');
+            el.select();
+            document.execCommand('copy');
+            alert("Key copied to clipboard!");
+        }
 
         // LOCK
         document.getElementById('lockBtn').addEventListener('click', async () => {

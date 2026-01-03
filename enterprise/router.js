@@ -133,16 +133,27 @@ module.exports = (dbQuery) => {
         res.json({ success: true });
     });
 
-    // 4. MESSAGES API (Encryption/Decryption)
+    // 4. SETTINGS API (Hybrid Key)
+    router.get('/api/settings/supplement', verifySession, async (req, res) => {
+        try {
+            const resKey = await dbQuery("SELECT value FROM settings WHERE key = 'key_supplement'");
+            if (resKey.rows.length === 0) return res.status(404).json({ error: "No Supplement Key found" });
+            res.json({ supplement: resKey.rows[0].value });
+        } catch(e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // 5. MESSAGES API (Encryption/Decryption)
     router.post('/api/messages', verifySession, async (req, res) => {
         try {
             const { recipientId, payload } = req.body;
             if (!recipientId || !payload) return res.status(400).json({ error: "Missing Data" });
 
-            // 1. Get Master Key
-            const mkRes = await dbQuery("SELECT value FROM settings WHERE key = 'master_key'");
-            if (mkRes.rows.length === 0) throw new Error("System Integrity Error: No Master Key");
-            const masterKey = mkRes.rows[0].value;
+            // 1. Get Key Supplement (Use as Base Key for compatibility with External Users)
+            const mkRes = await dbQuery("SELECT value FROM settings WHERE key = 'key_supplement'");
+            if (mkRes.rows.length === 0) throw new Error("System Integrity Error: No Supplement Key");
+            const baseKey = mkRes.rows[0].value;
 
             // 2. Get Password from Session
             const password = req.session.password;
@@ -151,7 +162,7 @@ module.exports = (dbQuery) => {
             // 3. Derive Key
             const senderId = req.user.username; // Use username as ID for Enterprise
             const recipientIds = [recipientId];
-            const derivedKey = cryptoLib.deriveKey(masterKey, password, senderId, recipientIds);
+            const derivedKey = cryptoLib.deriveKey(baseKey, password, senderId, recipientIds);
 
             // 4. Encrypt
             const encryptedData = cryptoLib.encrypt(payload, derivedKey); // { payload, iv }
@@ -172,10 +183,10 @@ module.exports = (dbQuery) => {
 
     router.get('/api/messages', verifySession, async (req, res) => {
         try {
-            // 1. Get Master Key
-            const mkRes = await dbQuery("SELECT value FROM settings WHERE key = 'master_key'");
-            if (mkRes.rows.length === 0) throw new Error("No Master Key");
-            const masterKey = mkRes.rows[0].value;
+            // 1. Get Key Supplement
+            const mkRes = await dbQuery("SELECT value FROM settings WHERE key = 'key_supplement'");
+            if (mkRes.rows.length === 0) throw new Error("No Supplement Key");
+            const baseKey = mkRes.rows[0].value;
             const password = req.session.password;
 
             // 2. Fetch Messages (Sent or Received)
@@ -188,10 +199,9 @@ module.exports = (dbQuery) => {
             // 3. Decrypt on the fly (PoC)
             const decryptedMsgs = msgs.rows.map(m => {
                 try {
-                    // Re-Derive Key (Factors: MasterKey + Password + Sender + Recipient)
-                    // Note: Recipient logic assumes single recipient for PoC
+                    // Re-Derive Key (Factors: BaseKey + Password + Sender + Recipient)
                     const recIds = [m.recipient_id];
-                    const key = cryptoLib.deriveKey(masterKey, password, m.sender_id, recIds);
+                    const key = cryptoLib.deriveKey(baseKey, password, m.sender_id, recIds);
                     const plain = cryptoLib.decrypt(m.payload, m.iv, key);
                     return { ...m, payload: plain, encrypted: false };
                 } catch (decErr) {

@@ -3,7 +3,7 @@
 const APP_VERSION = 'Beta v0.61';
 
 // Import encryption functions including backup helpers
-import { encryptFull, decryptFull } from './cryptoLayers.js';
+import { encryptFull, decryptFull, setEnterpriseKeys } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -81,6 +81,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(script);
         }
     }).catch(e=>console.log("Config check failed", e));
+
+    // ENTERPRISE KEYS INIT
+    initEnterpriseKeys();
 
     setupIdleTimer();
 });
@@ -1857,6 +1860,51 @@ async function checkUnreadMessages() {
 
     } catch(e) { console.error("Msg Check Failed", e); }
 }
+
+// --- ENTERPRISE KEY MANAGEMENT ---
+function initEnterpriseKeys() {
+    const stored = localStorage.getItem('ent_keys');
+    const keys = stored ? JSON.parse(stored) : [];
+
+    // Inject into Crypto Layer
+    if(keys.length > 0) setEnterpriseKeys(keys);
+
+    // UI Logic
+    const list = document.getElementById('entKeyList');
+    if(list) {
+        list.innerHTML = '';
+        keys.forEach(k => {
+            const d = document.createElement('div');
+            d.style.cssText = "background:#111; padding:10px; border:1px solid #333; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center; font-family:'Roboto Mono'; font-size:0.8rem;";
+            d.innerHTML = `<span>${k}</span><button onclick="removeEntKey('${k}')" style="background:none;border:none;color:red;cursor:pointer;">✖</button>`;
+            list.appendChild(d);
+        });
+    }
+
+    document.getElementById('btnAddEntKey')?.addEventListener('click', () => {
+        const input = document.getElementById('newEntKey');
+        const val = input.value.trim();
+        if(!val) return;
+
+        if(!keys.includes(val)) {
+            keys.push(val);
+            localStorage.setItem('ent_keys', JSON.stringify(keys));
+            setEnterpriseKeys(keys); // Update live crypto
+            initEnterpriseKeys(); // Refresh UI
+            input.value = '';
+            showToast("Schlüssel hinzugefügt", 'success');
+        }
+    });
+}
+
+window.removeEntKey = function(key) {
+    const stored = localStorage.getItem('ent_keys');
+    let keys = stored ? JSON.parse(stored) : [];
+    keys = keys.filter(k => k !== key);
+    localStorage.setItem('ent_keys', JSON.stringify(keys));
+    setEnterpriseKeys(keys);
+    initEnterpriseKeys();
+};
 
 async function loadAndShowInbox() {
     showSection('inboxSection');
