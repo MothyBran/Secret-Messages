@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg-dark: #050505; --accent-primary: #ff9d00; --text-main: #e0e0e0; font-family: 'Rajdhani', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { padding: 40px; border: 1px solid var(--accent-primary); text-align: center; width: 350px; box-shadow: 0 0 30px rgba(255, 157, 0, 0.2); background: #0a0a0a; }
+        h1 { color: var(--accent-primary); letter-spacing: 2px; text-transform: uppercase; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #333; color: var(--accent-primary); box-sizing: border-box; font-family: 'Roboto Mono'; }
+        button { width: 100%; padding: 12px; background: var(--accent-primary); border: none; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        button:hover { opacity: 0.9; }
+        .error { color: #ff3333; margin-top: 15px; font-size: 0.9rem; min-height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>Enterprise Login</h1>
+        <form id="loginForm">
+            <input type="text" id="username" placeholder="Benutzername" required autocomplete="off">
+            <input type="password" id="password" placeholder="Passwort" required>
+            <button type="submit">Entsperren</button>
+        </form>
+        <div class="error" id="msg"></div>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+            msg.textContent = "Prüfe...";
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    sessionStorage.setItem('ent_token', data.token);
+                    sessionStorage.setItem('ent_user', u);
+                    window.location.href = data.redirect;
+                } else {
+                    msg.textContent = data.error || "Login fehlgeschlagen";
+                }
+            } catch (err) { msg.textContent = "Netzwerkfehler"; }
+        });
+    </script>
+</body>
+</html>

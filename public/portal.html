@@ -2,17 +2,139 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enterprise Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #050505; color: #e0e0e0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        h1 { color: #00BFFF; }
+        :root { --bg-dark: #050505; --accent-primary: #00BFFF; --text-main: #e0e0e0; font-family: 'Rajdhani', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); font-family: 'Roboto Mono', monospace; margin: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px; }
+        h1 { color: var(--accent-primary); margin: 0; }
+        button.lock-btn { background: #ff3333; color: white; border: none; padding: 10px 20px; font-family: 'Rajdhani'; font-weight: bold; cursor: pointer; }
+
+        .dashboard { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #111; padding: 20px; border: 1px solid #333; }
+        h2 { color: #fff; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
+
+        .enc-test { display: flex; gap: 10px; flex-direction: column; }
+        input, textarea { background: #000; border: 1px solid #444; color: #fff; padding: 10px; font-family: 'Roboto Mono'; width: 100%; box-sizing: border-box; }
+        button.action-btn { background: var(--accent-primary); border: none; padding: 10px; color: #000; font-weight: bold; cursor: pointer; }
+
+        .msg-list { max-height: 400px; overflow-y: auto; }
+        .msg-item { background: #050505; padding: 10px; margin-bottom: 10px; border-left: 3px solid var(--accent-primary); }
+        .msg-meta { font-size: 0.8rem; color: #666; margin-bottom: 5px; }
+        .msg-body { color: #fff; }
     </style>
 </head>
 <body>
-    <div>
-        <h1>Enterprise Portal</h1>
-        <p>Willkommen im isolierten Enterprise Hub.</p>
+    <header>
+        <h1>ENTERPRISE HUB</h1>
+        <div>
+            <span id="displayUser" style="margin-right: 20px; color: #888;">...</span>
+            <button class="lock-btn" id="lockBtn">INTERFACE SPERREN</button>
+        </div>
+    </header>
+
+    <div class="dashboard">
+        <!-- WRITE -->
+        <div class="card">
+            <h2>Secure Message</h2>
+            <div class="enc-test">
+                <label>Recipient ID (Username)</label>
+                <input type="text" placeholder="e.g. admin" id="recipientId">
+                <label>Payload</label>
+                <textarea rows="5" placeholder="Secret Message..." id="payload"></textarea>
+                <button class="action-btn" id="sendBtn">Encrypt & Save to DB</button>
+            </div>
+            <div id="status" style="margin-top: 10px; min-height: 20px;"></div>
+        </div>
+
+        <!-- READ -->
+        <div class="card">
+            <h2>Decrypted Vault <button style="float:right; font-size:0.8rem;" onclick="loadMessages()">Refresh</button></h2>
+            <div class="msg-list" id="msgList">
+                <p style="color:#666;">Loading...</p>
+            </div>
+        </div>
     </div>
+
+    <script>
+        const token = sessionStorage.getItem('ent_token');
+        const user = sessionStorage.getItem('ent_user');
+
+        if (!token) window.location.href = '/login-enterprise.html';
+        document.getElementById('displayUser').textContent = "Logged in as: " + user;
+
+        // LOCK
+        document.getElementById('lockBtn').addEventListener('click', async () => {
+            await fetch('/api/lock', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+            sessionStorage.clear();
+            window.location.href = '/login-enterprise.html';
+        });
+
+        // SEND
+        document.getElementById('sendBtn').addEventListener('click', async () => {
+            const recipient = document.getElementById('recipientId').value;
+            const text = document.getElementById('payload').value;
+            const status = document.getElementById('status');
+
+            status.textContent = "Encrypting...";
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ recipientId: recipient, payload: text })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    status.style.color = "#00ff88";
+                    status.textContent = "Message Encrypted & Stored.";
+                    document.getElementById('payload').value = "";
+                    loadMessages();
+                } else {
+                    status.style.color = "red";
+                    status.textContent = "Error: " + data.error;
+                }
+            } catch(e) { status.textContent = "Network Error"; }
+        });
+
+        // LOAD
+        async function loadMessages() {
+            const list = document.getElementById('msgList');
+            try {
+                const res = await fetch('/api/messages', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const msgs = await res.json();
+
+                list.innerHTML = "";
+                if (msgs.length === 0) {
+                    list.innerHTML = "<p style='color:#666'>No messages found.</p>";
+                    return;
+                }
+
+                msgs.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = 'msg-item';
+                    div.innerHTML = `
+                        <div class="msg-meta">
+                            FROM: ${m.sender_id} | TO: ${m.recipient_id} | ${new Date(m.created_at).toLocaleString()}
+                        </div>
+                        <div class="msg-body">${escapeHtml(m.payload)}</div>
+                    `;
+                    list.appendChild(div);
+                });
+
+            } catch(e) { list.textContent = "Failed to load messages."; }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Init
+        loadMessages();
+    </script>
 </body>
 </html>
