@@ -59,6 +59,12 @@
                 <button class="action-btn" id="sendBtn">Encrypt & Save to DB</button>
             </div>
             <div id="status" style="margin-top: 10px; min-height: 20px;"></div>
+
+            <div id="copyContainer" style="display:none; margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
+                <label style="color:#888; font-size: 0.8rem;">HYBRID ENCRYPTED PACKET (Copy for external users)</label>
+                <textarea id="encryptedPacketOutput" readonly style="width:100%; height:60px; background:#000; color:var(--accent-primary); border:1px solid #333; font-family:'Roboto Mono'; font-size:0.8rem;"></textarea>
+                <button class="action-btn" onclick="copyPacket()" style="width:100%; margin-top:5px;">COPY PACKET</button>
+            </div>
         </div>
 
         <!-- READ -->
@@ -111,8 +117,10 @@
             const recipient = document.getElementById('recipientId').value;
             const text = document.getElementById('payload').value;
             const status = document.getElementById('status');
+            const copyBox = document.getElementById('copyContainer');
 
             status.textContent = "Encrypting...";
+            copyBox.style.display = 'none';
 
             try {
                 const res = await fetch('/api/messages', {
@@ -125,6 +133,12 @@
                     status.style.color = "#00ff88";
                     status.textContent = "Message Encrypted & Stored.";
                     document.getElementById('payload').value = "";
+
+                    if(data.encryptedPacket) {
+                        document.getElementById('encryptedPacketOutput').value = data.encryptedPacket;
+                        copyBox.style.display = 'block';
+                    }
+
                     loadMessages();
                 } else {
                     status.style.color = "red";
@@ -132,6 +146,13 @@
                 }
             } catch(e) { status.textContent = "Network Error"; }
         });
+
+        function copyPacket() {
+            const el = document.getElementById('encryptedPacketOutput');
+            el.select();
+            document.execCommand('copy');
+            alert("Encrypted Packet copied!");
+        }
 
         // LOAD
         async function loadMessages() {

@@ -126,9 +126,54 @@ const createTables = async () => {
 // allowing our Router to handle the landing logic.
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-// 5. Start Server
-initializeDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`🚀 Enterprise Server running on Port ${PORT}`);
+// 5. Start Server Logic
+let httpServer;
+let activeSockets = new Set();
+
+function startServer(port = PORT) {
+    return new Promise((resolve, reject) => {
+        if (httpServer) {
+            console.warn("Server already running");
+            return resolve(httpServer);
+        }
+
+        initializeDatabase().then(() => {
+            httpServer = app.listen(port, () => {
+                console.log(`🚀 Enterprise Server running on Port ${port}`);
+                resolve(httpServer);
+            });
+
+            httpServer.on('connection', (socket) => {
+                activeSockets.add(socket);
+                socket.on('close', () => activeSockets.delete(socket));
+            });
+
+            httpServer.on('error', (err) => {
+                reject(err);
+            });
+        }).catch(reject);
     });
-});
+}
+
+function stopServer() {
+    return new Promise((resolve) => {
+        if (!httpServer) return resolve();
+        console.log("🛑 Stopping Server...");
+        for (const socket of activeSockets) {
+            socket.destroy();
+            activeSockets.delete(socket);
+        }
+        httpServer.close(() => {
+            console.log("✅ Server stopped.");
+            httpServer = null;
+            resolve();
+        });
+    });
+}
+
+// Auto-start if run directly
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = { app, startServer, stopServer };

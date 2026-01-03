@@ -168,15 +168,19 @@ module.exports = (dbQuery) => {
             const encryptedData = cryptoLib.encrypt(payload, derivedKey); // { payload, iv }
 
             // 5. Store (Append SenderID to payload for Hybrid Decryption Support)
-            // Format: "Ciphertext:AuthTag::SenderID"
-            const finalPayload = `${encryptedData.payload}::${senderId}`;
+            // Internal DB Format: "Ciphertext:AuthTag::SenderID" (IV stored separately)
+            const internalPayload = `${encryptedData.payload}::${senderId}`;
 
             await dbQuery(
                 `INSERT INTO messages (sender_id, recipient_id, payload, iv, created_at) VALUES ($1, $2, $3, $4, datetime('now'))`,
-                [senderId, recipientId, finalPayload, encryptedData.iv]
+                [senderId, recipientId, internalPayload, encryptedData.iv]
             );
 
-            res.json({ success: true });
+            // 6. Return FULL Packet for Manual Copy (Hybrid Compatibility)
+            // Format: "IV:Cipher:Tag::SenderID"
+            const fullPacket = `${encryptedData.iv}:${encryptedData.payload}::${senderId}`;
+
+            res.json({ success: true, encryptedPacket: fullPacket });
 
         } catch (e) {
             console.error("Encrypt Error:", e);
@@ -205,7 +209,14 @@ module.exports = (dbQuery) => {
                     // Re-Derive Key (Factors: BaseKey + Password + Sender + Recipient)
                     const recIds = [m.recipient_id];
                     const key = cryptoLib.deriveKey(baseKey, password, m.sender_id, recIds);
-                    const plain = cryptoLib.decrypt(m.payload, m.iv, key);
+
+                    // Parse Payload (Remove ::SenderID suffix used for Hybrid, keep Cipher:Tag)
+                    let cleanPayload = m.payload;
+                    if (cleanPayload.includes('::')) {
+                        cleanPayload = cleanPayload.split('::')[0];
+                    }
+
+                    const plain = cryptoLib.decrypt(cleanPayload, m.iv, key);
                     return { ...m, payload: plain, encrypted: false };
                 } catch (decErr) {
                     return { ...m, payload: "[Decryption Failed]", encrypted: true };

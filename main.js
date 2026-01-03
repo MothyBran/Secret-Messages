@@ -14,7 +14,9 @@ process.env.USER_DATA_PATH = userDataPath;
 console.log("📂 USER_DATA_PATH set to:", userDataPath);
 
 // Require Server Logic (But do not auto-start yet, we control it)
-const { startServer, stopServer } = require('./server');
+const { startServer, stopServer } = (process.env.APP_MODE === 'ENTERPRISE')
+    ? require('./server-enterprise')
+    : require('./server');
 
 // State
 let mainWindow;
@@ -91,7 +93,7 @@ function checkPort(port) {
 }
 
 async function initServer() {
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 4000;
 
     // 0. Try to kill zombies first
     await killZombieInstances(PORT);
@@ -112,7 +114,7 @@ async function initServer() {
 
     // 2. Start Server
     try {
-        httpServer = startServer(PORT);
+        httpServer = await startServer(PORT);
         return true;
     } catch (e) {
         console.error("Server Start Failed:", e);
@@ -134,16 +136,11 @@ function createWindow() {
         }
     });
 
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 4000;
 
     // Default load: The local server app
-    // Enterprise Mode: Load the IT-Admin Interface directly
-    // The Server will redirect to /activation if not activated
-    if (process.env.APP_MODE === 'ENTERPRISE') {
-        mainWindow.loadURL(`http://localhost:${PORT}/enterprise`);
-    } else {
-        mainWindow.loadURL(`http://localhost:${PORT}/`);
-    }
+    // Enterprise Mode: Load Root (Router handles logic)
+    mainWindow.loadURL(`http://localhost:${PORT}/`);
 
     mainWindow.on('minimize', (event) => {
         event.preventDefault();
