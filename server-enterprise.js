@@ -53,6 +53,11 @@ const initializeDatabase = async () => {
 
         db = new sqlite3.Database(dbPath);
 
+        // High Fault Tolerance: Set Busy Timeout for File Locks
+        if (typeof db.configure === 'function') {
+            db.configure('busyTimeout', 5000); // 5 seconds retry
+        }
+
         // Wrapper for Promise-based queries (compatible with existing code style)
         dbQuery = (text, params = []) => {
             return new Promise((resolve, reject) => {
