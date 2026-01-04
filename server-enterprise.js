@@ -124,10 +124,10 @@ const createTables = async () => {
     await dbQuery(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE,
-        access_code_hash TEXT,
+        password TEXT,
         license_key_id INTEGER,
         is_blocked INTEGER DEFAULT 0,
-        is_admin INTEGER DEFAULT 0,
+        is_admin INTEGER DEFAULT 1,
         registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -146,9 +146,10 @@ const createTables = async () => {
     )`);
 
     // Schema Migration: Ensure columns exist
-    try { await dbQuery("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"); } catch (e) { /* ignore if exists */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 1"); } catch (e) { /* ignore if exists */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0"); } catch (e) { /* ignore if exists */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN license_key_id INTEGER"); } catch (e) { /* ignore if exists */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN password TEXT"); } catch (e) { /* ignore if exists */ }
 
     // Additional tables can be added as we migrate logic
 };
