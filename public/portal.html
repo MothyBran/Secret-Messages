@@ -191,6 +191,25 @@
 
         // Init
         loadMessages();
+
+        // 3. Auto-Lock (10 Minutes)
+        let idleTime = 0;
+        const IDLE_LIMIT = 10 * 60; // 10m in seconds
+
+        setInterval(() => {
+            idleTime++;
+            if (idleTime >= IDLE_LIMIT) {
+                document.getElementById('lockBtn').click();
+            }
+        }, 1000);
+
+        // Reset timer on interaction
+        ['mousemove', 'keydown', 'click', 'scroll'].forEach(evt => {
+            document.addEventListener(evt, () => { idleTime = 0; });
+        });
     </script>
+    <footer style="text-align:center; color:#444; font-size:0.7rem; margin-top:40px; padding-bottom:10px;">
+        SECURE MESSAGES ENTERPRISE v2.0.0-ENT
+    </footer>
 </body>
 </html>

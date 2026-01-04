@@ -48,10 +48,11 @@ module.exports = (dbQuery) => {
             console.log("☁️ Validating Master Key...", masterKey);
             let isValid = false;
 
-            // Allow Mock for Testing without Internet
-            if (masterKey.startsWith('ENT-MOCK')) {
+            // LIVE ACTIVATION
+            // Only allow ENT-MOCK in development environment if explicitly needed, otherwise strictly force cloud check.
+            if (masterKey.startsWith('ENT-MOCK') && process.env.NODE_ENV !== 'production') {
                 isValid = true;
-                console.log("✅ Mock Validation Success");
+                console.log("⚠️ DEV MODE: Mock Validation used.");
             } else {
                 try {
                     const cloudRes = await fetch('https://www.secure-msg.app/api/enterprise/activate', {
@@ -59,15 +60,20 @@ module.exports = (dbQuery) => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ licenseKey: masterKey })
                     });
+
+                    if (!cloudRes.ok) {
+                        throw new Error(`Cloud Server Error: ${cloudRes.status}`);
+                    }
+
                     const cloudData = await cloudRes.json();
-                    if (cloudRes.ok && cloudData.valid) {
+                    if (cloudData.valid) {
                         isValid = true;
                     } else {
-                        throw new Error(cloudData.error || 'Invalid Key');
+                        throw new Error(cloudData.error || 'Key Declined by Server');
                     }
                 } catch (netErr) {
-                    console.warn("⚠️ Cloud validation failed:", netErr.message);
-                    return res.status(502).json({ error: "Cloud Validation Failed: " + netErr.message });
+                    console.error("Cloud Activation Error:", netErr);
+                    return res.status(502).json({ error: "Activation Server Unreachable: " + netErr.message });
                 }
             }
 
