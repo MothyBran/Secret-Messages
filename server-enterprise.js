@@ -145,6 +145,11 @@ const createTables = async () => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Schema Migration: Ensure columns exist
+    try { await dbQuery("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"); } catch (e) { /* ignore if exists */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0"); } catch (e) { /* ignore if exists */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN license_key_id INTEGER"); } catch (e) { /* ignore if exists */ }
+
     // Additional tables can be added as we migrate logic
 };
 

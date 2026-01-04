@@ -116,7 +116,11 @@ module.exports = (dbQuery) => {
 
         } catch (e) {
             console.error("Setup Error:", e);
-            res.status(500).json({ error: e.message });
+            // Return clean JSON error for frontend handling
+            res.status(500).json({
+                error: "Setup failed: " + (e.message || "Unknown Error"),
+                details: e.stack
+            });
         }
     });
 
