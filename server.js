@@ -1574,11 +1574,15 @@ if (IS_ENTERPRISE) {
                 return res.status(403).json({ success: false, valid: false, error: 'License Blocked' });
             }
 
-            // Update Activated status
-            if(!license.activated_at) {
-                await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`,
-                    [(isPostgreSQL ? true : 1), new Date().toISOString(), dbId]);
+            // ONE-TIME CHECK: If already activated, BLOCK re-use strictly
+            if (license.activated_at) {
+                console.log("Key Already Used");
+                return res.status(403).json({ success: false, valid: false, error: 'License Already Activated' });
             }
+
+            // Update Activated status
+            await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`,
+                [(isPostgreSQL ? true : 1), new Date().toISOString(), dbId]);
 
             console.log("Activation Success for", clientName);
 
