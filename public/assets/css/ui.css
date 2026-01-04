@@ -1,0 +1,111 @@
+:root {
+    --bg-dark: #050505;
+    --bg-panel: #0a0a0a;
+    --accent-primary: #ff9d00;
+    --accent-glow: rgba(255, 157, 0, 0.5);
+    --success-green: #00ff88;
+    --error-red: #ff3333;
+    --font-head: 'Rajdhani', sans-serif;
+    --font-mono: 'Roboto Mono', monospace;
+}
+
+/* --- CYBER SPINNER --- */
+.cyber-loader {
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.cyber-loader.active {
+    display: flex;
+}
+
+.spinner-ring {
+    width: 50px;
+    height: 50px;
+    border: 3px solid transparent;
+    border-top: 3px solid var(--accent-primary);
+    border-right: 3px solid var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    position: relative;
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.spinner-ring::before {
+    content: '';
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border: 3px solid transparent;
+    border-top: 3px solid var(--accent-primary);
+    border-radius: 50%;
+    animation: spin-reverse 2s linear infinite;
+    opacity: 0.6;
+}
+
+.spinner-lock {
+    position: absolute;
+    width: 14px;
+    height: 18px;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px var(--accent-primary);
+    animation: pulse 1s ease-in-out infinite alternate;
+}
+
+/* Spinner Animations */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes spin-reverse {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-360deg); }
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; box-shadow: 0 0 5px var(--accent-primary); }
+    100% { opacity: 1; box-shadow: 0 0 20px var(--accent-primary); }
+}
+
+/* --- SUCCESS STATE --- */
+.success-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+    color: var(--success-green);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.success-container.active {
+    display: flex;
+}
+
+.check-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px var(--success-green);
+}
+
+.success-text {
+    font-family: var(--font-head);
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- UTILS --- */
+.hidden {
+    display: none !important;
+}
