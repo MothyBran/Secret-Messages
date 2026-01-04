@@ -38,7 +38,6 @@ const initializeDatabase = async () => {
         try {
             sqlite3 = require('sqlite3').verbose();
         } catch (e) {
-            console.log("Standard sqlite3 not found, trying @vscode/sqlite3...");
             sqlite3 = require('@vscode/sqlite3').verbose();
         }
 
@@ -49,8 +48,6 @@ const initializeDatabase = async () => {
             if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
             dbPath = path.join(dataDir, 'secret_messages.db');
         }
-
-        console.log(`📂 Enterprise DB Path: ${dbPath}`);
 
         db = new sqlite3.Database(dbPath);
 
@@ -119,7 +116,6 @@ const createTables = async () => {
     )`);
 
     // Additional tables can be added as we migrate logic
-    console.log("✅ Enterprise Tables Verified");
 };
 
 // 4. Static Files
@@ -140,7 +136,6 @@ function startServer(port = PORT) {
 
         initializeDatabase().then(() => {
             httpServer = app.listen(port, () => {
-                console.log(`🚀 Enterprise Server running on Port ${port}`);
                 resolve(httpServer);
             });
 
@@ -159,13 +154,11 @@ function startServer(port = PORT) {
 function stopServer() {
     return new Promise((resolve) => {
         if (!httpServer) return resolve();
-        console.log("🛑 Stopping Server...");
         for (const socket of activeSockets) {
             socket.destroy();
             activeSockets.delete(socket);
         }
         httpServer.close(() => {
-            console.log("✅ Server stopped.");
             httpServer = null;
             resolve();
         });

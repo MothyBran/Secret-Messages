@@ -95,6 +95,20 @@
         }
         .btn-primary:hover { background: #33ccff; }
 
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid #555;
+            color: #ccc;
+            font-size: 0.9rem;
+            text-transform: none;
+            padding: 8px 16px;
+        }
+        .btn-ghost:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            box-shadow: 0 0 10px rgba(0, 191, 255, 0.2);
+        }
+
         /* Layout */
         .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
         section { padding: 100px 0; }
@@ -513,6 +527,35 @@
         }
         .btn-enterprise:hover { background: var(--accent-orange); color: #000; box-shadow: 0 0 20px var(--accent-glow-orange); }
 
+        /* Cookie Settings Checkboxes */
+        .cookie-option {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cookie-option label {
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            display: block;
+        }
+        .cookie-option small {
+            display: block;
+            color: #888;
+            font-weight: normal;
+            font-size: 0.8rem;
+            margin-top: 3px;
+        }
+        .cookie-chk {
+            width: 20px; height: 20px;
+            cursor: pointer;
+            accent-color: var(--accent-blue);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .carousel-container { padding: 0; }
@@ -893,8 +936,48 @@
             <br><a onclick="openModal('privacyModal')" style="color:var(--accent-blue); text-decoration:none; cursor:pointer;">Datenschutz</a> &bull; <a onclick="openModal('imprintModal')" style="color:var(--accent-blue); text-decoration:none; cursor:pointer;">Impressum</a>
         </p>
         <div style="display:flex; gap:10px;">
-            <button id="cookieAcceptAll" class="btn btn-primary" style="flex:1; padding:8px; font-size:0.8rem;">Alles Akzeptieren</button>
-            <button id="cookieAcceptEssential" class="btn" style="flex:1; padding:8px; font-size:0.8rem; background:transparent; border-color:#555; color:#ccc;">Nur Essenzielle</button>
+            <button id="cookieBtnSettings" class="btn btn-ghost" style="flex:1;">Einstellungen</button>
+            <button id="cookieAcceptEssential" class="btn btn-ghost" style="flex:1;">Nur Essenzielle</button>
+        </div>
+        <div style="margin-top: 10px;">
+             <button id="cookieAcceptAll" class="btn btn-primary" style="width:100%; padding:8px; font-size:0.9rem;">Alles Akzeptieren</button>
+        </div>
+    </div>
+
+    <!-- COOKIE SETTINGS MODAL -->
+    <div id="cookieSettingsModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('cookieSettingsModal')">×</button>
+            <h3 style="font-size:1.5rem; color:var(--accent-blue); margin-bottom:15px;">Cookie Einstellungen</h3>
+            <p style="margin-bottom:20px; font-size:0.9rem;">Entscheiden Sie selbst, welche Cookies Sie zulassen möchten.</p>
+
+            <div class="cookie-option">
+                <div>
+                    <label>Essenziell</label>
+                    <small>Notwendig für die Grundfunktionen (z.B. Login, Sicherheit).</small>
+                </div>
+                <input type="checkbox" class="cookie-chk" checked disabled>
+            </div>
+
+            <div class="cookie-option">
+                <div>
+                    <label for="chkAnalytics">Analytisch</label>
+                    <small>Helfen uns zu verstehen, wie die Seite genutzt wird (anonymisiert).</small>
+                </div>
+                <input type="checkbox" id="chkAnalytics" class="cookie-chk">
+            </div>
+
+            <div class="cookie-option">
+                <div>
+                    <label for="chkMarketing">Marketing</label>
+                    <small>Werden genutzt, um relevante Inhalte anzuzeigen.</small>
+                </div>
+                <input type="checkbox" id="chkMarketing" class="cookie-chk">
+            </div>
+
+            <div style="margin-top:30px; text-align:right;">
+                <button onclick="saveIndividualCookies()" class="btn btn-primary">Auswahl speichern</button>
+            </div>
         </div>
     </div>
 
@@ -1183,20 +1266,70 @@
 
         document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-        // === COOKIE BANNER ===
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!localStorage.getItem('cookieConsent')) {
+        // === COOKIE BANNER & LOGIC ===
+
+        // Placeholder Functions for Scripts
+        function loadAnalyticsScripts() {
+            // console.log("Analytics Scripts Loaded (Placeholder)");
+        }
+
+        function loadMarketingScripts() {
+            // console.log("Marketing Scripts Loaded (Placeholder)");
+        }
+
+        function checkCookieConsent() {
+            const consent = localStorage.getItem('cookieConsent');
+            if (consent) {
+                try {
+                    const settings = JSON.parse(consent);
+                    if(settings.analytics) loadAnalyticsScripts();
+                    if(settings.marketing) loadMarketingScripts();
+                } catch(e) {
+                    // Legacy cleanup or error
+                    localStorage.removeItem('cookieConsent');
+                    document.getElementById('cookieBanner').style.display = 'block';
+                }
+            } else {
                 document.getElementById('cookieBanner').style.display = 'block';
             }
+        }
 
-            function closeBanner() {
-                localStorage.setItem('cookieConsent', 'true');
-                document.getElementById('cookieBanner').style.display = 'none';
-            }
+        function saveConsent(settings) {
+            localStorage.setItem('cookieConsent', JSON.stringify(settings));
+            document.getElementById('cookieBanner').style.display = 'none';
+            document.getElementById('cookieSettingsModal').classList.remove('active');
 
-            document.getElementById('cookieAcceptAll').addEventListener('click', closeBanner);
-            document.getElementById('cookieAcceptEssential').addEventListener('click', closeBanner);
+            if(settings.analytics) loadAnalyticsScripts();
+            if(settings.marketing) loadMarketingScripts();
+        }
+
+        // Event Listeners for Cookies
+        document.addEventListener('DOMContentLoaded', () => {
+            checkCookieConsent();
+
+            // 1. Accept All
+            document.getElementById('cookieAcceptAll').addEventListener('click', () => {
+                saveConsent({ essential: true, analytics: true, marketing: true });
+            });
+
+            // 2. Essential Only (Instant)
+            document.getElementById('cookieAcceptEssential').addEventListener('click', () => {
+                saveConsent({ essential: true, analytics: false, marketing: false });
+            });
+
+            // 3. Open Settings Modal
+            document.getElementById('cookieBtnSettings').addEventListener('click', () => {
+                openModal('cookieSettingsModal');
+            });
         });
+
+        // Save from Modal
+        window.saveIndividualCookies = function() {
+            const analytics = document.getElementById('chkAnalytics').checked;
+            const marketing = document.getElementById('chkMarketing').checked;
+            saveConsent({ essential: true, analytics: analytics, marketing: marketing });
+        };
+
 
         // === MODALS ===
         function openModal(id) {
