@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
             script.onload = () => { if(window.initEnterpriseClient) window.initEnterpriseClient(); };
             document.body.appendChild(script);
         }
-    }).catch(e=>console.log("Config check failed", e));
+    }).catch(e=>{});
 
     setupIdleTimer();
 });
@@ -673,7 +673,7 @@ async function checkExistingSession() {
                 if (data.reason === 'no_license') { alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key."); authToken = token; const decoded = parseJwt(token); currentUser = { name: userName, sm_id: decoded.id }; showRenewalScreen(); }
                 else handleLogout();
             }
-        } catch(e) { console.log("Session Check fehlgeschlagen", e); showSection('loginSection'); }
+        } catch(e) { showSection('loginSection'); }
     } else { showSection('loginSection'); }
 }
 
@@ -765,7 +765,7 @@ function loadUserContacts() {
     if (!currentUser || !currentUser.sm_id) { contacts = []; return; }
     const key = `sm_contacts_${currentUser.sm_id}`; const globalKey = 'sm_contacts';
     let stored = localStorage.getItem(key);
-    if (!stored && localStorage.getItem(globalKey)) { stored = localStorage.getItem(globalKey); localStorage.setItem(key, stored); localStorage.removeItem(globalKey); console.log("Contacts migrated to user-specific storage."); }
+    if (!stored && localStorage.getItem(globalKey)) { stored = localStorage.getItem(globalKey); localStorage.setItem(key, stored); localStorage.removeItem(globalKey); }
     contacts = stored ? JSON.parse(stored) : [];
 }
 function saveUserContacts() { if (!currentUser || !currentUser.sm_id) return; localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts)); }
