@@ -162,10 +162,17 @@ window.loadSupportTickets = async function() {
     try {
         const res = await fetch(`${API_BASE}/support-tickets`, { headers: getHeaders() });
         allTickets = await res.json();
-        renderSupportTickets(allTickets);
+        if(typeof window.renderSupportTickets === 'function') {
+             renderSupportTickets(allTickets);
+        }
         renderMailInbox(allTickets);
     } catch(e) { console.error("Load Tickets Failed", e); }
     if(btn) { btn.textContent = "Refresh"; btn.disabled = false; }
+};
+
+// FIX: Add this wrapper function to prevent ReferenceErrors in older HTML bindings
+window.renderSupportTickets = function(tickets) {
+    renderMailInbox(tickets);
 };
 
 // --- ENTERPRISE LOGIC ---
