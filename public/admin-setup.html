@@ -3,17 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://www.secure-msg.app;">
     <title>Enterprise Setup</title>
     <link href="/assets/fonts/fonts.css" rel="stylesheet">
+    <link href="/assets/css/ui.css" rel="stylesheet">
     <style>
-        :root {
-            --bg-dark: #050505;
-            --bg-panel: #0a0a0a;
-            --accent-primary: #ff9d00;
-            --text-main: #e0e0e0;
-            --font-head: 'Rajdhani', sans-serif;
-            --font-mono: 'Roboto Mono', monospace;
-        }
         body {
             background-color: var(--bg-dark);
             color: var(--text-main);
@@ -54,48 +48,33 @@
     <div class="setup-box">
         <h1>Enterprise Setup</h1>
         <p>Aktivierung & Admin-Erstellung</p>
+
         <form id="setupForm">
             <input type="text" id="masterKey" placeholder="Master Lizenzschlüssel" required autocomplete="off">
             <input type="text" id="username" placeholder="Admin Benutzername" required autocomplete="off">
             <input type="password" id="password" placeholder="Passwort / Zugangscode" required>
-            <button type="submit">Setup Abschließen</button>
+
+            <button type="submit" id="submitBtn">Setup Abschließen</button>
         </form>
+
+        <!-- Loader -->
+        <div id="loader" class="cyber-loader">
+            <div class="spinner-ring">
+                <div class="spinner-lock"></div>
+            </div>
+            <p style="margin-top:10px; color:var(--accent-primary); font-size:0.9rem;">VERIFYING INTEGRITY...</p>
+        </div>
+
+        <!-- Success -->
+        <div id="successView" class="success-container">
+            <div class="check-icon">✓</div>
+            <div class="success-text">SYSTEM VERIFIED</div>
+            <p style="font-size:0.8rem; color:#888;">Redirecting to Hub...</p>
+        </div>
+
         <div class="error" id="msg"></div>
     </div>
 
-    <script>
-        document.getElementById('setupForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const key = document.getElementById('masterKey').value;
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-            const msg = document.getElementById('msg');
-
-            msg.style.color = "#ff9d00"; // Processing color
-            msg.textContent = "Validiere Lizenz...";
-
-            try {
-                const res = await fetch('/api/setup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ masterKey: key, username: user, password: pass })
-                });
-
-                const data = await res.json();
-
-                if (res.ok && data.success) {
-                    msg.style.color = "#00ff88";
-                    msg.textContent = "Erfolg! Weiterleitung zum Login...";
-                    setTimeout(() => window.location.href = '/login-enterprise.html', 1500);
-                } else {
-                    msg.style.color = "#ff3333";
-                    msg.textContent = "Fehler: " + (data.error || "Unbekannt");
-                }
-            } catch (err) {
-                msg.style.color = "#ff3333";
-                msg.textContent = "Netzwerkfehler: Server nicht erreichbar.";
-            }
-        });
-    </script>
+    <script src="/assets/js/setup.js"></script>
 </body>
 </html>
