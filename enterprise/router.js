@@ -96,9 +96,9 @@ module.exports = (dbQuery) => {
             // D. Persist Data (Finalization)
             const hash = await bcrypt.hash(password, 10);
 
-            // Store User
+            // Store User (Local Admin)
             await dbQuery(
-                `INSERT INTO users (username, access_code_hash, is_admin, registered_at) VALUES ($1, $2, 1, datetime('now'))`,
+                `INSERT INTO users (username, password, is_admin, registered_at) VALUES ($1, $2, 1, datetime('now'))`,
                 [username, hash]
             );
 
@@ -133,7 +133,9 @@ module.exports = (dbQuery) => {
             if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid Credentials' });
 
             const user = result.rows[0];
-            const match = await bcrypt.compare(password, user.access_code_hash);
+            // Check password column first, fallback to access_code_hash for migration safety
+            const dbHash = user.password || user.access_code_hash;
+            const match = await bcrypt.compare(password, dbHash);
 
             if (!match) return res.status(401).json({ error: 'Invalid Credentials' });
 
