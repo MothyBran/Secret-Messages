@@ -17,14 +17,15 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"], // Allow data: images (QR codes)
             connectSrc: ["'self'", "http://localhost:*", "https://www.secure-msg.app"] // Allow local + activation
         }
     }
 }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Ensure this is loaded before routes
 
 // 2. SQLite Database Connection
 // Simplified version of the logic in server.js, optimized for local enterprise

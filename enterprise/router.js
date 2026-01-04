@@ -73,7 +73,21 @@ module.exports = (dbQuery) => {
 
             if (!isValid) return res.status(403).json({ error: 'Invalid Master Key' });
 
-            // C. Persist Data
+            // C. Resource Download (Background)
+            try {
+                // Mock Download Logic (In a real scenario, this would pipe a zip from the cloud)
+                // For "Absolute Isolation", we assume this step fetches assets once and then we go offline.
+                // We mock it here to prevent startup crashes.
+                console.log("⬇️ Checking for updates...");
+                // const updateRes = await fetch('https://www.secure-msg.app/api/enterprise/resources/latest');
+                // if (updateRes.ok) { ... download & unzip ... }
+                console.log("✅ Resources verified (Mock).");
+            } catch (dlErr) {
+                console.warn("⚠️ Resource download skipped:", dlErr.message);
+                // Non-blocking error - proceed with setup
+            }
+
+            // D. Persist Data (Finalization)
             const hash = await bcrypt.hash(password, 10);
 
             // Store User
