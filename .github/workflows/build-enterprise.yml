@@ -24,6 +24,11 @@ jobs:
           cache: 'npm'
 
       - name: Clean Install
+        env:
+          npm_config_runtime: electron
+          npm_config_target: 29.4.6
+          npm_config_disturl: https://electronjs.org/headers
+          npm_config_build_from_source: true
         run: |
           npm prune
           npm install
