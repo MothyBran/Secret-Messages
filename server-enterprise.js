@@ -12,7 +12,33 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Priority 1: Serve Static Files (ABSOLUTE TOP as requested)
+// Dynamic Public Path for Packaged Apps
+let publicPath = path.join(__dirname, 'public');
+if (process.pkg) {
+    // If packaged with pkg (though we use electron-builder, this pattern is safe)
+    console.log("📦 Packaged Environment Detected");
+}
+// For Electron Builder (files copied to resources), sometimes __dirname is inside asar.
+// Simple check: if public doesn't exist here, maybe it's up one level?
+if (!fs.existsSync(publicPath)) {
+    const upOne = path.join(__dirname, '..', 'public');
+    if (fs.existsSync(upOne)) publicPath = upOne;
+}
+
+console.log('📂 Enterprise Server serving assets from:', publicPath);
+
+// Explicitly set MIME types for fonts to avoid "decoding failed" due to text/html 404s masquerading as files
+app.use(express.static(publicPath, {
+    index: false,
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.ttf')) {
+            res.setHeader('Content-Type', 'font/ttf');
+        }
+    }
+}));
+
+// Middleware (After Static, ensuring static is handled first)
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -20,6 +46,7 @@ app.use(helmet({
             scriptSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:"], // Allow data: images (QR codes)
+            fontSrc: ["'self'", "data:"], // Allow fonts from self and data URI (fallback)
             connectSrc: ["'self'", "http://localhost:*", "https://www.secure-msg.app"] // Allow local + activation
         }
     }
@@ -77,11 +104,14 @@ const initializeDatabase = async () => {
 
         // 3. Mount Enterprise Router (Now that DB is ready)
         const enterpriseRouter = require('./enterprise/router')(dbQuery);
-        app.use('/', enterpriseRouter); // Mounts at root, handles logic before static if needed?
-        // Actually, Express matches in order.
-        // If we want '/' to be handled by router, mount it before static OR specifically for '/'
-        // The router handles specifically '/' and redirects.
-        // Static files should be served for everything else.
+        app.use('/', enterpriseRouter); // Mounts at root
+
+        // 4. Debug 404 Middleware (Last Resort)
+        app.use((req, res, next) => {
+            console.warn(`⚠️ 404 Not Found: ${req.method} ${req.url}`);
+            console.warn(`   looked in: ${publicPath}`);
+            res.status(404).send('Not Found (Enterprise Server)');
+        });
 
     } catch (e) {
         console.error("💥 Database Initialization Failed:", e);
@@ -117,11 +147,6 @@ const createTables = async () => {
 
     // Additional tables can be added as we migrate logic
 };
-
-// 4. Static Files
-// Serve public folder. 'index: false' is crucial so we don't auto-serve index.html at '/'
-// allowing our Router to handle the landing logic.
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // 5. Start Server Logic
 let httpServer;
