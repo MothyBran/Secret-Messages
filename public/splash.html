@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Lade Secure Messages...</title>
+    <link href="/assets/fonts/fonts.css" rel="stylesheet">
+    <style>
+        :root { --bg-dark: #050505; --accent-primary: #ff9d00; --text-main: #e0e0e0; font-family: 'Rajdhani', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+
+        .loader {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: var(--accent-primary);
+            animation: spin 2s linear infinite;
+        }
+        .loader:before {
+            content: "";
+            position: absolute;
+            top: 5px; left: 5px; right: 5px; bottom: 5px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #00BFFF; /* Blue accent */
+            animation: spin 3s linear infinite;
+        }
+        .loader:after {
+            content: "";
+            position: absolute;
+            top: 15px; left: 15px; right: 15px; bottom: 15px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #fff;
+            animation: spin 1.5s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        h2 { margin-top: 40px; letter-spacing: 2px; text-transform: uppercase; font-weight: 500; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <h2>Initialisiere System...</h2>
+</body>
+</html>

@@ -21,8 +21,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/setup', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ masterKey: key, username: user, password: pass })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${key}`
+                    },
+                    body: JSON.stringify({ username: user, password: pass })
                 });
 
                 const data = await res.json();
@@ -32,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(loader) loader.classList.remove('active');
                     if(successView) successView.classList.add('active');
 
-                    // Redirect after delay
-                    setTimeout(() => window.location.href = '/login-enterprise.html', 2000);
+                    // Redirect after delay (Unified Login)
+                    setTimeout(() => window.location.href = '/login.html', 2000);
                 } else {
                     throw new Error(data.error || "Unbekannt");
                 }
