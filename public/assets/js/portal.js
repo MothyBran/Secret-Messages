@@ -20,10 +20,15 @@ lockChannel.onmessage = (event) => {
 };
 
 function performLocalLock() {
-    sessionStorage.clear();
-    window.location.href = '/login-enterprise.html';
+    // Show Overlay instead of redirecting
+    const overlay = document.getElementById('lockOverlay');
+    overlay.style.display = 'flex';
+    document.getElementById('unlockPass').focus();
+    // Stop Polling
+    clearInterval(pollingInterval);
 }
 
+// Global Lock (triggers overlay everywhere)
 async function triggerGlobalLock() {
     try {
         await fetch(`${API_BASE}/lock`, {
@@ -36,7 +41,43 @@ async function triggerGlobalLock() {
     performLocalLock();
 }
 
+window.unlockInterface = async function() {
+    const pwd = document.getElementById('unlockPass').value;
+    const msg = document.getElementById('unlockMsg');
+    const user = sessionStorage.getItem('ent_user');
+
+    msg.innerText = "Verifying...";
+    try {
+        // Re-Login to verify password and get fresh token
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pwd })
+        });
+
+        const data = await res.json();
+        if(data.success) {
+            sessionStorage.setItem('ent_token', data.token); // Refresh token
+            document.getElementById('lockOverlay').style.display = 'none';
+            document.getElementById('unlockPass').value = '';
+            msg.innerText = "";
+            // Restart Polling
+            pollingInterval = setInterval(updateDashboard, POLLING_RATE);
+            updateDashboard();
+        } else {
+            msg.innerText = "Wrong Password";
+        }
+    } catch(e) { msg.innerText = "Network Error"; }
+};
+
+window.logout = function() {
+    sessionStorage.clear();
+    window.location.href = '/login.html'; // Or login-enterprise.html
+};
+
 document.getElementById('lockBtn').addEventListener('click', triggerGlobalLock);
+document.getElementById('logoutBtn').removeEventListener('click', triggerGlobalLock); // Remove old listener
+document.getElementById('logoutBtn').addEventListener('click', logout);
 
 // Auto-Lock Logic
 function resetIdleTimer() {
@@ -177,14 +218,17 @@ window.loadUsers = async function() {
             board.appendChild(col);
         });
 
-        // Add CSV Controls to Header if not present
+        // Add CSV & Create Controls to Header if not present
         const headerContainer = document.querySelector('#users h2').parentNode;
         if(!headerContainer.querySelector('#csvControls')) {
             const controls = document.createElement('div');
             controls.id = 'csvControls';
+            controls.style.display = 'flex';
+            controls.style.gap = '10px';
             controls.innerHTML = `
-                <button class="action-btn" onclick="exportCSV()" style="font-size:0.8rem; margin-right:10px;">CSV EXPORT</button>
-                <button class="action-btn" onclick="document.getElementById('csvInput').click()" style="font-size:0.8rem; background:#333; color:#fff;">CSV IMPORT</button>
+                <button class="action-btn" onclick="document.getElementById('createUserModal').style.display='flex'" style="font-size:0.8rem; background:var(--accent-primary); color:#000;">+ NEW USER</button>
+                <button class="action-btn" onclick="exportCSV()" style="font-size:0.8rem; background:#333; color:#fff;">EXPORT CSV</button>
+                <button class="action-btn" onclick="document.getElementById('csvInput').click()" style="font-size:0.8rem; background:#333; color:#fff;">IMPORT CSV</button>
                 <input type="file" id="csvInput" style="display:none" onchange="importCSV(this)">
             `;
             headerContainer.appendChild(controls);
@@ -271,6 +315,34 @@ window.deleteUser = async function(id) {
         });
         loadUsers();
     } catch(e) { alert("Error: " + e.message); }
+};
+
+window.submitCreateUser = async function() {
+    const u = document.getElementById('newUsername').value;
+    const p = document.getElementById('newPassword').value;
+    const d = document.getElementById('newDept').value;
+    const r = document.getElementById('newRole').value;
+
+    if(!u || !p) return alert("Username and Password required");
+
+    try {
+        const res = await fetch(`${API_BASE}/admin/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ username: u, password: p, department: d, role_title: r })
+        });
+
+        const data = await res.json();
+        if(data.success) {
+            document.getElementById('createUserModal').style.display = 'none';
+            // Clear fields
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newPassword').value = '';
+            loadUsers();
+        } else {
+            alert("Error: " + data.error);
+        }
+    } catch(e) { alert("Network Error"); }
 };
 
 window.exportCSV = function() {
@@ -449,30 +521,66 @@ window.markRead = async function(id) {
     } catch(e) { alert("Error marking read"); }
 };
 
-// --- 7. MESSENGER (Basic) ---
+// --- 7. MESSENGER (Client-Side Encryption) ---
 document.getElementById('msgSendBtn').addEventListener('click', async () => {
     const status = document.getElementById('msgStatus');
     const recipient = document.getElementById('msgRecipient').value;
     const payload = document.getElementById('msgPayload').value;
 
-    status.innerText = 'Encrypting & Beaming...';
+    if(!recipient || !payload) {
+        status.innerText = 'Missing Recipient or Message';
+        status.style.color = 'red';
+        return;
+    }
+
+    status.innerText = 'Encrypting (Client-Side)...';
+    status.style.color = 'var(--accent-primary)';
+
+    // Prompt for 5-digit Passcode (User Interaction Required for Client-Side Crypto)
+    // In Enterprise Admin context, do we use the Admin Password or a specific code?
+    // The requirement says "Messenger... Übernahme des V/E-Tools aus der WebApp".
+    // WebApp asks for a code.
+    // For Enterprise to Enterprise messaging, we need a shared secret or PBKDF2.
+    // Let's ask for a code for now to ensure security context.
+    // OR we use the current session password if available?
+    // Security Best Practice: Ask for code to sign/encrypt.
+    const passcode = prompt("Enter 5-digit Encryption Code for this message:", "12345");
+    if(!passcode || passcode.length !== 5) {
+        status.innerText = 'Encryption Aborted: Invalid Code';
+        status.style.color = 'red';
+        return;
+    }
 
     try {
+        // CLIENT SIDE ENCRYPTION
+        // We use the global window.encryptFull from cryptoLayers.js
+        const currentUserId = sessionStorage.getItem('ent_user');
+        const encryptedBlob = await window.encryptFull(payload, passcode, [recipient], currentUserId);
+
+        status.innerText = 'Beaming to DB...';
+
         const res = await fetch(`${API_BASE}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ recipientId: recipient, payload: payload })
+            body: JSON.stringify({
+                recipientId: recipient,
+                payload: encryptedBlob,
+                encrypted: true // Signal backend to store as-is
+            })
         });
+
         const data = await res.json();
         if(data.success) {
             status.style.color = '#00ff88';
-            status.innerText = 'SUCCESS: Data beamed to secure DB.';
+            status.innerText = 'SUCCESS: Message Encrypted & Beamed.';
             document.getElementById('msgPayload').value = '';
         } else {
             status.style.color = 'red';
-            status.innerText = 'ERROR: ' + data.error;
+            status.innerText = 'Server Error: ' + data.error;
         }
     } catch(e) {
-        status.innerText = 'Network Error';
+        console.error(e);
+        status.innerText = 'Encryption/Network Error: ' + e.message;
+        status.style.color = 'red';
     }
 });

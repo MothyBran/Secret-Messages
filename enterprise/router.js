@@ -222,9 +222,29 @@ module.exports = (dbQuery) => {
     // 5. MESSAGES API (Encryption/Decryption)
     router.post('/api/messages', verifySession, async (req, res) => {
         try {
-            const { recipientId, payload } = req.body;
+            const { recipientId, payload, encrypted } = req.body;
             if (!recipientId || !payload) return res.status(400).json({ error: "Missing Data" });
 
+            const senderId = req.user.username;
+
+            // CLIENT-SIDE ENCRYPTION PATH (New Standard)
+            if (encrypted) {
+                // Payload is ALREADY "IV:Cipher:Tag" (Base64 or Hex) from Client
+                // We just store it.
+                // NOTE: We assume the client sends the FULL PACKET as 'payload'.
+                // We can store it as is. IV column can be null or we extract it if possible, but for simplicity
+                // in this hybrid mode, we just store the blob.
+
+                await dbQuery(
+                    `INSERT INTO messages (sender_id, recipient_id, payload, iv, created_at) VALUES ($1, $2, $3, $4, datetime('now'))`,
+                    [senderId, recipientId, payload, 'CLIENT_ENCRYPTED']
+                );
+
+                await logAction('MESSAGE_SENT', `Encrypted message (Client-Side) sent to ${recipientId}`, req);
+                return res.json({ success: true });
+            }
+
+            // SERVER-SIDE ENCRYPTION PATH (Legacy/Fallback)
             // 1. Get Key Supplement (Use as Base Key for compatibility with External Users)
             const mkRes = await dbQuery("SELECT value FROM settings WHERE key = 'key_supplement'");
             if (mkRes.rows.length === 0) throw new Error("System Integrity Error: No Supplement Key");
@@ -235,7 +255,6 @@ module.exports = (dbQuery) => {
             if (!password) return res.status(401).json({ error: "Session Invalid (No Context)" });
 
             // 3. Derive Key
-            const senderId = req.user.username; // Use username as ID for Enterprise
             const recipientIds = [recipientId];
             const derivedKey = cryptoLib.deriveKey(baseKey, password, senderId, recipientIds);
 
@@ -326,6 +345,28 @@ module.exports = (dbQuery) => {
         try {
             const users = await dbQuery("SELECT id, username, is_admin, is_blocked, department, role_title, registered_at FROM users ORDER BY username ASC");
             res.json(users.rows);
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // Create User
+    router.post('/api/admin/users', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const { username, password, department, role_title } = req.body;
+            if(!username || !password) return res.status(400).json({ error: "Missing fields" });
+
+            // Hash Password
+            const hash = await bcrypt.hash(password, 10);
+
+            await dbQuery(
+                `INSERT INTO users (username, password, department, role_title, is_admin, registered_at) VALUES ($1, $2, $3, $4, 0, datetime('now'))`,
+                [username, hash, department || 'Unassigned', role_title || 'User']
+            );
+
+            await logAction('USER_CREATE', `Created user ${username}`, req);
+            res.json({ success: true });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }

@@ -9,6 +9,37 @@
 </head>
 <body>
 
+    <!-- LOCK OVERLAY -->
+    <div id="lockOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.95); z-index:9999; flex-direction:column; justify-content:center; align-items:center; backdrop-filter:blur(10px);">
+        <h1 style="color:var(--error-red); text-shadow:0 0 20px red; margin-bottom:20px;">INTERFACE LOCKED</h1>
+        <div style="width:300px; text-align:center;">
+            <input type="password" id="unlockPass" placeholder="Enter Password to Unlock" style="width:100%; text-align:center; margin-bottom:10px;">
+            <button class="action-btn" onclick="unlockInterface()" style="width:100%; background:var(--error-red); color:#fff;">UNLOCK</button>
+            <div id="unlockMsg" style="margin-top:10px; color:red; min-height:20px;"></div>
+        </div>
+    </div>
+
+    <!-- CREATE USER MODAL -->
+    <div id="createUserModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center;">
+        <div class="stat-card" style="width:400px; background:#111; border:1px solid var(--accent-primary);">
+            <h3>Create New User</h3>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+                <input type="text" id="newUsername" placeholder="Username">
+                <input type="text" id="newPassword" placeholder="Initial Password">
+                <select id="newDept" style="background:#000; color:#fff; padding:10px; border:1px solid #444;">
+                    <option value="Management">Management</option>
+                    <option value="IT">IT</option>
+                    <option value="HR">HR</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Unassigned">Unassigned</option>
+                </select>
+                <input type="text" id="newRole" placeholder="Role Title (e.g. Analyst)">
+                <button class="action-btn" onclick="submitCreateUser()">CREATE USER</button>
+                <button class="action-btn" onclick="document.getElementById('createUserModal').style.display='none'" style="background:#333; color:#fff;">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
     <!-- HEADBAR -->
     <header class="headbar">
         <!-- Burger Menu (Inline SVG) -->
@@ -171,6 +202,7 @@
         </main>
     </div>
 
+    <script src="/cryptoLayers.js"></script>
     <script src="/assets/js/portal.js"></script>
 </body>
 </html>
