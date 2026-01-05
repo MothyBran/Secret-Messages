@@ -138,9 +138,40 @@ function createWindow() {
 
     const PORT = process.env.PORT || 4000;
 
-    // Default load: The local server app
-    // Enterprise Mode: Load Root (Router handles logic)
-    mainWindow.loadURL(`http://localhost:${PORT}/`);
+    // 1. Show Splash Screen
+    mainWindow.loadFile(path.join(__dirname, 'public/splash.html'));
+
+    // 2. Discovery Loop
+    const checkStatus = async (attempts = 0) => {
+        if (attempts >= 10) { // 5 seconds (500ms interval)
+            console.log("Discovery Timeout -> Loading Admin Setup");
+            mainWindow.loadURL(`http://localhost:${PORT}/admin-setup.html`);
+            return;
+        }
+
+        try {
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+            const res = await fetch(`http://localhost:${PORT}/api/status`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.activated) {
+                    console.log("System Activated -> Loading Login");
+                    mainWindow.loadURL(`http://localhost:${PORT}/login.html`);
+                } else {
+                    console.log("System Not Activated -> Loading Setup");
+                    mainWindow.loadURL(`http://localhost:${PORT}/admin-setup.html`);
+                }
+            } else {
+                throw new Error("Status Error");
+            }
+        } catch (e) {
+            // Retry
+            setTimeout(() => checkStatus(attempts + 1), 500);
+        }
+    };
+
+    // Start checking
+    checkStatus();
 
     mainWindow.on('minimize', (event) => {
         event.preventDefault();

@@ -13,19 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Priority 1: Serve Static Files (ABSOLUTE TOP as requested)
-// Dynamic Public Path for Packaged Apps
-let publicPath = path.join(__dirname, 'public');
-if (process.pkg) {
-    // If packaged with pkg (though we use electron-builder, this pattern is safe)
-    console.log("📦 Packaged Environment Detected");
-}
-// For Electron Builder (files copied to resources), sometimes __dirname is inside asar.
-// Simple check: if public doesn't exist here, maybe it's up one level?
-if (!fs.existsSync(publicPath)) {
-    const upOne = path.join(__dirname, '..', 'public');
-    if (fs.existsSync(upOne)) publicPath = upOne;
-}
-
+// Dynamic Public Path Resolution for Standalone .exe (Fixes MIME/404 issues)
+const publicPath = path.join(process.cwd(), 'public');
 console.log('📂 Enterprise Server serving assets from:', publicPath);
 
 // Explicitly set MIME types for fonts to avoid "decoding failed" due to text/html 404s masquerading as files

@@ -1532,14 +1532,17 @@ if (IS_ENTERPRISE) {
     app.post('/api/enterprise/activate', async (req, res) => {
         // CORS HEADERS FOR ELECTRON (Allow any origin for this specific endpoint)
         res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
 
         try {
-            const { licenseKey } = req.body;
-            console.log("Enterprise Activation Request for Key:", licenseKey); // LOGGING
+            // Extract from Header
+            const authHeader = req.headers['authorization'];
+            const licenseKey = authHeader && authHeader.split(' ')[1];
+
+            console.log("Enterprise Activation Request for Key (Header):", licenseKey ? "PRESENT" : "MISSING");
 
             if (!licenseKey) {
-                return res.status(400).json({ success: false, error: "EMPTY_PAYLOAD", details: "licenseKey missing in body" });
+                return res.status(400).json({ success: false, error: "EMPTY_HEADER", details: "Authorization Header missing" });
             }
 
             // 1. Try license_keys (Main Table)

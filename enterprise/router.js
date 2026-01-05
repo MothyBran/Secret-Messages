@@ -30,12 +30,25 @@ const verifySession = (req, res, next) => {
 
 module.exports = (dbQuery) => {
 
+    // 0. STATUS API (Discovery)
+    router.get('/api/status', async (req, res) => {
+        try {
+            const check = await dbQuery("SELECT COUNT(*) as c FROM users");
+            res.json({ activated: check.rows[0].c > 0 });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     // 1. SETUP API (One-Time)
     router.post('/api/setup', async (req, res) => {
         try {
-            const { masterKey, username, password } = req.body;
+            const { username, password } = req.body;
+            const authHeader = req.headers['authorization'];
+            const masterKey = authHeader && authHeader.split(' ')[1];
+
             if (!masterKey || !username || !password) {
-                return res.status(400).json({ error: 'Missing fields' });
+                return res.status(400).json({ error: 'Missing fields or Header' });
             }
 
             // A. Local Check
@@ -45,7 +58,7 @@ module.exports = (dbQuery) => {
             }
 
             // B. Cloud Validation (Mock or Real)
-            console.log("☁️ Validating Master Key...", masterKey);
+            console.log("☁️ Validating Master Key...");
             let isValid = false;
 
             // LIVE ACTIVATION
@@ -55,10 +68,13 @@ module.exports = (dbQuery) => {
                 console.log("⚠️ DEV MODE: Mock Validation used.");
             } else {
                 try {
+                    // Forward Header to Cloud
                     const cloudRes = await fetch('https://www.secure-msg.app/api/enterprise/activate', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ licenseKey: masterKey })
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${masterKey}`
+                        }
                     });
 
                     if (!cloudRes.ok) {
@@ -145,7 +161,9 @@ module.exports = (dbQuery) => {
             // Store password in memory session for encryption operations
             activeSessions.set(token, { password: password });
 
-            res.json({ success: true, token, redirect: '/portal.html' });
+            // Redirect based on Role (Unified Login)
+            const redirectPath = (user.is_admin === 1) ? '/portal.html' : '/app';
+            res.json({ success: true, token, redirect: redirectPath });
 
         } catch (e) {
             res.status(500).json({ error: e.message });
