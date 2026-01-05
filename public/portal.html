@@ -64,7 +64,7 @@
         <nav class="sidebar" id="sidebar">
             <div class="nav-item active" onclick="switchModule('dashboard')">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-                <span class="nav-text">Dashboard</span>
+                <span class="nav-text">Übersicht</span>
             </div>
             <div class="nav-item" onclick="switchModule('inbox')">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
@@ -76,11 +76,11 @@
             </div>
             <div class="nav-item" onclick="switchModule('users')">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                <span class="nav-text">Benutzer</span>
+                <span class="nav-text">Benutzerverwaltung</span>
             </div>
             <div class="nav-item" onclick="switchModule('audit')">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                <span class="nav-text">Audit-Logs</span>
+                <span class="nav-text">Audit-Protokolle</span>
             </div>
             <div class="nav-item" onclick="switchModule('settings')">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L5.09 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.08-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
@@ -165,58 +165,88 @@
 
             <!-- 4. MESSENGER -->
             <div id="messenger" class="module">
-                <h2>Secure Messenger (Hybrid Enterprise)</h2>
-                <div class="stat-card" style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                <!-- SWITCH TOGGLE -->
+                <div class="msg-toggle-container">
+                    <button class="msg-toggle-btn active" id="toggleEncrypt" onclick="setMessengerMode('encrypt')">VERSCHLÜSSELN</button>
+                    <button class="msg-toggle-btn" id="toggleDecrypt" onclick="setMessengerMode('decrypt')">ENTSCHLÜSSELN</button>
+                </div>
+
+                <div class="stat-card" style="min-height:500px;">
 
                     <!-- ENCRYPT MODE -->
-                    <div style="border-right:1px solid #333; padding-right:20px;">
-                        <h3 class="text-accent">ENCRYPT</h3>
+                    <div id="modeEncrypt">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+                            <!-- LEFT: INPUTS -->
+                            <div>
+                                <h3 class="text-accent" style="margin-bottom:20px;">NACHRICHT ERSTELLEN</h3>
 
-                        <label>Recipient ID (Internal or External)</label>
-                        <input type="text" id="msgRecipient" placeholder="e.g. user_123" style="width:100%; margin:5px 0 15px;">
+                                <label style="display:block; margin-bottom:5px;">EMPFÄNGER (ID)</label>
+                                <input type="text" id="msgRecipient" placeholder="z.B. user_123" style="width:100%; margin-bottom:20px; padding:12px;">
 
-                        <label>5-Digit Passcode</label>
-                        <input type="password" id="msgPasscode" maxlength="5" placeholder="*****" style="width:100px; margin:5px 0 15px; display:block; letter-spacing:3px; text-align:center;">
+                                <label style="display:block; margin-bottom:5px;">5-STELLIGER CODE</label>
+                                <input type="password" id="msgPasscode" maxlength="5" placeholder="12345" style="width:100px; margin-bottom:20px; padding:12px; letter-spacing:3px; text-align:center;">
 
-                        <label>Message Content</label>
-                        <textarea id="msgPayload" rows="4" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px; margin-bottom:10px;"></textarea>
+                                <label style="display:block; margin-bottom:5px;">INHALT (TEXT)</label>
+                                <textarea id="msgPayload" rows="6" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:15px; margin-bottom:20px; font-size:1rem;"></textarea>
 
-                        <!-- File Upload Zone -->
-                        <div id="dropZone" style="border:1px dashed #444; padding:20px; text-align:center; color:#888; margin-bottom:15px; cursor:pointer;" onclick="document.getElementById('fileInput').click()">
-                            <span>Click or Drag File (Image/Doc)</span>
-                            <input type="file" id="fileInput" style="display:none">
-                            <div id="fileInfo" style="color:var(--accent-primary); font-size:0.8rem; margin-top:5px;"></div>
+                                <!-- File Upload Zone -->
+                                <div id="dropZone" style="border:2px dashed #333; padding:30px; text-align:center; color:#888; margin-bottom:20px; cursor:pointer; transition:0.3s;" onclick="document.getElementById('fileInput').click()">
+                                    <div style="font-size:2rem; margin-bottom:10px;">📎</div>
+                                    <span>Datei hier ablegen oder klicken (Max 5MB)</span>
+                                    <input type="file" id="fileInput" style="display:none">
+                                    <div id="fileInfo" style="color:var(--accent-primary); font-size:0.9rem; margin-top:10px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT: CONTROLS & STATUS -->
+                            <div style="display:flex; flex-direction:column; gap:15px;">
+                                <h3 class="text-accent" style="margin-bottom:20px;">AKTIONEN</h3>
+
+                                <button class="action-btn" id="btnEncrypt" style="padding:15px; font-size:1.1rem;">🔒 VERSCHLÜSSELN</button>
+
+                                <div style="height:1px; background:#333; margin:10px 0;"></div>
+
+                                <button class="action-btn" id="btnCopy" style="background:#222; color:#ccc;">KOPIEREN (CLIPBOARD)</button>
+                                <button class="action-btn" id="btnDownload" style="background:#222; color:#ccc;">DOWNLOAD .TXT</button>
+                                <button class="action-btn" id="btnSend" style="background:var(--success-green); color:#000; font-weight:900;">📡 VERSENDEN (BEAM)</button>
+
+                                <div style="height:1px; background:#333; margin:10px 0;"></div>
+
+                                <button class="action-btn" id="btnClear" style="background:rgba(255,50,50,0.2); color:var(--error-red);">ALLES LEEREN</button>
+
+                                <div id="msgStatus" style="margin-top:20px; padding:15px; background:#000; border:1px solid #333; min-height:40px; font-family:'Roboto Mono'; font-size:0.9rem;">
+                                    Bereit.
+                                </div>
+                            </div>
                         </div>
-
-                        <!-- Actions -->
-                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                            <button class="action-btn" id="btnEncrypt">ENCRYPT</button>
-                            <button class="action-btn" id="btnCopy" style="background:#333; color:#fff;">COPY</button>
-                            <button class="action-btn" id="btnDownload" style="background:#333; color:#fff;">DL .TXT</button>
-                            <button class="action-btn" id="btnSend" style="background:var(--success-green); color:#000;">BEAM (SEND)</button>
-                            <button class="action-btn" id="btnClear" style="background:#333; color:#aaa;">CLEAR</button>
-                        </div>
-                        <div id="msgStatus" style="margin-top:10px; min-height:20px; font-size:0.8rem;"></div>
                     </div>
 
                     <!-- DECRYPT MODE -->
-                    <div>
-                        <h3 class="text-accent">DECRYPT</h3>
+                    <div id="modeDecrypt" style="display:none;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+                            <!-- LEFT: INPUT -->
+                            <div>
+                                <h3 class="text-accent" style="margin-bottom:20px;">ENTSCHLÜSSELUNG</h3>
 
-                        <label>5-Digit Passcode</label>
-                        <input type="password" id="decPasscode" maxlength="5" placeholder="*****" style="width:100px; margin:5px 0 15px; display:block; letter-spacing:3px; text-align:center;">
+                                <label style="display:block; margin-bottom:5px;">5-STELLIGER CODE</label>
+                                <input type="password" id="decPasscode" maxlength="5" placeholder="12345" style="width:100px; margin-bottom:20px; padding:12px; letter-spacing:3px; text-align:center;">
 
-                        <label>Encrypted Cipher Text</label>
-                        <textarea id="decInput" rows="6" placeholder="Paste Ciphertext here..." style="width:100%; background:#000; color:var(--accent-primary); border:1px solid #444; padding:10px; margin-bottom:10px; font-family:'Roboto Mono';"></textarea>
+                                <label style="display:block; margin-bottom:5px;">CIPHER-TEXT (EINFÜGEN)</label>
+                                <textarea id="decInput" rows="12" placeholder="Verschlüsselten Text hier einfügen..." style="width:100%; background:#000; color:var(--accent-primary); border:1px solid #444; padding:15px; margin-bottom:20px; font-family:'Roboto Mono'; font-size:0.9rem;"></textarea>
 
-                        <!-- Actions -->
-                        <div style="display:flex; gap:10px;">
-                            <button class="action-btn" id="btnDecrypt">DECRYPT</button>
-                            <button class="action-btn" id="btnDecClear" style="background:#333; color:#aaa;">CLEAR</button>
-                        </div>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="action-btn" id="btnDecrypt" style="flex:2; padding:15px;">🔓 ENTSCHLÜSSELN</button>
+                                    <button class="action-btn" id="btnDecClear" style="background:#222; color:#aaa;">LEEREN</button>
+                                </div>
+                            </div>
 
-                        <div id="decOutput" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">
-                            <!-- Output will appear here -->
+                            <!-- RIGHT: OUTPUT -->
+                            <div>
+                                <h3 class="text-accent" style="margin-bottom:20px;">ERGEBNIS</h3>
+                                <div id="decOutput" style="background:#000; border:1px solid #444; height:400px; padding:20px; overflow-y:auto; font-family:'Roboto Mono'; color:#fff;">
+                                    <span style="color:#666;">Warte auf Eingabe...</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

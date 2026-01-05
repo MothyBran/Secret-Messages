@@ -329,6 +329,43 @@ input, select {
 input:checked + .slider { background-color: var(--accent-primary); }
 input:checked + .slider:before { transform: translateX(20px); }
 
+/* --- MESSENGER TOGGLE --- */
+.msg-toggle-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.msg-toggle-btn {
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    padding: 10px 30px;
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-size: 1.1rem;
+    transition: all 0.3s;
+    width: 200px;
+    text-align: center;
+}
+
+.msg-toggle-btn.active {
+    background: var(--accent-primary);
+    color: #000;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.msg-toggle-btn:first-child {
+    border-radius: 20px 0 0 20px;
+    border-right: none;
+}
+
+.msg-toggle-btn:last-child {
+    border-radius: 0 20px 20px 0;
+    border-left: none;
+}
+
 /* --- GLOBE ANIMATION (CSS Only) --- */
 .wireframe-globe {
     width: 200px;
