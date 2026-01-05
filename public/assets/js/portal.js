@@ -531,15 +531,30 @@ window.markRead = async function(id) {
 let currentAttachment = null;
 let currentEncryptedBlob = null; // Store result for Send/Copy/Download
 
+// Switch Logic
+window.setMessengerMode = function(mode) {
+    document.querySelectorAll('.msg-toggle-btn').forEach(b => b.classList.remove('active'));
+
+    if(mode === 'encrypt') {
+        document.getElementById('toggleEncrypt').classList.add('active');
+        document.getElementById('modeEncrypt').style.display = 'block';
+        document.getElementById('modeDecrypt').style.display = 'none';
+    } else {
+        document.getElementById('toggleDecrypt').classList.add('active');
+        document.getElementById('modeEncrypt').style.display = 'none';
+        document.getElementById('modeDecrypt').style.display = 'block';
+    }
+};
+
 // A. File Handling
 document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 // Drag & Drop
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent-primary)'; });
-dropZone.addEventListener('dragleave', (e) => { dropZone.style.borderColor = '#444'; });
+dropZone.addEventListener('dragleave', (e) => { dropZone.style.borderColor = '#333'; });
 dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
-    dropZone.style.borderColor = '#444';
+    dropZone.style.borderColor = '#333';
     if(e.dataTransfer.files.length) handleFileSelect({ target: { files: e.dataTransfer.files } });
 });
 
@@ -549,16 +564,16 @@ function handleFileSelect(e) {
 
     // Limit 5MB
     if(file.size > 5 * 1024 * 1024) {
-        alert("File too large (Max 5MB)");
+        alert("Datei zu groß (Max 5MB)");
         return;
     }
 
     const reader = new FileReader();
     reader.onload = function(evt) {
         currentAttachment = evt.target.result; // Base64 Data URL
-        document.getElementById('fileInfo').innerText = `✓ ${file.name} attached (${Math.round(file.size/1024)}KB)`;
+        document.getElementById('fileInfo').innerText = `✓ ${file.name} angehängt (${Math.round(file.size/1024)}KB)`;
         document.getElementById('msgPayload').disabled = true;
-        document.getElementById('msgPayload').placeholder = "File attached. Text input disabled.";
+        document.getElementById('msgPayload').placeholder = "Datei angehängt. Texteingabe deaktiviert.";
     };
     reader.readAsDataURL(file);
 }
@@ -571,11 +586,11 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
     // Payload is either text or attachment
     const payload = currentAttachment || document.getElementById('msgPayload').value;
 
-    if(!recipient) return status.innerText = "Error: Recipient ID missing";
-    if(!passcode || passcode.length !== 5) return status.innerText = "Error: 5-Digit Passcode required";
-    if(!payload) return status.innerText = "Error: No Content to encrypt";
+    if(!recipient) return status.innerText = "Fehler: Empfänger-ID fehlt";
+    if(!passcode || passcode.length !== 5) return status.innerText = "Fehler: 5-stelliger Code erforderlich";
+    if(!payload) return status.innerText = "Fehler: Kein Inhalt";
 
-    status.innerText = "Encrypting...";
+    status.innerText = "Verschlüssele...";
     status.style.color = "var(--accent-primary)";
 
     try {
@@ -586,29 +601,27 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         // Use encryptHybrid which formats output as "IVHex:CipherHex::SenderID"
         currentEncryptedBlob = await window.encryptHybrid(payload, passcode, supplement, senderId, [recipient]);
 
-        status.innerText = "ENCRYPTION SUCCESSFUL. Ready to Send/Download.";
+        status.innerText = "VERSCHLÜSSELUNG ERFOLGREICH.";
         status.style.color = "#00ff88";
 
-        // Populate Output for Visual Confirmation (Optional, reusing text area or just internal state)
-        document.getElementById('msgPayload').value = currentEncryptedBlob;
-        document.getElementById('msgPayload').disabled = false; // Allow copy logic if user wants manual
-        currentAttachment = null; // Reset attachment state to allow mixed usage flow or clear
+        // Also populate decrypt input for testing flow? No, keep separate.
+        // We do NOT overwrite the input field in this design, we keep the clean input.
     } catch(e) {
         console.error(e);
-        status.innerText = "Encryption Error: " + e.message;
+        status.innerText = "Fehler: " + e.message;
         status.style.color = "red";
     }
 });
 
 // C. Actions (Copy, Download, Send, Clear)
 document.getElementById('btnCopy').addEventListener('click', () => {
-    if(!currentEncryptedBlob) return;
+    if(!currentEncryptedBlob) return alert("Erst verschlüsseln!");
     navigator.clipboard.writeText(currentEncryptedBlob);
-    alert("Encrypted Packet copied to Clipboard!");
+    alert("Verschlüsseltes Paket in Zwischenablage kopiert!");
 });
 
 document.getElementById('btnDownload').addEventListener('click', () => {
-    if(!currentEncryptedBlob) return;
+    if(!currentEncryptedBlob) return alert("Erst verschlüsseln!");
     const blob = new Blob([currentEncryptedBlob], { type: 'text/plain' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -623,18 +636,19 @@ document.getElementById('btnClear').addEventListener('click', () => {
     document.getElementById('msgPayload').disabled = false;
     document.getElementById('msgPayload').placeholder = "";
     document.getElementById('fileInfo').innerText = '';
-    document.getElementById('msgStatus').innerText = '';
+    document.getElementById('msgStatus').innerText = 'Bereit.';
+    document.getElementById('msgStatus').style.color = '#fff';
     currentAttachment = null;
     currentEncryptedBlob = null;
 });
 
 document.getElementById('btnSend').addEventListener('click', async () => {
     const status = document.getElementById('msgStatus');
-    if(!currentEncryptedBlob) return status.innerText = "Error: Encrypt first!";
+    if(!currentEncryptedBlob) return status.innerText = "Fehler: Erst verschlüsseln!";
 
     const recipient = document.getElementById('msgRecipient').value;
 
-    status.innerText = "Beaming...";
+    status.innerText = "Sende Datenstrahl...";
     try {
         const res = await fetch(`${API_BASE}/messages`, {
             method: 'POST',
@@ -647,11 +661,11 @@ document.getElementById('btnSend').addEventListener('click', async () => {
         });
         const data = await res.json();
         if(data.success) {
-            status.innerText = "BEAM SUCCESSFUL.";
+            status.innerText = "BEAM ERFOLGREICH.";
             status.style.color = "#00ff88";
         } else { throw new Error(data.error); }
     } catch(e) {
-        status.innerText = "Send Error: " + e.message;
+        status.innerText = "Sende-Fehler: " + e.message;
         status.style.color = "red";
     }
 });
@@ -662,17 +676,10 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
     const passcode = document.getElementById('decPasscode').value;
     const output = document.getElementById('decOutput');
 
-    if(!cipher || !passcode) return alert("Missing Data");
+    if(!cipher || !passcode) return alert("Daten fehlen");
 
     try {
         const user = sessionStorage.getItem('ent_user');
-
-        // 1. Set Keys for Logic
-        // In Enterprise context, we have the Supplement locally.
-        // WebApp decrypts using Supplement derived keys.
-        // Enterprise decrypting Enterprise messages?
-        // Logic: decryptFull expects `enterpriseKeys` to be set via `setEnterpriseKeys`.
-        // We set the supplement as the key source.
         const supplement = document.getElementById('settingSupplement').value;
         if(window.setEnterpriseKeys) window.setEnterpriseKeys([supplement]);
 
@@ -685,19 +692,19 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             if(decryptedPayload.startsWith('data:image')) {
                 output.innerHTML = `<img src="${decryptedPayload}" style="max-width:100%; border:1px solid #333;">`;
             } else {
-                output.innerHTML = `<a href="${decryptedPayload}" download="decrypted_file" style="color:var(--accent-primary)">DOWNLOAD FILE</a>`;
+                output.innerHTML = `<a href="${decryptedPayload}" download="decrypted_file" style="color:var(--accent-primary)">DATEI DOWNLOADEN</a>`;
             }
         } else {
             // Text
-            output.innerHTML = `<div style="background:#111; padding:10px; color:#fff; border:1px solid #333;">${decryptedPayload.replace(/\n/g, '<br>')}</div>`;
+            output.innerHTML = `<div style="padding:10px; color:#fff;">${decryptedPayload.replace(/\n/g, '<br>')}</div>`;
         }
     } catch(e) {
-        alert("Decryption Failed: " + e.message);
+        output.innerHTML = `<span style="color:red">Entschlüsselung fehlgeschlagen: ${e.message}</span>`;
     }
 });
 
 document.getElementById('btnDecClear').addEventListener('click', () => {
     document.getElementById('decInput').value = '';
     document.getElementById('decPasscode').value = '';
-    document.getElementById('decOutput').innerHTML = '';
+    document.getElementById('decOutput').innerHTML = '<span style="color:#666;">Warte auf Eingabe...</span>';
 });

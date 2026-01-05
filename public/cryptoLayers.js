@@ -1,5 +1,5 @@
 // public/cryptoLayers.js - Rewrite for Multi-Layer Encryption & Group Access Control
-// Includes Backup Encryption Helpers
+// NO EXPORTS - Global Window Assignment Only for standard Script tags
 
 const textEnc = new TextEncoder();
 const textDec = new TextDecoder();
@@ -115,12 +115,9 @@ async function deriveEnterpriseKey(supplement, passcode, senderId, recipientIds)
 }
 
 let enterpriseKeys = [];
-// Exporting for global usage if module not supported
-if (typeof window !== 'undefined') window.setEnterpriseKeys = setEnterpriseKeys;
-
-export function setEnterpriseKeys(keys) {
+window.setEnterpriseKeys = function(keys) {
     enterpriseKeys = keys;
-}
+};
 
 // ========================================================
 // 3. MAIN FUNCTIONS
@@ -128,12 +125,8 @@ export function setEnterpriseKeys(keys) {
 
 /**
  * Encrypts a message using multi-layer protection.
- * @param {string} text - The message content.
- * @param {string} passcode - 5-digit passcode.
- * @param {string[]} recipientIDs - List of allowed User IDs.
- * @param {string|null} currentUserId - The ID of the sender (to ensure they are included).
  */
-export async function encryptFull(text, passcode, recipientIDs, currentUserId = null) {
+async function encryptFull(text, passcode, recipientIDs, currentUserId = null) {
     // Input Handling: Ensure sender is in the list
     const allowed = [...recipientIDs];
     if (currentUserId) {
@@ -183,7 +176,7 @@ export async function encryptFull(text, passcode, recipientIDs, currentUserId = 
 }
 
 // Enterprise Hybrid Encryption (Layer 3 Alternate)
-export async function encryptHybrid(text, passcode, supplement, senderId, recipientIds) {
+async function encryptHybrid(text, passcode, supplement, senderId, recipientIds) {
     // 1. Prepare Payload (Layer 1 same as Full)
     const allowed = [senderId, ...recipientIds];
     const saltL1 = buf2base64(window.crypto.getRandomValues(new Uint8Array(16)));
@@ -192,8 +185,6 @@ export async function encryptHybrid(text, passcode, supplement, senderId, recipi
     const obfuscatedBytes = obfuscateBytes(jsonBytes, passcode);
 
     // 2. Derive Enterprise Key (Layer 2 Hybrid)
-    // Key = PBKDF2(Supplement + Passcode + SortedIDs)
-    // We assume the supplement is provided.
     const key = await deriveEnterpriseKey(supplement, passcode, senderId, recipientIds);
 
     // 3. Encrypt (Layer 3)
@@ -204,13 +195,7 @@ export async function encryptHybrid(text, passcode, supplement, senderId, recipi
         obfuscatedBytes
     );
 
-    // 4. Format Output for WebApp detection: "IVHex:CipherHex:TagHex::SenderID"
-    // WebCrypto 'encrypt' returns Cipher+Tag concatenated.
-    // We need to split if possible, or just send Hex.
-    // The WebApp expects `::SenderID` to trigger Hybrid Mode.
-    // And uses `deriveEnterpriseKey` to decrypt.
-    // Standard Format: Hex(IV):Hex(Cipher+Tag)::SenderID
-
+    // 4. Format Output: "IVHex:CipherHex:TagHex::SenderID"
     function buf2hex(buffer) {
         return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
     }
@@ -221,46 +206,63 @@ export async function encryptHybrid(text, passcode, supplement, senderId, recipi
     return `${ivHex}:${cipherHex}::${senderId}`;
 }
 
-// Export for global usage
-if (typeof window !== 'undefined') {
-    window.encryptFull = encryptFull;
-    window.encryptHybrid = encryptHybrid;
-}
-
 /**
  * Decrypts a message and verifies group access.
- * @param {string} encryptedBase64 - The encrypted string.
- * @param {string} passcode - 5-digit passcode.
- * @param {string} currentUserId - The ID of the user attempting to decrypt.
  */
-export async function decryptFull(encryptedBase64, passcode, currentUserId) {
+async function decryptFull(encryptedBase64, passcode, currentUserId) {
     let decryptedBuffer;
     let success = false;
 
-    // A. Check for Enterprise Hybrid Format ("Cipher:Tag::SenderID")
-    // Note: Enterprise decryption logic requires keys to be set via setEnterpriseKeys
-    // Logic: IV:Cipher:Tag::SenderID
+    // A. Standard Decryption (Base64 Packed)
+    try {
+        let packed = base642buf(encryptedBase64);
+        if (packed.byteLength >= 28) {
+            const saltL2 = packed.slice(0, 16);
+            const iv = packed.slice(16, 28);
+            const ciphertext = packed.slice(28);
+            const key = await deriveKey(passcode, saltL2);
 
-    // B. Standard Decryption (Base64 Packed)
-    if (!success) {
-        try {
-            let packed = base642buf(encryptedBase64);
-            if (packed.byteLength >= 28) {
-                const saltL2 = packed.slice(0, 16);
-                const iv = packed.slice(16, 28);
-                const ciphertext = packed.slice(28);
-                const key = await deriveKey(passcode, saltL2);
-
-                decryptedBuffer = await window.crypto.subtle.decrypt(
-                    { name: "AES-GCM", iv: iv },
-                    key,
-                    ciphertext
-                );
-                success = true;
-            }
-        } catch (e) {
-            // Fallthrough to Enterprise Check if not already tried or failed
+            decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                key,
+                ciphertext
+            );
+            success = true;
         }
+    } catch (e) {
+        // Fallthrough
+    }
+
+    // B. Enterprise Decryption (Revised Logic)
+    if (!success && enterpriseKeys.length > 0 && currentUserId) {
+        try {
+            if (encryptedBase64.includes('::')) {
+                const parts = encryptedBase64.split('::');
+                const core = parts[0]; // IV:Cipher:Tag
+                const senderId = parts[1];
+
+                const segments = core.split(':');
+                if (segments.length === 2) { // HexIV : HexCipherTag
+                    const iv = new Uint8Array(segments[0].match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    const combinedCipher = new Uint8Array(segments[1].match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
+                    for (const entKey of enterpriseKeys) {
+                        try {
+                            const recIds = [currentUserId];
+                            const derivedKey = await deriveEnterpriseKey(entKey, passcode, senderId, recIds);
+
+                            decryptedBuffer = await window.crypto.subtle.decrypt(
+                                { name: "AES-GCM", iv: iv },
+                                derivedKey,
+                                combinedCipher
+                            );
+                            success = true;
+                            break;
+                        } catch (e) { continue; }
+                    }
+                }
+            }
+        } catch (e) { console.error("Hybrid Decrypt Error", e); }
     }
 
     if (!success) {
@@ -292,19 +294,12 @@ export async function decryptFull(encryptedBase64, passcode, currentUserId) {
         throw new Error("Zugriff verweigert: Du stehst nicht auf der Empfängerliste.");
     }
 }
-// Export for global usage
-if (typeof window !== 'undefined') window.decryptFull = decryptFull;
 
 // ========================================================
 // 4. BACKUP FUNCTIONS (Simple Encryption, No User Check)
 // ========================================================
 
-/**
- * Encrypts raw data (string) with a passcode for backup purposes.
- * @param {string} data - The data string (e.g. JSON).
- * @param {string} passcode - The 5-digit passcode.
- */
-export async function encryptBackup(data, passcode) {
+async function encryptBackup(data, passcode) {
     const salt = window.crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(passcode, salt);
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -324,12 +319,7 @@ export async function encryptBackup(data, passcode) {
     return buf2base64(packed);
 }
 
-/**
- * Decrypts backup data with a passcode.
- * @param {string} encryptedBase64
- * @param {string} passcode
- */
-export async function decryptBackup(encryptedBase64, passcode) {
+async function decryptBackup(encryptedBase64, passcode) {
     let packed;
     try { packed = base642buf(encryptedBase64); } catch(e) { throw new Error("Ungültiges Format"); }
 
@@ -352,3 +342,10 @@ export async function decryptBackup(encryptedBase64, passcode) {
         throw new Error("Falscher Code oder Datei beschädigt.");
     }
 }
+
+// GLOBAL ASSIGNMENT
+window.encryptFull = encryptFull;
+window.encryptHybrid = encryptHybrid;
+window.decryptFull = decryptFull;
+window.encryptBackup = encryptBackup;
+window.decryptBackup = decryptBackup;
