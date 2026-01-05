@@ -110,7 +110,7 @@ async function deriveEnterpriseKey(supplement, passcode, senderId, recipientIds)
         keyMaterial,
         { name: "AES-GCM", length: 256 },
         false,
-        ["decrypt"]
+        ["encrypt", "decrypt"] // FIXED: Added 'encrypt' permission
     );
 }
 
