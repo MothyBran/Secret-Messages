@@ -30,6 +30,19 @@ const verifySession = (req, res, next) => {
 
 module.exports = (dbQuery) => {
 
+    // Helper: Log Audit Action
+    const logAction = async (action, details, req) => {
+        try {
+            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+            await dbQuery(
+                `INSERT INTO audit_logs (action, details, ip_address, created_at) VALUES ($1, $2, $3, datetime('now'))`,
+                [action, details, ip]
+            );
+        } catch (e) {
+            console.error("Audit Log Error:", e);
+        }
+    };
+
     // 0. STATUS API (Discovery)
     router.get('/api/status', async (req, res) => {
         try {
@@ -114,7 +127,7 @@ module.exports = (dbQuery) => {
 
             // Store User (Local Admin)
             await dbQuery(
-                `INSERT INTO users (username, password, is_admin, registered_at) VALUES ($1, $2, 1, datetime('now'))`,
+                `INSERT INTO users (username, password, is_admin, department, role_title, registered_at) VALUES ($1, $2, 1, 'Management', 'System Administrator', datetime('now'))`,
                 [username, hash]
             );
 
@@ -127,6 +140,8 @@ module.exports = (dbQuery) => {
             // Generate Key Supplement
             const supplement = cryptoLib.generateKeySupplement(masterKey);
             await dbQuery(`INSERT INTO settings (key, value) VALUES ('key_supplement', $1)`, [supplement]);
+
+            await logAction('SYSTEM_INIT', `Enterprise System initialized by ${username}`, req);
 
             res.json({ success: true });
 
@@ -146,20 +161,33 @@ module.exports = (dbQuery) => {
             const { username, password } = req.body;
 
             const result = await dbQuery("SELECT * FROM users WHERE username = $1", [username]);
-            if (result.rows.length === 0) return res.status(401).json({ error: 'Invalid Credentials' });
+            if (result.rows.length === 0) {
+                 await logAction('LOGIN_FAIL', `Failed login attempt for ${username}`, req);
+                 return res.status(401).json({ error: 'Invalid Credentials' });
+            }
 
             const user = result.rows[0];
             // Check password column first, fallback to access_code_hash for migration safety
             const dbHash = user.password || user.access_code_hash;
             const match = await bcrypt.compare(password, dbHash);
 
-            if (!match) return res.status(401).json({ error: 'Invalid Credentials' });
+            if (!match) {
+                await logAction('LOGIN_FAIL', `Failed login attempt for ${username} (Bad Pass)`, req);
+                return res.status(401).json({ error: 'Invalid Credentials' });
+            }
+
+            if (user.is_blocked) {
+                await logAction('LOGIN_BLOCKED', `Blocked user ${username} attempted login`, req);
+                return res.status(403).json({ error: 'Account Blocked' });
+            }
 
             // Success -> Generate Token
             const token = jwt.sign({ id: user.id, username: user.username, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: '8h' });
 
             // Store password in memory session for encryption operations
             activeSessions.set(token, { password: password });
+
+            await logAction('LOGIN_SUCCESS', `User ${username} logged in`, req);
 
             // Redirect based on Role (Unified Login)
             const redirectPath = (user.is_admin === 1) ? '/portal.html' : '/app';
@@ -171,9 +199,12 @@ module.exports = (dbQuery) => {
     });
 
     // 3. LOCK API
-    router.post('/api/lock', verifySession, (req, res) => {
+    router.post('/api/lock', verifySession, async (req, res) => {
         const token = req.headers['authorization']?.split(' ')[1];
-        if (token) activeSessions.delete(token);
+        if (token) {
+            activeSessions.delete(token);
+            await logAction('LOCKDOWN', `Session locked by user`, req);
+        }
         res.json({ success: true });
     });
 
@@ -219,6 +250,8 @@ module.exports = (dbQuery) => {
                 `INSERT INTO messages (sender_id, recipient_id, payload, iv, created_at) VALUES ($1, $2, $3, $4, datetime('now'))`,
                 [senderId, recipientId, internalPayload, encryptedData.iv]
             );
+
+            await logAction('MESSAGE_SENT', `Encrypted message sent to ${recipientId}`, req);
 
             // 6. Return FULL Packet for Manual Copy (Hybrid Compatibility)
             // Format: "IV:Cipher:Tag::SenderID"
@@ -273,6 +306,148 @@ module.exports = (dbQuery) => {
             console.error("Decrypt Error:", e);
             res.status(500).json({ error: e.message });
         }
+    });
+
+    // 6. AUDIT LOGS API
+    router.get('/api/admin/audit-logs', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+            const logs = await dbQuery("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT $1", [limit]);
+            res.json(logs.rows);
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // 7. USER MANAGEMENT API
+    router.get('/api/admin/users', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const users = await dbQuery("SELECT id, username, is_admin, is_blocked, department, role_title, registered_at FROM users ORDER BY username ASC");
+            res.json(users.rows);
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    router.patch('/api/admin/users/:id', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        const { id } = req.params;
+        const { department, role_title, is_blocked } = req.body;
+
+        try {
+            // Dynamic Update Builder
+            let fields = [];
+            let values = [];
+            let idx = 1;
+
+            if (department !== undefined) { fields.push(`department = $${idx++}`); values.push(department); }
+            if (role_title !== undefined) { fields.push(`role_title = $${idx++}`); values.push(role_title); }
+            if (is_blocked !== undefined) { fields.push(`is_blocked = $${idx++}`); values.push(is_blocked); }
+
+            if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+            values.push(id);
+            await dbQuery(`UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`, values);
+
+            await logAction('USER_UPDATE', `Updated user ID ${id}: ${fields.join(', ')}`, req);
+            res.json({ success: true });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    router.delete('/api/admin/users/:id', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            await dbQuery("DELETE FROM users WHERE id = $1", [req.params.id]);
+            await logAction('USER_DELETE', `Deleted user ID ${req.params.id}`, req);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // DASHBOARD METRICS API
+    router.get('/api/admin/metrics', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const users = await dbQuery("SELECT COUNT(*) as c FROM users");
+            // Count unique licenses? In enterprise context, we might count assigned keys or just total users as 'Active Licenses' for now
+            // Or better, count non-blocked users
+            const activeUsers = await dbQuery("SELECT COUNT(*) as c FROM users WHERE is_blocked = 0");
+            const lastBackup = "Unknown"; // Placeholder until backup logic is implemented
+
+            res.json({
+                total_users: users.rows[0].c,
+                active_licenses: activeUsers.rows[0].c,
+                status: 'ONLINE',
+                last_backup: lastBackup
+            });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // BACKUP API
+    router.get('/api/admin/backup', async (req, res) => {
+        // Token in query param for direct download link
+        const token = req.query.token;
+        if (!token || !activeSessions.has(token)) return res.status(403).send("Unauthorized");
+
+        try {
+            // Simple SQL Dump Simulation (SQLite specific)
+            // In a real env, we might stream the .db file or run .dump
+            // Here we just dump tables to JSON for portability as "SQL-like" backup
+            const users = await dbQuery("SELECT * FROM users");
+            const msgs = await dbQuery("SELECT * FROM messages");
+            const settings = await dbQuery("SELECT * FROM settings");
+            const logs = await dbQuery("SELECT * FROM audit_logs");
+
+            const backup = {
+                timestamp: new Date().toISOString(),
+                tables: { users: users.rows, messages: msgs.rows, settings: settings.rows, audit_logs: logs.rows }
+            };
+
+            res.setHeader('Content-Disposition', `attachment; filename="enterprise_backup_${Date.now()}.json"`);
+            res.setHeader('Content-Type', 'application/json');
+            res.send(JSON.stringify(backup, null, 2));
+
+            // We can't easily log this action since we don't have 'req' with user context fully hydrated,
+            // but we could try extracting from token if needed.
+        } catch(e) { res.status(500).send("Backup Failed"); }
+    });
+
+    // HUB STATUS API
+    router.post('/api/admin/hub-status', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const { active } = req.body;
+            // Upsert setting
+            const exists = await dbQuery("SELECT * FROM settings WHERE key='hub_active'");
+            if(exists.rows.length > 0) {
+                await dbQuery("UPDATE settings SET value=$1 WHERE key='hub_active'", [active ? '1' : '0']);
+            } else {
+                await dbQuery("INSERT INTO settings (key, value) VALUES ('hub_active', $1)", [active ? '1' : '0']);
+            }
+            await logAction('HUB_STATUS', `Hub status changed to ${active ? 'ACTIVE' : 'OFFLINE'}`, req);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    router.get('/api/admin/hub-status', verifySession, async (req, res) => {
+        try {
+            const resS = await dbQuery("SELECT value FROM settings WHERE key='hub_active'");
+            const active = resS.rows.length > 0 ? resS.rows[0].value === '1' : true; // Default true
+            res.json({ active });
+        } catch(e) { res.json({ active: true }); }
+    });
+
+    // MESSAGE READ API
+    router.patch('/api/admin/messages/:id/read', verifySession, async (req, res) => {
+        try {
+            await dbQuery("UPDATE messages SET is_read=1 WHERE id=$1", [req.params.id]);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
     });
 
     // Root Logic

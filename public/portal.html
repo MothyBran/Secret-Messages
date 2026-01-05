@@ -2,214 +2,175 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Enterprise Portal</title>
+    <title>Enterprise Admin Panel</title>
     <link href="/assets/fonts/fonts.css" rel="stylesheet">
-    <style>
-        :root { --bg-dark: #050505; --accent-primary: #00BFFF; --text-main: #e0e0e0; font-family: 'Rajdhani', sans-serif; }
-        body { background: var(--bg-dark); color: var(--text-main); font-family: 'Roboto Mono', monospace; margin: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px; }
-        h1 { color: var(--accent-primary); margin: 0; }
-        button.lock-btn { background: #ff3333; color: white; border: none; padding: 10px 20px; font-family: 'Rajdhani'; font-weight: bold; cursor: pointer; }
-
-        .dashboard { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: #111; padding: 20px; border: 1px solid #333; }
-        h2 { color: #fff; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
-
-        .enc-test { display: flex; gap: 10px; flex-direction: column; }
-        input, textarea { background: #000; border: 1px solid #444; color: #fff; padding: 10px; font-family: 'Roboto Mono'; width: 100%; box-sizing: border-box; }
-        button.action-btn { background: var(--accent-primary); border: none; padding: 10px; color: #000; font-weight: bold; cursor: pointer; }
-
-        .msg-list { max-height: 400px; overflow-y: auto; }
-        .msg-item { background: #050505; padding: 10px; margin-bottom: 10px; border-left: 3px solid var(--accent-primary); }
-        .msg-meta { font-size: 0.8rem; color: #666; margin-bottom: 5px; }
-        .msg-body { color: #fff; }
-    </style>
+    <link href="/assets/css/ui.css" rel="stylesheet">
+    <!-- No external scripts/CDNs -->
 </head>
 <body>
-    <header>
-        <h1>ENTERPRISE HUB</h1>
-        <div>
-            <span id="displayUser" style="margin-right: 20px; color: #888;">...</span>
-            <button class="lock-btn" id="lockBtn">INTERFACE SPERREN</button>
+
+    <!-- HEADBAR -->
+    <header class="headbar">
+        <!-- Burger Menu (Inline SVG) -->
+        <div id="toggleSidebar" style="cursor:pointer; padding: 10px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent-primary)">
+                <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+            </svg>
         </div>
+
+        <div class="brand-title text-glow">ENTERPRISE ADMIN PANEL</div>
+
+        <button class="lock-btn" id="lockBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>
+            </svg>
+            INTERFACE SPERREN
+        </button>
     </header>
 
-    <div class="dashboard">
-        <!-- STATUS & KEYS -->
-        <div class="card" style="grid-column: span 2;">
-            <h2>Status & Hybrid Keys</h2>
-            <p>System Active. Secure Environment.</p>
-            <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
-                <label style="color:#888; font-size: 0.8rem;">HYBRID KEY SUPPLEMENT (For external contacts)</label>
-                <div style="display:flex; gap:10px; margin-top:5px;">
-                    <input type="text" id="keySupplement" readonly style="color:var(--accent-primary); letter-spacing: 2px; width: 300px;">
-                    <button class="action-btn" onclick="copyKey()">COPY</button>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <nav class="sidebar" id="sidebar">
+            <div class="nav-item active" onclick="switchModule('dashboard')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                <span class="nav-text">Dashboard</span>
+            </div>
+            <div class="nav-item" onclick="switchModule('inbox')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                <span class="nav-text">Posteingang</span>
+            </div>
+            <div class="nav-item" onclick="switchModule('messenger')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>
+                <span class="nav-text">Secure-Messenger</span>
+            </div>
+            <div class="nav-item" onclick="switchModule('users')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <span class="nav-text">Benutzer</span>
+            </div>
+            <div class="nav-item" onclick="switchModule('audit')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span class="nav-text">Audit-Logs</span>
+            </div>
+            <div class="nav-item" onclick="switchModule('settings')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L5.09 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.08-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                <span class="nav-text">Einstellungen</span>
+            </div>
+
+            <div style="flex:1"></div>
+
+            <div class="nav-item" id="logoutBtn" style="border-top: 1px solid #333;">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                <span class="nav-text">Abmelden</span>
+            </div>
+        </nav>
+
+        <!-- CONTENT -->
+        <main class="content-area">
+
+            <!-- 1. DASHBOARD -->
+            <div id="dashboard" class="module active">
+                <div class="dashboard-grid">
+                    <!-- Stats -->
+                    <div class="stat-card">
+                        <div class="stat-label">Gesamt User</div>
+                        <div class="stat-value" id="statUsers">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Aktive Lizenzen</div>
+                        <div class="stat-value" id="statLicenses">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Hub Status</div>
+                        <div class="stat-value" style="color:#00ff88">ONLINE</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Letztes Backup</div>
+                        <div class="stat-value" style="font-size:1.2rem; margin-top:10px" id="statBackup">--</div>
+                    </div>
+
+                    <!-- Globe -->
+                    <div class="globe-container">
+                        <div class="wireframe-globe">
+                            <div class="globe-ring ring-1"></div>
+                            <div class="globe-ring ring-2"></div>
+                            <div class="globe-ring ring-3"></div>
+                            <!-- Center Core -->
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:10px; height:10px; background:var(--accent-primary); border-radius:50%; box-shadow:0 0 20px var(--accent-primary);"></div>
+                        </div>
+                        <div style="position:absolute; bottom:10px; right:10px; color:var(--text-muted); font-size:0.7rem;">
+                            GLOBAL HUB CONNECTION: ACTIVE
+                        </div>
+                    </div>
+
+                    <!-- Console -->
+                    <div class="console-container" id="liveConsole">
+                        <div class="console-overlay"></div>
+                        <div id="consoleOutput" style="margin-top: 20px;">
+                            <!-- Logs go here -->
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- WRITE -->
-        <div class="card">
-            <h2>Secure Message</h2>
-            <div class="enc-test">
-                <label>Recipient ID (Username)</label>
-                <input type="text" placeholder="e.g. admin" id="recipientId">
-                <label>Payload</label>
-                <textarea rows="5" placeholder="Secret Message..." id="payload"></textarea>
-                <button class="action-btn" id="sendBtn">Encrypt & Save to DB</button>
+            <!-- 2. USERS -->
+            <div id="users" class="module">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2>Benutzerverwaltung</h2>
+                    <button class="action-btn">Refresh</button>
+                </div>
+                <!-- Department Drag Board -->
+                <div class="department-board" id="deptBoard">
+                    <!-- Columns will be injected by JS -->
+                </div>
             </div>
-            <div id="status" style="margin-top: 10px; min-height: 20px;"></div>
 
-            <div id="copyContainer" style="display:none; margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
-                <label style="color:#888; font-size: 0.8rem;">HYBRID ENCRYPTED PACKET (Copy for external users)</label>
-                <textarea id="encryptedPacketOutput" readonly style="width:100%; height:60px; background:#000; color:var(--accent-primary); border:1px solid #333; font-family:'Roboto Mono'; font-size:0.8rem;"></textarea>
-                <button class="action-btn" onclick="copyPacket()" style="width:100%; margin-top:5px;">COPY PACKET</button>
+            <!-- 3. INBOX -->
+            <div id="inbox" class="module">
+                <h2>Support Posteingang</h2>
+                <div class="stat-card" style="margin-top:20px; text-align:center;">
+                    <p style="color:#888;">Keine neuen Support-Anfragen.</p>
+                </div>
             </div>
-        </div>
 
-        <!-- READ -->
-        <div class="card">
-            <h2>Decrypted Vault <button style="float:right; font-size:0.8rem;" onclick="loadMessages()">Refresh</button></h2>
-            <div class="msg-list" id="msgList">
-                <p style="color:#666;">Loading...</p>
+            <!-- 4. MESSENGER -->
+            <div id="messenger" class="module">
+                <h2>Secure Messenger (Internal Beam)</h2>
+                <div class="stat-card" style="margin-top:20px;">
+                     <label>Empfänger ID</label>
+                     <input type="text" id="msgRecipient" style="width:100%; margin:10px 0;">
+                     <label>Nachricht</label>
+                     <textarea id="msgPayload" rows="5" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px;"></textarea>
+                     <button class="action-btn" id="msgSendBtn" style="margin-top:10px;">BEAM ENCRYPTED MESSAGE</button>
+                     <div id="msgStatus" style="margin-top:10px;"></div>
+                </div>
             </div>
-        </div>
+
+            <!-- 5. AUDIT -->
+            <div id="audit" class="module">
+                <h2>System Audit Logs</h2>
+                <div style="margin-top:20px; max-height: 80vh; overflow-y:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Time</th><th>Action</th><th>User/IP</th><th>Details</th></tr>
+                        </thead>
+                        <tbody id="auditTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 6. SETTINGS -->
+            <div id="settings" class="module">
+                <h2>Einstellungen</h2>
+                <div class="stat-card" style="margin-top:20px;">
+                     <h3>Hybrid Key Supplement</h3>
+                     <p style="color:#888; font-size:0.8rem;">Teilen Sie diesen Key nur mit vertrauenswürdigen Partnern.</p>
+                     <input type="text" id="settingSupplement" readonly style="width:100%; color:var(--accent-primary); border:none; background:transparent; font-size:1.2rem; letter-spacing:2px;">
+                </div>
+            </div>
+
+        </main>
     </div>
 
-    <script>
-        const token = sessionStorage.getItem('ent_token');
-        const user = sessionStorage.getItem('ent_user');
-
-        if (!token) window.location.href = '/login-enterprise.html';
-        document.getElementById('displayUser').textContent = "Logged in as: " + user;
-
-        // FETCH SUPPLEMENT
-        async function loadSupplement() {
-            try {
-                const res = await fetch('/api/settings/supplement', { headers: { 'Authorization': 'Bearer ' + token } });
-                const data = await res.json();
-                if(data.supplement) {
-                    document.getElementById('keySupplement').value = data.supplement;
-                }
-            } catch(e) { console.error(e); }
-        }
-        loadSupplement();
-
-        function copyKey() {
-            const el = document.getElementById('keySupplement');
-            el.select();
-            document.execCommand('copy');
-            alert("Key copied to clipboard!");
-        }
-
-        // LOCK / LOGOUT
-        document.getElementById('lockBtn').addEventListener('click', async () => {
-            try {
-                await fetch('/api/lock', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
-            } catch(e) {}
-            sessionStorage.clear();
-            // Redirect to LOCAL Login, not WebApp
-            window.location.href = '/login-enterprise.html';
-        });
-
-        // SEND
-        document.getElementById('sendBtn').addEventListener('click', async () => {
-            const recipient = document.getElementById('recipientId').value;
-            const text = document.getElementById('payload').value;
-            const status = document.getElementById('status');
-            const copyBox = document.getElementById('copyContainer');
-
-            status.textContent = "Encrypting...";
-            copyBox.style.display = 'none';
-
-            try {
-                const res = await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                    body: JSON.stringify({ recipientId: recipient, payload: text })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    status.style.color = "#00ff88";
-                    status.textContent = "Message Encrypted & Stored.";
-                    document.getElementById('payload').value = "";
-
-                    if(data.encryptedPacket) {
-                        document.getElementById('encryptedPacketOutput').value = data.encryptedPacket;
-                        copyBox.style.display = 'block';
-                    }
-
-                    loadMessages();
-                } else {
-                    status.style.color = "red";
-                    status.textContent = "Error: " + data.error;
-                }
-            } catch(e) { status.textContent = "Network Error"; }
-        });
-
-        function copyPacket() {
-            const el = document.getElementById('encryptedPacketOutput');
-            el.select();
-            document.execCommand('copy');
-            alert("Encrypted Packet copied!");
-        }
-
-        // LOAD
-        async function loadMessages() {
-            const list = document.getElementById('msgList');
-            try {
-                const res = await fetch('/api/messages', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                const msgs = await res.json();
-
-                list.innerHTML = "";
-                if (msgs.length === 0) {
-                    list.innerHTML = "<p style='color:#666'>No messages found.</p>";
-                    return;
-                }
-
-                msgs.forEach(m => {
-                    const div = document.createElement('div');
-                    div.className = 'msg-item';
-                    div.innerHTML = `
-                        <div class="msg-meta">
-                            FROM: ${m.sender_id} | TO: ${m.recipient_id} | ${new Date(m.created_at).toLocaleString()}
-                        </div>
-                        <div class="msg-body">${escapeHtml(m.payload)}</div>
-                    `;
-                    list.appendChild(div);
-                });
-
-            } catch(e) { list.textContent = "Failed to load messages."; }
-        }
-
-        function escapeHtml(text) {
-            if (!text) return text;
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        }
-
-        // Init
-        loadMessages();
-
-        // 3. Auto-Lock (10 Minutes)
-        let idleTime = 0;
-        const IDLE_LIMIT = 10 * 60; // 10m in seconds
-
-        setInterval(() => {
-            idleTime++;
-            if (idleTime >= IDLE_LIMIT) {
-                document.getElementById('lockBtn').click();
-            }
-        }, 1000);
-
-        // Reset timer on interaction
-        ['mousemove', 'keydown', 'click', 'scroll'].forEach(evt => {
-            document.addEventListener(evt, () => { idleTime = 0; });
-        });
-    </script>
-    <footer style="text-align:center; color:#444; font-size:0.7rem; margin-top:40px; padding-bottom:10px;">
-        SECURE MESSAGES ENTERPRISE v2.0.0-ENT
-    </footer>
+    <script src="/assets/js/portal.js"></script>
 </body>
 </html>
