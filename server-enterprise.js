@@ -117,6 +117,8 @@ const createTables = async () => {
         license_key_id INTEGER,
         is_blocked INTEGER DEFAULT 0,
         is_admin INTEGER DEFAULT 1,
+        department TEXT,
+        role_title TEXT,
         registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -131,14 +133,26 @@ const createTables = async () => {
         recipient_id TEXT,
         payload TEXT,
         iv TEXT,
+        is_read INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Schema Migration: Ensure columns exist
-    try { await dbQuery("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 1"); } catch (e) { /* ignore if exists */ }
-    try { await dbQuery("ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0"); } catch (e) { /* ignore if exists */ }
-    try { await dbQuery("ALTER TABLE users ADD COLUMN license_key_id INTEGER"); } catch (e) { /* ignore if exists */ }
-    try { await dbQuery("ALTER TABLE users ADD COLUMN password TEXT"); } catch (e) { /* ignore if exists */ }
+    await dbQuery(`CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action VARCHAR(50),
+        details TEXT,
+        ip_address VARCHAR(45),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Schema Migration: Ensure columns exist (Idempotent)
+    try { await dbQuery("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 1"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN license_key_id INTEGER"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN password TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN department TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN role_title TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }
 
     // Additional tables can be added as we migrate logic
 };
