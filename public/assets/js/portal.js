@@ -61,9 +61,11 @@ window.unlockInterface = async function() {
             document.getElementById('lockOverlay').style.display = 'none';
             document.getElementById('unlockPass').value = '';
             msg.innerText = "";
-            // Restart Polling
-            pollingInterval = setInterval(updateDashboard, POLLING_RATE);
-            updateDashboard();
+            // Restart Polling if not already running
+            if (!pollingInterval) {
+                pollingInterval = setInterval(updateDashboard, POLLING_RATE);
+                updateDashboard();
+            }
         } else {
             msg.innerText = "Wrong Password";
         }
@@ -71,8 +73,12 @@ window.unlockInterface = async function() {
 };
 
 window.logout = function() {
-    sessionStorage.clear();
-    window.location.href = '/login.html'; // Or login-enterprise.html
+    // Explicit call to clear server session if needed, then client side
+    fetch(`${API_BASE}/lock`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).finally(() => {
+        sessionStorage.clear();
+        // Determine redirect target based on availability
+        window.location.href = '/login.html';
+    });
 };
 
 document.getElementById('lockBtn').addEventListener('click', triggerGlobalLock);
@@ -521,66 +527,177 @@ window.markRead = async function(id) {
     } catch(e) { alert("Error marking read"); }
 };
 
-// --- 7. MESSENGER (Client-Side Encryption) ---
-document.getElementById('msgSendBtn').addEventListener('click', async () => {
+// --- 7. MESSENGER (Hybrid Enterprise Logic) ---
+let currentAttachment = null;
+let currentEncryptedBlob = null; // Store result for Send/Copy/Download
+
+// A. File Handling
+document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+// Drag & Drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent-primary)'; });
+dropZone.addEventListener('dragleave', (e) => { dropZone.style.borderColor = '#444'; });
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#444';
+    if(e.dataTransfer.files.length) handleFileSelect({ target: { files: e.dataTransfer.files } });
+});
+
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    // Limit 5MB
+    if(file.size > 5 * 1024 * 1024) {
+        alert("File too large (Max 5MB)");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        currentAttachment = evt.target.result; // Base64 Data URL
+        document.getElementById('fileInfo').innerText = `✓ ${file.name} attached (${Math.round(file.size/1024)}KB)`;
+        document.getElementById('msgPayload').disabled = true;
+        document.getElementById('msgPayload').placeholder = "File attached. Text input disabled.";
+    };
+    reader.readAsDataURL(file);
+}
+
+// B. Encrypt
+document.getElementById('btnEncrypt').addEventListener('click', async () => {
     const status = document.getElementById('msgStatus');
     const recipient = document.getElementById('msgRecipient').value;
-    const payload = document.getElementById('msgPayload').value;
+    const passcode = document.getElementById('msgPasscode').value;
+    // Payload is either text or attachment
+    const payload = currentAttachment || document.getElementById('msgPayload').value;
 
-    if(!recipient || !payload) {
-        status.innerText = 'Missing Recipient or Message';
-        status.style.color = 'red';
-        return;
-    }
+    if(!recipient) return status.innerText = "Error: Recipient ID missing";
+    if(!passcode || passcode.length !== 5) return status.innerText = "Error: 5-Digit Passcode required";
+    if(!payload) return status.innerText = "Error: No Content to encrypt";
 
-    status.innerText = 'Encrypting (Client-Side)...';
-    status.style.color = 'var(--accent-primary)';
-
-    // Prompt for 5-digit Passcode (User Interaction Required for Client-Side Crypto)
-    // In Enterprise Admin context, do we use the Admin Password or a specific code?
-    // The requirement says "Messenger... Übernahme des V/E-Tools aus der WebApp".
-    // WebApp asks for a code.
-    // For Enterprise to Enterprise messaging, we need a shared secret or PBKDF2.
-    // Let's ask for a code for now to ensure security context.
-    // OR we use the current session password if available?
-    // Security Best Practice: Ask for code to sign/encrypt.
-    const passcode = prompt("Enter 5-digit Encryption Code for this message:", "12345");
-    if(!passcode || passcode.length !== 5) {
-        status.innerText = 'Encryption Aborted: Invalid Code';
-        status.style.color = 'red';
-        return;
-    }
+    status.innerText = "Encrypting...";
+    status.style.color = "var(--accent-primary)";
 
     try {
-        // CLIENT SIDE ENCRYPTION
-        // We use the global window.encryptFull from cryptoLayers.js
-        const currentUserId = sessionStorage.getItem('ent_user');
-        const encryptedBlob = await window.encryptFull(payload, passcode, [recipient], currentUserId);
+        const senderId = sessionStorage.getItem('ent_user');
+        const supplement = document.getElementById('settingSupplement').value;
 
-        status.innerText = 'Beaming to DB...';
+        // HYBRID ENCRYPTION
+        // Use encryptHybrid which formats output as "IVHex:CipherHex::SenderID"
+        currentEncryptedBlob = await window.encryptHybrid(payload, passcode, supplement, senderId, [recipient]);
 
+        status.innerText = "ENCRYPTION SUCCESSFUL. Ready to Send/Download.";
+        status.style.color = "#00ff88";
+
+        // Populate Output for Visual Confirmation (Optional, reusing text area or just internal state)
+        document.getElementById('msgPayload').value = currentEncryptedBlob;
+        document.getElementById('msgPayload').disabled = false; // Allow copy logic if user wants manual
+        currentAttachment = null; // Reset attachment state to allow mixed usage flow or clear
+    } catch(e) {
+        console.error(e);
+        status.innerText = "Encryption Error: " + e.message;
+        status.style.color = "red";
+    }
+});
+
+// C. Actions (Copy, Download, Send, Clear)
+document.getElementById('btnCopy').addEventListener('click', () => {
+    if(!currentEncryptedBlob) return;
+    navigator.clipboard.writeText(currentEncryptedBlob);
+    alert("Encrypted Packet copied to Clipboard!");
+});
+
+document.getElementById('btnDownload').addEventListener('click', () => {
+    if(!currentEncryptedBlob) return;
+    const blob = new Blob([currentEncryptedBlob], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `SECURE-MSG_${Date.now()}.txt`;
+    link.click();
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+    document.getElementById('msgRecipient').value = '';
+    document.getElementById('msgPasscode').value = '';
+    document.getElementById('msgPayload').value = '';
+    document.getElementById('msgPayload').disabled = false;
+    document.getElementById('msgPayload').placeholder = "";
+    document.getElementById('fileInfo').innerText = '';
+    document.getElementById('msgStatus').innerText = '';
+    currentAttachment = null;
+    currentEncryptedBlob = null;
+});
+
+document.getElementById('btnSend').addEventListener('click', async () => {
+    const status = document.getElementById('msgStatus');
+    if(!currentEncryptedBlob) return status.innerText = "Error: Encrypt first!";
+
+    const recipient = document.getElementById('msgRecipient').value;
+
+    status.innerText = "Beaming...";
+    try {
         const res = await fetch(`${API_BASE}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({
                 recipientId: recipient,
-                payload: encryptedBlob,
-                encrypted: true // Signal backend to store as-is
+                payload: currentEncryptedBlob,
+                encrypted: true
             })
         });
-
         const data = await res.json();
         if(data.success) {
-            status.style.color = '#00ff88';
-            status.innerText = 'SUCCESS: Message Encrypted & Beamed.';
-            document.getElementById('msgPayload').value = '';
+            status.innerText = "BEAM SUCCESSFUL.";
+            status.style.color = "#00ff88";
+        } else { throw new Error(data.error); }
+    } catch(e) {
+        status.innerText = "Send Error: " + e.message;
+        status.style.color = "red";
+    }
+});
+
+// D. Decrypt Logic
+document.getElementById('btnDecrypt').addEventListener('click', async () => {
+    const cipher = document.getElementById('decInput').value;
+    const passcode = document.getElementById('decPasscode').value;
+    const output = document.getElementById('decOutput');
+
+    if(!cipher || !passcode) return alert("Missing Data");
+
+    try {
+        const user = sessionStorage.getItem('ent_user');
+
+        // 1. Set Keys for Logic
+        // In Enterprise context, we have the Supplement locally.
+        // WebApp decrypts using Supplement derived keys.
+        // Enterprise decrypting Enterprise messages?
+        // Logic: decryptFull expects `enterpriseKeys` to be set via `setEnterpriseKeys`.
+        // We set the supplement as the key source.
+        const supplement = document.getElementById('settingSupplement').value;
+        if(window.setEnterpriseKeys) window.setEnterpriseKeys([supplement]);
+
+        const decryptedPayload = await window.decryptFull(cipher, passcode, user);
+
+        // Render
+        output.innerHTML = '';
+        if(decryptedPayload.startsWith('data:')) {
+            // Media
+            if(decryptedPayload.startsWith('data:image')) {
+                output.innerHTML = `<img src="${decryptedPayload}" style="max-width:100%; border:1px solid #333;">`;
+            } else {
+                output.innerHTML = `<a href="${decryptedPayload}" download="decrypted_file" style="color:var(--accent-primary)">DOWNLOAD FILE</a>`;
+            }
         } else {
-            status.style.color = 'red';
-            status.innerText = 'Server Error: ' + data.error;
+            // Text
+            output.innerHTML = `<div style="background:#111; padding:10px; color:#fff; border:1px solid #333;">${decryptedPayload.replace(/\n/g, '<br>')}</div>`;
         }
     } catch(e) {
-        console.error(e);
-        status.innerText = 'Encryption/Network Error: ' + e.message;
-        status.style.color = 'red';
+        alert("Decryption Failed: " + e.message);
     }
+});
+
+document.getElementById('btnDecClear').addEventListener('click', () => {
+    document.getElementById('decInput').value = '';
+    document.getElementById('decPasscode').value = '';
+    document.getElementById('decOutput').innerHTML = '';
 });

@@ -165,14 +165,61 @@
 
             <!-- 4. MESSENGER -->
             <div id="messenger" class="module">
-                <h2>Secure Messenger (Internal Beam)</h2>
-                <div class="stat-card" style="margin-top:20px;">
-                     <label>Empfänger ID</label>
-                     <input type="text" id="msgRecipient" style="width:100%; margin:10px 0;">
-                     <label>Nachricht</label>
-                     <textarea id="msgPayload" rows="5" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px;"></textarea>
-                     <button class="action-btn" id="msgSendBtn" style="margin-top:10px;">BEAM ENCRYPTED MESSAGE</button>
-                     <div id="msgStatus" style="margin-top:10px;"></div>
+                <h2>Secure Messenger (Hybrid Enterprise)</h2>
+                <div class="stat-card" style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+
+                    <!-- ENCRYPT MODE -->
+                    <div style="border-right:1px solid #333; padding-right:20px;">
+                        <h3 class="text-accent">ENCRYPT</h3>
+
+                        <label>Recipient ID (Internal or External)</label>
+                        <input type="text" id="msgRecipient" placeholder="e.g. user_123" style="width:100%; margin:5px 0 15px;">
+
+                        <label>5-Digit Passcode</label>
+                        <input type="password" id="msgPasscode" maxlength="5" placeholder="*****" style="width:100px; margin:5px 0 15px; display:block; letter-spacing:3px; text-align:center;">
+
+                        <label>Message Content</label>
+                        <textarea id="msgPayload" rows="4" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px; margin-bottom:10px;"></textarea>
+
+                        <!-- File Upload Zone -->
+                        <div id="dropZone" style="border:1px dashed #444; padding:20px; text-align:center; color:#888; margin-bottom:15px; cursor:pointer;" onclick="document.getElementById('fileInput').click()">
+                            <span>Click or Drag File (Image/Doc)</span>
+                            <input type="file" id="fileInput" style="display:none">
+                            <div id="fileInfo" style="color:var(--accent-primary); font-size:0.8rem; margin-top:5px;"></div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                            <button class="action-btn" id="btnEncrypt">ENCRYPT</button>
+                            <button class="action-btn" id="btnCopy" style="background:#333; color:#fff;">COPY</button>
+                            <button class="action-btn" id="btnDownload" style="background:#333; color:#fff;">DL .TXT</button>
+                            <button class="action-btn" id="btnSend" style="background:var(--success-green); color:#000;">BEAM (SEND)</button>
+                            <button class="action-btn" id="btnClear" style="background:#333; color:#aaa;">CLEAR</button>
+                        </div>
+                        <div id="msgStatus" style="margin-top:10px; min-height:20px; font-size:0.8rem;"></div>
+                    </div>
+
+                    <!-- DECRYPT MODE -->
+                    <div>
+                        <h3 class="text-accent">DECRYPT</h3>
+
+                        <label>5-Digit Passcode</label>
+                        <input type="password" id="decPasscode" maxlength="5" placeholder="*****" style="width:100px; margin:5px 0 15px; display:block; letter-spacing:3px; text-align:center;">
+
+                        <label>Encrypted Cipher Text</label>
+                        <textarea id="decInput" rows="6" placeholder="Paste Ciphertext here..." style="width:100%; background:#000; color:var(--accent-primary); border:1px solid #444; padding:10px; margin-bottom:10px; font-family:'Roboto Mono';"></textarea>
+
+                        <!-- Actions -->
+                        <div style="display:flex; gap:10px;">
+                            <button class="action-btn" id="btnDecrypt">DECRYPT</button>
+                            <button class="action-btn" id="btnDecClear" style="background:#333; color:#aaa;">CLEAR</button>
+                        </div>
+
+                        <div id="decOutput" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">
+                            <!-- Output will appear here -->
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
