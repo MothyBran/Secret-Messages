@@ -40,6 +40,19 @@
         </div>
     </div>
 
+    <!-- CONTACT LIST OVERLAY -->
+    <div id="contactOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:3000; align-items:center; justify-content:center;">
+        <div class="stat-card" style="width:500px; height:600px; background:#111; border:1px solid var(--accent-primary); display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; padding-bottom:10px;">
+                <h3>INTERNE KONTAKTE</h3>
+                <button onclick="document.getElementById('contactOverlay').style.display='none'" style="background:transparent; border:none; color:var(--error-red); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="contactListContainer" style="flex:1; overflow-y:auto; padding-top:10px;">
+                <!-- List items injected here -->
+            </div>
+        </div>
+    </div>
+
     <!-- HEADBAR -->
     <header class="headbar">
         <!-- Burger Menu (Inline SVG) -->
@@ -175,19 +188,22 @@
 
                     <!-- ENCRYPT MODE -->
                     <div id="modeEncrypt">
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
-                            <!-- LEFT: INPUTS -->
+                        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:30px;">
+                            <!-- LEFT: INPUTS (70%) -->
                             <div>
                                 <h3 class="text-accent" style="margin-bottom:20px;">NACHRICHT ERSTELLEN</h3>
 
                                 <label style="display:block; margin-bottom:5px;">EMPFÄNGER (ID)</label>
-                                <input type="text" id="msgRecipient" placeholder="z.B. user_123" style="width:100%; margin-bottom:20px; padding:12px;">
+                                <div style="display:flex; gap:10px; margin-bottom:20px;">
+                                    <input type="text" id="msgRecipient" placeholder="z.B. user_123" style="flex:1; padding:12px;">
+                                    <button onclick="toggleContacts()" style="padding:0 15px; background:#333; border:1px solid #444; color:#fff; cursor:pointer;">📖 KONTAKTE</button>
+                                </div>
 
                                 <label style="display:block; margin-bottom:5px;">5-STELLIGER CODE</label>
                                 <input type="password" id="msgPasscode" maxlength="5" placeholder="12345" style="width:100px; margin-bottom:20px; padding:12px; letter-spacing:3px; text-align:center;">
 
                                 <label style="display:block; margin-bottom:5px;">INHALT (TEXT)</label>
-                                <textarea id="msgPayload" rows="6" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:15px; margin-bottom:20px; font-size:1rem;"></textarea>
+                                <textarea id="msgPayload" rows="8" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:15px; margin-bottom:20px; font-size:1rem; box-sizing:border-box;"></textarea>
 
                                 <!-- File Upload Zone -->
                                 <div id="dropZone" style="border:2px dashed #333; padding:30px; text-align:center; color:#888; margin-bottom:20px; cursor:pointer; transition:0.3s;" onclick="document.getElementById('fileInput').click()">
@@ -198,21 +214,21 @@
                                 </div>
                             </div>
 
-                            <!-- RIGHT: CONTROLS & STATUS -->
+                            <!-- RIGHT: CONTROLS & STATUS (30%) -->
                             <div style="display:flex; flex-direction:column; gap:15px;">
                                 <h3 class="text-accent" style="margin-bottom:20px;">AKTIONEN</h3>
 
-                                <button class="action-btn" id="btnEncrypt" style="padding:15px; font-size:1.1rem;">🔒 VERSCHLÜSSELN</button>
+                                <button class="action-btn" id="btnEncrypt" style="padding:15px; font-size:1.1rem; width:100%;">🔒 VERSCHLÜSSELN</button>
 
                                 <div style="height:1px; background:#333; margin:10px 0;"></div>
 
-                                <button class="action-btn" id="btnCopy" style="background:#222; color:#ccc;">KOPIEREN (CLIPBOARD)</button>
-                                <button class="action-btn" id="btnDownload" style="background:#222; color:#ccc;">DOWNLOAD .TXT</button>
-                                <button class="action-btn" id="btnSend" style="background:var(--success-green); color:#000; font-weight:900;">📡 VERSENDEN (BEAM)</button>
+                                <button class="action-btn" id="btnCopy" style="background:#222; color:#ccc; width:100%;">KOPIEREN (CLIPBOARD)</button>
+                                <button class="action-btn" id="btnDownload" style="background:#222; color:#ccc; width:100%;">DOWNLOAD .TXT</button>
+                                <button class="action-btn" id="btnSend" style="background:var(--success-green); color:#000; font-weight:900; width:100%;">📡 VERSENDEN (BEAM)</button>
 
                                 <div style="height:1px; background:#333; margin:10px 0;"></div>
 
-                                <button class="action-btn" id="btnClear" style="background:rgba(255,50,50,0.2); color:var(--error-red);">ALLES LEEREN</button>
+                                <button class="action-btn" id="btnClear" style="background:rgba(255,50,50,0.2); color:var(--error-red); width:100%;">ALLES LEEREN</button>
 
                                 <div id="msgStatus" style="margin-top:20px; padding:15px; background:#000; border:1px solid #333; min-height:40px; font-family:'Roboto Mono'; font-size:0.9rem;">
                                     Bereit.

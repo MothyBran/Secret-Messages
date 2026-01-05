@@ -708,3 +708,46 @@ document.getElementById('btnDecClear').addEventListener('click', () => {
     document.getElementById('decPasscode').value = '';
     document.getElementById('decOutput').innerHTML = '<span style="color:#666;">Warte auf Eingabe...</span>';
 });
+
+// E. Contact Directory
+window.toggleContacts = async function() {
+    const overlay = document.getElementById('contactOverlay');
+    const container = document.getElementById('contactListContainer');
+
+    if(overlay.style.display === 'flex') {
+        overlay.style.display = 'none';
+        return;
+    }
+
+    container.innerHTML = 'Lade Kontakte...';
+    overlay.style.display = 'flex';
+
+    try {
+        const res = await fetch(`${API_BASE}/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const users = await res.json();
+
+        container.innerHTML = '';
+        users.forEach(u => {
+            const div = document.createElement('div');
+            div.style.cssText = "padding:10px; border-bottom:1px solid #333; cursor:pointer; display:flex; justify-content:space-between; align-items:center;";
+            div.innerHTML = `
+                <div>
+                    <div style="font-weight:bold; color:#fff;">${u.username}</div>
+                    <div style="font-size:0.8rem; color:#888;">${u.role_title || 'Mitarbeiter'} | ${u.department || 'Allgemein'}</div>
+                </div>
+                <div style="color:var(--accent-primary);">ID: ${u.id}</div>
+            `;
+            div.onclick = () => selectContact(u.username);
+            div.onmouseover = () => div.style.background = '#222';
+            div.onmouseout = () => div.style.background = 'transparent';
+            container.appendChild(div);
+        });
+    } catch(e) {
+        container.innerHTML = '<span style="color:red">Fehler beim Laden.</span>';
+    }
+};
+
+window.selectContact = function(username) {
+    document.getElementById('msgRecipient').value = username;
+    document.getElementById('contactOverlay').style.display = 'none';
+};
