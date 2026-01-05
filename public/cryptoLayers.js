@@ -181,8 +181,51 @@ export async function encryptFull(text, passcode, recipientIDs, currentUserId = 
 
     return buf2base64(packed);
 }
+
+// Enterprise Hybrid Encryption (Layer 3 Alternate)
+export async function encryptHybrid(text, passcode, supplement, senderId, recipientIds) {
+    // 1. Prepare Payload (Layer 1 same as Full)
+    const allowed = [senderId, ...recipientIds];
+    const saltL1 = buf2base64(window.crypto.getRandomValues(new Uint8Array(16)));
+    const layer1Data = { content: text, allowed_users: allowed, salt: saltL1 };
+    const jsonBytes = textEnc.encode(JSON.stringify(layer1Data));
+    const obfuscatedBytes = obfuscateBytes(jsonBytes, passcode);
+
+    // 2. Derive Enterprise Key (Layer 2 Hybrid)
+    // Key = PBKDF2(Supplement + Passcode + SortedIDs)
+    // We assume the supplement is provided.
+    const key = await deriveEnterpriseKey(supplement, passcode, senderId, recipientIds);
+
+    // 3. Encrypt (Layer 3)
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const encryptedBuffer = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        obfuscatedBytes
+    );
+
+    // 4. Format Output for WebApp detection: "IVHex:CipherHex:TagHex::SenderID"
+    // WebCrypto 'encrypt' returns Cipher+Tag concatenated.
+    // We need to split if possible, or just send Hex.
+    // The WebApp expects `::SenderID` to trigger Hybrid Mode.
+    // And uses `deriveEnterpriseKey` to decrypt.
+    // Standard Format: Hex(IV):Hex(Cipher+Tag)::SenderID
+
+    function buf2hex(buffer) {
+        return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+
+    const ivHex = buf2hex(iv);
+    const cipherHex = buf2hex(encryptedBuffer); // Contains Tag at end
+
+    return `${ivHex}:${cipherHex}::${senderId}`;
+}
+
 // Export for global usage
-if (typeof window !== 'undefined') window.encryptFull = encryptFull;
+if (typeof window !== 'undefined') {
+    window.encryptFull = encryptFull;
+    window.encryptHybrid = encryptHybrid;
+}
 
 /**
  * Decrypts a message and verifies group access.
