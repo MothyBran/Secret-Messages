@@ -13,8 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Priority 1: Serve Static Files (ABSOLUTE TOP as requested)
-// Dynamic Public Path Resolution for Standalone .exe (Fixes MIME/404 issues)
-const publicPath = path.join(process.cwd(), 'public');
+// Dynamic Public Path: Use __dirname to find files INSIDE the Electron ASAR package
+const publicPath = path.join(__dirname, 'public');
 console.log('📂 Enterprise Server serving assets from:', publicPath);
 
 // Explicitly set MIME types for fonts to avoid "decoding failed" due to text/html 404s masquerading as files
