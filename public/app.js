@@ -3,7 +3,7 @@
 const APP_VERSION = 'Beta v0.61';
 
 // Import encryption functions including backup helpers
-import { encryptFull, decryptFull, setEnterpriseKeys } from './cryptoLayers.js';
+import { encryptFull, decryptFull, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -184,6 +184,21 @@ function setupUIEvents() {
     document.getElementById('navDelete')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('deleteAccountModal').classList.add('active'); });
     document.getElementById('btnCancelDelete')?.addEventListener('click', () => { document.getElementById('deleteAccountModal').classList.remove('active'); });
     document.getElementById('btnConfirmDelete')?.addEventListener('click', performAccountDeletion);
+
+    // Profile Transfer (Sidebar - Export)
+    document.getElementById('navProfileTransfer')?.addEventListener('click', (e) => {
+        e.preventDefault(); toggleMainMenu(true);
+        document.getElementById('transferSecurityCode').value = '';
+        document.getElementById('transferSecurityModal').classList.add('active');
+    });
+    document.getElementById('btnConfirmTransferStart')?.addEventListener('click', handleTransferExportStart);
+
+    // Profile Transfer (Login - Import)
+    document.getElementById('startTransferImportBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        startQRScanner(true); // true = transfer mode
+    });
+    document.getElementById('btnConfirmTransferImport')?.addEventListener('click', handleTransferImportDecrypt);
 
     document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select'));
     
@@ -799,8 +814,243 @@ function handleTxtImport(e) {
 function showQRModal(text) { document.getElementById('qrModal').classList.add('active'); const c=document.getElementById('qrDisplay'); c.innerHTML=""; try { new QRCode(c, { text:text, width:190, height:190, colorDark:"#000", colorLight:"#fff", correctLevel:QRCode.CorrectLevel.L }); } catch(e){c.textContent="QR Lib Error";} }
 function downloadQR() { const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); } }
 let qrScan=null;
-function startQRScanner() { if(location.protocol!=='https:' && location.hostname!=='localhost') alert("HTTPS nötig."); document.getElementById('qrScannerModal').classList.add('active'); if(!qrScan) qrScan=new Html5Qrcode("qr-reader"); qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (txt)=>{stopQRScanner(); document.getElementById('messageInput').value=txt; showAppStatus("QR erkannt!");}, ()=>{}).catch(e=>{document.getElementById('qr-reader').innerHTML="Kamera Fehler";}); }
-function stopQRScanner() { document.getElementById('qrScannerModal').classList.remove('active'); if(qrScan) qrScan.stop().catch(()=>{}); }
+let isTransferScan = false;
+
+function startQRScanner(transferMode = false) {
+    if(location.protocol!=='https:' && location.hostname!=='localhost') return alert("Kamera benötigt HTTPS.");
+    isTransferScan = transferMode;
+    document.getElementById('qrScannerModal').classList.add('active');
+
+    if(!qrScan) qrScan = new Html5Qrcode("qr-reader");
+
+    qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (decodedText) => {
+        stopQRScanner();
+        if (isTransferScan) {
+            handleTransferScanSuccess(decodedText);
+        } else {
+            document.getElementById('messageInput').value = decodedText;
+            showAppStatus("QR Code erkannt!");
+        }
+    }, (errorMessage) => {
+        // console.log(errorMessage);
+    }).catch(err => {
+        console.error(err);
+        document.getElementById('qr-reader').innerHTML = `<div style="color:red;padding:20px;">Kamera-Fehler: ${err}</div>`;
+    });
+}
+
+function stopQRScanner() {
+    document.getElementById('qrScannerModal').classList.remove('active');
+    if(qrScan && qrScan.isScanning) {
+        qrScan.stop().then(() => { qrScan.clear(); }).catch(err => console.error(err));
+    }
+}
+
+// ========================================================
+// PROFILE TRANSFER LOGIC
+// ========================================================
+
+let transferPayloadCache = null;
+let transferUidCache = null;
+
+async function handleTransferExportStart() {
+    const code = document.getElementById('transferSecurityCode').value;
+    if (code.length !== 5) return showToast("Code muss 5-stellig sein", 'error');
+
+    const btn = document.getElementById('btnConfirmTransferStart');
+    const oldTxt = btn.textContent; btn.textContent = "..."; btn.disabled = true;
+
+    try {
+        // 1. Verify Session & Get Encrypted PIK
+        const res = await fetch(`${API_BASE}/auth/export-profile`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.error || "Export fehlgeschlagen");
+        }
+
+        const { pik_encrypted, uid } = data;
+
+        // 2. Decrypt PIK locally using User's Code
+        // Note: encryptServerSide uses PBKDF2+AES-GCM. We need decryptFull-like logic.
+        // But pik_encrypted is from server side crypto util.
+        // Client decryptFull expects Layer 1 JSON wrapper. Server PIK is raw encrypted string (Salt+IV+Cipher+Tag).
+        // We need a raw decrypt function.
+        // ACTUALLY: We don't have a raw decrypt exposed in cryptoLayers.js easily without modifying it further?
+        // Wait, `decryptBackup` handles raw AES-GCM decryption! It expects Base64 (Salt+IV+Cipher).
+        // `encryptServerSide` returns Base64 (Salt+IV+Cipher+Tag). This matches `decryptBackup` format.
+
+        let pikDecrypted;
+        try {
+            // We reuse decryptBackup because the crypto structure is identical (PBKDF2 -> AES-GCM)
+            // It imports 'decryptBackup' from module.
+            // Wait, I need to import it at the top! Added it to import list? No, I missed it.
+            // I will dynamically import or assume it's available if I update the import line.
+            // Let's assume I updated the import line in step 1 of the patch.
+            // Wait, I did NOT update the import line to include `decryptBackup`.
+            // I should have. But `decryptFull` does logic.
+            // Let's use `decryptBackup` which I see in `cryptoLayers.js` is exported.
+            const { decryptBackup } = await import('./cryptoLayers.js');
+            pikDecrypted = await decryptBackup(pik_encrypted, code);
+        } catch (e) {
+            throw new Error("Falscher Zugangscode.");
+        }
+
+        // 3. Re-Encrypt for Transfer (Layer 4 System)
+        // Wraps {uid, pik} into secure container
+        const transferPackage = await exportProfilePackage(uid, pikDecrypted, code);
+
+        // 4. Generate QR (UID:PACKAGE)
+        const qrContent = `${uid}:${transferPackage}`;
+
+        document.getElementById('transferSecurityModal').classList.remove('active');
+        document.getElementById('transferExportModal').classList.add('active');
+
+        const qrContainer = document.getElementById('transferQrDisplay');
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, { text: qrContent, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.L });
+
+        // 5. Start Countdown (2 Min)
+        let timeLeft = 120;
+        const timerEl = document.getElementById('transferTimer');
+        const interval = setInterval(() => {
+            timeLeft--;
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+            if (timeLeft <= 0 || !document.getElementById('transferExportModal').classList.contains('active')) {
+                clearInterval(interval);
+                document.getElementById('transferExportModal').classList.remove('active');
+                if(timeLeft <= 0) showToast("QR-Code abgelaufen.", 'error');
+            }
+        }, 1000);
+
+    } catch (e) {
+        showToast(e.message, 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+    }
+}
+
+async function handleTransferScanSuccess(decodedText) {
+    // Expected: UID:PACKAGE
+    const parts = decodedText.split(':');
+    if (parts.length < 2) return showToast("Ungültiger QR-Code", 'error');
+
+    const uid = parts[0];
+    const packageData = parts.slice(1).join(':'); // Rejoin rest in case base64 has colons? Base64 shouldn't.
+
+    transferPayloadCache = packageData;
+    transferUidCache = uid;
+
+    showLoader("Verbinde mit Server...");
+
+    try {
+        // 1. Send Signal to Server
+        const res = await fetch(`${API_BASE}/auth/transfer-start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid })
+        });
+
+        hideLoader();
+
+        if (!res.ok) {
+            const d = await res.json();
+            throw new Error(d.error || "Server verweigert Transfer");
+        }
+
+        // 2. Open Decrypt Modal
+        document.getElementById('transferImportModal').classList.add('active');
+        document.getElementById('transferImportCode').value = '';
+        document.getElementById('transferImportCode').focus();
+
+    } catch (e) {
+        hideLoader();
+        showToast(e.message, 'error');
+    }
+}
+
+async function handleTransferImportDecrypt() {
+    const code = document.getElementById('transferImportCode').value;
+    if (code.length !== 5) return showToast("5-stelliger Code benötigt", 'error');
+
+    const btn = document.getElementById('btnConfirmTransferImport');
+    btn.textContent = "Analysiere..."; btn.disabled = true;
+
+    try {
+        if (!transferPayloadCache || !transferUidCache) throw new Error("Keine Daten. Bitte neu scannen.");
+
+        // 1. Decrypt Package
+        const decryptedData = await importProfilePackage(transferPayloadCache, code);
+        // Returns { uid, pik }
+
+        if (decryptedData.uid !== transferUidCache) {
+            throw new Error("UID Mismatch! Sicherheitssperre.");
+        }
+
+        const pik = decryptedData.pik;
+
+        // 2. Generate Proof
+        const timestamp = new Date().toISOString();
+        const proof = await generateTransferProof(pik, timestamp);
+
+        // 3. Generate Device ID
+        const deviceId = await generateDeviceFingerprint();
+
+        // 4. Send Completion to Server
+        const res = await fetch(`${API_BASE}/auth/transfer-complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                uid: transferUidCache,
+                proof: proof,
+                timestamp: timestamp,
+                deviceId: deviceId
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // SUCCESS!
+            document.getElementById('transferImportModal').classList.remove('active');
+
+            // Auto Login
+            authToken = data.token;
+            currentUser = { name: data.username, sm_id: parseJwt(authToken).id };
+            localStorage.setItem('sm_token', authToken);
+            localStorage.setItem('sm_user', JSON.stringify(currentUser));
+
+            // Clean local caches
+            contacts = [];
+            setEnterpriseKeys([]);
+            loadUserContacts(); // Will be empty initially unless we sync?
+            // Note: Contacts are local-only. Transfer does not migrate LocalStorage contacts (yet).
+
+            updateSidebarInfo(currentUser.name, data.expiresAt);
+            showSection('mainSection');
+
+            showAppStatus(`Willkommen auf dem neuen Gerät, ${currentUser.name}!`, 'success');
+            setTimeout(() => alert("Hinweis: Ihre Identität wurde erfolgreich übertragen. Da Kontakte nur lokal gespeichert werden, müssen Sie diese ggf. neu importieren."), 1000);
+
+        } else {
+            throw new Error(data.error || "Transfer fehlgeschlagen");
+        }
+
+    } catch (e) {
+        showToast(e.message, 'error');
+        if (e.message.includes("Falscher Code")) {
+            // Don't close modal, let user retry
+        } else {
+            document.getElementById('transferImportModal').classList.remove('active');
+        }
+    } finally {
+        btn.textContent = "Installieren"; btn.disabled = false;
+    }
+}
 
 function parseJwt (token) {
     try { var base64Url = token.split('.')[1]; var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) { return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }).join('')); return JSON.parse(jsonPayload); } catch (e) { return {}; }

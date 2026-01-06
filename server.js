@@ -795,6 +795,141 @@ app.post('/api/auth/validate', async (req, res) => {
 });
 
 // ==================================================================
+// 3.5 PROFILE TRANSFER (Secure QR)
+// ==================================================================
+
+// In-Memory Storage for Pending Transfers (Timeout Management)
+// Key: UID, Value: { timer, attempts }
+const pendingTransfers = new Map();
+
+app.get('/api/auth/export-profile', authenticateUser, async (req, res) => {
+    try {
+        const userRes = await dbQuery('SELECT pik_encrypted FROM users WHERE id = $1', [req.user.id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const { pik_encrypted } = userRes.rows[0];
+
+        if (!pik_encrypted) return res.status(400).json({ error: "Kein PIK vorhanden" });
+
+        // Return encrypted PIK. Client decrypts with Code -> Re-encrypts for QR.
+        res.json({ success: true, pik_encrypted, uid: req.user.username });
+    } catch(e) { res.status(500).json({ error: "Fehler beim Export" }); }
+});
+
+app.post('/api/auth/transfer-start', async (req, res) => {
+    const { uid } = req.body;
+    if (!uid) return res.status(400).json({ error: "UID missing" });
+
+    // Prevent spam
+    if (pendingTransfers.has(uid)) {
+        clearTimeout(pendingTransfers.get(uid).timer);
+    }
+
+    // Start 60s Timer
+    const timer = setTimeout(async () => {
+        try {
+            pendingTransfers.delete(uid);
+            console.log(`>> Transfer Timeout for ${uid}. Sending Warning.`);
+
+            // Fetch User ID
+            const uRes = await dbQuery('SELECT id FROM users WHERE username = $1', [uid]);
+            if (uRes.rows.length > 0) {
+                const userId = uRes.rows[0].id;
+                // Send Warning to Inbox
+                const subject = "⚠️ SICHERHEITSWARNUNG: Profil-Transfer";
+                const body = "ACHTUNG: Ein unberechtigter Versuch, Ihr Profil auf ein neues Gerät zu übertragen, wurde blockiert.\n\nFalls Sie dies nicht selbst waren, ändern Sie bitte sofort Ihren Zugangscode.";
+
+                await dbQuery(
+                    `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)`,
+                    [userId, subject, body, new Date().toISOString()]
+                );
+            }
+        } catch(e) { console.error("Transfer Timeout Error", e); }
+    }, 60000);
+
+    pendingTransfers.set(uid, { timer, attempts: 1 });
+    console.log(`>> Transfer Initiated for ${uid}. Timer started.`);
+
+    res.json({ success: true });
+});
+
+app.post('/api/auth/transfer-complete', async (req, res) => {
+    const { uid, proof, timestamp, deviceId } = req.body;
+
+    if (!uid || !proof || !timestamp || !deviceId) {
+        return res.status(400).json({ error: "Invalid Data" });
+    }
+
+    try {
+        // 1. Check Timer/Pending State
+        if (!pendingTransfers.has(uid)) {
+            return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
+        }
+
+        // 2. Fetch User & Hash
+        const uRes = await dbQuery(`
+            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.username = $1
+        `, [uid]);
+
+        if (uRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const user = uRes.rows[0];
+
+        // 3. Verify Timestamp (Max 2 mins drift allowed to be safe, but should be instant)
+        const sentTime = new Date(timestamp).getTime();
+        const now = Date.now();
+        if (Math.abs(now - sentTime) > 120000) {
+            return res.status(403).json({ error: "Zeitstempel ungültig (Replay-Schutz)." });
+        }
+
+        // 4. Verify Proof: SHA256(registration_key_hash + timestamp)
+        // registration_key_hash in DB is SHA256(PIK).
+        const serverHash = user.registration_key_hash;
+        if (!serverHash) return res.status(403).json({ error: "Integritätsfehler (Kein Hash)." });
+
+        const expectedProof = crypto.createHash('sha256').update(serverHash + timestamp).digest('hex');
+
+        if (proof !== expectedProof) {
+            console.warn(`>> Transfer PROOF FAILED for ${uid}.`);
+            return res.status(403).json({ error: "Identifizierung fehlgeschlagen." });
+        }
+
+        // 5. SUCCESS!
+        // Clear Timer
+        clearTimeout(pendingTransfers.get(uid).timer);
+        pendingTransfers.delete(uid);
+
+        // Update Device ID
+        await dbQuery("UPDATE users SET allowed_device_id = $1, last_login = CURRENT_TIMESTAMP WHERE id = $2", [deviceId, user.id]);
+
+        // Generate Token
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+
+        // Notify User (Success)
+        const msgSubject = "Info: Profil erfolgreich übertragen";
+        const msgBody = `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`;
+        await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)",
+            [user.id, msgSubject, msgBody, (isPostgreSQL ? false : 0), new Date().toISOString()]);
+
+        console.log(`>> Transfer SUCCESS for ${uid}. New Device Bound.`);
+
+        res.json({
+            success: true,
+            token,
+            username: user.username,
+            expiresAt: user.expires_at || 'lifetime',
+            hasLicense: !!user.license_key_id
+        });
+
+    } catch(e) {
+        console.error("Transfer Error", e);
+        res.status(500).json({ error: "Serverfehler" });
+    }
+});
+
+// ==================================================================
 // 4. ADMIN DASHBOARD ROUTES
 // ==================================================================
 

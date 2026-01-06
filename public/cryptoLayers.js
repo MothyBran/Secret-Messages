@@ -215,3 +215,84 @@ export async function decryptBackup(encryptedBase64, passcode) {
         throw new Error("Falscher Code.");
     }
 }
+
+// ========================================================
+// 4. PROFILE TRANSFER (EXPORT/IMPORT)
+// ========================================================
+
+/**
+ * Creates the export package { uid, pik } and encrypts it with the 4-layer system.
+ */
+export async function exportProfilePackage(uid, pik, passcode) {
+    // 1. Create JSON Payload
+    const payload = JSON.stringify({ uid, pik });
+
+    // 2. Encrypt using standard mechanism (Layer 1 wrapper + Obfuscation + AES)
+    // We treat 'uid' as the sole allowed user to reuse logic structure,
+    // but effectively we just need a secure container.
+    return await encryptFull(payload, passcode, [uid], uid);
+}
+
+/**
+ * Decrypts the import package on the new device.
+ * Bypasses 'allowed_users' check because the new device IS the user (but not yet logged in).
+ */
+export async function importProfilePackage(encryptedString, passcode) {
+    let decryptedBuffer;
+    let success = false;
+
+    // Layer 4 (AES-GCM) & Layer 3 (PBKDF2)
+    try {
+        let packed = base642buf(encryptedString);
+        if (packed.byteLength >= 28) {
+            const saltL2 = packed.slice(0, 16);
+            const iv = packed.slice(16, 28);
+            const ciphertext = packed.slice(28);
+            const key = await deriveKey(passcode, saltL2);
+
+            decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                key,
+                ciphertext
+            );
+            success = true;
+        }
+    } catch (e) {}
+
+    if (!success) throw new Error("Falscher Code");
+
+    // Layer 2 (Obfuscation)
+    const obfuscatedBytes = new Uint8Array(decryptedBuffer);
+    const jsonBytes = deobfuscateBytes(obfuscatedBytes, passcode);
+
+    // Layer 1 (JSON Wrapper)
+    let layer1Obj;
+    try {
+        const jsonStr = textDec.decode(jsonBytes);
+        layer1Obj = JSON.parse(jsonStr);
+    } catch(e) { throw new Error("Struktur beschädigt."); }
+
+    // Inner Payload { uid, pik }
+    try {
+        const innerPayload = JSON.parse(layer1Obj.content);
+        if (!innerPayload.pik || !innerPayload.uid) throw new Error("Ungültiges Format");
+        return innerPayload; // Returns { uid, pik }
+    } catch (e) { throw new Error("Paket-Inhalt ungültig."); }
+}
+
+/**
+ * Generates the Proof for the server: SHA256(SHA256(PIK) + timestamp)
+ * Note: Server stores registration_key_hash which IS SHA256(PIK).
+ */
+export async function generateTransferProof(pik, timestamp) {
+    // 1. Calculate SHA256(PIK) -> Matches DB 'registration_key_hash'
+    const pikBuf = textEnc.encode(pik);
+    const pikHashBuf = await window.crypto.subtle.digest('SHA-256', pikBuf);
+    const pikHashHex = Array.from(new Uint8Array(pikHashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // 2. Calculate SHA256(pikHashHex + timestamp) -> Proof
+    const msg = pikHashHex + timestamp;
+    const msgBuf = textEnc.encode(msg);
+    const proofBuf = await window.crypto.subtle.digest('SHA-256', msgBuf);
+    return Array.from(new Uint8Array(proofBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
