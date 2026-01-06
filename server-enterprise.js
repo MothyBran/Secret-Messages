@@ -114,12 +114,24 @@ const createTables = async () => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE,
         password TEXT,
+        access_code_hash TEXT,
         license_key_id INTEGER,
         is_blocked INTEGER DEFAULT 0,
         is_admin INTEGER DEFAULT 1,
         department TEXT,
         role_title TEXT,
-        registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        registration_key_hash TEXT,
+        pik_encrypted TEXT,
+        license_expiration DATETIME
+    )`);
+
+    await dbQuery(`CREATE TABLE IF NOT EXISTS license_renewals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        key_code_hash TEXT,
+        extended_until DATETIME,
+        used_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     await dbQuery(`CREATE TABLE IF NOT EXISTS settings (
@@ -150,6 +162,10 @@ const createTables = async () => {
     try { await dbQuery("ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN license_key_id INTEGER"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN password TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN access_code_hash TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN registration_key_hash TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN pik_encrypted TEXT"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN license_expiration DATETIME"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN department TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN role_title TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }

@@ -160,6 +160,13 @@ function setupUIEvents() {
     document.getElementById('btnCancelChangeCode')?.addEventListener('click', () => { document.getElementById('changeCodeModal').classList.remove('active'); });
     document.getElementById('btnConfirmChangeCode')?.addEventListener('click', handleChangeAccessCode);
 
+    // Manual Renewal
+    document.getElementById('navRenewal')?.addEventListener('click', (e) => {
+        e.preventDefault(); toggleMainMenu(true); document.getElementById('manualRenewalModal').classList.add('active');
+        document.getElementById('manualRenewalKey').value = '';
+    });
+    document.getElementById('btnConfirmManualRenewal')?.addEventListener('click', handleManualRenewal);
+
     document.querySelector('.app-logo')?.addEventListener('click', () => {
         const isLoggedIn = !!authToken;
         if (!isLoggedIn) {
@@ -350,6 +357,44 @@ async function handleChangeAccessCode() {
 
         if(updateData.success) { showToast("Zugangscode erfolgreich geändert.", 'success'); document.getElementById('changeCodeModal').classList.remove('active'); } else { showToast("Fehler: " + (updateData.error || "Unbekannt"), 'error'); }
     } catch(e) { showToast("Verbindungsfehler.", 'error'); } finally { btn.textContent = "Ändern"; btn.disabled = false; hideLoader(); }
+}
+
+async function handleManualRenewal() {
+    const key = document.getElementById('manualRenewalKey').value.trim();
+    if (!key) return showToast("Bitte Key eingeben", 'error');
+
+    const btn = document.getElementById('btnConfirmManualRenewal');
+    const oldTxt = btn.textContent;
+    btn.textContent = "..."; btn.disabled = true;
+
+    try {
+        const res = await fetch(`${API_BASE}/renew-license`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ licenseKey: key })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('manualRenewalModal').classList.remove('active');
+
+            // Format Date
+            let dateStr = "Unbegrenzt";
+            if (data.newExpiresAt) {
+                const d = new Date(data.newExpiresAt);
+                dateStr = d.toLocaleDateString('de-DE');
+            }
+
+            updateSidebarInfo(currentUser.name, data.newExpiresAt);
+            window.showAppConfirm(`Lizenz erfolgreich verlängert bis: ${dateStr}.\n\nDeine Sicherheits-Identität bleibt unverändert.`, () => {});
+        } else {
+            showToast(data.error || "Fehler", 'error');
+        }
+    } catch (e) {
+        showToast("Verbindungsfehler", 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+    }
 }
 
 function openContactSidebar(mode) {

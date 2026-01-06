@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const { encryptServerSide } = require('./utils/serverCrypto');
 let Resend;
 try {
     const resendModule = require('resend');
@@ -215,7 +216,18 @@ const createTables = async () => {
             registered_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
             last_login ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
             is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            is_online ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}
+            is_online ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
+            registration_key_hash TEXT,
+            pik_encrypted TEXT,
+            license_expiration ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}
+        )`);
+
+        await dbQuery(`CREATE TABLE IF NOT EXISTS license_renewals (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            user_id INTEGER,
+            key_code_hash TEXT,
+            extended_until ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
+            used_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
         )`);
 
         await dbQuery(`CREATE TABLE IF NOT EXISTS license_keys (
@@ -302,6 +314,11 @@ const createTables = async () => {
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN client_name VARCHAR(100)`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN max_users INTEGER DEFAULT 1`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}`); } catch (e) { }
+
+        // Schema Migration for PIK / Identity
+        try { await dbQuery(`ALTER TABLE users ADD COLUMN registration_key_hash TEXT`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE users ADD COLUMN pik_encrypted TEXT`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE users ADD COLUMN license_expiration ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}`); } catch (e) { }
 
         // Add columns to messages for Ticket System
         try { await dbQuery(`ALTER TABLE messages ADD COLUMN status VARCHAR(20) DEFAULT 'open'`); } catch (e) { }
@@ -576,10 +593,22 @@ app.post('/api/auth/activate', async (req, res) => {
 
         const hash = await bcrypt.hash(accessCode, 10);
 
-        let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at) VALUES ($1, $2, $3, $4, $5)';
+        // 1. Generate PIK (SHA-256 of the FIRST License Key)
+        // This is the Secret Identity Anchor
+        const pikRaw = crypto.createHash('sha256').update(licenseKey).digest('hex');
+
+        // 2. Encrypt PIK (Server-Side using Access Code, readable by Client)
+        const pikEncrypted = encryptServerSide(pikRaw, accessCode);
+
+        // 3. Hash of the Registration Key (Permanent Anchor)
+        // SECURITY FIX: Double Hash the PIK/Key to avoid storing the secret PIK in plaintext.
+        // Stored Hash = SHA256(PIK) = SHA256(SHA256(Key))
+        const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
+
+        let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at, registration_key_hash, pik_encrypted, license_expiration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
         if (isPostgreSQL) { insertSql += ' RETURNING id'; }
 
-        const insertUser = await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString()]);
+        const insertUser = await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted, expiresAt]);
 
         await dbQuery(
             'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4',
@@ -590,6 +619,69 @@ app.post('/api/auth/activate', async (req, res) => {
     } catch (e) {
         console.error("Activation Error:", e);
         res.status(500).json({ error: 'Aktivierung fehlgeschlagen: ' + e.message });
+    }
+});
+
+app.post('/api/renew-license', authenticateUser, async (req, res) => {
+    const { licenseKey } = req.body;
+    if (!licenseKey) return res.status(400).json({ error: "Kein Key angegeben" });
+
+    try {
+        const userId = req.user.id;
+
+        // 1. Validate New Key
+        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
+        if (keyRes.rows.length === 0) return res.status(404).json({ error: 'Key nicht gefunden' });
+        const key = keyRes.rows[0];
+
+        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
+        if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
+
+        // 2. Calculate New Expiry
+        let addedMonths = 0;
+        const pc = (key.product_code || '').toLowerCase();
+        if (pc === '1m') addedMonths = 1;
+        else if (pc === '3m') addedMonths = 3;
+        else if (pc === '6m') addedMonths = 6;
+        else if (pc === '1j' || pc === '12m') addedMonths = 12;
+
+        let newExpiresAt = null;
+
+        // Fetch current expiration
+        const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+        const currentExp = userRes.rows[0].license_expiration;
+
+        const now = new Date();
+        const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : now;
+
+        if (pc === 'unl' || pc === 'unlimited') {
+            newExpiresAt = null; // Lifetime
+        } else {
+            baseDate.setMonth(baseDate.getMonth() + addedMonths);
+            newExpiresAt = baseDate.toISOString();
+        }
+
+        // 3. Mark Key as Used
+        await dbQuery(
+            'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4 WHERE id = $5',
+            [(isPostgreSQL ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]
+        );
+
+        // 4. Update User Expiration (Only expiration, NOT identity!)
+        await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [newExpiresAt, userId]);
+
+        // 5. Log Renewal
+        await dbQuery(
+            'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
+            [userId, key.key_hash, newExpiresAt, new Date().toISOString()]
+        );
+
+        res.json({ success: true, newExpiresAt: newExpiresAt || 'Unlimited' });
+
+    } catch (e) {
+        console.error("Renewal Error:", e);
+        res.status(500).json({ error: "Fehler bei Verlängerung: " + e.message });
     }
 });
 
