@@ -343,6 +343,7 @@
 
         <div style="margin-top: auto;"></div>
 
+        <a href="#" class="sidebar-item auth-only" id="navRenewal" style="display:none; color: var(--success-green);">🔄 Lizenz verlängern</a>
         <a href="#" class="sidebar-item auth-only" id="navChangeCode" style="display:none; color: var(--accent-blue);">🔑 Code ändern</a>
         <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
         <a href="#" class="sidebar-item auth-only" id="navDelete" style="display:none; color: var(--error-red); border-top: 1px solid #333;">⚠️ Zugang löschen</a>
@@ -690,6 +691,24 @@
             <div style="display:flex; gap:10px;">
                 <button class="btn" id="btnAppConfirmNo" style="flex:1; border-color:#555; color:#aaa;">Nein</button>
                 <button class="btn btn-primary" id="btnAppConfirmYes" style="flex:1;">Ja</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manualRenewalModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--success-green); margin-bottom: 15px; text-align: center;">LIZENZ VERLÄNGERN</h3>
+            <p style="color: #ccc; margin-bottom: 20px; font-size: 0.9rem; text-align: center;">
+                Geben Sie Ihren neuen Lizenz-Key ein.<br>
+                <b>Ihre Sicherheits-Identität bleibt unverändert.</b>
+            </p>
+            <div class="input-group">
+                <label class="input-label">Neuer Lizenz-Key</label>
+                <input type="text" id="manualRenewalKey" class="input-field" placeholder="XXXX-XXXX-XXXX" style="text-align: center;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" onclick="document.getElementById('manualRenewalModal').classList.remove('active')" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmManualRenewal" style="flex:1;">Verlängern</button>
             </div>
         </div>
     </div>
