@@ -344,6 +344,7 @@
         <div style="margin-top: auto;"></div>
 
         <a href="#" class="sidebar-item auth-only" id="navRenewal" style="display:none; color: var(--success-green);">🔄 Lizenz verlängern</a>
+        <a href="#" class="sidebar-item auth-only" id="navProfileTransfer" style="display:none; color: #fff;">📱 Profil übertragen</a>
         <a href="#" class="sidebar-item auth-only" id="navChangeCode" style="display:none; color: var(--accent-blue);">🔑 Code ändern</a>
         <a href="#" class="sidebar-item auth-only" id="logoutBtnSide" style="display:none;">🔒 Abmelden</a>
         <a href="#" class="sidebar-item auth-only" id="navDelete" style="display:none; color: var(--error-red); border-top: 1px solid #333;">⚠️ Zugang löschen</a>
@@ -417,8 +418,11 @@
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
             </form>
-            <div style="text-align:center; margin-top:20px;">
+            <div style="text-align:center; margin-top:20px; display: flex; flex-direction: column; gap: 10px;">
                 <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>
+                <button class="btn" id="startTransferImportBtn" style="border: 1px solid var(--accent-blue); background: transparent; color: var(--accent-blue); font-size: 0.8rem;">
+                    📱 Konto auf dieses Gerät übertragen
+                </button>
             </div>
             <div id="loginStatus" class="app-status-msg"></div>
         </div>
@@ -1155,6 +1159,60 @@
             </div>
             <button class="btn btn-primary" id="btnAddEntKey" style="width:100%;">Hinzufügen</button>
             <button onclick="document.getElementById('enterpriseKeysModal').classList.remove('active')" class="btn" style="width:100%; margin-top:10px; border-color:#555; color:#fff;">Schließen</button>
+        </div>
+    </div>
+
+    <!-- PROFILE TRANSFER EXPORT MODAL -->
+    <div id="transferExportModal" class="modal">
+        <div class="modal-box" style="text-align: center;">
+            <h3 style="color: var(--accent-blue); margin-bottom: 10px;">PROFIL ÜBERTRAGEN</h3>
+            <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">
+                Scannen Sie diesen Code mit Ihrem neuen Gerät, um Ihr Profil sicher zu übertragen.
+            </p>
+
+            <div id="transferQrDisplay" style="margin: 0 auto 20px auto; background: white; padding: 10px; width: fit-content;">
+                <!-- QR Code here -->
+            </div>
+
+            <div style="margin-bottom: 20px; font-size: 1.2rem; color: var(--error-red); font-weight: bold;" id="transferTimer">
+                2:00
+            </div>
+
+            <button onclick="document.getElementById('transferExportModal').classList.remove('active')" class="btn" style="width:100%;">Abbrechen</button>
+        </div>
+    </div>
+
+    <!-- TRANSFER SECURITY CHECK MODAL -->
+    <div id="transferSecurityModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">SICHERHEITS-CHECK</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Bitte bestätigen Sie Ihre Identität mit Ihrem Zugangscode, um den Transfer zu starten.
+            </p>
+            <div class="input-group">
+                <input type="password" id="transferSecurityCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('transferSecurityModal').classList.remove('active')" class="btn" style="flex:1;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmTransferStart" style="flex:1;">Code Generieren</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMPORT CODE INPUT MODAL -->
+    <div id="transferImportModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">PROFIL ENTSCHLÜSSELN</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Geben Sie Ihren 5-stelligen Zugangscode ein, um das Profil auf diesem Gerät zu installieren.
+            </p>
+            <div class="input-group">
+                <input type="password" id="transferImportCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('transferImportModal').classList.remove('active')" class="btn" style="flex:1;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmTransferImport" style="flex:1;">Installieren</button>
+            </div>
         </div>
     </div>
 
