@@ -514,6 +514,33 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
 
+        // --- PIK MIGRATION (SILENT) ---
+        if (!user.pik_encrypted) {
+            try {
+                if (user.license_key_id) {
+                    const keyRes = await dbQuery('SELECT key_code FROM license_keys WHERE id = $1', [user.license_key_id]);
+                    if (keyRes.rows.length > 0) {
+                        let licenseKey = keyRes.rows[0].key_code;
+                        let pikRaw = crypto.createHash('sha256').update(licenseKey).digest('hex');
+                        const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
+                        const pikEncrypted = encryptServerSide(pikRaw, accessCode);
+
+                        await dbQuery(
+                            'UPDATE users SET pik_encrypted = $1, registration_key_hash = $2 WHERE id = $3',
+                            [pikEncrypted, regKeyHash, user.id]
+                        );
+                        // Memory Hygiene
+                        licenseKey = null;
+                        pikRaw = null;
+                    }
+                }
+            } catch (migErr) {
+                console.warn(`>> PIK Migration Warning (User: ${user.username}):`, migErr.message);
+                // Fail-Safe: Proceed with login despite migration error
+            }
+        }
+        // ------------------------------
+
         // HARD LOGIN BLOCK
         const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
         if (isBlocked) {
