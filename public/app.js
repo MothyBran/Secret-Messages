@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (token) {
             checkExistingSession();
         } else {
+            updateSidebarInfo(null);
             showSection('loginSection');
         }
     }
@@ -194,8 +195,9 @@ function setupUIEvents() {
     document.getElementById('btnConfirmTransferStart')?.addEventListener('click', handleTransferExportStart);
 
     // Profile Transfer (Login - Import)
-    document.getElementById('startTransferImportBtn')?.addEventListener('click', (e) => {
+    document.getElementById('navTransferImport')?.addEventListener('click', (e) => {
         e.preventDefault();
+        toggleMainMenu(true);
         startQRScanner(true); // true = transfer mode
     });
     document.getElementById('btnConfirmTransferImport')?.addEventListener('click', handleTransferImportDecrypt);
@@ -697,7 +699,11 @@ function validateActivationInputs() {
 }
 
 function updateSidebarInfo(user, expiryData) {
-    const userLabel = document.getElementById('sidebarUser'); const licenseLabel = document.getElementById('sidebarLicense'); const authElements = document.querySelectorAll('.auth-only');
+    const userLabel = document.getElementById('sidebarUser');
+    const licenseLabel = document.getElementById('sidebarLicense');
+    const authElements = document.querySelectorAll('.auth-only');
+    const guestElements = document.querySelectorAll('.guest-only');
+
     if (userLabel) userLabel.textContent = user || 'Gast';
     if(user) { checkUnreadMessages(); if(window.msgPollInterval) clearInterval(window.msgPollInterval); window.msgPollInterval = setInterval(checkUnreadMessages, 5 * 60 * 1000); } else { if(window.msgPollInterval) clearInterval(window.msgPollInterval); }
 
@@ -707,7 +713,9 @@ function updateSidebarInfo(user, expiryData) {
         else if (expiryData) { try { let cleanDateStr = String(expiryData).replace(' ', 'T'); const dateObj = new Date(cleanDateStr); if (!isNaN(dateObj.getTime())) { const day = String(dateObj.getDate()).padStart(2, '0'); const month = String(dateObj.getMonth() + 1).padStart(2, '0'); const year = dateObj.getFullYear(); const dateStr = `${day}.${month}.${year}`; licenseLabel.textContent = "LIZENZ: gültig bis " + dateStr; licenseLabel.style.color = "var(--accent-blue)"; } else { licenseLabel.textContent = "LIZENZ: Aktiv"; licenseLabel.style.color = "var(--text-main)"; } } catch (e) { licenseLabel.textContent = "LIZENZ: Aktiv"; } }
         else { licenseLabel.textContent = "LIZENZ: Unbekannt"; licenseLabel.style.color = "#888"; }
     } else if (licenseLabel) { licenseLabel.textContent = "Nicht verbunden"; licenseLabel.style.color = "#888"; }
+
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
+    guestElements.forEach(el => el.style.display = user ? 'none' : 'flex');
 }
 
 async function checkExistingSession() {
@@ -832,7 +840,6 @@ function startQRScanner(transferMode = false) {
             showAppStatus("QR Code erkannt!");
         }
     }, (errorMessage) => {
-        // console.log(errorMessage);
     }).catch(err => {
         console.error(err);
         document.getElementById('qr-reader').innerHTML = `<div style="color:red;padding:20px;">Kamera-Fehler: ${err}</div>`;
