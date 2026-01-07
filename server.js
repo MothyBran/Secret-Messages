@@ -828,7 +828,6 @@ app.post('/api/auth/transfer-start', async (req, res) => {
     const timer = setTimeout(async () => {
         try {
             pendingTransfers.delete(uid);
-            console.log(`>> Transfer Timeout for ${uid}. Sending Warning.`);
 
             // Fetch User ID
             const uRes = await dbQuery('SELECT id FROM users WHERE username = $1', [uid]);
@@ -848,7 +847,6 @@ app.post('/api/auth/transfer-start', async (req, res) => {
     }, 60000);
 
     pendingTransfers.set(uid, { timer, attempts: 1 });
-    console.log(`>> Transfer Initiated for ${uid}. Timer started.`);
 
     res.json({ success: true });
 });
@@ -912,8 +910,6 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
         const msgBody = `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`;
         await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)",
             [user.id, msgSubject, msgBody, (isPostgreSQL ? false : 0), new Date().toISOString()]);
-
-        console.log(`>> Transfer SUCCESS for ${uid}. New Device Bound.`);
 
         res.json({
             success: true,
