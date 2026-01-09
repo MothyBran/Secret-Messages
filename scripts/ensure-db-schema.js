@@ -10,13 +10,7 @@ async function ensureDbSchema() {
     console.log("⚙️  Checking Database Schema...");
 
     // 1. Determine DB Path
-    let sqlite3;
-    try {
-        sqlite3 = require('sqlite3').verbose();
-    } catch (e) {
-        console.log("   Using @vscode/sqlite3 fallback...");
-        sqlite3 = require('@vscode/sqlite3').verbose();
-    }
+    const sqlite3 = require('sqlite3').verbose();
 
     let dbPath = './secret_messages.db';
     if (process.env.USER_DATA_PATH) {

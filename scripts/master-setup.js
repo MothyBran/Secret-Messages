@@ -14,6 +14,10 @@ function runCommand(scriptName) {
         execSync(`node "${scriptPath}"`, { stdio: 'inherit' });
     } catch (e) {
         console.error(`\n❌ Failed to execute ${scriptName}`);
+        if (scriptName === 'ensure-db-schema.js') {
+            console.error("   ⚠️ This might be due to a missing 'sqlite3' module.");
+            console.error("   ⚠️ Try running 'npm install sqlite3 --save' to fix this.");
+        }
         process.exit(1);
     }
 }

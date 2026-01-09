@@ -177,7 +177,7 @@ const initializeDatabase = async () => {
         await createTables();
     } else {
         // SQLITE FIX: Use USER_DATA_PATH if available (Electron)
-        const sqlite3 = require('@vscode/sqlite3').verbose();
+        const sqlite3 = require('sqlite3').verbose();
         let dbPath = './secret_messages.db';
         if (process.env.USER_DATA_PATH) {
             dbPath = path.join(process.env.USER_DATA_PATH, 'secret_messages.db');
