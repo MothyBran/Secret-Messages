@@ -328,6 +328,7 @@
                             <th>ID</th>
                             <th>Username</th>
                             <th>Status</th>
+                            <th>Aktive Lizenz</th>
                             <th>Letzter Login</th>
                             <th>Gerät</th>
                             <th>Aktionen</th>
@@ -409,7 +410,7 @@
                                     <th style="color: var(--accent-blue);">Key Code</th>
                                     <th>Produkt</th>
                                     <th>Status</th>
-                                    <th>User ID</th>
+                                    <th>Zugehöriger Benutzer</th>
                                     <th>Erstellt</th>
                                     <th>Ablauf</th>
                                     <th>Aktionen</th>
@@ -666,11 +667,19 @@
 
     <!-- MODALS -->
 
-    <!-- Confirm Modal -->
+    <!-- Confirm Modal (Updated for Smart Cascade) -->
     <div id="confirmModal" class="modal-overlay">
         <div class="modal-box" style="text-align:center;">
             <h3 style="margin-bottom:20px;">Bestätigen</h3>
-            <p id="confirmMessage" style="margin-bottom:30px; color:#ccc;"></p>
+            <p id="confirmMessage" style="margin-bottom:20px; color:#ccc;"></p>
+
+            <div id="confirmCheckboxArea" style="margin-bottom:25px; display:none; justify-content:center;">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; color:var(--accent-blue); font-weight:bold;">
+                    <input type="checkbox" id="confirmCascadeCheckbox" style="width:20px; height:20px; accent-color:var(--accent-blue);">
+                    <span id="confirmCheckboxLabel">Verknüpfte Daten ebenfalls löschen</span>
+                </label>
+            </div>
+
             <button id="btnConfirmYes" class="btn-action">Ja, Ausführen</button>
             <button id="btnConfirmNo" class="btn-outline" style="margin-left:10px;">Abbrechen</button>
         </div>

@@ -55,10 +55,29 @@ window.switchTab = function(tabName) {
 // --- HELPERS (MODALS & FEEDBACK) ---
 let confirmCallback = null;
 
-window.showConfirm = function(message, onConfirm) {
+window.showConfirm = function(message, onConfirm, checkboxOptions = null) {
     document.getElementById('confirmMessage').textContent = message;
+
+    // Checkbox Logic
+    const cbArea = document.getElementById('confirmCheckboxArea');
+    const cb = document.getElementById('confirmCascadeCheckbox');
+    const cbLabel = document.getElementById('confirmCheckboxLabel');
+
+    if (checkboxOptions) {
+        cbArea.style.display = 'flex';
+        cbLabel.textContent = checkboxOptions.label || 'Verknüpfte Daten ebenfalls löschen';
+        cb.checked = false; // Default: unchecked (Safety)
+    } else {
+        cbArea.style.display = 'none';
+        cb.checked = false;
+    }
+
     document.getElementById('confirmModal').style.display = 'flex';
-    confirmCallback = onConfirm;
+
+    confirmCallback = () => {
+        // Pass checkbox state to callback if options provided
+        onConfirm(checkboxOptions ? cb.checked : false);
+    };
 };
 
 window.showMessage = function(title, message, isError = false) {
@@ -813,18 +832,27 @@ window.saveLicenseChanges = async function() {
     } catch(e) { window.showMessage("Fehler", "Serverfehler: " + e.message, true); }
 }
 
-window.deleteKey = function(id) {
-    window.showConfirm("Lizenz wirklich unwiderruflich löschen?", async () => {
+window.deleteKey = function(id, keyCode, hasUser) {
+    const msg = `Möchten Sie die Lizenz '${keyCode}' wirklich löschen?`;
+    let options = null;
+
+    if (hasUser) {
+        options = { label: 'Zugehöriges Benutzerkonto ebenfalls löschen' };
+    }
+
+    window.showConfirm(msg, async (cascade) => {
+        const url = `${API_BASE}/keys/${id}` + (cascade ? '?cascade=true' : '');
         try {
-            const res = await fetch(`${API_BASE}/keys/${id}`, { method: 'DELETE', headers: getHeaders() });
+            const res = await fetch(url, { method: 'DELETE', headers: getHeaders() });
             if(res.ok) {
                 window.loadKeys();
-                window.showMessage("Gelöscht", "Lizenz wurde entfernt.");
+                window.loadUsers(); // Refresh users in case one was deleted
+                window.showToast(cascade ? "Lizenz & User gelöscht." : "Lizenz gelöscht.", "success");
             } else {
-                window.showMessage("Fehler", "Konnte nicht löschen.", true);
+                window.showToast("Fehler beim Löschen.", "error");
             }
-        } catch(e) { window.showMessage("Fehler", "Netzwerkfehler.", true); }
-    });
+        } catch(e) { window.showToast("Netzwerkfehler.", "error"); }
+    }, options);
 };
 
 window.generateKeys = async function() {
@@ -1098,22 +1126,54 @@ function renderUsersTable(users) {
         const tr = document.createElement('tr');
         const status = u.is_blocked ? '<span style="color:var(--error-red); font-weight:bold;">GESPERRT</span>' : '<span style="color:var(--success-green);">AKTIV</span>';
         const deviceIcon = u.allowed_device_id ? '📱' : '⚪';
+
+        // Active License Display
+        let licenseDisplay = '<span style="color:#666;">Keine</span>';
+        if (u.key_code) {
+             licenseDisplay = `<span style="color:var(--accent-blue); font-family:'Roboto Mono';">${u.key_code}</span>`;
+        }
+
         tr.innerHTML = `
             <td>#${u.id}</td>
             <td style="font-weight:bold; color:#fff;">${u.username}</td>
             <td>${status}</td>
+            <td>${licenseDisplay}</td>
             <td>${u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : '-'}</td>
             <td style="text-align:center;">${deviceIcon}</td>
             <td>
                 <div style="display:flex; gap:10px;">
                     <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Reset Device" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📱</button>
                     <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Block" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">${u.is_blocked ? '🔓' : '🛑'}</button>
+                    <button class="btn-icon" onclick="deleteUser('${u.id}', '${u.username.replace(/'/g, "\\'")}', ${!!u.license_key_id})" title="Benutzer Löschen" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
                 </div>
             </td>
         `;
         tbody.appendChild(tr);
     });
 }
+
+window.deleteUser = function(id, username, hasLicense) {
+    const msg = `Möchten Sie den Benutzer '${username}' wirklich löschen?`;
+    let options = null;
+
+    if (hasLicense) {
+        options = { label: 'Verknüpfte Lizenz ebenfalls löschen' };
+    }
+
+    window.showConfirm(msg, async (cascade) => {
+        const url = `${API_BASE}/users/${id}` + (cascade ? '?cascade=true' : '');
+        try {
+            const res = await fetch(url, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.loadUsers();
+                window.loadKeys(); // Refresh keys as they might be deleted/updated
+                window.showToast(cascade ? "Benutzer & Lizenz gelöscht." : "Benutzer gelöscht.", "success");
+            } else {
+                window.showToast("Fehler beim Löschen.", "error");
+            }
+        } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+    }, options);
+};
 
 function renderBundlesTable(bundles) {
     const tbody = document.getElementById('bundlesTableBody');
@@ -1157,18 +1217,20 @@ function renderKeysTable(keys) {
         } else if (k.is_active) {
             expiry = 'Lifetime';
         }
-        const userIdDisplay = k.user_id ? `<span style="color:var(--accent-blue); font-weight:bold;">#${k.user_id}</span>` : '-';
+
+        // Show Username instead of ID
+        const userDisplay = k.username ? `<span style="color:var(--accent-blue); font-weight:bold;">${k.username}</span>` : '-';
 
         tr.innerHTML = `
             <td style="font-family:'Roboto Mono'">${k.key_code}</td>
             <td>${k.product_code || 'std'}</td>
             <td>${status}</td>
-            <td>${userIdDisplay}</td>
+            <td>${userDisplay}</td>
             <td>${new Date(k.created_at).toLocaleDateString('de-DE')}</td>
             <td>${expiry}</td>
             <td>
                  <button class="btn-icon" onclick="openEditLicenseModal(${k.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">⚙️</button>
-                 <button class="btn-icon" onclick="deleteKey('${k.id}')" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
+                 <button class="btn-icon" onclick="deleteKey('${k.id}', '${k.key_code.replace(/'/g, "\\'")}', ${!!k.user_id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
             </td>
         `;
         tbody.appendChild(tr);
