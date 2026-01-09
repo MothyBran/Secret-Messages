@@ -1142,11 +1142,77 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
+    const cascade = req.query.cascade === 'true';
+
     try {
-        await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
+        await dbQuery('BEGIN');
+
+        if (cascade) {
+             // Find linked user and DELETE
+             const userRes = await dbQuery('SELECT id FROM users WHERE license_key_id = $1', [keyId]);
+             if (userRes.rows.length > 0) {
+                 const userId = userRes.rows[0].id;
+                 await dbQuery('DELETE FROM users WHERE id = $1', [userId]);
+             }
+        } else {
+             // Unlink only
+             await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
+        }
+
         await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
+        await dbQuery('COMMIT');
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message }); }
+    } catch (e) {
+        await dbQuery('ROLLBACK');
+        res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message });
+    }
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+    const userId = req.params.id;
+    const cascade = req.query.cascade === 'true';
+
+    try {
+        // 1. Get User Details
+        const userRes = await dbQuery('SELECT license_key_id, username FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const user = userRes.rows[0];
+
+        // Start Transaction
+        await dbQuery('BEGIN');
+
+        // 2. Unlink & Handle Linked License
+        if (user.license_key_id) {
+            // First UNLINK the user so we can delete the user record safely
+            await dbQuery('UPDATE users SET license_key_id = NULL WHERE id = $1', [userId]);
+
+            if (cascade) {
+                // If cascade: Delete the License Key AFTER unlinking
+                // NOTE: We delete the user first (step 3), then the key? Or key then user?
+                // Safest: Unlink -> Delete User -> Delete Key
+                // We'll mark it for deletion
+            } else {
+                // If NO cascade: Reset the license to 'free' state
+                // Note: license_keys table does NOT have assigned_user_id, relationship is in users table.
+                // We just need to reset the active flag and timestamps.
+                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'false' : '0'}, activated_at = NULL WHERE id = $1`, [user.license_key_id]);
+            }
+        }
+
+        // 3. Delete User
+        await dbQuery('DELETE FROM users WHERE id = $1', [userId]);
+
+        // 4. Delete Key if Cascading (After user is gone)
+        if (cascade && user.license_key_id) {
+             await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
+        }
+
+        await dbQuery('COMMIT');
+        res.json({ success: true });
+    } catch (e) {
+        await dbQuery('ROLLBACK');
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 // ENTERPRISE MANAGEMENT
