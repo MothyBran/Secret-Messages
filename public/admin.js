@@ -49,6 +49,9 @@ window.switchTab = function(tabName) {
     if(tabName === 'mail') {
         window.loadSupportTickets();
     }
+    if(tabName === 'stats') {
+        window.loadStatistics();
+    }
 }
 
 
@@ -1289,3 +1292,180 @@ function renderPurchasesTable(purchases) {
 window.filterKeys = filterKeys;
 window.filterBundles = filterBundles;
 window.filterEnterpriseKeys = filterEnterpriseKeys;
+
+
+// --- STATISTICS ---
+let currentStatsData = null;
+let charts = {};
+
+window.loadStatistics = async function() {
+    const startEl = document.getElementById('statsStart');
+    const endEl = document.getElementById('statsEnd');
+
+    // Set default dates if empty
+    if(!startEl.value || !endEl.value) {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+
+        endEl.value = end.toISOString().split('T')[0];
+        startEl.value = start.toISOString().split('T')[0];
+    }
+
+    try {
+        const query = \`?startDate=\${startEl.value}&endDate=\${endEl.value}\`;
+        const res = await fetch(\`\${API_BASE}/stats/advanced\${query}\`, { headers: getHeaders() });
+        const data = await res.json();
+
+        if(data.success) {
+            currentStatsData = data;
+            renderKpis(data);
+            renderCharts(data);
+        } else {
+            window.showToast(data.error || "Fehler beim Laden der Statistik", "error");
+        }
+    } catch(e) {
+        console.error("Stats Load Error", e);
+        window.showToast("Netzwerkfehler", "error");
+    }
+};
+
+function renderKpis(data) {
+    const today = new Date().toISOString().split('T')[0];
+    const trafficToday = data.traffic.find(t => t.day === today);
+    document.getElementById('kpiVisitors').textContent = trafficToday ? trafficToday.visitors : 0;
+
+    const totalRev = data.finance.reduce((acc, curr) => acc + parseFloat(curr.revenue), 0);
+    document.getElementById('kpiRevenue').textContent = (totalRev / 100).toFixed(2) + ' €';
+
+    const totalSales = data.finance.reduce((acc, curr) => acc + parseInt(curr.sales), 0);
+    document.getElementById('kpiLicenses').textContent = totalSales;
+
+    if(allTickets.length > 0) {
+        const active = allTickets.filter(t => t.status !== 'closed').length;
+        document.getElementById('kpiSupport').textContent = active;
+    } else {
+        document.getElementById('kpiSupport').textContent = data.support.tickets;
+    }
+
+    const pikPercent = data.system.pik_total > 0
+        ? Math.round((data.system.pik_migrated / data.system.pik_total) * 100)
+        : 0;
+    document.getElementById('pikPercent').textContent = pikPercent + '%';
+    document.getElementById('pikBar').style.width = pikPercent + '%';
+}
+
+function renderCharts(data) {
+    if(typeof Chart === 'undefined') return;
+
+    const colors = {
+        blue: '#00BFFF',
+        green: '#00ff88',
+        orange: 'orange',
+        bg: 'rgba(255, 255, 255, 0.1)',
+        grid: '#333'
+    };
+
+    renderChart('chartTraffic', 'line', {
+        labels: data.traffic.map(d => d.day),
+        datasets: [{
+            label: 'Besucher',
+            data: data.traffic.map(d => d.visitors),
+            borderColor: colors.blue,
+            backgroundColor: 'rgba(0, 191, 255, 0.1)',
+            fill: true,
+            tension: 0.4
+        }, {
+            label: 'Seitenaufrufe',
+            data: data.traffic.map(d => d.page_views),
+            borderColor: colors.green,
+            borderDash: [5, 5],
+            fill: false
+        }]
+    });
+
+    const productLabels = Object.keys(data.products);
+    const productValues = Object.values(data.products);
+    renderChart('chartProducts', 'bar', {
+        labels: productLabels,
+        datasets: [{
+            label: 'Verkäufe',
+            data: productValues,
+            backgroundColor: [colors.blue, colors.green, colors.orange, '#888']
+        }]
+    });
+
+    renderChart('chartFinance', 'line', {
+        labels: data.finance.map(d => d.day),
+        datasets: [{
+            type: 'bar',
+            label: 'Umsatz (€)',
+            data: data.finance.map(d => d.revenue / 100),
+            backgroundColor: colors.orange
+        }]
+    });
+
+    renderChart('chartSupport', 'doughnut', {
+        labels: ['Tickets', 'FAQ Aufrufe'],
+        datasets: [{
+            data: [data.support.tickets, data.support.faq_views],
+            backgroundColor: [colors.blue, '#444'],
+            borderWidth: 0
+        }]
+    }, { cutout: '70%', maintainAspectRatio: false });
+}
+
+function renderChart(canvasId, type, data, extraOptions = {}) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if(charts[canvasId]) { charts[canvasId].destroy(); }
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#ccc' } } },
+        scales: (type === 'doughnut') ? {} : {
+            x: { grid: { color: '#333' }, ticks: { color: '#888' } },
+            y: { grid: { color: '#333' }, ticks: { color: '#888' } }
+        },
+        ...extraOptions
+    };
+    charts[canvasId] = new Chart(ctx, { type, data, options });
+}
+
+/**
+ * EXPORT STATISTICS CSV
+ * Generates a client-side CSV file from the currently loaded statistics data.
+ *
+ * Structure:
+ * - Date (YYYY-MM-DD)
+ * - Visitors (Unique IPs)
+ * - Page Views (Total Hits)
+ * - Revenue (Cents)
+ * - Sales (Count)
+ *
+ * Data is merged from 'traffic' and 'finance' arrays by date key.
+ */
+window.exportStatisticsCSV = function() {
+    if(!currentStatsData) return window.showToast("Keine Daten geladen.", "error");
+
+    const d = currentStatsData;
+    let csv = "Datum,Besucher,Seitenaufrufe,Umsatz,Verkaeufe\n";
+
+    const dates = new Set([...d.traffic.map(x=>x.day), ...d.finance.map(x=>x.day)]);
+    const sortedDates = Array.from(dates).sort();
+
+    sortedDates.forEach(date => {
+        const t = d.traffic.find(x => x.day === date) || { visitors:0, page_views:0 };
+        const f = d.finance.find(x => x.day === date) || { revenue:0, sales:0 };
+        csv += \`\${date},\${t.visitors},\${t.page_views},\${f.revenue},\${f.sales}\n\`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", \`statistics_export_\${new Date().toISOString().split('T')[0]}.csv\`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
