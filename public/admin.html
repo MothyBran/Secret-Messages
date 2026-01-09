@@ -216,11 +216,33 @@
         .toast.error { border-left-color: var(--error-red); }
         .toast.info { border-left-color: var(--accent-blue); }
 
+        /* TOOLTIP / POPOVER */
+        #adminTooltip {
+            position: fixed;
+            background: rgba(15, 18, 21, 0.98);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            padding: 15px;
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            max-width: 320px;
+            z-index: 11000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none; /* Allows clicking through if needed, but we toggle display */
+        }
+        #adminTooltip.visible { display: block; opacity: 1; }
+
     </style>
 </head>
 <body>
 
     <div id="toast-container"></div>
+    <div id="adminTooltip"></div>
 
     <!-- 1. LOGIN SCREEN -->
     <div id="login-view">
@@ -635,7 +657,7 @@
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <h3 style="color:#fff;">Traffic Entwicklung</h3>
-                        <button class="btn-icon" title="Info: Zeigt eindeutige Besucher pro Tag auf Basis anonymisierter IPs." style="background:none; border:none; color:#888;">ℹ️</button>
+                        <button class="btn-icon info-trigger" data-info-key="traffic" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                     </div>
                     <div style="height:300px; position:relative;">
                         <canvas id="chartTraffic"></canvas>
@@ -646,7 +668,7 @@
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <h3 style="color:#fff;">Produkt Verkäufe</h3>
-                        <button class="btn-icon" title="Info: Verteilung der verkauften Lizenz-Typen im gewählten Zeitraum." style="background:none; border:none; color:#888;">ℹ️</button>
+                        <button class="btn-icon info-trigger" data-info-key="sales" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                     </div>
                     <div style="height:300px; position:relative;">
                         <canvas id="chartProducts"></canvas>
@@ -657,7 +679,7 @@
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <h3 style="color:#fff;">Umsatz Verlauf</h3>
-                        <button class="btn-icon" title="Info: Täglicher Umsatz (abgeschlossene Zahlungen)." style="background:none; border:none; color:#888;">ℹ️</button>
+                        <button class="btn-icon info-trigger" data-info-key="finance" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                     </div>
                     <div style="height:300px; position:relative;">
                         <canvas id="chartFinance"></canvas>
@@ -669,7 +691,7 @@
                     <div>
                         <div style="display:flex; justify-content:space-between;">
                             <h4 style="color:#ccc;">Support Effizienz (Quote)</h4>
-                            <button class="btn-icon" title="Verhältnis von FAQ-Aufrufen zu erstellten Tickets." style="background:none; border:none; color:#888;">ℹ️</button>
+                            <button class="btn-icon info-trigger" data-info-key="support" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                         </div>
                         <div style="height:120px; position:relative;">
                             <canvas id="chartSupport"></canvas>
@@ -679,7 +701,7 @@
                     <div>
                         <div style="display:flex; justify-content:space-between;">
                             <h4 style="color:#ccc;">System Status (PIK Migration)</h4>
-                            <button class="btn-icon" title="Anteil der Nutzer mit modernem PIK-Identitäts-Schlüssel." style="background:none; border:none; color:#888;">ℹ️</button>
+                            <button class="btn-icon info-trigger" data-info-key="system" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                         </div>
                         <div id="pikProgressContainer" style="margin-top:10px;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">

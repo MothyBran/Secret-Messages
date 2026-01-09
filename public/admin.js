@@ -1106,7 +1106,65 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMsgOk')?.addEventListener('click', () => {
         document.getElementById('messageModal').style.display = 'none';
     });
+
+    setupInfoTooltips();
 });
+
+const INFO_TEXTS = {
+    traffic: "Diese Statistik zeigt die anonymisierten Seitenaufrufe der Landingpage, des Shops und der WebApp. Sie hilft zu verstehen, wie effektiv Marketingmaßnahmen Besucher in das System leiten.",
+    sales: "Analyse der Produkt-Performance. Vergleicht Erstkäufe mit Verlängerungen. Eine hohe Verlängerungsrate ist ein Indikator für hohe Nutzerzufriedenheit.",
+    finance: "Kumulierter Brutto-Umsatz aller erfolgreich abgeschlossenen Transaktionen (Status: completed). Dient der finanziellen Planung und Budgetierung.",
+    system: "Überwachung der Systemintegrität. Zeigt die Nutzung des QR-Transfers sowie die Anzahl blockierter Angriffsversuche auf die Infrastruktur.",
+    support: "Verhältnis zwischen FAQ-Aufrufen und Support-Anfragen. Ein Anstieg der FAQ-Nutzung bei gleichbleibenden Ticketzahlen zeigt eine erfolgreiche Entlastung des Supports."
+};
+
+function setupInfoTooltips() {
+    const tooltip = document.getElementById('adminTooltip');
+    if (!tooltip) return;
+
+    // Open logic
+    document.querySelectorAll('.info-trigger').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // Check if already open on this element
+            if(tooltip.classList.contains('visible') && tooltip.dataset.activeKey === btn.dataset.infoKey) {
+                tooltip.classList.remove('visible');
+                return;
+            }
+
+            const key = btn.dataset.infoKey;
+            const text = INFO_TEXTS[key];
+
+            if (text) {
+                tooltip.textContent = text;
+                tooltip.dataset.activeKey = key;
+
+                // Positioning
+                const rect = btn.getBoundingClientRect();
+                tooltip.style.top = (rect.bottom + 10) + 'px';
+                tooltip.style.left = (rect.left - 300 + 20) + 'px'; // Shift left to keep in viewport (simple logic)
+
+                // Bounds check (Simple)
+                if(parseFloat(tooltip.style.left) < 10) tooltip.style.left = '10px';
+
+                tooltip.classList.add('visible');
+            }
+        });
+    });
+
+    // Close logic (Global click)
+    document.addEventListener('click', (e) => {
+        if (tooltip.classList.contains('visible')) {
+            tooltip.classList.remove('visible');
+        }
+    });
+
+    // Also close on ESC
+    document.addEventListener('keydown', (e) => {
+        if(e.key === 'Escape') tooltip.classList.remove('visible');
+    });
+}
 
 function renderStats(stats) {
     if(!stats) return;
