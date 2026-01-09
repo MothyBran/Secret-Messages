@@ -50,12 +50,7 @@ let dbQuery;
 
 const initializeDatabase = async () => {
     try {
-        let sqlite3;
-        try {
-            sqlite3 = require('sqlite3').verbose();
-        } catch (e) {
-            sqlite3 = require('@vscode/sqlite3').verbose();
-        }
+        const sqlite3 = require('sqlite3').verbose();
 
         // Determine DB Path: Priority to USER_DATA_PATH (Electron), else local
         let dbPath = './secret_messages.db';
