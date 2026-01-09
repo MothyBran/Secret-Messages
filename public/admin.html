@@ -243,6 +243,7 @@
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
                 <button class="nav-tab" onclick="switchTab('mail')">Mail Service <span id="mailServiceBadge" style="display:none; color:var(--accent-blue); font-size:0.8rem; margin-left:5px;">(0)</span></button>
+                <button class="nav-tab" onclick="switchTab('stats')">Statistik</button>
                 <button class="nav-tab" onclick="switchTab('maintenance')">Wartung</button>
             </nav>
 
@@ -595,6 +596,106 @@
 
         </div>
 
+                <!-- TAB: STATISTIK -->
+        <div id="tab-stats" class="tab-content">
+            <h2 class="section-title">
+                System Statistik
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="date" id="statsStart" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
+                    <span style="color:#888;">-</span>
+                    <input type="date" id="statsEnd" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
+                    <button class="btn-action" onclick="loadStatistics()">Laden</button>
+                    <button class="btn-outline" onclick="exportStatisticsCSV()" title="CSV Export">⬇ Export</button>
+                </div>
+            </h2>
+
+            <!-- KPI TILES -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-val" id="kpiVisitors">-</div>
+                    <div class="stat-label">Besucher (Heute)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="kpiRevenue" style="color:gold;">-</div>
+                    <div class="stat-label">Umsatz (MTD)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="kpiLicenses">-</div>
+                    <div class="stat-label">Neue Lizenzen (7 Tage)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-val" id="kpiSupport" style="color:var(--accent-blue);">-</div>
+                    <div class="stat-label">Aktive Tickets</div>
+                </div>
+            </div>
+
+            <!-- CHARTS GRID -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap:30px; margin-bottom:40px;">
+                <!-- TRAFFIC -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <h3 style="color:#fff;">Traffic Entwicklung</h3>
+                        <button class="btn-icon" title="Info: Zeigt eindeutige Besucher pro Tag auf Basis anonymisierter IPs." style="background:none; border:none; color:#888;">ℹ️</button>
+                    </div>
+                    <div style="height:300px; position:relative;">
+                        <canvas id="chartTraffic"></canvas>
+                    </div>
+                </div>
+
+                <!-- SALES & PRODUCTS -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <h3 style="color:#fff;">Produkt Verkäufe</h3>
+                        <button class="btn-icon" title="Info: Verteilung der verkauften Lizenz-Typen im gewählten Zeitraum." style="background:none; border:none; color:#888;">ℹ️</button>
+                    </div>
+                    <div style="height:300px; position:relative;">
+                        <canvas id="chartProducts"></canvas>
+                    </div>
+                </div>
+
+                <!-- FINANCE -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <h3 style="color:#fff;">Umsatz Verlauf</h3>
+                        <button class="btn-icon" title="Info: Täglicher Umsatz (abgeschlossene Zahlungen)." style="background:none; border:none; color:#888;">ℹ️</button>
+                    </div>
+                    <div style="height:300px; position:relative;">
+                        <canvas id="chartFinance"></canvas>
+                    </div>
+                </div>
+
+                <!-- SYSTEM & SUPPORT -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px; display:flex; flex-direction:column; gap:20px;">
+                    <div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <h4 style="color:#ccc;">Support Effizienz (Quote)</h4>
+                            <button class="btn-icon" title="Verhältnis von FAQ-Aufrufen zu erstellten Tickets." style="background:none; border:none; color:#888;">ℹ️</button>
+                        </div>
+                        <div style="height:120px; position:relative;">
+                            <canvas id="chartSupport"></canvas>
+                        </div>
+                    </div>
+                    <hr style="border-color:#333;">
+                    <div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <h4 style="color:#ccc;">System Status (PIK Migration)</h4>
+                            <button class="btn-icon" title="Anteil der Nutzer mit modernem PIK-Identitäts-Schlüssel." style="background:none; border:none; color:#888;">ℹ️</button>
+                        </div>
+                        <div id="pikProgressContainer" style="margin-top:10px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">
+                                <span id="pikLabel">Fortschritt</span>
+                                <span id="pikPercent">0%</span>
+                            </div>
+                            <div style="width:100%; height:10px; background:#222; border-radius:5px; overflow:hidden;">
+                                <div id="pikBar" style="width:0%; height:100%; background:var(--success-green); transition: width 1s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
         <!-- TAB 6: WARTUNG -->
         <div id="tab-maintenance" class="tab-content">
             <h2 class="section-title">Control Center</h2>
@@ -756,6 +857,7 @@
         </div>
     </div>
 
+    <script src="/assets/js/chart.min.js"></script>
     <script src="/admin.js"></script>
 </body>
 </html>

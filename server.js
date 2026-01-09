@@ -298,6 +298,22 @@ const createTables = async () => {
             status VARCHAR(20) DEFAULT 'open'
         )`);
 
+
+        await dbQuery(`CREATE TABLE IF NOT EXISTS analytics_events (
+            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+            event_type VARCHAR(50),
+            source VARCHAR(50),
+            anonymized_ip VARCHAR(50),
+            metadata TEXT,
+            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
+        )`);
+
+                // Migration for Analytics
+        try { await dbQuery("ALTER TABLE analytics_events ADD COLUMN created_at DATETIME"); } catch (e) { }
+        // Add indices for Analytics performance
+        try { await dbQuery(`CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type)`); } catch (e) { }
+        try { await dbQuery(`CREATE INDEX IF NOT EXISTS idx_analytics_date ON analytics_events(created_at)`); } catch (e) { }
+
         // Enterprise Keys Table (Recovery / Specific)
         await dbQuery(`CREATE TABLE IF NOT EXISTS enterprise_keys (
             id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
@@ -349,10 +365,61 @@ const createTables = async () => {
 initializeDatabase();
 
 // ==================================================================
+// 2.1 ANALYTICS HELPERS
+// ==================================================================
+const anonymizeIp = (ip) => {
+    if (!ip) return '0.0.0.0';
+    // Cleanup ::ffff: prefix if present
+    if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+
+    if (ip.includes(':')) { // IPv6
+        const parts = ip.split(':');
+        if (parts.length > 1) {
+             return parts.slice(0, Math.max(1, parts.length - 1)).join(':') + ':XXXX';
+        }
+        return ip;
+    }
+    // IPv4
+    const parts = ip.split('.');
+    if (parts.length === 4) {
+        return `${parts[0]}.${parts[1]}.${parts[2]}.XXX`;
+    }
+    return ip;
+};
+
+const trackEvent = async (req, type, source, meta = {}) => {
+    try {
+        if (!dbQuery || IS_ENTERPRISE) return;
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const safeIp = anonymizeIp(ip);
+        const metaStr = JSON.stringify(meta);
+        const now = new Date().toISOString();
+
+        await dbQuery(
+            `INSERT INTO analytics_events (event_type, source, anonymized_ip, metadata, created_at) VALUES ($1, $2, $3, $4, $5)`,
+            [type, source, safeIp, metaStr, now]
+        );
+    } catch (e) {
+        console.warn("Analytics Error:", e.message);
+    }
+};
+
+// ==================================================================
 // 3. AUTHENTICATION & APP ROUTES
 // ==================================================================
 
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
+// ANALYTICS CLIENT ENDPOINT
+app.post('/api/analytics/event', async (req, res) => {
+    try {
+        const { type, source, meta } = req.body;
+        if (!type || !source) return res.status(400).json({ error: "Missing data" });
+
+        await trackEvent(req, type, source, meta || {});
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: "Tracking failed" }); }
+});
+
 
 app.get('/api/shop-status', async (req, res) => {
     try {
@@ -508,11 +575,15 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         // CHECK IF LICENSE IS BLOCKED (Enterprise/Admin Block)
         const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
         if (isKeyBlocked) {
+            await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'license_blocked' });
             return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
         }
 
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
-        if (!match) return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
+        if (!match) {
+            await trackEvent(req, 'login_fail', 'auth', { username });
+            return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
+        }
 
         // --- PIK MIGRATION (SILENT) ---
         if (!user.pik_encrypted) {
@@ -544,11 +615,13 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         // HARD LOGIN BLOCK
         const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
         if (isBlocked) {
+            await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'account_blocked' });
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
 
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
             // STRICT HARDWARE BINDING - BLOCK ACCESS
+            await trackEvent(req, 'login_device_mismatch', 'auth', { username });
             return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
         }
         if (!user.allowed_device_id) {
@@ -564,6 +637,8 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+
+        await trackEvent(req, 'login_success', 'auth', { username });
 
         res.json({
             success: true,
@@ -642,6 +717,7 @@ app.post('/api/auth/activate', async (req, res) => {
             [(isPostgreSQL ? true : 1), new Date().toISOString(), expiresAt, key.id]
         );
 
+        await trackEvent(req, 'activation_success', 'auth', { username, product: key.product_code });
         res.json({ success: true });
     } catch (e) {
         console.error("Activation Error:", e);
@@ -704,6 +780,7 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
             [userId, key.key_hash, newExpiresAt, new Date().toISOString()]
         );
 
+        await trackEvent(req, 'renewal_success', 'shop', { userId });
         res.json({ success: true, newExpiresAt: newExpiresAt || 'Unlimited' });
 
     } catch (e) {
@@ -1101,6 +1178,111 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         });
     } catch (e) { res.json({ success: false, error: 'DB Error' }); }
 });
+
+/**
+ * ADVANCED STATISTICS API
+ * Aggregates data from multiple tables (analytics_events, payments, support_tickets)
+ * to provide a comprehensive dashboard overview.
+ *
+ * Logic:
+ * 1. Timeframe: Defaults to last 30 days if not provided.
+ * 2. Traffic: Counts distinct anonymized IPs per day from analytics_events.
+ * 3. Finance: Sums 'amount' from payments table where status='completed'.
+ * 4. Products: Aggregates sales count by 'product_type' metadata from payments.
+ * 5. System: Calculates PIK migration % and security event counts.
+ * 6. Support: Counts total tickets and FAQ views in the period.
+ */
+app.get('/api/admin/stats/advanced', requireAdmin, async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        // Default to 30 days if not set
+        const end = endDate ? new Date(endDate) : new Date();
+        // Set end to end of day
+        end.setHours(23, 59, 59, 999);
+
+        const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+        start.setHours(0, 0, 0, 0);
+
+        const startIso = start.toISOString();
+        const endIso = end.toISOString();
+
+        // 1. Traffic (Daily Unique Visitors)
+        const dateFunc = isPostgreSQL ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
+        const dateFuncPayments = isPostgreSQL ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
+
+        const trafficSql = `
+            SELECT ${dateFunc} as day, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views
+            FROM analytics_events
+            WHERE event_type = 'page_view' AND created_at >= $1 AND created_at <= $2
+            GROUP BY day
+            ORDER BY day ASC
+        `;
+        const trafficRes = await dbQuery(trafficSql, [startIso, endIso]);
+
+        // 2. Financials (Daily Revenue)
+        const financeSql = `
+            SELECT ${dateFuncPayments} as day, SUM(amount) as revenue, COUNT(*) as sales
+            FROM payments
+            WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2
+            GROUP BY day
+            ORDER BY day ASC
+        `;
+        const financeRes = await dbQuery(financeSql, [startIso, endIso]);
+
+        // 3. Product Sales Distribution
+        const productSql = `SELECT metadata FROM payments WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2`;
+        const productRes = await dbQuery(productSql, [startIso, endIso]);
+        const products = {};
+        productRes.rows.forEach(row => {
+            try {
+                const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+                const type = meta.product_type || 'Unknown';
+                products[type] = (products[type] || 0) + 1;
+            } catch(e){}
+        });
+
+        // 4. System & Security
+        const pikTotal = await dbQuery(`SELECT COUNT(*) as c FROM users`);
+        const pikMigrated = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE pik_encrypted IS NOT NULL`);
+
+        const securitySql = `
+            SELECT event_type, COUNT(*) as c
+            FROM analytics_events
+            WHERE event_type IN ('login_blocked', 'login_fail', 'login_device_mismatch')
+            AND created_at >= $1 AND created_at <= $2
+            GROUP BY event_type
+        `;
+        const securityRes = await dbQuery(securitySql, [startIso, endIso]);
+
+        // 5. Support
+        const ticketsSql = `SELECT COUNT(*) as c FROM support_tickets WHERE created_at >= $1 AND created_at <= $2`;
+        const ticketsRes = await dbQuery(ticketsSql, [startIso, endIso]);
+
+        const faqSql = `SELECT COUNT(*) as c FROM analytics_events WHERE event_type = 'faq_open' AND created_at >= $1 AND created_at <= $2`;
+        const faqRes = await dbQuery(faqSql, [startIso, endIso]);
+
+        res.json({
+            success: true,
+            traffic: trafficRes.rows,
+            finance: financeRes.rows,
+            products: products,
+            system: {
+                pik_total: pikTotal.rows[0].c,
+                pik_migrated: pikMigrated.rows[0].c,
+                security_events: securityRes.rows
+            },
+            support: {
+                tickets: ticketsRes.rows[0].c,
+                faq_views: faqRes.rows[0].c
+            }
+        });
+
+    } catch(e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
@@ -1952,11 +2134,18 @@ app.get('/', async (req, res) => {
         }
         return res.redirect('/enterprise');
     }
+    await trackEvent(req, 'page_view', 'landing');
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
-app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/shop', (req, res) => res.sendFile(path.join(__dirname, 'public', 'store.html')));
+app.get('/app', async (req, res) => {
+    if (!IS_ENTERPRISE) await trackEvent(req, 'page_view', 'app');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.get('/shop', async (req, res) => {
+    if (!IS_ENTERPRISE) await trackEvent(req, 'page_view', 'shop');
+    res.sendFile(path.join(__dirname, 'public', 'store.html'));
+});
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/maintenance', (req, res) => res.sendFile(path.join(__dirname, 'public', 'maintenance.html')));
 
