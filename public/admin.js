@@ -1313,8 +1313,8 @@ window.loadStatistics = async function() {
     }
 
     try {
-        const query = \`?startDate=\${startEl.value}&endDate=\${endEl.value}\`;
-        const res = await fetch(\`\${API_BASE}/stats/advanced\${query}\`, { headers: getHeaders() });
+        const query = `?startDate=${startEl.value}&endDate=${endEl.value}`;
+        const res = await fetch(`${API_BASE}/stats/advanced${query}`, { headers: getHeaders() });
         const data = await res.json();
 
         if(data.success) {
@@ -1457,14 +1457,14 @@ window.exportStatisticsCSV = function() {
     sortedDates.forEach(date => {
         const t = d.traffic.find(x => x.day === date) || { visitors:0, page_views:0 };
         const f = d.finance.find(x => x.day === date) || { revenue:0, sales:0 };
-        csv += \`\${date},\${t.visitors},\${t.page_views},\${f.revenue},\${f.sales}\n\`;
+        csv += `${date},${t.visitors},${t.page_views},${f.revenue},${f.sales}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", \`statistics_export_\${new Date().toISOString().split('T')[0]}.csv\`);
+    link.setAttribute("download", `statistics_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
