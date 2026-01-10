@@ -155,6 +155,25 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const DATABASE_URL = process.env.DATABASE_URL;
 
+// Helper: Parse potential German date strings (DD.MM.YYYY) to ISO Date objects
+function parseDbDate(dateStr) {
+    if (!dateStr) return null;
+    // Check if it's a string looking like DD.MM.YYYY
+    if (typeof dateStr === 'string' && dateStr.includes('.')) {
+        const parts = dateStr.split('.');
+        if (parts.length === 3) {
+            const [d, m, y] = parts;
+            // Basic sanity check: Year should be 4 digits
+            if (y.length === 4) {
+                return new Date(`${y}-${m}-${d}`);
+            }
+        }
+    }
+    // Fallback: Standard Date constructor (handles ISO strings, timestamps, Date objects)
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+}
+
 // ==================================================================
 // 2. DATABASE SETUP
 // ==================================================================
@@ -753,21 +772,31 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
 
         // Fetch current expiration
         const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
-        const currentExp = userRes.rows[0].license_expiration;
+        const currentExpVal = userRes.rows[0].license_expiration;
 
+        // Logik-Weiche: Parsen mit Helper (support DD.MM.YYYY)
+        const currentExpDate = parseDbDate(currentExpVal);
         const now = new Date();
-        // FIX: Ensure baseDate is always a fresh Date object copy, never a reference to 'now'
-        const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : new Date(now);
+        let baseDate;
 
-        console.log(`RENEWAL DEBUG: User ${userId} | CurrentExp: ${currentExp} | Base: ${baseDate.toISOString()} | Add: ${addedMonths}m`);
+        if (currentExpDate && currentExpDate > now) {
+            // FALL A: Lizenz noch gültig -> Verlängerung ab bestehendem Ablaufdatum
+            baseDate = new Date(currentExpDate);
+        } else {
+            // FALL B: Lizenz abgelaufen oder ungültig -> Verlängerung ab JETZT
+            baseDate = new Date(now);
+        }
 
         if (pc === 'unl' || pc === 'unlimited') {
             newExpiresAt = null; // Lifetime
         } else {
-            // FIX: Use safe date addition to handle overflows if necessary, though setMonth handles it
+            // Kumulative Berechnung
             baseDate.setMonth(baseDate.getMonth() + addedMonths);
             newExpiresAt = baseDate.toISOString();
         }
+
+        // [DEBUG] Log output for verification
+        console.log(`[DEBUG] DB-Raw: ${currentExpVal} -> Parsed: ${currentExpDate ? currentExpDate.toISOString() : 'Invalid/Null'} -> Result: ${newExpiresAt}`);
 
         // 3. Mark Key as Used
         await dbQuery(
@@ -813,10 +842,16 @@ app.post('/api/auth/check-license', async (req, res) => {
         if (username) {
             const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
             if (userRes.rows.length > 0) {
-                const currentExp = userRes.rows[0].license_expiration;
+                const currentExpVal = userRes.rows[0].license_expiration;
+                const currentExpDate = parseDbDate(currentExpVal);
                 const now = new Date();
-                // FIX: Ensure baseDate is always a fresh Date object copy
-                const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : new Date(now);
+                let baseDate;
+
+                if (currentExpDate && currentExpDate > now) {
+                    baseDate = new Date(currentExpDate);
+                } else {
+                    baseDate = new Date(now);
+                }
 
                 const pc = (key.product_code || '').toLowerCase();
                 if (pc === 'unl' || pc === 'unlimited') {
