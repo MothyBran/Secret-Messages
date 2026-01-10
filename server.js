@@ -766,32 +766,13 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
-        // 1. Hole den User (um Username & Key ID zu haben)
-        const userRes = await dbQuery('SELECT username, license_key_id FROM users WHERE id = $1', [userId]);
-        const user = userRes.rows[0];
-
-        // 2. Ermittle das AKTIVE Ablaufdatum aus ALLEN verknüpften Keys
-        // Wir suchen den MAX(expires_at) von:
-        // A) Dem PIK Key (users.license_key_id = license_keys.id)
-        // B) Allen Keys, die diesem User zugewiesen wurden (assigned_user_id = users.username)
-        // Filter: Nur aktive/gültige Keys berücksichtigen?
-        // User sagt: "nach der am längsten laufenden (aktuell aktiven) Lizenz suchen"
-        // Also is_active=true (oder 1) und expires_at > NOW?
-        // Eigentlich wollen wir einfach das späteste Datum finden. Wenn alle abgelaufen sind, ist MAX < NOW -> Fall B.
-
-        const activeCheck = isPostgreSQL ? 'is_active = true' : 'is_active = 1';
-
-        const maxDateRes = await dbQuery(`
-            SELECT MAX(expires_at) as max_expiry
-            FROM license_keys
-            WHERE (id = $1 OR assigned_user_id = $2)
-            AND ${activeCheck}
-        `, [user.license_key_id, user.username]);
-
-        const currentExpiryStr = maxDateRes.rows[0].max_expiry;
+        // 1. Hole den User und das Key-Objekt
+        // REVERT: Using 'users.license_expiration' as source of truth to match UI and expected calculation base (User Report: 31.08.2026).
+        const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+        const currentExpiryStr = userRes.rows[0].license_expiration; // z.B. "31.08.2026"
 
         // DEBUG LOGGING
-        console.log('DEBUG: User-ID:', userId, 'Max-Key-Expiry:', currentExpiryStr);
+        console.log('DEBUG: User-ID:', userId, 'User-Table-Expiry:', currentExpiryStr);
 
         const pc = (key.product_code || '').toLowerCase();
         const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
@@ -865,20 +846,9 @@ app.post('/api/auth/check-license', async (req, res) => {
         // Prediction Logic
         let predictedExpiry = null;
         if (username) {
-            const userRes = await dbQuery('SELECT id, license_key_id FROM users WHERE username = $1', [username]);
+            const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
             if (userRes.rows.length > 0) {
-                const user = userRes.rows[0];
-                const activeCheck = isPostgreSQL ? 'is_active = true' : 'is_active = 1';
-
-                // Recalculate Max Expiry for Prediction
-                const maxDateRes = await dbQuery(`
-                    SELECT MAX(expires_at) as max_expiry
-                    FROM license_keys
-                    WHERE (id = $1 OR assigned_user_id = $2)
-                    AND ${activeCheck}
-                `, [user.license_key_id, username]);
-
-                const currentExpiryStr = maxDateRes.rows[0].max_expiry;
+                const currentExpiryStr = userRes.rows[0].license_expiration;
 
                 const pc = (key.product_code || '').toLowerCase();
                 const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
