@@ -116,9 +116,21 @@ window.hideLoader = function() {
 };
 
 let appConfirmCallback = null;
-window.showAppConfirm = function(message, onConfirm) {
+window.showAppConfirm = function(message, onConfirm, labels = null) {
     document.getElementById('appConfirmMessage').textContent = message;
     document.getElementById('appConfirmModal').classList.add('active');
+
+    const btnYes = document.getElementById('btnAppConfirmYes');
+    const btnNo = document.getElementById('btnAppConfirmNo');
+
+    if (labels) {
+        btnYes.textContent = labels.confirm || 'Ja';
+        btnNo.textContent = labels.cancel || 'Nein';
+    } else {
+        btnYes.textContent = 'Ja';
+        btnNo.textContent = 'Nein';
+    }
+
     appConfirmCallback = onConfirm;
 };
 
@@ -382,34 +394,69 @@ async function handleManualRenewal() {
 
     const btn = document.getElementById('btnConfirmManualRenewal');
     const oldTxt = btn.textContent;
-    btn.textContent = "..."; btn.disabled = true;
+    btn.textContent = "Prüfe..."; btn.disabled = true;
 
     try {
-        const res = await fetch(`${API_BASE}/renew-license`, {
+        // Step 1: Pre-Check & Prediction
+        const checkRes = await fetch(`${API_BASE}/auth/check-license`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ licenseKey: key })
+            body: JSON.stringify({ licenseKey: key, username: currentUser.name })
         });
-        const data = await res.json();
+        const checkData = await checkRes.json();
 
-        if (data.success) {
-            document.getElementById('manualRenewalModal').classList.remove('active');
-
-            // Format Date
-            let dateStr = "Unbegrenzt";
-            if (data.newExpiresAt) {
-                const d = new Date(data.newExpiresAt);
-                dateStr = d.toLocaleDateString('de-DE');
-            }
-
-            updateSidebarInfo(currentUser.name, data.newExpiresAt);
-            window.showAppConfirm(`Lizenz erfolgreich verlängert bis: ${dateStr}.\n\nDeine Sicherheits-Identität bleibt unverändert.`, () => {});
-        } else {
-            showToast(data.error || "Fehler", 'error');
+        if (!checkData.isValid) {
+            showToast(checkData.error || "Lizenz ungültig", 'error');
+            btn.textContent = oldTxt; btn.disabled = false;
+            return;
         }
+
+        if (checkData.assignedUserId && checkData.assignedUserId !== currentUser.name) {
+            showToast("Dieser Key ist für einen anderen Benutzer reserviert.", 'error');
+            btn.textContent = oldTxt; btn.disabled = false;
+            return;
+        }
+
+        // Prepare Prediction Message
+        let predictionStr = "Unbegrenzt";
+        if (checkData.predictedExpiry && checkData.predictedExpiry !== 'Unlimited') {
+            const d = new Date(checkData.predictedExpiry);
+            predictionStr = d.toLocaleDateString('de-DE');
+        }
+
+        const confirmMsg = `Deine Lizenz wird bis zum ${predictionStr} verlängert.\n\nIhre Sicherheits-Identität bleibt unverändert.`;
+
+        // Step 2: Show Confirmation
+        window.showAppConfirm(confirmMsg, async () => {
+            // Step 3: Execute Renewal
+            btn.textContent = "Verlängere...";
+            try {
+                const res = await fetch(`${API_BASE}/renew-license`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ licenseKey: key })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('manualRenewalModal').classList.remove('active');
+                    updateSidebarInfo(currentUser.name, data.newExpiresAt);
+                    showToast("Lizenz erfolgreich verlängert!", 'success');
+                } else {
+                    showToast(data.error || "Fehler", 'error');
+                }
+            } catch(e) {
+                showToast("Verbindungsfehler", 'error');
+            } finally {
+                btn.textContent = oldTxt; btn.disabled = false;
+            }
+        }, { confirm: 'Verlängern', cancel: 'Abbrechen' });
+
+        // Reset button state if modal is just shown (callback handles execution)
+        btn.textContent = oldTxt; btn.disabled = false;
+
     } catch (e) {
-        showToast("Verbindungsfehler", 'error');
-    } finally {
+        showToast("Verbindungsfehler beim Prüfen", 'error');
         btn.textContent = oldTxt; btn.disabled = false;
     }
 }

@@ -351,7 +351,8 @@
                             <th>ID</th>
                             <th>Username</th>
                             <th>Status</th>
-                            <th>Aktive Lizenz</th>
+                            <th>PIK</th>
+                            <th>Lizenzen</th>
                             <th>Letzter Login</th>
                             <th>Gerät</th>
                             <th>Aktionen</th>
@@ -818,6 +819,33 @@
     </div>
 
     <!-- Edit License Modal -->
+    <!-- User Licenses Modal -->
+    <div id="userLicensesModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:800px; width:90%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="color:var(--accent-blue); margin:0;">Verknüpfte Lizenzen</h3>
+                <button class="btn-icon" id="closeUserLicensesBtn" style="font-size:1.5rem; background:none; border:none; cursor:pointer;">✖</button>
+            </div>
+
+            <div style="max-height:60vh; overflow-y:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Lizenz Key</th>
+                            <th>Produkt</th>
+                            <th>Status</th>
+                            <th>Aktiviert am</th>
+                            <th>Ablaufdatum</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userLicensesBody">
+                        <!-- Dynamic -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div id="editLicenseModal" class="modal-overlay">
         <div class="modal-box">
             <h3 style="margin-bottom:20px; color:var(--accent-blue);">Lizenz bearbeiten</h3>

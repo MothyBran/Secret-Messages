@@ -17,7 +17,7 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql'))
     });
 } else {
     // Fallback für SQLite (Development) - Mock Pool für Kompatibilität
-    const sqlite3 = require('@vscode/sqlite3').verbose();
+    const sqlite3 = require('sqlite3').verbose();
     const db = new sqlite3.Database('./secret_messages.db');
     pool = {
         query: (text, params) => {
