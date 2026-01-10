@@ -760,24 +760,19 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
-        // 2. Calculate New Expiry & Fetch current expiration
+        // 1. Hole den User und das Key-Objekt
         const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
         const currentExpiryStr = userRes.rows[0].license_expiration; // z.B. "20.01.2027"
-
-        let extensionMonths = 0;
-        const pc = (key.product_code || '').toLowerCase(); // FIX: Define pc
-        if (pc === '3m') extensionMonths = 3;
-        else if (pc === '1m') extensionMonths = 1;
-        else if (pc === '6m') extensionMonths = 6;
-        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+        const pc = (key.product_code || '').toLowerCase();
+        const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
 
         // 2. Bestimme den harten Startpunkt
         let startDate;
-        const dbDate = parseDbDate(currentExpiryStr); // Helper-Funktion
+        const dbDate = parseDbDate(currentExpiryStr); // Deine neue Helper-Funktion
 
         if (dbDate && dbDate > new Date()) {
             // FALL A: Lizenz noch gültig -> Wir starten EXAKT am Tag des Ablaufs
-            startDate = new Date(dbDate);
+            startDate = dbDate; // Helper returns new Date object, safe to use directly or clone. Helper returns new Date.
         } else {
             // FALL B: Abgelaufen -> Wir starten JETZT
             startDate = new Date();
@@ -788,6 +783,9 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
             newExpiresAt = null;
         } else {
             // 3. Einzige mathematische Operation: Monate addieren
+            // Ensure we are working on a clone if we didn't clone above (though parseDbDate returns new)
+            // To be absolutely safe and match user snippet "startDate = dbDate":
+            // Note: setMonth modifies in-place. parseDbDate returns a fresh object.
             startDate.setMonth(startDate.getMonth() + extensionMonths);
 
             // 4. Speichern
@@ -842,18 +840,14 @@ app.post('/api/auth/check-license', async (req, res) => {
             if (userRes.rows.length > 0) {
                 const currentExpiryStr = userRes.rows[0].license_expiration;
 
-                let extensionMonths = 0;
                 const pc = (key.product_code || '').toLowerCase();
-                if (pc === '3m') extensionMonths = 3;
-                else if (pc === '1m') extensionMonths = 1;
-                else if (pc === '6m') extensionMonths = 6;
-                else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+                const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
 
                 let startDate;
                 const dbDate = parseDbDate(currentExpiryStr);
 
                 if (dbDate && dbDate > new Date()) {
-                    startDate = new Date(dbDate);
+                    startDate = dbDate; // Uses helper return (new Date)
                 } else {
                     startDate = new Date();
                 }
