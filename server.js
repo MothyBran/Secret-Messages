@@ -161,8 +161,14 @@ function parseDbDate(dateStr) {
     // Check if it's a string looking like DD.MM.YYYY
     if (typeof dateStr === 'string' && dateStr.includes('.')) {
         const parts = dateStr.split('.');
-        if (parts.length === 3) {
-            const [d, m, y] = parts;
+        if (parts.length >= 3) {
+            const d = parts[0];
+            const m = parts[1];
+            let y = parts[2];
+
+            // Clean year (remove time if present)
+            if (y.includes(' ')) y = y.split(' ')[0];
+
             // Basic sanity check: Year should be 4 digits
             if (y.length === 4) {
                 return new Date(`${y}-${m}-${d}`);
@@ -762,6 +768,10 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
 
         // 1. Hole den User und das Key-Objekt
         const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+
+        // DEBUG LOGGING (Requested by User)
+        console.log('DEBUG: User-ID:', userId, 'Raw-DB-Value:', userRes.rows[0]);
+
         const currentExpiryStr = userRes.rows[0].license_expiration; // z.B. "20.01.2027"
         const pc = (key.product_code || '').toLowerCase();
         const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
