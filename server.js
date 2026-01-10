@@ -756,11 +756,15 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         const currentExp = userRes.rows[0].license_expiration;
 
         const now = new Date();
-        const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : now;
+        // FIX: Ensure baseDate is always a fresh Date object copy, never a reference to 'now'
+        const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : new Date(now);
+
+        console.log(`RENEWAL DEBUG: User ${userId} | CurrentExp: ${currentExp} | Base: ${baseDate.toISOString()} | Add: ${addedMonths}m`);
 
         if (pc === 'unl' || pc === 'unlimited') {
             newExpiresAt = null; // Lifetime
         } else {
+            // FIX: Use safe date addition to handle overflows if necessary, though setMonth handles it
             baseDate.setMonth(baseDate.getMonth() + addedMonths);
             newExpiresAt = baseDate.toISOString();
         }
@@ -811,7 +815,8 @@ app.post('/api/auth/check-license', async (req, res) => {
             if (userRes.rows.length > 0) {
                 const currentExp = userRes.rows[0].license_expiration;
                 const now = new Date();
-                const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : now;
+                // FIX: Ensure baseDate is always a fresh Date object copy
+                const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : new Date(now);
 
                 const pc = (key.product_code || '').toLowerCase();
                 if (pc === 'unl' || pc === 'unlimited') {
