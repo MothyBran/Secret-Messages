@@ -791,9 +791,9 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
 
 app.post('/api/auth/check-license', async (req, res) => {
     try {
-        const { licenseKey } = req.body;
+        const { licenseKey, username } = req.body; // username optional for prediction
         if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
-        const keyRes = await dbQuery('SELECT assigned_user_id, is_active, is_blocked FROM license_keys WHERE key_code = $1', [licenseKey]);
+        const keyRes = await dbQuery('SELECT assigned_user_id, is_active, is_blocked, product_code FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.json({ isValid: false });
 
         const key = keyRes.rows[0];
@@ -804,7 +804,32 @@ app.post('/api/auth/check-license', async (req, res) => {
         const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
         if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
 
-        res.json({ isValid: true, assignedUserId: key.assigned_user_id || null });
+        // Prediction Logic
+        let predictedExpiry = null;
+        if (username) {
+            const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
+            if (userRes.rows.length > 0) {
+                const currentExp = userRes.rows[0].license_expiration;
+                const now = new Date();
+                const baseDate = (currentExp && new Date(currentExp) > now) ? new Date(currentExp) : now;
+
+                const pc = (key.product_code || '').toLowerCase();
+                if (pc === 'unl' || pc === 'unlimited') {
+                    predictedExpiry = 'Unlimited';
+                } else {
+                    let addedMonths = 0;
+                    if (pc === '1m') addedMonths = 1;
+                    else if (pc === '3m') addedMonths = 3;
+                    else if (pc === '6m') addedMonths = 6;
+                    else if (pc === '1j' || pc === '12m') addedMonths = 12;
+
+                    baseDate.setMonth(baseDate.getMonth() + addedMonths);
+                    predictedExpiry = baseDate.toISOString();
+                }
+            }
+        }
+
+        res.json({ isValid: true, assignedUserId: key.assigned_user_id || null, predictedExpiry });
     } catch (e) { res.status(500).json({ error: 'Serverfehler' }); }
 });
 
@@ -1561,7 +1586,13 @@ app.delete('/api/admin/bundles/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT u.*, k.key_code FROM users u LEFT JOIN license_keys k ON u.license_key_id = k.id ORDER BY u.registered_at DESC LIMIT 100`;
+        const sql = `
+            SELECT u.*, k.key_code,
+            (SELECT COUNT(*) FROM license_keys WHERE id = u.license_key_id OR assigned_user_id = u.username) as license_count
+            FROM users u
+            LEFT JOIN license_keys k ON u.license_key_id = k.id
+            ORDER BY u.registered_at DESC LIMIT 100
+        `;
         const result = await dbQuery(sql);
         const users = result.rows.map(r => ({
             ...r,
@@ -1570,6 +1601,28 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         }));
         res.json(users);
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/users/:id/licenses', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const userRes = await dbQuery('SELECT username, license_key_id FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const { username, license_key_id } = userRes.rows[0];
+
+        const sql = `
+            SELECT * FROM license_keys
+            WHERE id = $1 OR assigned_user_id = $2
+            ORDER BY activated_at DESC
+        `;
+        const result = await dbQuery(sql, [license_key_id, username]);
+        const keys = result.rows.map(r => ({
+             ...r,
+             is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
+        }));
+        res.json(keys);
+
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {

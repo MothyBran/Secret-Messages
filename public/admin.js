@@ -1079,6 +1079,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editLicenseModal').style.display = 'none';
     });
 
+    // NEW: Close User Licenses Modal
+    document.getElementById('closeUserLicensesBtn')?.addEventListener('click', () => {
+        document.getElementById('userLicensesModal').style.display = 'none';
+    });
+
     document.getElementById('refreshUsersBtn')?.addEventListener('click', window.loadUsers);
     document.getElementById('globalRefreshLicensesBtn')?.addEventListener('click', window.globalRefreshLicenses);
     document.getElementById('refreshPurchasesBtn')?.addEventListener('click', window.loadPurchases);
@@ -1109,6 +1114,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupInfoTooltips();
 });
+
+// NEW: Open User Licenses Modal
+window.openUserLicensesModal = async function(userId) {
+    const modal = document.getElementById('userLicensesModal');
+    const tbody = document.getElementById('userLicensesBody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Lade...</td></tr>';
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`${API_BASE}/users/${userId}/licenses`, { headers: getHeaders() });
+        const keys = await res.json();
+
+        tbody.innerHTML = '';
+        if (keys.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Keine Lizenzen gefunden.</td></tr>';
+            return;
+        }
+
+        keys.forEach(k => {
+            const tr = document.createElement('tr');
+            let status = '<span style="color:#888;">Inaktiv</span>';
+            const now = new Date();
+            const exp = k.expires_at ? new Date(k.expires_at) : null;
+
+            if (exp && exp < now) status = '<span style="color:var(--error-red);">Abgelaufen</span>';
+            else if (k.is_active) status = '<span style="color:var(--success-green);">Aktiv</span>';
+
+            let expiry = k.expires_at ? new Date(k.expires_at).toLocaleDateString('de-DE') : 'Lifetime';
+            let activated = k.activated_at ? new Date(k.activated_at).toLocaleDateString('de-DE') : '-';
+
+            tr.innerHTML = `
+                <td style="font-family:'Roboto Mono'; color:var(--accent-blue);">${k.key_code}</td>
+                <td>${k.product_code || 'Standard'}</td>
+                <td>${status}</td>
+                <td>${activated}</td>
+                <td>${expiry}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Fehler: ${e.message}</td></tr>`;
+    }
+};
 
 const INFO_TEXTS = {
     traffic: "Diese Statistik zeigt die anonymisierten Seitenaufrufe der Landingpage, des Shops und der WebApp. Sie hilft zu verstehen, wie effektiv Marketingmaßnahmen Besucher in das System leiten.",
@@ -1189,16 +1238,19 @@ function renderUsersTable(users) {
         const deviceIcon = u.allowed_device_id ? '📱' : '⚪';
 
         // Active License Display
-        let licenseDisplay = '<span style="color:#666;">Keine</span>';
+        let licenseDisplay = '<span style="color:#666;">-</span>';
         if (u.key_code) {
              licenseDisplay = `<span style="color:var(--accent-blue); font-family:'Roboto Mono';">${u.key_code}</span>`;
         }
+
+        const countDisplay = `<span onclick="openUserLicensesModal('${u.id}')" style="cursor:pointer; text-decoration:underline; color:#fff; font-weight:bold; padding:2px 6px; background:#333; border-radius:4px;">${u.license_count || 0}</span>`;
 
         tr.innerHTML = `
             <td>#${u.id}</td>
             <td style="font-weight:bold; color:#fff;">${u.username}</td>
             <td>${status}</td>
             <td>${licenseDisplay}</td>
+            <td style="text-align:center;">${countDisplay}</td>
             <td>${u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : '-'}</td>
             <td style="text-align:center;">${deviceIcon}</td>
             <td>
