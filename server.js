@@ -760,43 +760,41 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
-        // 2. Calculate New Expiry
-        let addedMonths = 0;
-        const pc = (key.product_code || '').toLowerCase();
-        if (pc === '1m') addedMonths = 1;
-        else if (pc === '3m') addedMonths = 3;
-        else if (pc === '6m') addedMonths = 6;
-        else if (pc === '1j' || pc === '12m') addedMonths = 12;
+        // 2. Calculate New Expiry & Fetch current expiration
+        const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+        const currentExpiryStr = userRes.rows[0].license_expiration; // z.B. "20.01.2027"
+
+        let extensionMonths = 0;
+        const pc = (key.product_code || '').toLowerCase(); // FIX: Define pc
+        if (pc === '3m') extensionMonths = 3;
+        else if (pc === '1m') extensionMonths = 1;
+        else if (pc === '6m') extensionMonths = 6;
+        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+
+        // 2. Bestimme den harten Startpunkt
+        let startDate;
+        const dbDate = parseDbDate(currentExpiryStr); // Helper-Funktion
+
+        if (dbDate && dbDate > new Date()) {
+            // FALL A: Lizenz noch gültig -> Wir starten EXAKT am Tag des Ablaufs
+            startDate = new Date(dbDate);
+        } else {
+            // FALL B: Abgelaufen -> Wir starten JETZT
+            startDate = new Date();
+        }
 
         let newExpiresAt = null;
-
-        // Fetch current expiration
-        const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
-        const currentExpVal = userRes.rows[0].license_expiration;
-
-        // Logik-Weiche: Parsen mit Helper (support DD.MM.YYYY)
-        const currentExpDate = parseDbDate(currentExpVal);
-        const now = new Date();
-        let baseDate;
-
-        if (currentExpDate && currentExpDate > now) {
-            // FALL A: Lizenz noch gültig -> Verlängerung ab bestehendem Ablaufdatum
-            baseDate = new Date(currentExpDate);
-        } else {
-            // FALL B: Lizenz abgelaufen oder ungültig -> Verlängerung ab JETZT
-            baseDate = new Date(now);
-        }
-
         if (pc === 'unl' || pc === 'unlimited') {
-            newExpiresAt = null; // Lifetime
+            newExpiresAt = null;
         } else {
-            // Kumulative Berechnung
-            baseDate.setMonth(baseDate.getMonth() + addedMonths);
-            newExpiresAt = baseDate.toISOString();
+            // 3. Einzige mathematische Operation: Monate addieren
+            startDate.setMonth(startDate.getMonth() + extensionMonths);
+
+            // 4. Speichern
+            newExpiresAt = startDate.toISOString();
         }
 
-        // [DEBUG] Log output for verification
-        console.log(`[DEBUG] DB-Raw: ${currentExpVal} -> Parsed: ${currentExpDate ? currentExpDate.toISOString() : 'Invalid/Null'} -> Result: ${newExpiresAt}`);
+        console.log(`[DEBUG] DB-Raw: ${currentExpiryStr} -> Parsed: ${dbDate ? dbDate.toISOString() : 'Invalid'} -> Extension: ${extensionMonths}m -> Result: ${newExpiresAt}`);
 
         // 3. Mark Key as Used
         await dbQuery(
@@ -842,29 +840,29 @@ app.post('/api/auth/check-license', async (req, res) => {
         if (username) {
             const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
             if (userRes.rows.length > 0) {
-                const currentExpVal = userRes.rows[0].license_expiration;
-                const currentExpDate = parseDbDate(currentExpVal);
-                const now = new Date();
-                let baseDate;
+                const currentExpiryStr = userRes.rows[0].license_expiration;
 
-                if (currentExpDate && currentExpDate > now) {
-                    baseDate = new Date(currentExpDate);
+                let extensionMonths = 0;
+                const pc = (key.product_code || '').toLowerCase();
+                if (pc === '3m') extensionMonths = 3;
+                else if (pc === '1m') extensionMonths = 1;
+                else if (pc === '6m') extensionMonths = 6;
+                else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+
+                let startDate;
+                const dbDate = parseDbDate(currentExpiryStr);
+
+                if (dbDate && dbDate > new Date()) {
+                    startDate = new Date(dbDate);
                 } else {
-                    baseDate = new Date(now);
+                    startDate = new Date();
                 }
 
-                const pc = (key.product_code || '').toLowerCase();
                 if (pc === 'unl' || pc === 'unlimited') {
                     predictedExpiry = 'Unlimited';
                 } else {
-                    let addedMonths = 0;
-                    if (pc === '1m') addedMonths = 1;
-                    else if (pc === '3m') addedMonths = 3;
-                    else if (pc === '6m') addedMonths = 6;
-                    else if (pc === '1j' || pc === '12m') addedMonths = 12;
-
-                    baseDate.setMonth(baseDate.getMonth() + addedMonths);
-                    predictedExpiry = baseDate.toISOString();
+                    startDate.setMonth(startDate.getMonth() + extensionMonths);
+                    predictedExpiry = startDate.toISOString();
                 }
             }
         }
