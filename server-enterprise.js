@@ -164,6 +164,8 @@ const createTables = async () => {
     try { await dbQuery("ALTER TABLE users ADD COLUMN department TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN role_title TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE license_keys ADD COLUMN origin VARCHAR(20) DEFAULT 'unknown'"); } catch (e) { /* ignore */ }
+    try { await dbQuery("ALTER TABLE users ADD COLUMN allowed_device_id TEXT"); } catch (e) { /* ignore */ }
 
     // Additional tables can be added as we migrate logic
 };

@@ -288,7 +288,8 @@ const createTables = async () => {
             expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
             is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
             username VARCHAR(50),
-            activated_ip VARCHAR(50)
+            activated_ip VARCHAR(50),
+            origin VARCHAR(20) DEFAULT 'unknown'
         )`);
 
         await dbQuery(`CREATE TABLE IF NOT EXISTS payments (
@@ -378,11 +379,13 @@ const createTables = async () => {
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN client_name VARCHAR(100)`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN max_users INTEGER DEFAULT 1`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN origin VARCHAR(20) DEFAULT 'unknown'`); } catch (e) { }
 
         // Schema Migration for PIK / Identity
         try { await dbQuery(`ALTER TABLE users ADD COLUMN registration_key_hash TEXT`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE users ADD COLUMN pik_encrypted TEXT`); } catch (e) { }
         try { await dbQuery(`ALTER TABLE users ADD COLUMN license_expiration ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}`); } catch (e) { }
+        try { await dbQuery(`ALTER TABLE users ADD COLUMN allowed_device_id TEXT`); } catch (e) { }
 
         // Add columns to messages for Ticket System
         try { await dbQuery(`ALTER TABLE messages ADD COLUMN status VARCHAR(20) DEFAULT 'open'`); } catch (e) { }
@@ -627,6 +630,15 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
         }
 
+        // --- SELF-HEALING MIGRATION: Sync Expiration to User Table ---
+        if (!user.license_expiration && user.expires_at) {
+            try {
+                await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [user.expires_at, user.id]);
+                user.license_expiration = user.expires_at; // Update local object
+            } catch (e) { console.warn("Expiration Sync Failed", e); }
+        }
+        // -------------------------------------------------------------
+
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) {
             await trackEvent(req, 'login_fail', 'auth', { username });
@@ -692,7 +704,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             success: true,
             token,
             username: user.username,
-            expiresAt: user.expires_at || 'lifetime',
+            expiresAt: user.license_expiration || 'lifetime',
             hasLicense: !!user.license_key_id
         });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
@@ -964,13 +976,19 @@ app.post('/api/auth/validate', async (req, res) => {
             const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
             if (isKeyBlocked) return res.json({ valid: false, reason: 'license_blocked' });
             if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
+
+            // STRICT: Use license_expiration from users table
+            let expirySource = user.license_expiration;
+            // Fallback for session validation if migration hasn't happened yet (rare edge case, usually login fixes it)
+            if (!expirySource && user.expires_at) expirySource = user.expires_at;
+
             let isExpired = false;
-            if (user.expires_at) {
-                const expDate = new Date(user.expires_at);
+            if (expirySource) {
+                const expDate = new Date(expirySource);
                 if (expDate < new Date()) isExpired = true;
             }
-            if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: user.expires_at });
-            res.json({ valid: true, username: user.username, expiresAt: user.expires_at });
+            if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: expirySource });
+            res.json({ valid: true, username: user.username, expiresAt: expirySource });
         } else {
             res.json({ valid: false, reason: 'user_not_found' });
         }
