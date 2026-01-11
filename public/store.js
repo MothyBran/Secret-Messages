@@ -264,9 +264,13 @@ async function pollPaymentStatus(sessionId) {
         }
         return; // Polling beenden
 
-      } else if (data.status === 'processing' || !data.status) {
-        // --- NOCH WARTEN ---
+      } else if (data.status === 'processing' || data.status === 'processing_user_sync' || !data.status) {
+        // --- NOCH WARTEN (Inklusive User Sync Wait) ---
         if (attempts < maxAttempts) {
+           // Bei Sync-Wait ggf. Hinweis anzeigen?
+           if (data.status === 'processing_user_sync') {
+               console.log("Warte auf Datenbank-Sync...");
+           }
            setTimeout(check, 2000); // Weiter warten
         } else {
            throw new Error("Zeitüberschreitung. Bitte E-Mail prüfen.");
