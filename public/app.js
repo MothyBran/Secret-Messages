@@ -735,6 +735,10 @@ async function validateSessionStrict() {
             else if (data.reason === 'no_license') { alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key."); showRenewalScreen(); return false; }
             else { alert("Sitzung abgelaufen."); handleLogout(); return false; }
         }
+        // Valid Session: Update Expiration in Sidebar (Real-time sync)
+        if (data.expiresAt !== undefined) {
+            updateSidebarInfo(currentUser.name, data.expiresAt);
+        }
         return true;
     } catch (e) { showAppStatus("Verbindung prüfen...", 'error'); return false; }
 }

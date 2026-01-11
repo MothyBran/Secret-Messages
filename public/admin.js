@@ -1306,6 +1306,17 @@ window.openUserProfile = async function(userId) {
             document.getElementById('userProfileTitle').textContent = `User: ${u.username}`;
             document.getElementById('upRegDate').textContent = new Date(u.registered_at).toLocaleString('de-DE');
             document.getElementById('upLastLogin').textContent = u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : 'Never';
+
+            // License Expiration
+            let expText = 'Keine Lizenz';
+            if (u.license_expiration) {
+                const expD = new Date(u.license_expiration);
+                expText = expD.toLocaleDateString('de-DE');
+            } else if (u.license_key_id) {
+                expText = 'Lifetime / Unlimited';
+            }
+            document.getElementById('upLicenseExpiry').textContent = expText;
+
             document.getElementById('upPikHash').textContent = u.registration_key_hash || 'N/A';
 
             // Bind Actions with correct context
