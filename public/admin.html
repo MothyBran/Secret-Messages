@@ -792,7 +792,7 @@
     <!-- MODALS -->
 
     <!-- Confirm Modal (Updated for Smart Cascade) -->
-    <div id="confirmModal" class="modal-overlay">
+    <div id="confirmModal" class="modal-overlay" style="z-index:12000;">
         <div class="modal-box" style="text-align:center;">
             <h3 style="margin-bottom:20px;">Bestätigen</h3>
             <p id="confirmMessage" style="margin-bottom:20px; color:#ccc;"></p>
@@ -929,6 +929,10 @@
                     <div class="detail-group" style="margin-bottom:20px;">
                         <label style="color:#888; font-size:0.8rem; display:block;">Letzter Login</label>
                         <div id="upLastLogin" style="color:#fff;">-</div>
+                    </div>
+                    <div class="detail-group" style="margin-bottom:20px;">
+                        <label style="color:#888; font-size:0.8rem; display:block;">Ablauf Zugang</label>
+                        <div id="upLicenseExpiry" style="color:var(--accent-blue); font-weight:bold;">-</div>
                     </div>
                     <div class="detail-group" style="margin-bottom:20px;">
                         <label style="color:#888; font-size:0.8rem; display:block;">Identity Anchor (PIK Hash)</label>

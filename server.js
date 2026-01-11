@@ -1406,11 +1406,18 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
         updateSql += ` WHERE id = $${pIndex}`; params.push(keyId);
         await dbQuery(updateSql, params);
 
+        // SYNC: Also update linked User's license_expiration to match
+        // Note: license_keys table does NOT have assigned_user_id link for *active* relationship in some contexts,
+        // but here we check 'users' table linking.
+        // We update any user linked to this key.
+        await dbQuery(`UPDATE users SET license_expiration = $1 WHERE license_key_id = $2`, [expires_at || null, keyId]);
+
         await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
         if (user_id) {
             const userCheck = await dbQuery(`SELECT id FROM users WHERE id = $1`, [user_id]);
             if (userCheck.rows.length > 0) {
-                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
+                // Relink
+                await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [keyId, expires_at || null, user_id]);
                 const now = new Date().toISOString();
                 await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
             }
