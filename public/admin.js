@@ -1308,18 +1308,35 @@ window.openUserProfile = async function(userId) {
             document.getElementById('upLastLogin').textContent = u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : 'Never';
             document.getElementById('upPikHash').textContent = u.registration_key_hash || 'N/A';
 
-            // Bind Actions
+            // Bind Actions with correct context
             const btnReset = document.getElementById('btnResetDevice');
             btnReset.onclick = () => { window.resetDevice(u.id); };
 
+            // Device Status
+            if (!u.allowed_device_id) {
+                btnReset.disabled = true;
+                btnReset.textContent = "Kein Gerät verknüpft";
+                btnReset.style.opacity = "0.5";
+            } else {
+                btnReset.disabled = false;
+                btnReset.textContent = "📱 Device Binding zurücksetzen";
+                btnReset.style.opacity = "1";
+            }
+
             const btnBlock = document.getElementById('btnToggleBlock');
-            // We don't have block status in 'u' from detail endpoint perfectly unless we fetch fresh, but we can assume logic
-            // Ideally we check if blocked. For now, trigger toggle.
-            // Better: Load User List object to check block status or just generic toggle text.
-            btnBlock.onclick = () => { window.toggleUserBlock(u.id, null); }; // Null passed, function will confirm logic
+            // Pass the actual block status
+            btnBlock.textContent = u.is_blocked ? "🔓 Account Entsperren" : "🛑 Account Sperren";
+            btnBlock.style.color = u.is_blocked ? "var(--success-green)" : "orange";
+            btnBlock.style.borderColor = u.is_blocked ? "var(--success-green)" : "orange";
+
+            btnBlock.onclick = () => {
+                // Toggle Block Status logic
+                // We pass current status, so the helper asks "Unlock?" if true, "Block?" if false
+                window.toggleUserBlock(u.id, u.is_blocked);
+            };
 
             const btnDelete = document.getElementById('btnDeleteUser');
-            btnDelete.onclick = () => { window.deleteUser(u.id, u.username, (u.license_key_id)); };
+            btnDelete.onclick = () => { window.deleteUser(u.id, u.username, (!!u.license_key_id)); };
 
             // History
             const tbody = document.getElementById('upLicenseHistoryBody');

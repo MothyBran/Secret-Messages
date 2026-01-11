@@ -1481,12 +1481,15 @@ app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
     try {
         const userId = req.params.id;
         const userRes = await dbQuery(`
-            SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration
+            SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked, allowed_device_id
             FROM users WHERE id = $1
         `, [userId]);
 
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
-        const user = userRes.rows[0];
+        const user = {
+            ...userRes.rows[0],
+            is_blocked: isPostgreSQL ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1)
+        };
 
         // License History
         const histSql = `
@@ -1656,12 +1659,16 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         for(let i=0; i < amount; i++) {
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
+            // Ensure origin is strictly 'admin'
             await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin) VALUES ($1, $2, $3, $4, 'admin')`,
                 [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0)]);
             newKeys.push(keyRaw);
         }
         res.json({ success: true, keys: newKeys });
-    } catch (e) { res.status(500).json({ error: "Fehler beim Generieren: " + e.message }); }
+    } catch (e) {
+        console.error("Generate Keys Error:", e);
+        res.status(500).json({ error: "Fehler beim Generieren: " + e.message });
+    }
 });
 
 app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
