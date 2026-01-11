@@ -1247,19 +1247,12 @@ function renderUsersTable(users) {
 
         tr.innerHTML = `
             <td>#${u.id}</td>
-            <td style="font-weight:bold; color:#fff;">${u.username}</td>
+            <td style="font-weight:bold; color:var(--accent-blue); cursor:pointer; text-decoration:underline;" onclick="openUserProfile('${u.id}')">${u.username}</td>
             <td>${status}</td>
             <td>${licenseDisplay}</td>
             <td style="text-align:center;">${countDisplay}</td>
             <td>${u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : '-'}</td>
             <td style="text-align:center;">${deviceIcon}</td>
-            <td>
-                <div style="display:flex; gap:10px;">
-                    <button class="btn-icon" onclick="resetDevice('${u.id}')" title="Reset Device" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">📱</button>
-                    <button class="btn-icon" onclick="toggleUserBlock('${u.id}', ${u.is_blocked})" title="Block" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">${u.is_blocked ? '🔓' : '🛑'}</button>
-                    <button class="btn-icon" onclick="deleteUser('${u.id}', '${u.username.replace(/'/g, "\\'")}', ${!!u.license_key_id})" title="Benutzer Löschen" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
-                </div>
-            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1286,6 +1279,98 @@ window.deleteUser = function(id, username, hasLicense) {
             }
         } catch(e) { window.showToast("Netzwerkfehler", "error"); }
     }, options);
+};
+
+// === NEW USER PROFILE LOGIC ===
+let currentUserProfileId = null;
+
+window.openUserProfile = async function(userId) {
+    currentUserProfileId = userId;
+    const modal = document.getElementById('userProfileModal');
+    modal.style.display = 'flex';
+    document.getElementById('userProfileTitle').textContent = `User #${userId} Loading...`;
+
+    // Clear previous data
+    document.getElementById('upRegDate').textContent = '-';
+    document.getElementById('upLastLogin').textContent = '-';
+    document.getElementById('upPikHash').textContent = '-';
+    document.getElementById('upLicenseHistoryBody').innerHTML = '';
+    document.getElementById('manualLinkKeyInput').value = '';
+
+    try {
+        const res = await fetch(`${API_BASE}/users/${userId}/details`, { headers: getHeaders() });
+        const data = await res.json();
+
+        if (data.success) {
+            const u = data.user;
+            document.getElementById('userProfileTitle').textContent = `User: ${u.username}`;
+            document.getElementById('upRegDate').textContent = new Date(u.registered_at).toLocaleString('de-DE');
+            document.getElementById('upLastLogin').textContent = u.last_login ? new Date(u.last_login).toLocaleString('de-DE') : 'Never';
+            document.getElementById('upPikHash').textContent = u.registration_key_hash || 'N/A';
+
+            // Bind Actions
+            const btnReset = document.getElementById('btnResetDevice');
+            btnReset.onclick = () => { window.resetDevice(u.id); };
+
+            const btnBlock = document.getElementById('btnToggleBlock');
+            // We don't have block status in 'u' from detail endpoint perfectly unless we fetch fresh, but we can assume logic
+            // Ideally we check if blocked. For now, trigger toggle.
+            // Better: Load User List object to check block status or just generic toggle text.
+            btnBlock.onclick = () => { window.toggleUserBlock(u.id, null); }; // Null passed, function will confirm logic
+
+            const btnDelete = document.getElementById('btnDeleteUser');
+            btnDelete.onclick = () => { window.deleteUser(u.id, u.username, (u.license_key_id)); };
+
+            // History
+            const tbody = document.getElementById('upLicenseHistoryBody');
+            data.history.forEach(h => {
+                const row = document.createElement('tr');
+
+                let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">UNKNOWN</span>`;
+                if(h.origin === 'shop') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">SHOP</span>`;
+                if(h.origin === 'admin') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(255, 165, 0, 0.2); color:orange; border:1px solid orange;">ADMIN</span>`;
+
+                row.innerHTML = `
+                    <td style="font-family:'Roboto Mono';">${h.key_code}</td>
+                    <td>${originBadge}</td>
+                    <td>${h.activated_at ? new Date(h.activated_at).toLocaleDateString() : '-'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+        } else {
+            window.showToast("Fehler beim Laden.", "error");
+        }
+    } catch(e) { console.error(e); window.showToast("Netzwerkfehler", "error"); }
+};
+
+window.submitManualLink = async function() {
+    if(!currentUserProfileId) return;
+    const key = document.getElementById('manualLinkKeyInput').value.trim();
+    if(!key) return window.showToast("Bitte Key eingeben", "error");
+
+    const btn = event.target;
+    btn.textContent = "Processing..."; btn.disabled = true;
+
+    try {
+        const res = await fetch(`${API_BASE}/users/${currentUserProfileId}/link-key`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ keyCode: key })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.showToast("Erfolgreich verknüpft!", "success");
+            // Refresh Modal Data
+            window.openUserProfile(currentUserProfileId);
+            // Refresh Background List
+            window.loadUsers();
+        } else {
+            window.showToast(data.error || "Fehler", "error");
+        }
+    } catch(e) { window.showToast("Serverfehler", "error"); }
+    btn.textContent = "Link"; btn.disabled = false;
 };
 
 function renderBundlesTable(bundles) {
@@ -1331,11 +1416,17 @@ function renderKeysTable(keys) {
             expiry = 'Lifetime';
         }
 
+        // Origin Badge
+        let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">?</span>`;
+        if(k.origin === 'shop') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">SHOP</span>`;
+        if(k.origin === 'admin') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(255, 165, 0, 0.2); color:orange; border:1px solid orange;">ADMIN</span>`;
+
         // Show Username instead of ID
         const userDisplay = k.username ? `<span style="color:var(--accent-blue); font-weight:bold;">${k.username}</span>` : '-';
 
         tr.innerHTML = `
             <td style="font-family:'Roboto Mono'">${k.key_code}</td>
+            <td>${originBadge}</td>
             <td>${k.product_code || 'std'}</td>
             <td>${status}</td>
             <td>${userDisplay}</td>

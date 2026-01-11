@@ -8,6 +8,45 @@ const { encryptServerSide } = require('../utils/serverCrypto');
 const fetch = require('node-fetch'); // Ensure node-fetch is available (legacy version in package.json)
 const crypto = require('crypto');
 
+// Helper: Parse potential German date strings (DD.MM.YYYY) to ISO Date objects
+function parseDbDate(dateStr) {
+    if (!dateStr) return null;
+    if (typeof dateStr === 'string' && dateStr.includes('.')) {
+        const parts = dateStr.split('.');
+        if (parts.length >= 3) {
+            const d = parts[0];
+            const m = parts[1];
+            let y = parts[2];
+            if (y.includes(' ')) y = y.split(' ')[0];
+            if (y.length === 4) {
+                return new Date(`${y}-${m}-${d}`);
+            }
+        }
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Calculates the new expiration date based on the new Master Formula:
+ * New_Expiry = MAX(CURRENT_TIMESTAMP, license_expiration) + Key_Duration
+ */
+function calculateNewExpiration(currentExpirationStr, extensionMonths) {
+    if (!extensionMonths || extensionMonths <= 0) return null;
+
+    let baseDate = new Date();
+    const currentExpiry = parseDbDate(currentExpirationStr);
+
+    if (currentExpiry && currentExpiry > baseDate) {
+        baseDate = currentExpiry;
+    }
+
+    const newDate = new Date(baseDate.getTime());
+    newDate.setMonth(newDate.getMonth() + extensionMonths);
+
+    return newDate.toISOString();
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'enterprise-local-secret';
 let activeSessions = new Map(); // Token -> { password }
 
@@ -381,6 +420,106 @@ module.exports = (dbQuery) => {
             res.json(users.rows);
         } catch (e) {
             res.status(500).json({ error: e.message });
+        }
+    });
+
+    // USER DETAILS API (For Modal) - ENTERPRISE VERSION
+    router.get('/api/admin/users/:id/details', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const userId = req.params.id;
+            const userRes = await dbQuery(`
+                SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration
+                FROM users WHERE id = $1
+            `, [userId]);
+
+            if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+            const user = userRes.rows[0];
+
+            // In Enterprise, users might not have individual keys in license_keys table if using Master Key.
+            // But if they do (e.g. from Cloud migration or local assignment), we try to fetch.
+            // Note: server-enterprise.js schema usually doesn't have license_keys table unless customized.
+            // If table missing, dbQuery might fail. We wrap in try-catch.
+            let history = [];
+            try {
+                const histSql = `
+                    SELECT key_code, product_code, activated_at, expires_at, is_active, origin
+                    FROM license_keys
+                    WHERE assigned_user_id = $1 OR id = $2
+                    ORDER BY activated_at DESC
+                `;
+                const historyRes = await dbQuery(histSql, [user.username, user.license_key_id]);
+                history = historyRes.rows;
+            } catch(noTableErr) {
+                // Ignore table missing error in strict Enterprise mode
+            }
+
+            res.json({ success: true, user, history });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // MANUAL KEY LINK (Full Activation) - ENTERPRISE VERSION
+    router.post('/api/admin/users/:id/link-key', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        const userId = req.params.id;
+        const { keyCode } = req.body;
+
+        if (!keyCode) return res.status(400).json({ error: "Key Code missing" });
+
+        try {
+            // 1. Get User
+            const userRes = await dbQuery('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+            if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+            const user = userRes.rows[0];
+
+            // 2. Validate Key (Check if license_keys table exists)
+            // Enterprise normally uses Master Key. If this is a "Local License Key", it implies existence of the table.
+            // We assume if the Admin calls this, they expect it to work or fail if feature unavailable.
+            // We'll try to find the key.
+            let key;
+            try {
+                const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
+                if (keyRes.rows.length === 0) return res.status(404).json({ error: "Key not found" });
+                key = keyRes.rows[0];
+            } catch(e) {
+                return res.status(500).json({ error: "License System unavailable on this node (No Keys Table)." });
+            }
+
+            if (key.is_active) return res.status(403).json({ error: "Key already active" });
+
+            // 3. Calculate New Expiration
+            const pc = (key.product_code || '').toLowerCase();
+            let extensionMonths = 1;
+            if (pc === '3m') extensionMonths = 3;
+            else if (pc === '6m') extensionMonths = 6;
+            else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+
+            let newExpiresAt = null;
+            if (pc === 'unl' || pc === 'unlimited') {
+                newExpiresAt = null;
+            } else {
+                newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
+            }
+
+            // 4. Update
+            const now = new Date().toISOString();
+            await dbQuery(
+                `UPDATE license_keys SET is_active = 1, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
+                [now, newExpiresAt, user.username, key.id]
+            );
+
+            await dbQuery(
+                `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
+                [key.id, newExpiresAt, userId]
+            );
+
+            await logAction('MANUAL_LINK', `Linked Key ${keyCode} to User ${userId}`, req);
+
+            res.json({ success: true, newExpiresAt });
+
+        } catch (e) {
+            console.error("Link Key Error:", e);
+            res.status(500).json({ error: "Link failed: " + e.message });
         }
     });
 

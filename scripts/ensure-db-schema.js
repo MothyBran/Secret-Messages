@@ -71,7 +71,8 @@ async function ensureDbSchema() {
             assigned_user_id VARCHAR(50),
             client_name VARCHAR(100),
             max_users INTEGER DEFAULT 1,
-            is_blocked INTEGER DEFAULT 0
+            is_blocked INTEGER DEFAULT 0,
+            origin VARCHAR(20) DEFAULT 'unknown'
         )`);
 
          await dbRun(`CREATE TABLE IF NOT EXISTS settings (
@@ -156,6 +157,10 @@ async function ensureDbSchema() {
         await safeAlter('users', 'role_title', 'TEXT');
         await safeAlter('users', 'password', 'TEXT');
         await safeAlter('users', 'is_admin', 'INTEGER DEFAULT 0');
+        await safeAlter('users', 'license_expiration', 'DATETIME');
+
+        // License Keys
+        await safeAlter('license_keys', 'origin', "VARCHAR(20) DEFAULT 'unknown'");
 
         // Analytics Indices
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type)`);
