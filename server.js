@@ -180,6 +180,29 @@ function parseDbDate(dateStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Calculates the new expiration date based on the new Master Formula:
+ * New_Expiry = MAX(CURRENT_TIMESTAMP, license_expiration) + Key_Duration
+ */
+function calculateNewExpiration(currentExpirationStr, extensionMonths) {
+    if (!extensionMonths || extensionMonths <= 0) return null; // Logic error handling
+
+    // 1. Determine Base Date: MAX(Now, CurrentExpiry)
+    let baseDate = new Date();
+    const currentExpiry = parseDbDate(currentExpirationStr);
+
+    if (currentExpiry && currentExpiry > baseDate) {
+        baseDate = currentExpiry;
+    }
+
+    // 2. Add Duration
+    // Using strict Date manipulation to avoid reference issues
+    const newDate = new Date(baseDate.getTime());
+    newDate.setMonth(newDate.getMonth() + extensionMonths);
+
+    return newDate.toISOString();
+}
+
 // ==================================================================
 // 2. DATABASE SETUP
 // ==================================================================
@@ -707,16 +730,22 @@ app.post('/api/auth/activate', async (req, res) => {
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
         // CALCULATE EXPIRATION
-        let expiresAt = null;
-        const now = new Date();
+        // Logic: For new activation, base is NOW.
+        // But we use the helper to be consistent (Current Expiration is null/past)
         const pc = (key.product_code || '').toLowerCase();
+        let extensionMonths = 0;
+        let expiresAt = null;
 
-        if (pc === '1m') { now.setMonth(now.getMonth() + 1); expiresAt = now.toISOString(); }
-        else if (pc === '3m') { now.setMonth(now.getMonth() + 3); expiresAt = now.toISOString(); }
-        else if (pc === '6m') { now.setMonth(now.getMonth() + 6); expiresAt = now.toISOString(); }
-        else if (pc === '1j' || pc === '12m') { now.setFullYear(now.getFullYear() + 1); expiresAt = now.toISOString(); }
-        else if (pc === 'unl' || pc === 'unlimited') { expiresAt = null; }
-        else { expiresAt = null; }
+        if (pc === '1m') extensionMonths = 1;
+        else if (pc === '3m') extensionMonths = 3;
+        else if (pc === '6m') extensionMonths = 6;
+        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+
+        if (pc === 'unl' || pc === 'unlimited') {
+             expiresAt = null;
+        } else if (extensionMonths > 0) {
+             expiresAt = calculateNewExpiration(null, extensionMonths);
+        }
 
         const hash = await bcrypt.hash(accessCode, 10);
 
@@ -767,42 +796,25 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
         // 1. Hole den User und das Key-Objekt
-        // REVERT: Using 'users.license_expiration' as source of truth to match UI and expected calculation base (User Report: 31.08.2026).
         const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
-        const currentExpiryStr = userRes.rows[0].license_expiration; // z.B. "31.08.2026"
-
-        // DEBUG LOGGING
-        console.log('DEBUG: User-ID:', userId, 'User-Table-Expiry:', currentExpiryStr);
+        const currentExpiryStr = userRes.rows[0].license_expiration;
 
         const pc = (key.product_code || '').toLowerCase();
-        const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
-
-        // 3. Bestimme den harten Startpunkt
-        let startDate;
-        const dbDate = parseDbDate(currentExpiryStr);
-
-        // Logik-Weiche (Fall A / B)
-        if (dbDate && dbDate > new Date()) {
-            startDate = dbDate;
-        } else {
-            startDate = new Date();
-        }
+        let extensionMonths = 1; // Default
+        if (pc === '3m') extensionMonths = 3;
+        else if (pc === '1m') extensionMonths = 1;
+        else if (pc === '6m') extensionMonths = 6;
+        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
 
         let newExpiresAt = null;
         if (pc === 'unl' || pc === 'unlimited') {
             newExpiresAt = null;
         } else {
-            // 3. Einzige mathematische Operation: Monate addieren
-            // Ensure we are working on a clone if we didn't clone above (though parseDbDate returns new)
-            // To be absolutely safe and match user snippet "startDate = dbDate":
-            // Note: setMonth modifies in-place. parseDbDate returns a fresh object.
-            startDate.setMonth(startDate.getMonth() + extensionMonths);
-
-            // 4. Speichern
-            newExpiresAt = startDate.toISOString();
+            // Use Centralized Logic
+            newExpiresAt = calculateNewExpiration(currentExpiryStr, extensionMonths);
         }
 
-        console.log(`[DEBUG] DB-Raw: ${currentExpiryStr} -> Parsed: ${dbDate ? dbDate.toISOString() : 'Invalid'} -> Extension: ${extensionMonths}m -> Result: ${newExpiresAt}`);
+        console.log(`[RENEWAL] User: ${userId}, Old: ${currentExpiryStr}, Added: ${extensionMonths}m, New: ${newExpiresAt}`);
 
         // 3. Mark Key as Used
         await dbQuery(
@@ -1464,6 +1476,109 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// USER DETAILS API (For Modal)
+app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const userRes = await dbQuery(`
+            SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration
+            FROM users WHERE id = $1
+        `, [userId]);
+
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const user = userRes.rows[0];
+
+        // License History
+        const histSql = `
+            SELECT key_code, product_code, activated_at, expires_at, is_active, origin
+            FROM license_keys
+            WHERE assigned_user_id = $1 OR id = $2
+            ORDER BY activated_at DESC
+        `;
+        const historyRes = await dbQuery(histSql, [user.username, user.license_key_id]);
+
+        const history = historyRes.rows.map(r => ({
+            ...r,
+            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
+        }));
+
+        res.json({ success: true, user, history });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// MANUAL KEY LINK (Full Activation)
+app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
+    const userId = req.params.id;
+    const { keyCode } = req.body;
+
+    if (!keyCode) return res.status(400).json({ error: "Key Code missing" });
+
+    try {
+        // 1. Get User
+        const userRes = await dbQuery('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const user = userRes.rows[0];
+
+        // 2. Validate Key
+        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
+        if (keyRes.rows.length === 0) return res.status(404).json({ error: "Key not found" });
+        const key = keyRes.rows[0];
+
+        const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
+        if (isActive) return res.status(403).json({ error: "Key already active" });
+
+        // 3. Calculate New Expiration
+        const pc = (key.product_code || '').toLowerCase();
+        let extensionMonths = 1;
+        if (pc === '3m') extensionMonths = 3;
+        else if (pc === '6m') extensionMonths = 6;
+        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+
+        let newExpiresAt = null;
+        if (pc === 'unl' || pc === 'unlimited') {
+            newExpiresAt = null;
+        } else {
+            newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
+        }
+
+        // 4. Update Database
+        await dbQuery('BEGIN');
+
+        // Update Key
+        const now = new Date().toISOString();
+        await dbQuery(
+            `UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
+            [now, newExpiresAt, user.username, key.id]
+        );
+
+        // Update User (Link License & Set Expiration)
+        await dbQuery(
+            `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
+            [key.id, newExpiresAt, userId]
+        );
+
+        // Audit Log (Using existing or new audit table? We have audit_logs table in schema but used by enterprise?
+        // Global Server doesn't seem to have robust audit_log usage in `server.js` yet,
+        // but we can use `account_deletions` style or just rely on `license_renewals`.
+        // Requirement says "im Log vermerkt". I will add to `license_renewals` with a note/flag if possible,
+        // or just rely on standard flow. `license_renewals` has user_id, key_code_hash.
+        // I will add to `license_renewals` as that tracks history.
+        await dbQuery(
+            'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
+            [userId, key.key_hash, newExpiresAt, now]
+        );
+
+        await dbQuery('COMMIT');
+
+        res.json({ success: true, newExpiresAt });
+
+    } catch (e) {
+        await dbQuery('ROLLBACK');
+        console.error("Link Key Error:", e);
+        res.status(500).json({ error: "Fehler beim Verknüpfen: " + e.message });
+    }
+});
+
 // ENTERPRISE MANAGEMENT
 app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
     try {
@@ -1541,7 +1656,7 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         for(let i=0; i < amount; i++) {
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active) VALUES ($1, $2, $3, $4)`,
+            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin) VALUES ($1, $2, $3, $4, 'admin')`,
                 [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0)]);
             newKeys.push(keyRaw);
         }
@@ -1568,7 +1683,7 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
             await dbQuery(
-                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id, origin) VALUES ($1, $2, $3, $4, $5, $6, 'admin')`,
                 [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0), bundleId, assignedId]
             );
             newKeys.push({ key: keyRaw, assignedId });

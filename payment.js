@@ -228,8 +228,8 @@ async function handleSuccessfulPayment(session) {
 
         // In DB speichern
         await pool.query(
-          `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
+           VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
           [code, hash, createdAt, expiresAt, false, product_type] // is_active = false bis Aktivierung durch User
         );
         keys.push(code);

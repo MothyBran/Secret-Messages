@@ -432,6 +432,7 @@
                             <thead>
                                 <tr>
                                     <th style="color: var(--accent-blue);">Key Code</th>
+                                    <th>Herkunft</th>
                                     <th>Produkt</th>
                                     <th>Status</th>
                                     <th>Zugehöriger Benutzer</th>
@@ -903,6 +904,79 @@
                     </thead>
                     <tbody id="bundleKeysBody"></tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Profile Modal (Split View) -->
+    <div id="userProfileModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:900px; width:95%; height:80vh; display:flex; flex-direction:column; padding:0; overflow:hidden;">
+            <!-- Header -->
+            <div style="padding:20px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3);">
+                <h3 style="color:#fff; margin:0;" id="userProfileTitle">User Profile</h3>
+                <button class="modal-close" style="position:static;" onclick="document.getElementById('userProfileModal').style.display='none'">×</button>
+            </div>
+
+            <!-- Body (Split) -->
+            <div style="display:flex; flex:1; overflow:hidden;">
+                <!-- Left: Details -->
+                <div style="flex:1; padding:20px; overflow-y:auto; border-right:1px solid #333; background:rgba(0,0,0,0.2);">
+                    <h4 style="color:var(--accent-blue); margin-bottom:15px;">Details & Historie</h4>
+
+                    <div class="detail-group" style="margin-bottom:20px;">
+                        <label style="color:#888; font-size:0.8rem; display:block;">Registriert am</label>
+                        <div id="upRegDate" style="color:#fff;">-</div>
+                    </div>
+                    <div class="detail-group" style="margin-bottom:20px;">
+                        <label style="color:#888; font-size:0.8rem; display:block;">Letzter Login</label>
+                        <div id="upLastLogin" style="color:#fff;">-</div>
+                    </div>
+                    <div class="detail-group" style="margin-bottom:20px;">
+                        <label style="color:#888; font-size:0.8rem; display:block;">Identity Anchor (PIK Hash)</label>
+                        <div id="upPikHash" style="font-family:'Roboto Mono'; font-size:0.8rem; color:#666; word-break:break-all;">-</div>
+                    </div>
+
+                    <h5 style="color:#fff; margin-top:30px; margin-bottom:10px;">Lizenz Historie</h5>
+                    <div class="table-container" style="max-height:300px; overflow-y:auto; border:none; background:transparent;">
+                        <table style="font-size:0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Herkunft</th>
+                                    <th>Aktiviert</th>
+                                </tr>
+                            </thead>
+                            <tbody id="upLicenseHistoryBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right: Control Center -->
+                <div style="flex:1; padding:20px; overflow-y:auto; background:rgba(0,0,0,0.4);">
+                    <h4 style="color:orange; margin-bottom:15px;">Control Center</h4>
+
+                    <!-- Manual Link -->
+                    <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:6px; margin-bottom:20px; border:1px solid #333;">
+                        <h5 style="color:#fff; margin-bottom:10px;">Manuelle Lizenz-Verknüpfung</h5>
+                        <p style="font-size:0.8rem; color:#888; margin-bottom:10px;">
+                            Verknüpft einen Key, aktiviert ihn und verlängert die Laufzeit (Master-Formel).
+                        </p>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="manualLinkKeyInput" placeholder="XXXX-XXXX-XXXX..." style="width:100%;">
+                            <button class="btn-action" onclick="submitManualLink()">Link</button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <h5 style="color:#fff; margin-bottom:10px;">Account Aktionen</h5>
+
+                    <button id="btnResetDevice" class="btn-outline" style="width:100%; margin-bottom:10px; text-align:left;">📱 Device Binding zurücksetzen</button>
+
+                    <button id="btnToggleBlock" class="btn-outline" style="width:100%; margin-bottom:10px; text-align:left; color:orange; border-color:orange;">🛑 Account Sperren/Entsperren</button>
+
+                    <button id="btnDeleteUser" class="btn-outline" style="width:100%; margin-bottom:10px; text-align:left; color:var(--error-red); border-color:var(--error-red);">🗑️ Account Löschen</button>
+
+                </div>
             </div>
         </div>
     </div>
