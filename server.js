@@ -988,7 +988,7 @@ app.post('/api/auth/validate', async (req, res) => {
                 if (expDate < new Date()) isExpired = true;
             }
             if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: expirySource });
-            res.json({ valid: true, username: user.username, expiresAt: expirySource });
+            res.json({ valid: true, username: user.username, expiresAt: expirySource || 'lifetime' });
         } else {
             res.json({ valid: false, reason: 'user_not_found' });
         }

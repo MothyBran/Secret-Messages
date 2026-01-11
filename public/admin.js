@@ -1394,6 +1394,7 @@ window.submitManualLink = async function() {
             window.openUserProfile(currentUserProfileId);
             // Refresh Background List
             window.loadUsers();
+            window.loadKeys(); // Refresh License Tab
         } else {
             window.showToast(data.error || "Fehler", "error");
         }
@@ -1449,8 +1450,9 @@ function renderKeysTable(keys) {
         if(k.origin === 'shop') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">SHOP</span>`;
         if(k.origin === 'admin') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(255, 165, 0, 0.2); color:orange; border:1px solid orange;">ADMIN</span>`;
 
-        // Show Username instead of ID
-        const userDisplay = k.username ? `<span style="color:var(--accent-blue); font-weight:bold;">${k.username}</span>` : '-';
+        // Show Username instead of ID (Fallback to assigned_user_id)
+        const uName = k.username || k.assigned_user_id;
+        const userDisplay = uName ? `<span style="color:var(--accent-blue); font-weight:bold;">${uName}</span>` : '-';
 
         tr.innerHTML = `
             <td style="font-family:'Roboto Mono'">${k.key_code}</td>
