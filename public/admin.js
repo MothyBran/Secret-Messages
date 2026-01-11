@@ -1399,7 +1399,7 @@ window.submitManualLink = async function() {
             window.showToast(data.error || "Fehler", "error");
         }
     } catch(e) { window.showToast("Serverfehler", "error"); }
-    btn.textContent = "Link"; btn.disabled = false;
+    btn.textContent = "Verknüpfen"; btn.disabled = false;
 };
 
 function renderBundlesTable(bundles) {
