@@ -41,6 +41,12 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./payment.js');
 
 const app = express();
+
+// DEBUG: Webhook Logger
+app.use('/api/webhook', (req, res, next) => {
+    console.log('>>> STRIPE WEBHOOK HIT <<<');
+    next();
+});
 // Cloud-Security: Trust Proxy für korrekte Erkennung von SSL und IPs hinter Load Balancern (Railway)
 app.set('trust proxy', 1);
 

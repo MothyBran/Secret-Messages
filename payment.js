@@ -8,6 +8,9 @@ const { sendLicenseEmail } = require('./email/mailer');
 
 const router = express.Router();
 
+console.log("Stripe Secret Key Loaded:", process.env.STRIPE_SECRET_KEY ? "YES (****)" : "NO");
+console.log("Stripe Webhook Secret Loaded:", process.env.STRIPE_WEBHOOK_SECRET ? "YES (****)" : "NO");
+
 // DB Connection Setup (identisch zu vorher)
 let pool;
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql')) {
@@ -97,22 +100,32 @@ router.post("/create-checkout-session", async (req, res) => {
 
     let licenseKeyId = null;
     let type = 'new';
+    let userId = null; // Store user ID for metadata
+
+    // Check for Auth Token (applies to both Renewal and Authenticated Purchase)
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+        try {
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            userId = decoded.id; // Capture User ID
+        } catch (e) {
+            console.warn("Invalid Token in Checkout:", e.message);
+        }
+    }
 
     // RENEWAL LOGIC
     if (is_renewal) {
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
-        if (!token) return res.status(401).json({ error: 'Renewal requires auth' });
+        if (!userId) return res.status(401).json({ error: 'Renewal requires auth' });
 
         try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const userRes = await pool.query('SELECT license_key_id FROM users WHERE id = $1', [decoded.id]);
+            const userRes = await pool.query('SELECT license_key_id FROM users WHERE id = $1', [userId]);
             if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
             licenseKeyId = userRes.rows[0].license_key_id;
             type = 'renewal';
         } catch (e) {
-            return res.status(403).json({ error: 'Invalid token' });
+            return res.status(500).json({ error: 'Database error' });
         }
     }
 
@@ -134,7 +147,8 @@ router.post("/create-checkout-session", async (req, res) => {
         duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
         key_count: String(product.keyCount),
         type: type,
-        license_key_id: licenseKeyId ? String(licenseKeyId) : ''
+        license_key_id: licenseKeyId ? String(licenseKeyId) : '',
+        user_id: userId ? String(userId) : '' // CRITICAL: Link payment to user
       },
       payment_intent_data: {
         metadata: {
@@ -142,7 +156,8 @@ router.post("/create-checkout-session", async (req, res) => {
           duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
           key_count: String(product.keyCount),
           type: type,
-          license_key_id: licenseKeyId ? String(licenseKeyId) : ''
+          license_key_id: licenseKeyId ? String(licenseKeyId) : '',
+          user_id: userId ? String(userId) : ''
         }
       },
       // Wir leiten den User zurück zur Store-Seite mit der Session ID
@@ -188,7 +203,8 @@ router.post('/webhook', async (req, res) => {
 // Logik für erfolgreiche Zahlung (ausgelagert)
 async function handleSuccessfulPayment(session) {
   // Extract data from Session (not PaymentIntent)
-  const { product_type, duration_days, key_count, type, license_key_id } = session.metadata;
+  // Ensure user_id is extracted from metadata
+  const { product_type, duration_days, key_count, type, license_key_id, user_id } = session.metadata;
   
   // Use payment_intent ID as the unique identifier for our DB
   // session.payment_intent is the ID string
@@ -213,12 +229,21 @@ async function handleSuccessfulPayment(session) {
 
       const keys = [];
 
+      // --- SOURCE OF TRUTH & MASTER FORMULA ---
+      // Determine if we have a linked user to update
+      let targetUserId = user_id;
+      if (!targetUserId && license_key_id) {
+           // Fallback: Try to find user via License Key (Legacy/Renewal without auth)
+           const uRes = await client.query('SELECT id FROM users WHERE license_key_id = $1', [license_key_id]);
+           if (uRes.rows.length > 0) targetUserId = uRes.rows[0].id;
+      }
+
       // UPDATE VS INSERT LOGIC
-      if (type === 'renewal' && license_key_id) {
-          console.log(`🔄 RENEWAL START for Key ID: ${license_key_id}`);
+      if (type === 'renewal' && targetUserId) {
+          console.log(`🔄 RENEWAL START for User ID: ${targetUserId}`);
 
           // 1. Fetch User Info (We need the User linked to this key to update them)
-          const userRes = await client.query('SELECT id, username, license_expiration FROM users WHERE license_key_id = $1', [license_key_id]);
+          const userRes = await client.query('SELECT id, username, license_expiration FROM users WHERE id = $1', [targetUserId]);
 
           if (userRes.rows.length > 0) {
               const user = userRes.rows[0];
@@ -226,23 +251,32 @@ async function handleSuccessfulPayment(session) {
               const username = user.username;
               const currentExpiryStr = user.license_expiration;
 
-              // 2. Calculate New Expiration: MAX(NOW, Old) + Duration
+              // 2. MASTER FORMULA: New Expiration = MAX(NOW, Old) + Duration
               let baseDate = new Date();
               const currentExpiry = currentExpiryStr ? new Date(currentExpiryStr) : null;
+
+              console.log(`[Formula] Base Date (Now): ${baseDate.toISOString()}`);
+              console.log(`[Formula] Current Expiry: ${currentExpiry ? currentExpiry.toISOString() : 'NULL'}`);
+
               if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
                   baseDate = currentExpiry;
+                  console.log(`[Formula] Using Current Expiry as Base.`);
               }
+
               const newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
+              console.log(`[Formula] New Expiration: ${newExpiresAt}`);
 
               // 3. Generate NEW Key (Requirements: New Key for History, Auto-Assign)
               const newCode = generateKeyCode();
               const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
 
               // 4. Archive OLD Key (Ensure it keeps assigned_user_id for history, but inactive)
-              await client.query(
-                  `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
-                  [(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? false : 0), username, license_key_id]
-              );
+              if (license_key_id) {
+                  await client.query(
+                      `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
+                      [(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? false : 0), username, license_key_id]
+                  );
+              }
 
               // 5. Insert NEW Key (Active & Assigned)
               await client.query(
@@ -265,10 +299,12 @@ async function handleSuccessfulPayment(session) {
               const newKeyId = newKeyRes.rows[0].id;
 
               // 6. Update User (Critical Fix: Update users table expiration)
+              // SOURCE OF TRUTH: USERS TABLE
               await client.query(
                   `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
                   [newKeyId, newExpiresAt, userId]
               );
+              console.log(`✅ SOURCE OF TRUTH UPDATED: User ${userId} updated to ${newExpiresAt}`);
 
               // 7. Log Renewal
               await client.query(
@@ -280,7 +316,7 @@ async function handleSuccessfulPayment(session) {
               console.log(`✅ Renewal Success: New Key ${newCode} assigned to ${username}. Valid until ${newExpiresAt}`);
 
           } else {
-              console.error("❌ Renewal failed: User not found for license_key_id " + license_key_id);
+              console.error("❌ Renewal failed: User not found ID " + targetUserId);
               // Fallback: Generate fresh key so user gets something
               const count = Number(key_count) || 1;
               const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
@@ -295,8 +331,86 @@ async function handleSuccessfulPayment(session) {
                 keys.push(code);
               }
           }
+      } else if (targetUserId) {
+          // --- NEW PURCHASE BUT LOGGED IN (AUTO-ASSIGN) ---
+          console.log(`✨ NEW PURCHASE (Authenticated) for User ID: ${targetUserId}`);
+
+          const userRes = await client.query('SELECT id, username, license_expiration FROM users WHERE id = $1', [targetUserId]);
+
+          if (userRes.rows.length > 0) {
+              const user = userRes.rows[0];
+              const userId = user.id;
+              const username = user.username;
+              const currentExpiryStr = user.license_expiration;
+
+              // MASTER FORMULA (Same as renewal)
+              let baseDate = new Date();
+              const currentExpiry = currentExpiryStr ? new Date(currentExpiryStr) : null;
+
+              if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
+                  baseDate = currentExpiry;
+                  console.log(`[Formula] Using Current Expiry as Base (Extension).`);
+              }
+
+              const newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
+              console.log(`[Formula] New Expiration: ${newExpiresAt}`);
+
+              const newCode = generateKeyCode();
+              const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
+
+              // Archive potentially existing old key? (Only if we are replacing)
+              // Since this is technically a 'new' purchase type but user is logged in, we treat it as an upgrade/extension.
+              if (user.license_key_id) {
+                   await client.query(
+                      `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
+                      [(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? false : 0), username, user.license_key_id]
+                  );
+              }
+
+              await client.query(
+                `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin, assigned_user_id, activated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'shop', $7, $8)`,
+                [
+                    newCode,
+                    newHash,
+                    createdAt,
+                    newExpiresAt,
+                    (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? true : 1),
+                    product_type,
+                    username,
+                    createdAt
+                ]
+              );
+
+              const newKeyRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
+              const newKeyId = newKeyRes.rows[0].id;
+
+              // UPDATE USER
+              await client.query(
+                  `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
+                  [newKeyId, newExpiresAt, userId]
+              );
+              console.log(`✅ SOURCE OF TRUTH UPDATED: User ${userId} extended to ${newExpiresAt}`);
+              keys.push(newCode);
+
+          } else {
+             // Should not happen if userId is valid, but fallback
+             const count = Number(key_count) || 1;
+             const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
+             for (let i = 0; i < count; i++) {
+                const code = generateKeyCode();
+                const hash = crypto.createHash('sha256').update(code).digest('hex');
+                await client.query(
+                  `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
+                   VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
+                  [code, hash, createdAt, expiresAt, false, product_type]
+                );
+                keys.push(code);
+             }
+          }
+
       } else {
-          // NORMALER KAUF (NEUE KEYS)
+          // NORMALER KAUF (GUEST / NEUE KEYS)
           const count = Number(key_count) || 1;
           const expiresAt = durationDays ? addDays(createdAt, durationDays) : null;
 
@@ -367,20 +481,62 @@ router.get("/order-status", async (req, res) => {
 
     // Prüfen ob DB Eintrag existiert
     const result = await pool.query(
-      'SELECT metadata FROM payments WHERE payment_id = $1', 
+      'SELECT metadata, completed_at FROM payments WHERE payment_id = $1',
       [paymentIntentId]
     );
 
     if (result.rows.length > 0) {
-      const metadata = result.rows[0].metadata;
+      const paymentRow = result.rows[0];
+      const metadata = paymentRow.metadata;
       // Metadaten sind in Postgres JSONB oder Text, in SQLite Text. Parsen:
       const data = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
       
+      const userId = data.user_id; // Added during checkout
+
+      // SOURCE OF TRUTH CHECK (POLLING FIX)
+      // If payment is for a user (renewal/auth), we MUST wait for 'users' table update.
+      if (userId) {
+          const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+          if (uRes.rows.length > 0) {
+              const currentExp = uRes.rows[0].license_expiration;
+              const completedAt = new Date(paymentRow.completed_at).getTime();
+
+              // We consider it synced if user has an expiration date in the future relative to payment time
+              // OR if the update just happened.
+              // Simple check: If 'license_expiration' > NOW (roughly), it is active.
+              // Better: if license_expiration is present AND logic holds (for renewal: exp > completed_at).
+
+              const expDate = currentExp ? new Date(currentExp) : null;
+
+              // 1. Check if Expiration exists (New User)
+              if (!expDate) {
+                  return res.json({ success: true, status: 'processing_user_sync' });
+              }
+
+              // 2. Check if Expiration is "fresh" (Renewal)
+              // If the current expiration in DB is older than or equal to the payment completion time,
+              // it means the update hasn't applied yet (unless it was a retroactive payment, which is rare).
+              // We add a small buffer (e.g. -1 minute) to completedAt to be safe against slight clock skews,
+              // but strictly, the new expiry should be in the future relative to "now" OR relative to the old expiry.
+              // A safer check: Is the expiration > completed_at?
+
+              // Note: If a user buys "1 Month", the new expiry is NOW + 30 Days.
+              // completed_at is NOW. So new Expiry (NOW+30d) > completed_at (NOW).
+              // If the DB still has the OLD expiry (e.g. Yesterday), then Old < completed_at.
+
+              if (expDate <= new Date(completedAt)) {
+                   // This implies the DB still holds an old date that is before this payment happened.
+                   // Wait for the webhook to push the new future date.
+                   return res.json({ success: true, status: 'processing_user_sync' });
+              }
+          }
+      }
+
       return res.json({ 
         success: true, 
         status: 'completed', 
         keys: data.keys_generated,
-        renewed: (data.type === 'renewal'),
+        renewed: (data.type === 'renewal' || !!userId), // Treat authenticated purchase as renewal/extension for UI
         customer_email: session.customer_email
       });
     } else {
