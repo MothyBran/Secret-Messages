@@ -308,7 +308,7 @@ async function handleSuccessfulPayment(session) {
             await client.query(
               `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
                VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
-              [code, hash, createdAt, expiresAt, false, product_type] // is_active = false bis Aktivierung durch User
+              [code, hash, createdAt, expiresAt, (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') ? false : 0), product_type]
             );
             keys.push(code);
           }
@@ -317,7 +317,7 @@ async function handleSuccessfulPayment(session) {
       // 3. Zahlung protokollieren
       await client.query(
         `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-         VALUES ($1, $2, $3, $4, $5, NOW(), $6)`,
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)`,
         [
           paymentId,
           session.amount_total,
