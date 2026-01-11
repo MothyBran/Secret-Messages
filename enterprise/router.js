@@ -429,12 +429,15 @@ module.exports = (dbQuery) => {
         try {
             const userId = req.params.id;
             const userRes = await dbQuery(`
-                SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration
+                SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked
                 FROM users WHERE id = $1
             `, [userId]);
 
             if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
-            const user = userRes.rows[0];
+            const user = {
+                ...userRes.rows[0],
+                is_blocked: (userRes.rows[0].is_blocked === 1)
+            };
 
             // In Enterprise, users might not have individual keys in license_keys table if using Master Key.
             // But if they do (e.g. from Cloud migration or local assignment), we try to fetch.
