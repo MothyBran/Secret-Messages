@@ -1543,9 +1543,29 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
 
     try {
         // 1. Get User
-        const userRes = await dbQuery('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+        const userRes = await dbQuery('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [userId]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = userRes.rows[0];
+
+        // 1.5 Check Existing License (Lifetime Protection & History Archiving)
+        if (user.license_key_id) {
+            const currentKeyRes = await dbQuery('SELECT expires_at, product_code FROM license_keys WHERE id = $1', [user.license_key_id]);
+            if (currentKeyRes.rows.length > 0) {
+                const currentKey = currentKeyRes.rows[0];
+                // Check Lifetime
+                const isLifetime = !currentKey.expires_at || (currentKey.product_code && currentKey.product_code.toLowerCase().includes('unl'));
+
+                // If user has Lifetime (and DB agrees via NULL expiration or flag), block overwrite
+                // Note: user.license_expiration is the source of truth, but we check key too for logic consistency
+                if (isLifetime || !user.license_expiration) { // NULL user.license_expiration also means Lifetime
+                     return res.status(403).json({ error: "Benutzer hat bereits eine Lifetime-Lizenz. Upgrade nicht möglich." });
+                }
+
+                // History Preservation: Ensure the OLD key is permanently assigned to this user by name
+                // This ensures it stays in the history list even after we unlink the ID from users table
+                await dbQuery('UPDATE license_keys SET assigned_user_id = $1 WHERE id = $2', [user.username, user.license_key_id]);
+            }
+        }
 
         // 2. Validate Key
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
