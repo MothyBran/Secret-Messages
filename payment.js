@@ -147,7 +147,7 @@ router.post("/create-checkout-session", async (req, res) => {
         }
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams = {
       payment_method_types: ['card'],
       mode: 'payment',
       customer_email,
@@ -160,12 +160,19 @@ router.post("/create-checkout-session", async (req, res) => {
         quantity: 1
       }],
       metadata: {
-        product_type,
-        user_id: userId // "123" or ""
+        product_type
+        // user_id REMOVED from metadata as requested
       },
       success_url: `${process.env.FRONTEND_URL || 'https://www.secure-msg.app'}/shop?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL || 'https://www.secure-msg.app'}/shop?canceled=true`
-    });
+    };
+
+    // Use client_reference_id for User ID if available
+    if (userId) {
+        sessionParams.client_reference_id = userId;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     res.json({ success: true, checkout_url: session.url });
   } catch (err) {
@@ -180,7 +187,9 @@ router.post('/webhook', async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    // Robust Secret Handling (Trim whitespace)
+    const secret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
     console.error(`STRIPE ERROR: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -201,9 +210,16 @@ router.post('/webhook', async (req, res) => {
 });
 
 async function handleSuccessfulPayment(session) {
-    const { product_type, user_id } = session.metadata || {};
-    const paymentId = session.id; // STRICT: Use session.id (cs_...)
+    const { product_type } = session.metadata || {};
+    const paymentId = session.id; // STRICT: Use session.id
     const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql');
+
+    // Retrieve User ID from client_reference_id
+    const user_id = session.client_reference_id;
+
+    if (user_id) {
+        console.log(`[WEBHOOK] Updating User ID: ${user_id}`);
+    }
 
     const product = PRICES[product_type];
     if (!product) {
@@ -282,19 +298,9 @@ async function handleSuccessfulPayment(session) {
                 renewalPerformed = true;
 
                 // 5. Generate REMAINING keys (if bundle)
-                // i starts at 1 because 0 was used for renewal
                 for (let i = 1; i < totalKeys; i++) {
                      const extraCode = generateKeyCode();
                      const extraHash = crypto.createHash('sha256').update(extraCode).digest('hex');
-
-                     // Determine expiry for these loose keys
-                     // Standard logic: key is 'fresh' (expires_at = null until activated) unless it's unlimited?
-                     // Usually shop keys are fresh.
-                     // But wait, if product is 3m, the key itself will give 3m on activation.
-                     // The key entry in DB needs expires_at?
-                     // No, "expires_at" in license_keys is usually the specific date *after* activation.
-                     // So for unused keys, expires_at is NULL.
-
                      await client.query(
                         `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
                          VALUES ($1, $2, $3, NULL, $4, $5, 'shop')`,
@@ -304,8 +310,7 @@ async function handleSuccessfulPayment(session) {
                 }
 
             } else {
-                // User ID passed but not found in DB? Treat as Guest (Branch B fallback)
-                // Should not happen, but safe fallback.
+                // User ID passed but not found? Fallback to Guest
                  for (let i = 0; i < totalKeys; i++) {
                     const code = generateKeyCode();
                     const hash = crypto.createHash('sha256').update(code).digest('hex');
@@ -319,7 +324,7 @@ async function handleSuccessfulPayment(session) {
             }
 
         } else {
-            // Branch B: Guest (No User ID)
+            // Branch B: Guest
             console.log(`[BRANCH B] Guest Purchase`);
             for (let i = 0; i < totalKeys; i++) {
                 const code = generateKeyCode();
@@ -334,17 +339,16 @@ async function handleSuccessfulPayment(session) {
         }
 
         // Record Payment
-        // keys_generated: Only the ones that need to be shown to user as "New Codes"
+        // IMPORTANT: We store user_id in metadata HERE so order-status can find it
         const metadataForRecord = {
             product_type,
-            user_id,
+            user_id: userIdInt, // Store the resolved integer ID
             keys_generated: generatedKeys,
             renewed: renewalPerformed,
             email: session.customer_details ? session.customer_details.email : null,
             session_id: paymentId
         };
 
-        // SAFE METADATA STRINGIFY
         let metaStr = '{}';
         try {
             metaStr = JSON.stringify(metadataForRecord);
@@ -356,7 +360,7 @@ async function handleSuccessfulPayment(session) {
             `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
              VALUES ($1, $2, $3, 'succeeded', $4, CURRENT_TIMESTAMP, $5)`,
             [
-                paymentId, // cs_...
+                paymentId,
                 session.amount_total,
                 session.currency,
                 'stripe',
@@ -370,9 +374,6 @@ async function handleSuccessfulPayment(session) {
         // Email Handling
         const customerEmail = session.customer_details ? session.customer_details.email : null;
         if (customerEmail && generatedKeys.length > 0) {
-             // Only send email if there are keys to send.
-             // If it was just a renewal (0 generated keys), we might skip or send a "Renewed" email.
-             // For now, sticking to logic: if keys exist, send them.
              try {
                 await sendLicenseEmail(customerEmail, generatedKeys, product_type);
              } catch(e) {
@@ -389,16 +390,14 @@ async function handleSuccessfulPayment(session) {
     }
 }
 
-// 5. ORDER STATUS (Simplified & Robust)
+// 5. ORDER STATUS (Strict User Check)
 router.get("/order-status", async (req, res) => {
     const { session_id } = req.query;
-    // Strict Input
     if (!session_id || !session_id.startsWith('cs_')) {
         return res.status(400).json({ error: "Invalid session_id" });
     }
 
     try {
-        // Strict Search by payment_id
         const result = await pool.query(
             'SELECT * FROM payments WHERE payment_id = $1',
             [session_id]
@@ -412,31 +411,36 @@ router.get("/order-status", async (req, res) => {
         const isSuccess = row.status === 'succeeded' || row.status === 'completed';
 
         if (isSuccess) {
-            // ROBUST METADATA PARSING
             let meta = {};
-            let keys = [];
-            let renewed = false;
-
             try {
                 if (row.metadata) {
                     meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
-                    if (Array.isArray(meta.keys_generated)) {
-                        keys = meta.keys_generated;
-                    }
-                    if (meta.renewed) {
-                        renewed = true;
+                }
+            } catch (e) { console.error("Meta Parse Error", e); }
+
+            // USER TABLE CHECK (Required for "Hänger" Fix)
+            if (meta.user_id) {
+                // It was a renewal. Verify User Table is strictly in future.
+                const userRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [meta.user_id]);
+                if (userRes.rows.length > 0) {
+                    const user = userRes.rows[0];
+                    const expDate = user.license_expiration ? new Date(user.license_expiration) : null;
+                    const now = new Date();
+
+                    // If expiration is NOT in the future, we wait.
+                    // This handles cases where payment exists but user transaction might have lagged (rare)
+                    // or allows us to be 100% sure before UI reload.
+                    if (!expDate || expDate <= now) {
+                        return res.json({ success: true, status: 'processing' });
                     }
                 }
-            } catch (e) {
-                console.error("Status Meta Parse Error:", e);
-                // Fallback: Default values
             }
 
             return res.json({
                 success: true,
-                status: 'completed', // Explicit 'completed'
-                keys: keys,
-                renewed: renewed
+                status: 'completed',
+                keys: meta.keys_generated || [],
+                renewed: !!meta.renewed
             });
         }
 
