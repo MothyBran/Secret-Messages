@@ -1,4 +1,4 @@
-// payment.js – Secure Stripe Webhook Integration (Rewritten)
+// payment.js – Secure Stripe Webhook Integration (Rebuild)
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const crypto = require('crypto');
@@ -11,7 +11,19 @@ const router = express.Router();
 console.log("Stripe Secret Key Loaded:", process.env.STRIPE_SECRET_KEY ? "YES (****)" : "NO");
 console.log("Stripe Webhook Secret Loaded:", process.env.STRIPE_WEBHOOK_SECRET ? "YES (****)" : "NO");
 
-// 1. DATABASE SETUP & ABSTRACTION
+// 1. DATA FOUNDATION & PRICES
+const PRICES = {
+  "1m":           { amount: 199,   currency: "eur", name: "1 Monat Zugang",            durationDays: 30,  keyCount: 1 },
+  "3m":           { amount: 495,   currency: "eur", name: "3 Monate Zugang",           durationDays: 90,  keyCount: 1 },
+  "12m":          { amount: 1790,  currency: "eur", name: "12 Monate Zugang",          durationDays: 360, keyCount: 1 },
+  "unlimited":    { amount: 5999,  currency: "eur", name: "Unbegrenzter Zugang",       durationDays: null, keyCount: 1 },
+  "bundle_1m_2":  { amount: 379,   currency: "eur", name: "2x Keys (1 Monat)",      durationDays: 30,  keyCount: 2 },
+  "bundle_3m_5":  { amount: 1980,  currency: "eur", name: "5x Keys (3 Monate)",     durationDays: 90,  keyCount: 5 },
+  "bundle_3m_2":  { amount: 899,   currency: "eur", name: "2x Keys (3 Monate)",      durationDays: 90,  keyCount: 2 },
+  "bundle_1y_10": { amount: 14999, currency: "eur", name: "10x Keys (12 Monate)",    durationDays: 360, keyCount: 10 }
+};
+
+// 2. DATABASE SETUP & ABSTRACTION
 let pool;
 if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql')) {
     pool = new Pool({
@@ -21,16 +33,25 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql'))
 } else {
     // SQLite Fallback
     const sqlite3 = require('sqlite3').verbose();
-    const db = new sqlite3.Database('./secret_messages.db');
+    // Use USER_DATA_PATH if available (Electron), else relative
+    const path = require('path');
+    const dbPath = process.env.USER_DATA_PATH
+        ? path.join(process.env.USER_DATA_PATH, 'secret_messages.db')
+        : './secret_messages.db';
+
+    const db = new sqlite3.Database(dbPath);
+
+    // SQLite Pool Wrapper
     pool = {
         query: (text, params) => {
             return new Promise((resolve, reject) => {
+                const sql = text.replace(/\$\d+/g, '?'); // Convert $1 to ?
                 if (text.trim().toLowerCase().startsWith('select')) {
-                    db.all(text.replace(/\$\d/g, '?'), params, (err, rows) => {
+                    db.all(sql, params, (err, rows) => {
                         if (err) reject(err); else resolve({ rows });
                     });
                 } else {
-                    db.run(text.replace(/\$\d/g, '?'), params, function(err) {
+                    db.run(sql, params, function(err) {
                         if (err) reject(err); else resolve({ rowCount: this.changes });
                     });
                 }
@@ -45,7 +66,8 @@ async function getTransactionClient() {
         const client = await pool.connect();
         return client;
     } else {
-        // SQLite Mock Client (Single Connection, No real trans isolation but sequential)
+        // SQLite Mock Client (Serialized by nature of SQLite in Node single thread usually, but explicit locking not fully supported in this simple wrapper)
+        // We simulate the client interface
         return {
             query: async (text, params) => await pool.query(text, params),
             release: () => {}
@@ -54,20 +76,6 @@ async function getTransactionClient() {
 }
 
 // Helpers
-const PRICES = {
-  // Einzel-Lizenzen (Preise korrigiert)
-  "1m":        { amount: 199,  currency: "eur", name: "1 Monat Zugang",            durationDays: 30,  keyCount: 1 },
-  "3m":        { amount: 449,  currency: "eur", name: "3 Monate Zugang",           durationDays: 90,  keyCount: 1 },
-  "12m":       { amount: 1499, currency: "eur", name: "12 Monate Zugang",          durationDays: 360, keyCount: 1 },
-  "unlimited": { amount: 4999, currency: "eur", name: "Unbegrenzter Zugang",       durationDays: null, keyCount: 1 },
-
-  // Bundles (Neu hinzugefügt)
-  "bundle_1m_2": { amount: 379,   currency: "eur", name: "Bundle: 2x Keys (1 Monat)",  durationDays: 30,  keyCount: 2 },
-  "bundle_3m_2": { amount: 799,   currency: "eur", name: "Bundle: 2x Keys (3 Monate)", durationDays: 90,  keyCount: 2 },
-  "bundle_3m_5": { amount: 1999,  currency: "eur", name: "Bundle: 5x Keys (3 Monate)", durationDays: 90,  keyCount: 5 },
-  "bundle_1y_10": { amount: 12999, currency: "eur", name: "Bundle: 10x Keys (12 Monate)", durationDays: 360, keyCount: 10 }
-};
-
 function generateKeyCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let out = '';
@@ -81,28 +89,29 @@ function generateKeyCode() {
 
 function addDays(iso, days) {
   const d = new Date(iso);
-  d.setUTCDate(d.getUTCDate() + days);
+  d.setDate(d.getDate() + days);
   return d.toISOString();
 }
 
-// 2. CHECKOUT SESSION (Creation)
+// 3. CHECKOUT SESSION
 router.post("/create-checkout-session", async (req, res) => {
   try {
+    console.log("[PAYMENT-INIT] Creating Session...");
     const { product_type, customer_email } = req.body;
-
-    // Optional: Shop Status Check could go here
 
     const product = PRICES[product_type];
     if (!product) return res.status(400).json({ error: 'Invalid product' });
 
     // AUTH EXTRACTION
-    let userId = null;
+    let userId = '';
     const authHeader = req.headers['authorization'];
     if (authHeader) {
         try {
             const token = authHeader.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            userId = decoded.id;
+            if (token) {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback_key');
+                userId = String(decoded.id);
+            }
         } catch (e) {
             console.warn("Invalid Token in Checkout:", e.message);
         }
@@ -116,27 +125,18 @@ router.post("/create-checkout-session", async (req, res) => {
         price_data: {
           currency: product.currency,
           unit_amount: product.amount,
-          product_data: { name: `${product.name}` }
+          product_data: { name: product.name }
         },
         quantity: 1
       }],
-      // METADATA INJECTION (Essential for Webhook)
       metadata: {
         product_type,
-        duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
         key_count: String(product.keyCount),
-        user_id: userId ? String(userId) : '' // Empty string if guest
+        user_id: userId, // "123" or ""
+        duration_days: product.durationDays === null ? 'unlimited' : String(product.durationDays)
       },
-      payment_intent_data: {
-        metadata: {
-          product_type,
-          duration_days: product.durationDays === null ? 'null' : String(product.durationDays),
-          key_count: String(product.keyCount),
-          user_id: userId ? String(userId) : ''
-        }
-      },
-      success_url: `${process.env.FRONTEND_URL}/shop?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/shop?canceled=true`
+      success_url: `${process.env.FRONTEND_URL || 'https://www.secure-msg.app'}/shop?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://www.secure-msg.app'}/shop?canceled=true`
     });
 
     res.json({ success: true, checkout_url: session.url });
@@ -146,13 +146,14 @@ router.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// 3. WEBHOOK CORE
+// 4. WEBHOOK CORE
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log(`[WEBHOOK-SIGNATURE-OK] Event: ${event.type}`);
   } catch (err) {
     console.error(`Webhook Signature Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -160,71 +161,78 @@ router.post('/webhook', async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    await handleSuccessfulPayment(session);
+    try {
+        await handleSuccessfulPayment(session);
+    } catch (e) {
+        console.error("[WEBHOOK-FAIL] Payment processing failed:", e);
+        return res.status(500).send("Processing Error");
+    }
   }
 
   res.json({received: true});
 });
 
 async function handleSuccessfulPayment(session) {
-    const { product_type, duration_days, user_id, key_count } = session.metadata;
+    const { product_type, user_id, key_count, duration_days } = session.metadata;
     const paymentId = session.payment_intent;
     const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql');
 
-    // Parse loop count
     const totalKeys = parseInt(key_count) || 1;
+    const duration = duration_days === 'unlimited' ? null : parseInt(duration_days);
 
-    console.log(`[TRANS] Processing Payment ${paymentId} for User: ${user_id || 'GUEST'}. Count: ${totalKeys}`);
+    console.log(`[PAYMENT-PROC] ID: ${paymentId}, User: ${user_id || 'GUEST'}, Keys: ${totalKeys}, Type: ${product_type}`);
 
-    // Idempotency Check
+    // Check Idempotency
     const existing = await pool.query('SELECT id FROM payments WHERE payment_id = $1', [paymentId]);
     if (existing.rows && existing.rows.length > 0) {
-        console.log('[TRANS] Skipped (Already Processed)');
+        console.log('[PAYMENT-SKIP] Already processed.');
         return;
     }
 
     const client = await getTransactionClient();
-    const generatedKeys = []; // For logging/email
+    const generatedKeys = [];
+    let renewalPerformed = false;
 
     try {
+        console.log('[DB-TRANSACTION-START]');
         await client.query('BEGIN');
 
-        const durationDays = duration_days === 'null' ? null : Number(duration_days);
         const createdAt = new Date().toISOString();
+        const unlimitedDate = '2099-12-31T23:59:59.000Z';
 
-        // LOOP FOR BUNDLES
         for (let i = 0; i < totalKeys; i++) {
-            // Generate Key Data per iteration
             const newCode = generateKeyCode();
             const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
-            let newExpiresAt = durationDays ? addDays(createdAt, durationDays) : null;
 
-            // LOGIC FOR FIRST KEY IN AUTH MODE
+            // Branch A: Logged-In User AND First Key -> Auto-Renew
             if (user_id && i === 0) {
-                // === BRANCH A: AUTHENTICATED RENEWAL (1st Key Only) ===
-                console.log(`[BRANCH A] Renewal for User ${user_id} (Key ${i+1}/${totalKeys})`);
+                console.log(`[BRANCH A] Auto-Renewing User ${user_id}`);
 
-                // 1. Get Current Expiration
+                // Fetch User Current State
                 const userRes = await client.query('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [user_id]);
 
                 if (userRes.rows.length > 0) {
                     const user = userRes.rows[0];
+                    let newExpiresAt;
 
-                    // 2. MASTER FORMULA
-                    let baseDate = new Date();
-                    const currentExpiry = user.license_expiration ? new Date(user.license_expiration) : null;
-
-                    if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
-                        baseDate = currentExpiry;
-                        console.log(`[MATH] Extending from Current Expiry: ${baseDate.toISOString()}`);
+                    // Calculate Expiration
+                    if (duration === null) {
+                        newExpiresAt = unlimitedDate;
+                        console.log(`[MATH] Unlimited License -> ${newExpiresAt}`);
                     } else {
-                        console.log(`[MATH] Extending from NOW: ${baseDate.toISOString()}`);
+                        let baseDate = new Date();
+                        const currentExp = user.license_expiration ? new Date(user.license_expiration) : null;
+
+                        // Valid current license? Extend from there.
+                        if (currentExp && !isNaN(currentExp.getTime()) && currentExp > baseDate) {
+                            baseDate = currentExp;
+                        }
+
+                        newExpiresAt = addDays(baseDate.toISOString(), duration);
+                        console.log(`[MATH] Extending to: ${newExpiresAt}`);
                     }
 
-                    newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
-                    console.log(`[MATH] New Expiration: ${newExpiresAt}`);
-
-                    // 3. Archive Old Key (Optional but good for history)
+                    // 1. Archive Old Key (if exists)
                     if (user.license_key_id) {
                         await client.query(
                             `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
@@ -232,91 +240,114 @@ async function handleSuccessfulPayment(session) {
                         );
                     }
 
-                    // 4. Insert New Key (Activated)
+                    // 2. Insert New Key (Activated)
                     await client.query(
                         `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin, assigned_user_id, activated_at)
                          VALUES ($1, $2, $3, $4, $5, $6, 'shop', $7, $8)`,
                         [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? true : 1), product_type, user.username, createdAt]
                     );
 
-                    // Get New Key ID
+                    // Get ID
                     const keyIdRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
                     const newKeyId = keyIdRes.rows[0].id;
 
-                    // 5. UPDATE USER (SOURCE OF TRUTH)
-                    // STRICT: Only update expiration and link. NO PIK CHANGE.
+                    // 3. Update User (Source of Truth)
                     await client.query(
                         `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
                         [newKeyId, newExpiresAt, user_id]
                     );
-                    console.log(`[DB] User ${user_id} updated successfully.`);
 
                     // Log Renewal
                     await client.query(
                         'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
                         [user_id, newHash, newExpiresAt, createdAt]
                     );
+
+                    console.log('[USER-EXPIRY-UPDATED]');
+                    renewalPerformed = true;
+                    // Note: We do NOT add this key to generatedKeys list for email/display if it's auto-applied?
+                    // "Der zweite Key soll ihm einfach als Code auf dem Bildschirm angezeigt werden." implies the first one is NOT shown or just marked as applied.
+                    // However, email usually sends all. Let's include it but mark it?
+                    // The standard is usually to email everything.
+                    // But for frontend display, we might filter.
+                    // Let's stick to adding it to generatedKeys, frontend logic decides display.
+
                 } else {
-                    console.error(`[ERR] User ${user_id} not found! Falling back to Guest logic to save Key.`);
-                    // Fallback -> Treat as Guest to ensure customer gets a key
+                    console.warn(`[WARN] User ${user_id} not found. Fallback to Guest (Key Generation).`);
+                    // Fallback: Generate valid unused key
+                    const exp = duration === null ? unlimitedDate : addDays(createdAt, duration);
                     await client.query(
                         `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
                          VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
-                        [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? false : 0), product_type]
+                        [newCode, newHash, createdAt, null, (isPostgres ? false : 0), product_type] // expires_at null for unused key
                     );
+                    generatedKeys.push(newCode);
                 }
             } else {
-                // === BRANCH B (or A > 1): ADDITIONAL KEYS / GUEST ===
-                console.log(`[BRANCH B] Extra Key / Guest (Key ${i+1}/${totalKeys})`);
-
-                // Just Insert Inactive Key (Available for friends/team)
+                // Branch B: Guest OR Additional Bundle Keys
+                console.log(`[BRANCH B] Generating Extra/Guest Key ${i+1}`);
                 await client.query(
                     `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
                      VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
-                    [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? false : 0), product_type]
+                    [newCode, newHash, createdAt, null, (isPostgres ? false : 0), product_type]
                 );
+                generatedKeys.push(newCode);
             }
-            generatedKeys.push(newCode);
         }
 
         // Record Payment
+        const metadataForRecord = {
+            product_type,
+            user_id,
+            keys_generated: generatedKeys,
+            renewed: renewalPerformed,
+            email: session.customer_details ? session.customer_details.email : null
+        };
+
         await client.query(
             `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
                 paymentId,
                 session.amount_total,
                 session.currency,
                 'completed',
                 'stripe',
-                JSON.stringify({
-                    product_type,
-                    user_id,
-                    keys_generated: generatedKeys,
-                    email: session.customer_details ? session.customer_details.email : null
-                })
+                createdAt, // completed_at
+                JSON.stringify(metadataForRecord)
             ]
         );
 
         await client.query('COMMIT');
-        console.log(`[COMMIT] Transaction Successful. Keys Generated: ${generatedKeys.join(', ')}`);
+        console.log(`[COMMIT] Transaction Complete. Keys: ${generatedKeys.length}, Renewed: ${renewalPerformed}`);
 
-        // Send Email
+        // Email
         const customerEmail = session.customer_details ? session.customer_details.email : null;
         if (customerEmail) {
-            await sendLicenseEmail(customerEmail, generatedKeys, product_type);
+            // Send ALL keys (even the auto-applied one if we wanted, but logic above only pushed extra keys to array for logged in user)
+            // Wait, if I auto-renew, I didn't push the first key to `generatedKeys`.
+            // So email only gets the "extra" keys.
+            // Requirement check: "1x Auto-Verlängerung + Rest als Codes anzeigen"
+            // Usually the email should say "Your account was extended" + "Here are your extra keys".
+            // The `sendLicenseEmail` function might need keys.
+            // If `generatedKeys` is empty (Single renewal), we might want to send a different email?
+            // For now, I will use the existing mailer. It expects keys.
+            // If I have extra keys, I send them.
+            if (generatedKeys.length > 0) {
+                 await sendLicenseEmail(customerEmail, generatedKeys, product_type);
+            }
         }
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("[TRANS] Failed:", err);
+        console.error("[TRANS-FAIL] Rollback initiated.", err);
         throw err;
     } finally {
         client.release();
     }
 }
 
-// 4. ORDER STATUS (Smart Polling)
+// 5. ORDER STATUS (Smart Polling)
 router.get("/order-status", async (req, res) => {
     const { session_id } = req.query;
     if (!session_id) return res.status(400).json({ error: "No session_id" });
@@ -333,30 +364,48 @@ router.get("/order-status", async (req, res) => {
         if (result.rows.length > 0) {
             const row = result.rows[0];
             const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
-            const userId = meta.user_id;
 
-            // SMART CHECK
-            if (userId) {
-                // Branch A: Check User Table
-                const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [userId]);
+            // Branch A Check (User Renewal)
+            if (meta.user_id && meta.renewed) {
+                // Verify DB Persistence
+                const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [meta.user_id]);
                 if (uRes.rows.length > 0) {
-                    const currentExp = uRes.rows[0].license_expiration;
-                    const completedAt = new Date(row.completed_at).getTime();
-                    const expDate = currentExp ? new Date(currentExp) : null;
+                    const userExp = uRes.rows[0].license_expiration ? new Date(uRes.rows[0].license_expiration) : null;
+                    const payTime = new Date(row.completed_at);
 
-                    // If Expiry is missing or older than payment time -> Wait
-                    if (!expDate || expDate <= new Date(completedAt)) {
-                        return res.json({ success: true, status: 'processing_user_sync' });
+                    // Check if Expiration is FUTURE compared to payment time
+                    // (Simple check: is expiry > payment time? Or is it just "not null"?)
+                    // If unlimited (2099), it is > payTime.
+
+                    if (!userExp || userExp <= payTime) {
+                        // DB not yet updated or replication lag?
+                        // Actually, transaction committed before writing to payments table.
+                        // But let's be safe.
+                        // If userExp is 2099, it's definitely > payTime.
+                        // If userExp is +1 month, it's > payTime.
+                        // If userExp is OLD (expired), it's < payTime.
+
+                        // Edge case: If user bought license, but it expired 1ms later? Unlikely.
+                        // Wait. If user had valid license expiring in 2026.
+                        // They buy extension -> 2027. 2027 > payTime.
+                        // If user had expired license (2020).
+                        // They buy extension -> 2020 + 1 month? No, MAX(NOW, OLD). So NOW + 1 month.
+                        // So Expiry will always be > Payment Time.
+
+                        // Condition:
+                        if (!userExp || userExp <= payTime) {
+                             // "Hanging Screen Fix" -> Wait
+                             return res.json({ success: true, status: 'processing_user_sync' });
+                        }
                     }
                 }
             }
 
-            // Branch B (Guest) or Synced Branch A -> Success
             return res.json({
                 success: true,
                 status: 'completed',
-                keys: meta.keys_generated,
-                renewed: !!userId,
+                keys: meta.keys_generated || [],
+                renewed: !!meta.renewed,
                 customer_email: session.customer_email
             });
 

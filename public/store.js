@@ -1,18 +1,19 @@
 // store.js - Handhabt Shop-Logik, Modal und Status-Polling
 
 // 1. Konfiguration der Produkte (Mapping von ID zu Name & Preis)
+// Muss EXAKT mit payment.js PRICES übereinstimmen!
 const licenseMapping = {
   // Einzel-Lizenzen
-  "1m": { name: "1 Monat Zugang", price: "1,99 €" },
-  "3m": { name: "3 Monate Zugang", price: "4,49 €" },
-  "12m": { name: "12 Monate Zugang", price: "14,99 €" },
-  "unlimited": { name: "Unbegrenzter Zugang (Lifetime)", price: "49,99 €" },
+  "1m":           { name: "1 Monat Zugang",            price: "1,99 €" },
+  "3m":           { name: "3 Monate Zugang",           price: "4,95 €" },
+  "12m":          { name: "12 Monate Zugang",          price: "17,90 €" },
+  "unlimited":    { name: "Unbegrenzter Zugang",       price: "59,99 €" },
   
-  // Bundles (Hier waren welche verschwunden, jetzt wieder da!)
-  "bundle_1m_2": { name: "Bundle: 2x Keys (1 Monat)", price: "3,79 €" },
-  "bundle_3m_2": { name: "Bundle: 2x Keys (3 Monate)", price: "7,99 €" },
-  "bundle_3m_5": { name: "Bundle: 5x Keys (3 Monate)", price: "19,99 €" },
-  "bundle_1y_10": { name: "Bundle: 10x Keys (12 Monate)", price: "129,99 €" }
+  // Bundles
+  "bundle_1m_2":  { name: "2x Keys (1 Monat)",      price: "3,79 €" },
+  "bundle_3m_5":  { name: "5x Keys (3 Monate)",     price: "19,80 €" },
+  "bundle_3m_2":  { name: "2x Keys (3 Monate)",      price: "8,99 €" },
+  "bundle_1y_10": { name: "10x Keys (12 Monate)",    price: "149,99 €" }
 };
 
 // 2. Initialisierung beim Laden
@@ -167,9 +168,16 @@ async function confirmPurchase() {
   btn.style.opacity = "0.7";
 
   try {
+    // AUTH HEADER INJECTION (If logged in)
+    const token = localStorage.getItem('sm_token');
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify({ product_type: plan, customer_email: email })
     });
 
@@ -228,49 +236,51 @@ async function pollPaymentStatus(sessionId) {
         processingDiv.style.display = "none";
         successDiv.style.display = "block";
         
-        // FALL A: Lizenz-Verlängerung (Vom Server gemeldet via "renewed: true")
+        let contentHtml = "";
+
+        // A) VERLÄNGERUNG ERFOLGREICH
         if (data.renewed) {
-             keysArea.innerHTML = `
-                <div style="text-align:center; padding:20px; border:1px solid var(--success-green); border-radius:5px; background:rgba(0,255,65,0.05);">
-                    <h3 style="color:var(--success-green); margin-bottom:10px;">✅ VERLÄNGERUNG ERFOLGREICH!</h3>
+             contentHtml += `
+                <div style="text-align:center; padding:20px; border:1px solid var(--success-green); border-radius:5px; background:rgba(0,255,65,0.05); margin-bottom: 20px;">
+                    <h3 style="color:var(--success-green); margin-bottom:10px;">✅ ACCOUNT VERLÄNGERT!</h3>
                     <p style="color:#fff;">Ihre Lizenz wurde sofort aktualisiert.</p>
-                    <p style="color:#ccc; font-size:0.9rem; margin-top:10px;">
-                        Sie können das Tool nun nahtlos weiternutzen.
-                    </p>
-                    <a href="/" class="btn" style="margin-top:20px; display:inline-block; text-decoration:none; background:var(--accent-blue); color:black;">ZUR APP</a>
                 </div>
              `;
-             // Hide the intro text "Vielen Dank. Hier sind Ihre Zugangsdaten:"
-             const introEl = document.querySelector("#status-success > p:first-of-type");
-             if(introEl) introEl.style.display = 'none';
-
-             // Hide the default "Copy & Save" warning below
-             const warningEl = document.querySelector("#status-success > p[style*='color: #ffcc00']");
-             if(warningEl) warningEl.style.display = 'none';
-
-             // Hide the default buttons below
-             const btnsEl = document.querySelector("#status-success > div[style*='margin-top:30px']");
-             if(btnsEl) btnsEl.style.display = 'none';
-
-             return; // Fertig
         }
 
-        // FALL B: Neuer Kauf (Keys anzeigen)
+        // B) ZUSÄTZLICHE KEYS (z.B. bei Bundles oder Gast-Kauf)
         if (data.keys && data.keys.length > 0) {
-           renderKeys(data.keys, keysArea);
-        } else {
-           // Fallback, falls Keys per Mail kommen oder Server keine schickt
-           keysArea.innerHTML = "<p>Zahlung erfolgreich verarbeitet. Bitte prüfen Sie Ihre E-Mails.</p>";
+           contentHtml += `<p style="color:#e0e0e0; margin-bottom:10px;">Hier sind Ihre weiteren Zugangsschlüssel:</p>`;
+           data.keys.forEach(key => {
+               contentHtml += `
+                  <div class="key-display-box">
+                    <span style="letter-spacing:2px; color:#fff; font-weight:bold;">${key}</span>
+                    <br>
+                    <button class="btn" style="margin-top:15px; padding:8px 20px; font-size:0.8rem;" onclick="window.copyKey(this, '${key}')">KOPIEREN</button>
+                  </div>
+               `;
+           });
         }
+
+        if (!data.keys || data.keys.length === 0 && !data.renewed) {
+             contentHtml += "<p>Zahlung erfolgreich verarbeitet. Bitte prüfen Sie Ihre E-Mails.</p>";
+        }
+
+        keysArea.innerHTML = contentHtml;
+
+        // UI Cleanups wenn nur Verlängerung
+        const warningEl = document.querySelector("#status-success > p[style*='color: #ffcc00']");
+        if(data.renewed && (!data.keys || data.keys.length === 0)) {
+             if(warningEl) warningEl.style.display = 'none';
+        } else {
+             if(warningEl) warningEl.style.display = 'block';
+        }
+
         return; // Polling beenden
 
       } else if (data.status === 'processing' || data.status === 'processing_user_sync' || !data.status) {
         // --- NOCH WARTEN (Inklusive User Sync Wait) ---
         if (attempts < maxAttempts) {
-           // Bei Sync-Wait ggf. Hinweis anzeigen?
-           if (data.status === 'processing_user_sync') {
-               console.log("Warte auf Datenbank-Sync...");
-           }
            setTimeout(check, 2000); // Weiter warten
         } else {
            throw new Error("Zeitüberschreitung. Bitte E-Mail prüfen.");
@@ -291,21 +301,6 @@ async function pollPaymentStatus(sessionId) {
 
   // Start
   check();
-}
-
-function renderKeys(keys, container) {
-  let html = "";
-  keys.forEach(key => {
-    // Generiert eine Box für jeden Key
-    html += `
-      <div class="key-display-box">
-        <span style="letter-spacing:2px; color:#fff; font-weight:bold;">${key}</span>
-        <br>
-        <button class="btn" style="margin-top:15px; padding:8px 20px; font-size:0.8rem;" onclick="window.copyKey(this, '${key}')">KOPIEREN</button>
-      </div>
-    `;
-  });
-  container.innerHTML = html;
 }
 
 // 3. Copy-Funktion (Global verfügbar machen für onclick im HTML)
