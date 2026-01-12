@@ -181,6 +181,8 @@ async function handleCheckoutCompleted(session) {
         const productType = meta.product_type || 'unknown';
         const product = PRICES[productType];
 
+        console.log('Webhook Step 1: Data extracted', userId, productType);
+
         // Safety check on product config
         if (!product) throw new Error("Unknown Product Config in Webhook");
 
@@ -192,13 +194,14 @@ async function handleCheckoutCompleted(session) {
         // --- 2. START TRANSACTION ---
         // Unified BEGIN for both PG and SQLite
         await client.query('BEGIN');
+        console.log('Webhook Step 2: Transaction started');
 
         // --- 3. LOG PAYMENT ---
         // We log first to have a record.
         const paymentSql = `
             INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
             VALUES ($1, $2, 'eur', 'completed', 'stripe', $3, $4)
-            ${isPostgreSQL() ? 'RETURNING id' : ''}
+            ${isPostgreSQL ? 'RETURNING id' : ''}
         `;
         // Metadata needs to include user_id if present for analytics
         const finalMeta = JSON.stringify({ ...meta, user_id: userId, email: customerEmail });
@@ -239,12 +242,15 @@ async function handleCheckoutCompleted(session) {
             const msgSubject = "Lizenz verlängert";
             const msgBody = `Vielen Dank! Ihre Lizenz wurde erfolgreich verlängert bis: ${newExpiry ? new Date(newExpiry).toLocaleDateString('de-DE') : 'Unbegrenzt'}.`;
             await client.query(
-                `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
+                `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)`,
                 [userId, msgSubject, msgBody, now]
             );
 
+            console.log('Webhook Step 3: DB Updates finished');
+
             // Commit here for Renewal
             await client.query('COMMIT');
+            console.log('Webhook Step 4: Transaction Committed');
             console.log(`[SUCCESS] DB updated for User ${userId}`);
 
             // Send Email
@@ -262,7 +268,7 @@ async function handleCheckoutCompleted(session) {
                 const origin = userId ? 'shop_addon' : 'shop_guest';
 
                 await client.query(
-                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin, created_at) VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, $4, $5)`,
+                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin, created_at) VALUES ($1, $2, $3, ${isPostgreSQL ? 'false' : '0'}, $4, $5)`,
                     [keyRaw, keyHash, productType, origin, now]
                 );
                 keysGenerated.push(keyRaw);
@@ -276,7 +282,10 @@ async function handleCheckoutCompleted(session) {
             const updatedMeta = JSON.stringify({ ...meta, user_id: userId, email: customerEmail, generated_keys: keysGenerated });
             await client.query('UPDATE payments SET metadata = $1 WHERE payment_id = $2', [updatedMeta, session.id]);
 
+            console.log('Webhook Step 3: DB Updates finished');
+
             await client.query('COMMIT');
+            console.log('Webhook Step 4: Transaction Committed');
             console.log(`[SUCCESS] Keys generated for User ${userId || 'Guest'}`);
 
             // Send Email
@@ -310,7 +319,7 @@ router.get('/order-status', async (req, res) => {
         const payment = payRes.rows[0];
 
         // Ensure "processing" is returned if exists but not completed
-        if (payment.status !== 'completed') {
+        if (payment.status !== 'completed' && payment.status !== 'succeeded') {
              return res.json({ status: payment.status || 'processing' });
         }
 
@@ -318,35 +327,9 @@ router.get('/order-status', async (req, res) => {
         const isRenewal = meta.is_renewal === 'true';
         const userId = meta.user_id;
 
-        // 2. Verification Logic
+        // 2. Simplified Verification Logic (Atomic Trust)
         if (isRenewal && userId) {
-            // Verify User Table Update
-            const userRes = await client.query('SELECT license_expiration FROM users WHERE id = $1', [userId]);
-            const user = userRes.rows[0];
-
-            // Logic: Ensure Expiry is FUTURE relative to payment time (unless lifetime)
-            // This confirms the update actually applied.
-            const paymentTime = new Date(payment.completed_at).getTime();
-            const userExpiry = user.license_expiration ? new Date(user.license_expiration).getTime() : null;
-
-            // If userExpiry is null (Lifetime) OR userExpiry > paymentTime, we are good.
-            // Note: If user was ALREADY lifetime, userExpiry is null/future.
-            // But if user was expired (past), userExpiry must now be future.
-
-            let isVerified = false;
-            if (userExpiry === null) {
-                isVerified = true; // Lifetime
-            } else if (userExpiry > paymentTime) {
-                isVerified = true; // Future date
-            } else {
-                // Edge case: User bought 1 month but it's been > 1 month? Unlikely in polling window.
-                // Edge case: Date logic failed?
-                console.warn(`Polling Verification Warning: User ${userId} expiry ${user.license_expiration} vs Payment ${payment.completed_at}`);
-                // If it fails verification, we keep status 'processing' or specific error?
-                // Let's return processing_user_sync to force frontend to wait.
-                return res.json({ status: 'processing_user_sync' });
-            }
-
+            // We trust the transaction has committed if status is completed/succeeded
             return res.json({ success: true, status: 'completed', renewed: true });
         } else {
             // Return Keys
