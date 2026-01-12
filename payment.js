@@ -219,6 +219,8 @@ async function handleSuccessfulPayment(session) {
 
   // START TRANSACTION
   const client = await getTransactionClient();
+  const keys = []; // Moved outside try block for scope visibility
+
   try {
       // For PG: This starts a transaction block
       // For SQLite Mock: It executes 'BEGIN', which works for SQLite too
@@ -226,8 +228,6 @@ async function handleSuccessfulPayment(session) {
 
       const durationDays = duration_days === 'null' ? null : Number(duration_days);
       const createdAt = new Date().toISOString();
-
-      const keys = [];
 
       // --- SOURCE OF TRUTH & MASTER FORMULA ---
       // Determine if we have a linked user to update
