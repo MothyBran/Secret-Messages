@@ -152,8 +152,9 @@ router.post('/webhook', async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log(`[WEBHOOK-SIGNATURE-OK] Event: ${event.type}`);
+    // req.body is now a Buffer due to express.raw() in server.js
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log(`[WEBHOOK-RECEIVED] Event: ${event.type}`);
   } catch (err) {
     console.error(`Webhook Signature Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -251,17 +252,14 @@ async function handleSuccessfulPayment(session) {
                     const keyIdRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
                     const newKeyId = keyIdRes.rows[0].id;
 
-                    // 3. Update User (Source of Truth)
+                    console.log(`[DB-UPDATE-USERS] Updating User ${user_id} Expiration to ${newExpiresAt}`);
+                    // 3. Update User (Source of Truth) - Prioritized before Payment Insert
                     await client.query(
                         `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
                         [newKeyId, newExpiresAt, user_id]
                     );
 
-                    // Log Renewal
-                    await client.query(
-                        'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
-                        [user_id, newHash, newExpiresAt, createdAt]
-                    );
+                    // (License Renewals table insert removed to simplify transaction)
 
                     console.log('[USER-EXPIRY-UPDATED]');
                     renewalPerformed = true;
@@ -304,6 +302,7 @@ async function handleSuccessfulPayment(session) {
             email: session.customer_details ? session.customer_details.email : null
         };
 
+        console.log(`[DB-INSERT-PAYMENT] Recording Payment ${paymentId}`);
         await client.query(
             `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,

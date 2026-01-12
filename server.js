@@ -148,11 +148,8 @@ const rateLimiter = rateLimit({
     message: { error: "Zu viele Anfragen, bitte versuchen Sie es später erneut." }
 });
 
-app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+app.use('/api/webhook', express.raw({ type: 'application/json' }));
+app.use(express.json());
 
 app.use(express.static('public', { index: false }));
 
