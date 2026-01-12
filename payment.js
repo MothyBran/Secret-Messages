@@ -55,10 +55,17 @@ async function getTransactionClient() {
 
 // Helpers
 const PRICES = {
+  // Einzel-Lizenzen (Preise korrigiert)
   "1m":        { amount: 199,  currency: "eur", name: "1 Monat Zugang",            durationDays: 30,  keyCount: 1 },
   "3m":        { amount: 449,  currency: "eur", name: "3 Monate Zugang",           durationDays: 90,  keyCount: 1 },
   "12m":       { amount: 1499, currency: "eur", name: "12 Monate Zugang",          durationDays: 360, keyCount: 1 },
   "unlimited": { amount: 4999, currency: "eur", name: "Unbegrenzter Zugang",       durationDays: null, keyCount: 1 },
+
+  // Bundles (Neu hinzugefügt)
+  "bundle_1m_2": { amount: 379,   currency: "eur", name: "Bundle: 2x Keys (1 Monat)",  durationDays: 30,  keyCount: 2 },
+  "bundle_3m_2": { amount: 799,   currency: "eur", name: "Bundle: 2x Keys (3 Monate)", durationDays: 90,  keyCount: 2 },
+  "bundle_3m_5": { amount: 1999,  currency: "eur", name: "Bundle: 5x Keys (3 Monate)", durationDays: 90,  keyCount: 5 },
+  "bundle_1y_10": { amount: 12999, currency: "eur", name: "Bundle: 10x Keys (12 Monate)", durationDays: 360, keyCount: 10 }
 };
 
 function generateKeyCode() {
@@ -160,11 +167,14 @@ router.post('/webhook', async (req, res) => {
 });
 
 async function handleSuccessfulPayment(session) {
-    const { product_type, duration_days, user_id } = session.metadata;
+    const { product_type, duration_days, user_id, key_count } = session.metadata;
     const paymentId = session.payment_intent;
     const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql');
 
-    console.log(`[TRANS] Processing Payment ${paymentId} for User: ${user_id || 'GUEST'}`);
+    // Parse loop count
+    const totalKeys = parseInt(key_count) || 1;
+
+    console.log(`[TRANS] Processing Payment ${paymentId} for User: ${user_id || 'GUEST'}. Count: ${totalKeys}`);
 
     // Idempotency Check
     const existing = await pool.query('SELECT id FROM payments WHERE payment_id = $1', [paymentId]);
@@ -182,91 +192,92 @@ async function handleSuccessfulPayment(session) {
         const durationDays = duration_days === 'null' ? null : Number(duration_days);
         const createdAt = new Date().toISOString();
 
-        // Generate Key Data
-        const newCode = generateKeyCode();
-        const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
-        let newExpiresAt = durationDays ? addDays(createdAt, durationDays) : null; // Default for Guest
+        // LOOP FOR BUNDLES
+        for (let i = 0; i < totalKeys; i++) {
+            // Generate Key Data per iteration
+            const newCode = generateKeyCode();
+            const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
+            let newExpiresAt = durationDays ? addDays(createdAt, durationDays) : null;
 
-        // BRANCH SELECTION
-        if (user_id) {
-            // === BRANCH A: AUTHENTICATED RENEWAL ===
-            console.log(`[BRANCH A] Renewal for User ${user_id}`);
+            // LOGIC FOR FIRST KEY IN AUTH MODE
+            if (user_id && i === 0) {
+                // === BRANCH A: AUTHENTICATED RENEWAL (1st Key Only) ===
+                console.log(`[BRANCH A] Renewal for User ${user_id} (Key ${i+1}/${totalKeys})`);
 
-            // 1. Get Current Expiration
-            const userRes = await client.query('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [user_id]);
+                // 1. Get Current Expiration
+                const userRes = await client.query('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [user_id]);
 
-            if (userRes.rows.length > 0) {
-                const user = userRes.rows[0];
+                if (userRes.rows.length > 0) {
+                    const user = userRes.rows[0];
 
-                // 2. MASTER FORMULA
-                let baseDate = new Date();
-                const currentExpiry = user.license_expiration ? new Date(user.license_expiration) : null;
+                    // 2. MASTER FORMULA
+                    let baseDate = new Date();
+                    const currentExpiry = user.license_expiration ? new Date(user.license_expiration) : null;
 
-                if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
-                    baseDate = currentExpiry;
-                    console.log(`[MATH] Extending from Current Expiry: ${baseDate.toISOString()}`);
-                } else {
-                    console.log(`[MATH] Extending from NOW: ${baseDate.toISOString()}`);
-                }
+                    if (currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
+                        baseDate = currentExpiry;
+                        console.log(`[MATH] Extending from Current Expiry: ${baseDate.toISOString()}`);
+                    } else {
+                        console.log(`[MATH] Extending from NOW: ${baseDate.toISOString()}`);
+                    }
 
-                newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
-                console.log(`[MATH] New Expiration: ${newExpiresAt}`);
+                    newExpiresAt = durationDays ? addDays(baseDate.toISOString(), durationDays) : null;
+                    console.log(`[MATH] New Expiration: ${newExpiresAt}`);
 
-                // 3. Archive Old Key (Optional but good for history)
-                if (user.license_key_id) {
+                    // 3. Archive Old Key (Optional but good for history)
+                    if (user.license_key_id) {
+                        await client.query(
+                            `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
+                            [(isPostgres ? false : 0), user.username, user.license_key_id]
+                        );
+                    }
+
+                    // 4. Insert New Key (Activated)
                     await client.query(
-                        `UPDATE license_keys SET is_active = $1, assigned_user_id = $2 WHERE id = $3`,
-                        [(isPostgres ? false : 0), user.username, user.license_key_id]
+                        `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin, assigned_user_id, activated_at)
+                         VALUES ($1, $2, $3, $4, $5, $6, 'shop', $7, $8)`,
+                        [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? true : 1), product_type, user.username, createdAt]
+                    );
+
+                    // Get New Key ID
+                    const keyIdRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
+                    const newKeyId = keyIdRes.rows[0].id;
+
+                    // 5. UPDATE USER (SOURCE OF TRUTH)
+                    // STRICT: Only update expiration and link. NO PIK CHANGE.
+                    await client.query(
+                        `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
+                        [newKeyId, newExpiresAt, user_id]
+                    );
+                    console.log(`[DB] User ${user_id} updated successfully.`);
+
+                    // Log Renewal
+                    await client.query(
+                        'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
+                        [user_id, newHash, newExpiresAt, createdAt]
+                    );
+                } else {
+                    console.error(`[ERR] User ${user_id} not found! Falling back to Guest logic to save Key.`);
+                    // Fallback -> Treat as Guest to ensure customer gets a key
+                    await client.query(
+                        `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
+                         VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
+                        [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? false : 0), product_type]
                     );
                 }
-
-                // 4. Insert New Key (Activated)
-                await client.query(
-                    `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin, assigned_user_id, activated_at)
-                     VALUES ($1, $2, $3, $4, $5, $6, 'shop', $7, $8)`,
-                    [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? true : 1), product_type, user.username, createdAt]
-                );
-
-                // Get New Key ID
-                const keyIdRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
-                const newKeyId = keyIdRes.rows[0].id;
-
-                // 5. UPDATE USER (SOURCE OF TRUTH)
-                // STRICT: Only update expiration and link. NO PIK CHANGE.
-                await client.query(
-                    `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
-                    [newKeyId, newExpiresAt, user_id]
-                );
-                console.log(`[DB] User ${user_id} updated successfully.`);
-
-                // Log Renewal
-                await client.query(
-                    'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
-                    [user_id, newHash, newExpiresAt, createdAt]
-                );
             } else {
-                console.error(`[ERR] User ${user_id} not found! Falling back to Guest logic to save Key.`);
-                // Fallback -> Treat as Guest to ensure customer gets a key
+                // === BRANCH B (or A > 1): ADDITIONAL KEYS / GUEST ===
+                console.log(`[BRANCH B] Extra Key / Guest (Key ${i+1}/${totalKeys})`);
+
+                // Just Insert Inactive Key (Available for friends/team)
                 await client.query(
                     `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
                      VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
                     [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? false : 0), product_type]
                 );
             }
-
-        } else {
-            // === BRANCH B: GUEST CHECKOUT ===
-            console.log(`[BRANCH B] Guest Checkout`);
-
-            // Just Insert Inactive Key
-            await client.query(
-                `INSERT INTO license_keys (key_code, key_hash, created_at, expires_at, is_active, product_code, origin)
-                 VALUES ($1, $2, $3, $4, $5, $6, 'shop')`,
-                [newCode, newHash, createdAt, newExpiresAt, (isPostgres ? false : 0), product_type]
-            );
+            generatedKeys.push(newCode);
         }
-
-        generatedKeys.push(newCode);
 
         // Record Payment
         await client.query(
@@ -288,7 +299,7 @@ async function handleSuccessfulPayment(session) {
         );
 
         await client.query('COMMIT');
-        console.log(`[COMMIT] Transaction Successful. Key: ${newCode}`);
+        console.log(`[COMMIT] Transaction Successful. Keys Generated: ${generatedKeys.join(', ')}`);
 
         // Send Email
         const customerEmail = session.customer_details ? session.customer_details.email : null;
