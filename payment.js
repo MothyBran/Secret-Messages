@@ -374,6 +374,7 @@ router.get("/order-status", async (req, res) => {
             meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
         } catch (e) {
             console.error("Metadata Parse Error:", e);
+            meta = {};
         }
 
         // 3. User Sync Check (Double Safety for Logged-In Users)
