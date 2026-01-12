@@ -177,7 +177,7 @@ router.post('/webhook', async (req, res) => {
 
 async function handleSuccessfulPayment(session) {
     const { product_type, user_id, key_count, duration_days } = session.metadata;
-    const paymentId = session.payment_intent;
+    const paymentId = session.id;
     const isPostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql');
 
     const totalKeys = parseInt(key_count) || 1;
@@ -307,7 +307,7 @@ async function handleSuccessfulPayment(session) {
             `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
              VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)`,
             [
-                paymentId,
+                session.id,
                 session.amount_total,
                 session.currency,
                 'succeeded', // STRICT STATUS
@@ -352,10 +352,8 @@ router.get("/order-status", async (req, res) => {
     if (!session_id) return res.status(400).json({ error: "No session_id" });
 
     try {
-        // Optimized: Check DB First (via Metadata Search)
-        // This avoids Stripe API limits and latency
         const result = await pool.query(
-            "SELECT * FROM payments WHERE metadata LIKE '%' || $1 || '%'",
+            'SELECT * FROM payments WHERE payment_id = $1',
             [session_id]
         );
 
@@ -371,7 +369,12 @@ router.get("/order-status", async (req, res) => {
         }
 
         // 2. Parse Metadata
-        const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+        let meta = {};
+        try {
+            meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
+        } catch (e) {
+            console.error("Metadata Parse Error:", e);
+        }
 
         // 3. User Sync Check (Double Safety for Logged-In Users)
         if (meta.user_id && meta.renewed) {
