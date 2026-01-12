@@ -43,7 +43,7 @@ const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./pa
 const app = express();
 
 // MUSS GANZ OBEN STEHEN:
-app.post('/api/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/webhook', express.raw({ type: 'application/json' }));
 
 // DEBUG: Webhook Logger
 app.use('/api/webhook', (req, res, next) => {
