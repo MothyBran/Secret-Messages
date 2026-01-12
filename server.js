@@ -149,7 +149,13 @@ const rateLimiter = rateLimit({
 });
 
 app.use('/api/webhook', express.raw({ type: 'application/json' }));
-app.use(express.json());
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 app.use(express.static('public', { index: false }));
 
