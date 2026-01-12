@@ -375,7 +375,7 @@ router.get("/order-status", async (req, res) => {
 
         // 3. User Sync Check (Double Safety for Logged-In Users)
         if (meta.user_id && meta.renewed) {
-             const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [meta.user_id]);
+             const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [parseInt(meta.user_id, 10)]);
              if (uRes.rows.length > 0) {
                  const userExp = uRes.rows[0].license_expiration ? new Date(uRes.rows[0].license_expiration) : null;
                  const payTime = new Date(row.completed_at);
@@ -397,7 +397,7 @@ router.get("/order-status", async (req, res) => {
         });
 
     } catch (err) {
-        console.error("Order Status Error:", err);
+        console.error("DETAILED ORDER STATUS ERROR:", err.message, err.stack);
         res.json({ success: false, status: 'error' });
     }
 });
