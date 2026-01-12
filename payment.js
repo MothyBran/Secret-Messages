@@ -156,7 +156,7 @@ router.post('/webhook', async (req, res) => {
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
     console.log(`[WEBHOOK-RECEIVED] Event: ${event.type}`);
   } catch (err) {
-    console.error(`Webhook Signature Error: ${err.message}`);
+    console.error(`STRIPE ERROR: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -165,7 +165,8 @@ router.post('/webhook', async (req, res) => {
     try {
         await handleSuccessfulPayment(session);
     } catch (e) {
-        console.error("[WEBHOOK-FAIL] Payment processing failed:", e);
+        console.error("DB ERROR:", e.detail || e.message);
+        console.error("STACK:", e.stack);
         return res.status(500).send("Processing Error");
     }
   }
@@ -310,7 +311,7 @@ async function handleSuccessfulPayment(session) {
                 paymentId,
                 session.amount_total,
                 session.currency,
-                'completed',
+                'succeeded', // STRICT STATUS
                 'stripe',
                 createdAt, // completed_at
                 JSON.stringify(metadataForRecord)
@@ -356,7 +357,7 @@ router.get("/order-status", async (req, res) => {
         const paymentIntentId = session.payment_intent;
 
         const result = await pool.query(
-            'SELECT metadata, completed_at FROM payments WHERE payment_id = $1',
+            'SELECT metadata, completed_at, status FROM payments WHERE payment_id = $1',
             [paymentIntentId]
         );
 
@@ -400,13 +401,20 @@ router.get("/order-status", async (req, res) => {
                 }
             }
 
-            return res.json({
-                success: true,
-                status: 'completed',
-                keys: meta.keys_generated || [],
-                renewed: !!meta.renewed,
-                customer_email: session.customer_email
-            });
+            // SUCCESS CONDITION: Row exists and status is 'succeeded' or 'completed' (for backward compat)
+            const isSuccess = row.status === 'succeeded' || row.status === 'completed';
+
+            if (isSuccess) {
+                return res.json({
+                    success: true,
+                    status: 'completed',
+                    keys: meta.keys_generated || [],
+                    renewed: !!meta.renewed,
+                    customer_email: session.customer_email
+                });
+            } else {
+                return res.json({ success: true, status: 'processing' });
+            }
 
         } else {
             return res.json({ success: true, status: 'processing' });
