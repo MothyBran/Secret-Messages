@@ -42,6 +42,9 @@ const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./pa
 
 const app = express();
 
+// MUSS GANZ OBEN STEHEN:
+app.post('/api/webhook', express.raw({ type: 'application/json' }));
+
 // DEBUG: Webhook Logger
 app.use('/api/webhook', (req, res, next) => {
     console.log('>>> STRIPE WEBHOOK HIT <<<');
@@ -53,6 +56,10 @@ app.set('trust proxy', 1);
 // ==================================================================
 // 1. MIDDLEWARE
 // ==================================================================
+
+// ERST DANACH (für alle anderen Routen):
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // HTTPS Redirect Middleware (Optimized for Railway & Enterprise Localhost)
 app.use((req, res, next) => {
@@ -146,15 +153,6 @@ const rateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
     message: { error: "Zu viele Anfragen, bitte versuchen Sie es später erneut." }
-});
-
-app.use('/api/webhook', express.raw({ type: 'application/json' }));
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/webhook') {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
 });
 
 app.use(express.static('public', { index: false }));
