@@ -152,6 +152,7 @@ router.post('/webhook', async (req, res) => {
   let event;
 
   try {
+    console.log('HEADERS:', JSON.stringify(req.headers));
     // req.body is now a Buffer due to express.raw() in server.js
     event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
     console.log(`[WEBHOOK-RECEIVED] Event: ${event.type}`);
@@ -417,6 +418,7 @@ router.get("/order-status", async (req, res) => {
             }
 
         } else {
+            console.warn('[ORDER-STATUS] Payment Not Found in DB:', paymentIntentId);
             return res.json({ success: true, status: 'processing' });
         }
 
