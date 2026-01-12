@@ -54,8 +54,43 @@ async function sendLicenseEmail(toEmail, licenseKey, productType) {
         return data;
     } catch (error) {
         console.error("Error sending license email:", error);
-        // We log the error but do not throw it to ensure payment processing completes.
     }
 }
 
-module.exports = { sendLicenseEmail };
+/**
+ * Sends a renewal confirmation email to the customer.
+ * @param {string} toEmail - Recipient email.
+ * @param {string} newDate - New expiration date (formatted).
+ * @param {string} username - Username.
+ */
+async function sendRenewalConfirmation(toEmail, newDate, username) {
+    if (!toEmail) return;
+
+    try {
+        const { data, error } = await resend.emails.send({
+            from: 'support@secure-msg.app',
+            to: toEmail,
+            subject: 'Lizenz erfolgreich verlängert',
+            html: `
+                <h3>Hallo ${username},</h3>
+                <p>Ihre Lizenz wurde erfolgreich verlängert!</p>
+                <div style="background-color: #e6fffa; padding: 15px; border-left: 5px solid #00ff41; margin: 20px 0;">
+                    <strong>Neues Ablaufdatum:</strong> ${newDate}
+                </div>
+                <p>Sie müssen nichts weiter tun. Ihr Account ist sofort freigeschaltet.</p>
+                <br>
+                <p>Mit freundlichen Grüßen,<br>Ihr Secure Messages Team</p>
+            `
+        });
+
+        if (error) {
+            console.error("Resend API Error (Renewal):", error);
+        } else {
+            console.log(`Renewal Email sent: ${data.id}`);
+        }
+    } catch (error) {
+        console.error("Error sending renewal email:", error);
+    }
+}
+
+module.exports = { sendLicenseEmail, sendRenewalConfirmation };

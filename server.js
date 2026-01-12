@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
 const { encryptServerSide } = require('./utils/serverCrypto');
+const { initializeDatabase, dbQuery, isPostgreSQL } = require('./database/db');
 let Resend;
 try {
     const resendModule = require('resend');
@@ -36,9 +37,6 @@ if (IS_ENTERPRISE) {
 const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
     ? new Resend(process.env.RESEND_API_KEY)
     : { emails: { send: async () => { console.log(">> MOCK MAIL SENT (Enterprise/No Key)"); return { id: 'mock' }; } } };
-
-// Payment Routes (Mock if Enterprise)
-const paymentRoutes = IS_ENTERPRISE ? (req, res, next) => next() : require('./payment.js');
 
 const app = express();
 
@@ -160,7 +158,6 @@ app.use(express.static('public', { index: false }));
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const DATABASE_URL = process.env.DATABASE_URL;
 
 // Helper: Parse potential German date strings (DD.MM.YYYY) to ISO Date objects
 function parseDbDate(dateStr) {
@@ -214,213 +211,9 @@ function calculateNewExpiration(currentExpirationStr, extensionMonths) {
 // 2. DATABASE SETUP
 // ==================================================================
 
-let db, isPostgreSQL = false;
-let dbQuery;
-
-const initializeDatabase = async () => {
-    console.log('🔧 Initializing Database...');
-    
-    if (!IS_ENTERPRISE && DATABASE_URL && DATABASE_URL.includes('postgresql')) {
-        console.log('📡 PostgreSQL detected');
-        isPostgreSQL = true;
-        const { Pool } = require('pg');
-        db = new Pool({
-            connectionString: DATABASE_URL,
-            ssl: { rejectUnauthorized: false }
-        });
-        dbQuery = async (text, params) => await db.query(text, params);
-        await createTables();
-    } else {
-        // SQLITE FIX: Use USER_DATA_PATH if available (Electron)
-        const sqlite3 = require('sqlite3').verbose();
-        let dbPath = './secret_messages.db';
-        if (process.env.USER_DATA_PATH) {
-            dbPath = path.join(process.env.USER_DATA_PATH, 'secret_messages.db');
-            console.log("📂 Using DB Path:", dbPath);
-        } else {
-            console.log("📂 Using Local DB Path (Dev):", dbPath);
-        }
-
-        db = new sqlite3.Database(dbPath);
-        dbQuery = (text, params = []) => {
-            return new Promise((resolve, reject) => {
-                const sql = text.replace(/\$\d+/g, '?');
-                if (text.trim().toUpperCase().startsWith('SELECT')) {
-                    db.all(sql, params, (err, rows) => {
-                        if (err) reject(err); else resolve({ rows: rows, rowCount: rows.length });
-                    });
-                } else {
-                    db.run(sql, params, function(err) {
-                        if (err) reject(err); else resolve({ rows: [], rowCount: this.changes, lastID: this.lastID });
-                    });
-                }
-            });
-        };
-        createTables();
-    }
-};
-
-const createTables = async () => {
-    try {
-        await dbQuery(`CREATE TABLE IF NOT EXISTS users (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            username VARCHAR(50) UNIQUE,
-            access_code_hash TEXT,
-            license_key_id INTEGER,
-            allowed_device_id TEXT,
-            registered_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            last_login ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            is_online ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            registration_key_hash TEXT,
-            pik_encrypted TEXT,
-            license_expiration ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS license_renewals (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            user_id INTEGER,
-            key_code_hash TEXT,
-            extended_until ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            used_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS license_keys (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            key_code VARCHAR(17) UNIQUE NOT NULL,
-            key_hash TEXT NOT NULL,
-            product_code VARCHAR(10),
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            activated_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            username VARCHAR(50),
-            activated_ip VARCHAR(50),
-            origin VARCHAR(20) DEFAULT 'unknown'
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS payments (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            payment_id VARCHAR(100),
-            amount INTEGER,
-            currency VARCHAR(10),
-            status VARCHAR(20),
-            payment_method VARCHAR(50),
-            completed_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            metadata TEXT
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS account_deletions (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            username VARCHAR(50),
-            license_key_code VARCHAR(50),
-            reason TEXT,
-            deleted_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS settings (
-            key VARCHAR(50) PRIMARY KEY,
-            value TEXT
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS license_bundles (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            name VARCHAR(100),
-            order_number VARCHAR(50),
-            total_keys INTEGER DEFAULT 0,
-            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS messages (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            recipient_id INTEGER,
-            subject VARCHAR(255),
-            body TEXT,
-            is_read ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'},
-            type VARCHAR(50),
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            expires_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}
-        )`);
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS support_tickets (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            ticket_id VARCHAR(50),
-            username VARCHAR(50),
-            email VARCHAR(100),
-            subject VARCHAR(255),
-            message TEXT,
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'},
-            status VARCHAR(20) DEFAULT 'open'
-        )`);
-
-
-        await dbQuery(`CREATE TABLE IF NOT EXISTS analytics_events (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            event_type VARCHAR(50),
-            source VARCHAR(50),
-            anonymized_ip VARCHAR(50),
-            metadata TEXT,
-            created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' : 'DATETIME DEFAULT CURRENT_TIMESTAMP'}
-        )`);
-
-                // Migration for Analytics
-        try { await dbQuery("ALTER TABLE analytics_events ADD COLUMN created_at DATETIME"); } catch (e) { }
-        // Add indices for Analytics performance
-        try { await dbQuery(`CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type)`); } catch (e) { }
-        try { await dbQuery(`CREATE INDEX IF NOT EXISTS idx_analytics_date ON analytics_events(created_at)`); } catch (e) { }
-
-        // Enterprise Keys Table (Recovery / Specific)
-        await dbQuery(`CREATE TABLE IF NOT EXISTS enterprise_keys (
-            id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-            key TEXT UNIQUE NOT NULL,
-            bundle_id TEXT,
-            quota_max INTEGER DEFAULT 10,
-            activated_at ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'},
-            is_active ${isPostgreSQL ? 'BOOLEAN DEFAULT TRUE' : 'INTEGER DEFAULT 1'}
-        )`);
-
-        // Add columns to license_keys if missing (Schema Migration)
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN bundle_id INTEGER`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN assigned_user_id VARCHAR(50)`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN client_name VARCHAR(100)`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN max_users INTEGER DEFAULT 1`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN is_blocked ${isPostgreSQL ? 'BOOLEAN DEFAULT FALSE' : 'INTEGER DEFAULT 0'}`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE license_keys ADD COLUMN origin VARCHAR(20) DEFAULT 'unknown'`); } catch (e) { }
-
-        // Schema Migration for PIK / Identity
-        try { await dbQuery(`ALTER TABLE users ADD COLUMN registration_key_hash TEXT`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE users ADD COLUMN pik_encrypted TEXT`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE users ADD COLUMN license_expiration ${isPostgreSQL ? 'TIMESTAMP' : 'DATETIME'}`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE users ADD COLUMN allowed_device_id TEXT`); } catch (e) { }
-
-        // Add columns to messages for Ticket System
-        try { await dbQuery(`ALTER TABLE messages ADD COLUMN status VARCHAR(20) DEFAULT 'open'`); } catch (e) { }
-        try { await dbQuery(`ALTER TABLE messages ADD COLUMN ticket_id VARCHAR(50)`); } catch (e) { }
-
-        // Initialize Settings Defaults
-        try {
-            const mCheck = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
-            if (mCheck.rows.length === 0) {
-                await dbQuery("INSERT INTO settings (key, value) VALUES ('maintenance_mode', 'false')");
-            }
-            const sCheck = await dbQuery("SELECT value FROM settings WHERE key = 'shop_active'");
-            if (sCheck.rows.length === 0) {
-                await dbQuery("INSERT INTO settings (key, value) VALUES ('shop_active', 'true')");
-            }
-            // Template for Ticket Replies
-            const tCheck = await dbQuery("SELECT value FROM settings WHERE key = 'ticket_reply_template'");
-            if (tCheck.rows.length === 0) {
-                const defaultTemplate = "Hallo {username},\n\n[TEXT]\n\nMit freundlichen Grüßen,\nIhr Support-Team";
-                await dbQuery("INSERT INTO settings (key, value) VALUES ('ticket_reply_template', $1)", [defaultTemplate]);
-            }
-        } catch (e) { console.warn("Settings init warning:", e.message); }
-
-        console.log('✅ Tables checked/created');
-    } catch (e) { console.error("Table creation error:", e); }
-};
-
+// Moved to database/db.js. Initialized below.
 initializeDatabase();
+
 
 // ==================================================================
 // 2.1 ANALYTICS HELPERS
@@ -515,7 +308,7 @@ app.post('/api/support', rateLimiter, async (req, res) => {
                     const userId = userRes.rows[0].id;
                     await dbQuery(
                         `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at, status, ticket_id)
-                         VALUES ($1, $2, $3, 'ticket', ${isPostgreSQL ? 'true' : '1'}, $4, 'open', $5)`,
+                         VALUES ($1, $2, $3, 'ticket', ${isPostgreSQL() ? 'true' : '1'}, $4, 'open', $5)`,
                         [userId, `[Ticket: ${ticketId}] ${subject}`, message, createdAt, ticketId]
                     );
                 }
@@ -604,7 +397,7 @@ async function authenticateUser(req, res, next) {
         try {
             const userResult = await dbQuery("SELECT is_blocked FROM users WHERE id = $1", [user.id]);
             const dbUser = userResult.rows[0];
-            const blocked = dbUser ? (isPostgreSQL ? dbUser.is_blocked : (dbUser.is_blocked === 1)) : false;
+            const blocked = dbUser ? (isPostgreSQL() ? dbUser.is_blocked : (dbUser.is_blocked === 1)) : false;
 
             if (!dbUser || blocked) {
                 return res.status(403).json({ error: "Konto gesperrt." });
@@ -631,7 +424,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const user = userRes.rows[0];
 
         // CHECK IF LICENSE IS BLOCKED (Enterprise/Admin Block)
-        const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
+        const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
         if (isKeyBlocked) {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'license_blocked' });
             return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
@@ -680,7 +473,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         // ------------------------------
 
         // HARD LOGIN BLOCK
-        const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+        const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (isBlocked) {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'account_blocked' });
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
@@ -699,7 +492,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             const msgBody = `Ihr Account wurde erfolgreich mit diesem Gerät verknüpft.\nGerät-ID: ${sanitizedDeviceId}`;
 
             await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL ? false : 0), new Date().toISOString()]);
+                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL() ? false : 0), new Date().toISOString()]);
         }
 
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
@@ -719,7 +512,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
 
 app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     try {
-        await dbQuery('UPDATE users SET is_online = $1 WHERE id = $2', [(isPostgreSQL ? false : 0), req.user.id]);
+        await dbQuery('UPDATE users SET is_online = $1 WHERE id = $2', [(isPostgreSQL() ? false : 0), req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: 'Logout Fehler' }); }
 });
@@ -733,7 +526,7 @@ app.post('/api/auth/activate', async (req, res) => {
         const key = keyRes.rows[0];
         if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
 
-        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
 
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
@@ -781,13 +574,13 @@ app.post('/api/auth/activate', async (req, res) => {
         const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
 
         let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at, registration_key_hash, pik_encrypted, license_expiration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
-        if (isPostgreSQL) { insertSql += ' RETURNING id'; }
+        if (isPostgreSQL()) { insertSql += ' RETURNING id'; }
 
         const insertUser = await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted, expiresAt]);
 
         await dbQuery(
             'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4',
-            [(isPostgreSQL ? true : 1), new Date().toISOString(), expiresAt, key.id]
+            [(isPostgreSQL() ? true : 1), new Date().toISOString(), expiresAt, key.id]
         );
 
         await trackEvent(req, 'activation_success', 'auth', { username, product: key.product_code });
@@ -810,7 +603,7 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (keyRes.rows.length === 0) return res.status(404).json({ error: 'Key nicht gefunden' });
         const key = keyRes.rows[0];
 
-        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
@@ -838,7 +631,7 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         // 3. Mark Key as Used
         await dbQuery(
             'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4 WHERE id = $5',
-            [(isPostgreSQL ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]
+            [(isPostgreSQL() ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]
         );
 
         // 4. Update User Expiration (Only expiration, NOT identity!)
@@ -868,10 +661,10 @@ app.post('/api/auth/check-license', async (req, res) => {
 
         const key = keyRes.rows[0];
 
-        const isBlocked = isPostgreSQL ? key.is_blocked : (key.is_blocked === 1);
+        const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.json({ isValid: false, error: 'Lizenz gesperrt' });
 
-        const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
+        const isActive = isPostgreSQL() ? key.is_active : (key.is_active === 1);
         if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
 
         // Prediction Logic
@@ -920,7 +713,7 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
         const userRes = await dbQuery('SELECT * FROM users WHERE id = $1', [req.user.id]);
         const user = userRes.rows[0];
         if (!user) return res.json({ status: 'banned' });
-        const blocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+        const blocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (blocked) return res.json({ status: 'banned' });
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
         const key = keyRes.rows[0];
@@ -939,7 +732,7 @@ app.post('/api/users/exists', authenticateUser, async (req, res) => {
         if (result.rows.length === 0) return res.json({ exists: false });
 
         const user = result.rows[0];
-        const isBlocked = (isPostgreSQL ? user.is_blocked : (user.is_blocked === 1));
+        const isBlocked = (isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1));
         if (isBlocked) return res.json({ exists: false });
         res.json({ exists: true });
     } catch (e) { res.status(500).json({ error: "Serverfehler" }); }
@@ -977,10 +770,10 @@ app.post('/api/auth/validate', async (req, res) => {
 
         if (userRes.rows.length > 0) {
             const user = userRes.rows[0];
-            const isBlocked = isPostgreSQL ? user.is_blocked : (user.is_blocked === 1);
+            const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
             if (isBlocked) return res.json({ valid: false, reason: 'blocked' });
 
-            const isKeyBlocked = isPostgreSQL ? user.key_blocked : (user.key_blocked === 1);
+            const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
             if (isKeyBlocked) return res.json({ valid: false, reason: 'license_blocked' });
             if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
 
@@ -1047,7 +840,7 @@ app.post('/api/auth/transfer-start', async (req, res) => {
 
                 await dbQuery(
                     `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)`,
+                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
                     [userId, subject, body, new Date().toISOString()]
                 );
             }
@@ -1117,7 +910,7 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
         const msgSubject = "Info: Profil erfolgreich übertragen";
         const msgBody = `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`;
         await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)",
-            [user.id, msgSubject, msgBody, (isPostgreSQL ? false : 0), new Date().toISOString()]);
+            [user.id, msgSubject, msgBody, (isPostgreSQL() ? false : 0), new Date().toISOString()]);
 
         res.json({
             success: true,
@@ -1257,15 +1050,15 @@ app.post('/api/admin/2fa/disable', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
-        const now = isPostgreSQL ? 'NOW()' : 'DATETIME("now")';
-        const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'false' : '0'}`);
-        const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL ? 'true' : '1'}`);
-        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL ? 'true' : '1'}`);
+        const now = isPostgreSQL() ? 'NOW()' : 'DATETIME("now")';
+        const activeUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL() ? 'false' : '0'}`);
+        const blockedUsers = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE is_blocked = ${isPostgreSQL() ? 'true' : '1'}`);
+        const activeKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE is_active = ${isPostgreSQL() ? 'true' : '1'}`);
         const expiredKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at <= ${now}`);
         const totalPurchases = await dbQuery(`SELECT COUNT(*) as c FROM payments WHERE status = 'completed'`);
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
         const totalBundles = await dbQuery(`SELECT COUNT(*) as c FROM license_bundles`);
-        const unassignedBundleKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE bundle_id IS NOT NULL AND is_active = ${isPostgreSQL ? 'false' : '0'}`);
+        const unassignedBundleKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE bundle_id IS NOT NULL AND is_active = ${isPostgreSQL() ? 'false' : '0'}`);
 
         res.json({
             success: true,
@@ -1311,8 +1104,8 @@ app.get('/api/admin/stats/advanced', requireAdmin, async (req, res) => {
         const endIso = end.toISOString();
 
         // 1. Traffic (Daily Unique Visitors)
-        const dateFunc = isPostgreSQL ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
-        const dateFuncPayments = isPostgreSQL ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
+        const dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
+        const dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
 
         const trafficSql = `
             SELECT ${dateFunc} as day, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views
@@ -1396,7 +1189,7 @@ app.get('/api/admin/keys', requireAdmin, async (req, res) => {
                      WHERE (k.product_code != 'ENTERPRISE' OR k.product_code IS NULL)
                      ORDER BY k.created_at DESC LIMIT 200`;
         const result = await dbQuery(sql);
-        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL ? r.is_active : (r.is_active === 1) }));
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1426,7 +1219,7 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
                 // Relink
                 await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [keyId, expires_at || null, user_id]);
                 const now = new Date().toISOString();
-                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
+                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
             }
         }
         res.json({ success: true });
@@ -1488,7 +1281,7 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
                 // If NO cascade: Reset the license to 'free' state
                 // Note: license_keys table does NOT have assigned_user_id, relationship is in users table.
                 // We just need to reset the active flag and timestamps.
-                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL ? 'false' : '0'}, activated_at = NULL WHERE id = $1`, [user.license_key_id]);
+                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'false' : '0'}, activated_at = NULL WHERE id = $1`, [user.license_key_id]);
             }
         }
 
@@ -1520,7 +1313,7 @@ app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = {
             ...userRes.rows[0],
-            is_blocked: isPostgreSQL ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1)
+            is_blocked: isPostgreSQL() ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1)
         };
 
         // License History
@@ -1534,7 +1327,7 @@ app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
 
         const history = historyRes.rows.map(r => ({
             ...r,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
+            is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1)
         }));
 
         res.json({ success: true, user, history });
@@ -1579,7 +1372,7 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
         if (keyRes.rows.length === 0) return res.status(404).json({ error: "Key not found" });
         const key = keyRes.rows[0];
 
-        const isActive = isPostgreSQL ? key.is_active : (key.is_active === 1);
+        const isActive = isPostgreSQL() ? key.is_active : (key.is_active === 1);
         if (isActive) return res.status(403).json({ error: "Key already active" });
 
         // 3. Calculate New Expiration
@@ -1602,7 +1395,7 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
         // Update Key
         const now = new Date().toISOString();
         await dbQuery(
-            `UPDATE license_keys SET is_active = ${isPostgreSQL ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
+            `UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
             [now, newExpiresAt, user.username, key.id]
         );
 
@@ -1648,7 +1441,7 @@ app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
 
         // Insert
         let insertSql = `INSERT INTO license_keys (key_code, key_hash, product_code, client_name, max_users, expires_at, is_active)
-                         VALUES ($1, $2, 'ENTERPRISE', $3, $4, $5, ${isPostgreSQL ? 'false' : '0'})`;
+                         VALUES ($1, $2, 'ENTERPRISE', $3, $4, $5, ${isPostgreSQL() ? 'false' : '0'})`;
 
         await dbQuery(insertSql, [keyRaw, keyHash, clientName, quotaInt, expiresAt || null]);
 
@@ -1668,8 +1461,8 @@ app.get('/api/admin/enterprise-keys', requireAdmin, async (req, res) => {
         const result = await dbQuery(sql);
         const keys = result.rows.map(r => ({
             ...r,
-            is_active: isPostgreSQL ? r.is_active : (r.is_active === 1),
-            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1)
+            is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1),
+            is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1)
         }));
         res.json(keys);
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1678,7 +1471,7 @@ app.get('/api/admin/enterprise-keys', requireAdmin, async (req, res) => {
 app.post('/api/admin/enterprise-keys/:id/toggle-block', requireAdmin, async (req, res) => {
     try {
         const { blocked } = req.body;
-        const val = isPostgreSQL ? blocked : (blocked ? 1 : 0);
+        const val = isPostgreSQL() ? blocked : (blocked ? 1 : 0);
         await dbQuery(`UPDATE license_keys SET is_blocked = $1 WHERE id = $2`, [val, req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1713,7 +1506,7 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
             // Ensure origin is strictly 'admin'
             await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin) VALUES ($1, $2, $3, $4, 'admin')`,
-                [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0)]);
+                [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0)]);
             newKeys.push(keyRaw);
         }
         res.json({ success: true, keys: newKeys });
@@ -1731,10 +1524,10 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
         const orderNum = 'ORD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 
         let insertBundle = await dbQuery(
-            `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL ? 'RETURNING id' : ''}`,
+            `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL() ? 'RETURNING id' : ''}`,
             [name, orderNum, amount, new Date().toISOString()]
         );
-        let bundleId = isPostgreSQL ? insertBundle.rows[0].id : insertBundle.lastID;
+        let bundleId = isPostgreSQL() ? insertBundle.rows[0].id : insertBundle.lastID;
         const newKeys = [];
         for(let i = 0; i < amount; i++) {
             const seqNum = start + i;
@@ -1743,7 +1536,7 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
             await dbQuery(
                 `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id, origin) VALUES ($1, $2, $3, $4, $5, $6, 'admin')`,
-                [keyRaw, keyHash, productCode, (isPostgreSQL ? false : 0), bundleId, assignedId]
+                [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0), bundleId, assignedId]
             );
             newKeys.push({ key: keyRaw, assignedId });
         }
@@ -1755,7 +1548,7 @@ app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
     try {
         const sql = `
             SELECT b.*,
-            (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = ${isPostgreSQL ? 'TRUE' : '1'}) as active_count
+            (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = ${isPostgreSQL() ? 'TRUE' : '1'}) as active_count
             FROM license_bundles b ORDER BY b.created_at DESC
         `;
         const result = await dbQuery(sql);
@@ -1767,7 +1560,7 @@ app.get('/api/admin/bundles/:id/keys', requireAdmin, async (req, res) => {
     try {
         const sql = `SELECT key_code, assigned_user_id, is_active, expires_at FROM license_keys WHERE bundle_id = $1 ORDER BY assigned_user_id ASC`;
         const result = await dbQuery(sql, [req.params.id]);
-        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL ? r.is_active : (r.is_active === 1) }));
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1812,8 +1605,8 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         const result = await dbQuery(sql);
         const users = result.rows.map(r => ({
             ...r,
-            is_blocked: isPostgreSQL ? r.is_blocked : (r.is_blocked === 1),
-            is_online: isPostgreSQL ? r.is_online : (r.is_online === 1)
+            is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1),
+            is_online: isPostgreSQL() ? r.is_online : (r.is_online === 1)
         }));
         res.json(users);
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1834,7 +1627,7 @@ app.get('/api/admin/users/:id/licenses', requireAdmin, async (req, res) => {
         const result = await dbQuery(sql, [license_key_id, username]);
         const keys = result.rows.map(r => ({
              ...r,
-             is_active: isPostgreSQL ? r.is_active : (r.is_active === 1)
+             is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1)
         }));
         res.json(keys);
 
@@ -1850,7 +1643,7 @@ app.post('/api/admin/block-user/:id', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
-    await dbQuery(`UPDATE users SET is_blocked = ${isPostgreSQL ? 'false' : '0'} WHERE id = $1`, [req.params.id]);
+    await dbQuery(`UPDATE users SET is_blocked = ${isPostgreSQL() ? 'false' : '0'} WHERE id = $1`, [req.params.id]);
     res.json({ success: true });
 });
 
@@ -1973,7 +1766,7 @@ app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) 
         const replySubject = `RE: ${subject} - Ticket: #${ticket_id}`;
         await dbQuery(
             `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-             VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL ? 'false' : '0'}, $4)`,
+             VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
             [userId, replySubject, message, new Date().toISOString()]
         );
 
@@ -2087,7 +1880,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
         // 2. Broadcasts (recipient=NULL) that are not expired
         const sql = `
             SELECT * FROM messages
-            WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL ? 'false' : '0'} OR type = 'ticket'))
+            WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL() ? 'false' : '0'} OR type = 'ticket'))
             OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2))
             ORDER BY created_at DESC
         `;
@@ -2095,7 +1888,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
         const result = await dbQuery(sql, [userId, now]);
         const msgs = result.rows.map(r => ({
             ...r,
-            is_read: isPostgreSQL ? r.is_read : (r.is_read === 1)
+            is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1)
         }));
 
         res.json(msgs);
@@ -2106,7 +1899,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
 app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
-        await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
+        await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL() ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2140,7 +1933,7 @@ app.post('/api/admin/send-message', requireAdmin, async (req, res) => {
 
         await dbQuery(
             `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [recipientId || null, subject, body, type || 'general', expiresAt || null, new Date().toISOString(), (isPostgreSQL ? false : 0)]
+            [recipientId || null, subject, body, type || 'general', expiresAt || null, new Date().toISOString(), (isPostgreSQL() ? false : 0)]
         );
 
         res.json({ success: true });
@@ -2160,7 +1953,7 @@ const checkLicenseExpiries = async () => {
             SELECT u.id as user_id, l.expires_at
             FROM users u
             JOIN license_keys l ON u.license_key_id = l.id
-            WHERE l.expires_at IS NOT NULL AND l.is_active = ${isPostgreSQL ? 'true' : '1'}
+            WHERE l.expires_at IS NOT NULL AND l.is_active = ${isPostgreSQL() ? 'true' : '1'}
         `;
 
         const result = await dbQuery(sql);
@@ -2182,7 +1975,7 @@ const checkLicenseExpiries = async () => {
                 if (existing.rows.length === 0) {
                     await dbQuery(`
                         INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                        VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)
+                        VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)
                     `, [
                         row.user_id,
                         subject,
@@ -2326,7 +2119,7 @@ if (IS_ENTERPRISE) {
             }
 
             const license = result.rows[0];
-            const isBlocked = isPostgreSQL ? license.is_blocked : (license.is_blocked === 1);
+            const isBlocked = isPostgreSQL() ? license.is_blocked : (license.is_blocked === 1);
 
             // Handle schema diffs (license_keys vs enterprise_keys)
             // license_keys has: key_code, product_code, max_users, client_name
@@ -2352,7 +2145,7 @@ if (IS_ENTERPRISE) {
 
             // Update Activated status
             await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`,
-                [(isPostgreSQL ? true : 1), new Date().toISOString(), dbId]);
+                [(isPostgreSQL() ? true : 1), new Date().toISOString(), dbId]);
 
             console.log("Activation Success for", clientName);
 
@@ -2371,7 +2164,10 @@ if (IS_ENTERPRISE) {
     });
 }
 
-app.use('/api', paymentRoutes);
+// Payment Router Mount (Only for non-Enterprise modes)
+if (!IS_ENTERPRISE) {
+    app.use('/api', require('./payment.js'));
+}
 
 // ACTIVATION & ROUTING LOGIC
 app.get('/activation', (req, res) => {

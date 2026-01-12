@@ -23,6 +23,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const sessionId = urlParams.get("session_id");
   const success = urlParams.get("success");
 
+  // RENEWAL DETECTION (Case 2)
+  const isRenewal = urlParams.get("mode") === "renew";
+  if (isRenewal) {
+      document.body.classList.add('renewal-mode'); // For optional CSS styling
+      // Maybe auto-open a specific plan? Or just let user choose.
+      // User context implies they know they want to extend.
+  }
+
   // Modus entscheiden: Shop anzeigen oder Status prüfen?
   if (sessionId && success) {
     switchToStatusMode(sessionId);
@@ -175,10 +183,17 @@ async function confirmPurchase() {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // CHECK RENEWAL MODE
+    const isRenewal = new URLSearchParams(window.location.search).get("mode") === "renew";
+
     const response = await fetch("/api/create-checkout-session", {
       method: "POST",
       headers: headers,
-      body: JSON.stringify({ product_type: plan, customer_email: email })
+      body: JSON.stringify({
+          product_type: plan,
+          customer_email: email,
+          is_renewal: isRenewal
+      })
     });
 
     const data = await response.json();
