@@ -196,6 +196,9 @@ async function handleSuccessfulPayment(session) {
     const generatedKeys = [];
     let renewalPerformed = false;
 
+    // Fix: Parse user_id to Integer
+    const userIdInt = user_id ? parseInt(user_id) : null;
+
     try {
         console.log('[DB-TRANSACTION-START]');
         await client.query('BEGIN');
@@ -208,11 +211,11 @@ async function handleSuccessfulPayment(session) {
             const newHash = crypto.createHash('sha256').update(newCode).digest('hex');
 
             // Branch A: Logged-In User AND First Key -> Auto-Renew
-            if (user_id && i === 0) {
-                console.log(`[BRANCH A] Auto-Renewing User ${user_id}`);
+            if (userIdInt && i === 0) {
+                console.log(`[BRANCH A] Auto-Renewing User ${userIdInt}`);
 
                 // Fetch User Current State
-                const userRes = await client.query('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [user_id]);
+                const userRes = await client.query('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [userIdInt]);
 
                 if (userRes.rows.length > 0) {
                     const user = userRes.rows[0];
@@ -254,26 +257,20 @@ async function handleSuccessfulPayment(session) {
                     const keyIdRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [newCode]);
                     const newKeyId = keyIdRes.rows[0].id;
 
-                    console.log(`[DB-UPDATE-USERS] Updating User ${user_id} Expiration to ${newExpiresAt}`);
+                    console.log(`[DB-UPDATE-USERS] Updating User ${userIdInt} Expiration to ${newExpiresAt}`);
                     // 3. Update User (Source of Truth) - Prioritized before Payment Insert
                     await client.query(
                         `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
-                        [newKeyId, newExpiresAt, user_id]
+                        [newKeyId, newExpiresAt, userIdInt]
                     );
 
                     // (License Renewals table insert removed to simplify transaction)
 
                     console.log('[USER-EXPIRY-UPDATED]');
                     renewalPerformed = true;
-                    // Note: We do NOT add this key to generatedKeys list for email/display if it's auto-applied?
-                    // "Der zweite Key soll ihm einfach als Code auf dem Bildschirm angezeigt werden." implies the first one is NOT shown or just marked as applied.
-                    // However, email usually sends all. Let's include it but mark it?
-                    // The standard is usually to email everything.
-                    // But for frontend display, we might filter.
-                    // Let's stick to adding it to generatedKeys, frontend logic decides display.
 
                 } else {
-                    console.warn(`[WARN] User ${user_id} not found. Fallback to Guest (Key Generation).`);
+                    console.warn(`[WARN] User ${userIdInt} not found. Fallback to Guest (Key Generation).`);
                     // Fallback: Generate valid unused key
                     const exp = duration === null ? unlimitedDate : addDays(createdAt, duration);
                     await client.query(
@@ -301,7 +298,8 @@ async function handleSuccessfulPayment(session) {
             user_id,
             keys_generated: generatedKeys,
             renewed: renewalPerformed,
-            email: session.customer_details ? session.customer_details.email : null
+            email: session.customer_details ? session.customer_details.email : null,
+            session_id: session.id // Fix: Save Session ID
         };
 
         console.log(`[DB-INSERT-PAYMENT] Recording Payment ${paymentId}`);
@@ -354,13 +352,11 @@ router.get("/order-status", async (req, res) => {
     if (!session_id) return res.status(400).json({ error: "No session_id" });
 
     try {
-        const session = await stripe.checkout.sessions.retrieve(session_id);
-        const paymentIntentId = session.payment_intent;
-
-        // 1. Check Payments Table
+        // Optimized: Check DB First (via Metadata Search)
+        // This avoids Stripe API limits and latency
         const result = await pool.query(
-            'SELECT * FROM payments WHERE payment_id = $1',
-            [paymentIntentId]
+            "SELECT * FROM payments WHERE metadata LIKE '%' || $1 || '%'",
+            [session_id]
         );
 
         if (result.rows.length === 0) {
@@ -397,7 +393,7 @@ router.get("/order-status", async (req, res) => {
             status: 'completed',
             keys: meta.keys_generated || [],
             renewed: !!meta.renewed,
-            customer_email: session.customer_email
+            customer_email: meta.email
         });
 
     } catch (err) {
