@@ -143,8 +143,9 @@ router.post('/create-checkout-session', async (req, res) => {
 /**
  * POST /api/webhook
  * Central Logic Switch
+ * Note: express.raw parsing is handled globally in server.js for /api/webhook
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
 
@@ -175,7 +176,7 @@ async function handleCheckoutCompleted(session) {
     try {
         // --- 1. EXTRACT DATA ---
         const meta = session.metadata || {};
-        const userId = session.client_reference_id ? parseInt(session.client_reference_id) : null;
+        const userId = session.client_reference_id ? parseInt(session.client_reference_id, 10) : null;
         const isRenewal = meta.is_renewal === 'true';
         const productType = meta.product_type || 'unknown';
         const product = PRICES[productType];
@@ -244,6 +245,7 @@ async function handleCheckoutCompleted(session) {
 
             // Commit here for Renewal
             await client.query('COMMIT');
+            console.log(`[SUCCESS] DB updated for User ${userId}`);
 
             // Send Email
             await sendRenewalConfirmation(customerEmail, newExpiry ? new Date(newExpiry).toLocaleDateString('de-DE') : 'Unbegrenzt', user.username);
@@ -275,6 +277,7 @@ async function handleCheckoutCompleted(session) {
             await client.query('UPDATE payments SET metadata = $1 WHERE payment_id = $2', [updatedMeta, session.id]);
 
             await client.query('COMMIT');
+            console.log(`[SUCCESS] Keys generated for User ${userId || 'Guest'}`);
 
             // Send Email
             await sendLicenseEmail(customerEmail, keysGenerated, product.name);
@@ -305,7 +308,11 @@ router.get('/order-status', async (req, res) => {
         if (payRes.rows.length === 0) return res.json({ status: 'pending' }); // Not yet hooked
 
         const payment = payRes.rows[0];
-        if (payment.status !== 'completed') return res.json({ status: payment.status });
+
+        // Ensure "processing" is returned if exists but not completed
+        if (payment.status !== 'completed') {
+             return res.json({ status: payment.status || 'processing' });
+        }
 
         const meta = JSON.parse(payment.metadata || '{}');
         const isRenewal = meta.is_renewal === 'true';

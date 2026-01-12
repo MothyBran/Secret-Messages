@@ -293,7 +293,7 @@ async function pollPaymentStatus(sessionId) {
 
         return; // Polling beenden
 
-      } else if (data.status === 'processing' || data.status === 'processing_user_sync' || !data.status) {
+      } else if (data.status === 'processing' || data.status === 'pending' || data.status === 'processing_user_sync' || !data.status) {
         // --- NOCH WARTEN (Inklusive User Sync Wait) ---
         if (attempts < maxAttempts) {
            setTimeout(check, 2000); // Weiter warten
