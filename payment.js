@@ -307,14 +307,14 @@ async function handleSuccessfulPayment(session) {
         console.log(`[DB-INSERT-PAYMENT] Recording Payment ${paymentId}`);
         await client.query(
             `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)`,
             [
                 paymentId,
                 session.amount_total,
                 session.currency,
                 'succeeded', // STRICT STATUS
                 'stripe',
-                createdAt, // completed_at
+                // completed_at handled by DB
                 JSON.stringify(metadataForRecord)
             ]
         );
@@ -357,70 +357,48 @@ router.get("/order-status", async (req, res) => {
         const session = await stripe.checkout.sessions.retrieve(session_id);
         const paymentIntentId = session.payment_intent;
 
+        // 1. Check Payments Table
         const result = await pool.query(
-            'SELECT metadata, completed_at, status FROM payments WHERE payment_id = $1',
+            'SELECT * FROM payments WHERE payment_id = $1',
             [paymentIntentId]
         );
 
-        if (result.rows.length > 0) {
-            const row = result.rows[0];
-            const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
-
-            // Branch A Check (User Renewal)
-            if (meta.user_id && meta.renewed) {
-                // Verify DB Persistence
-                const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [meta.user_id]);
-                if (uRes.rows.length > 0) {
-                    const userExp = uRes.rows[0].license_expiration ? new Date(uRes.rows[0].license_expiration) : null;
-                    const payTime = new Date(row.completed_at);
-
-                    // Check if Expiration is FUTURE compared to payment time
-                    // (Simple check: is expiry > payment time? Or is it just "not null"?)
-                    // If unlimited (2099), it is > payTime.
-
-                    if (!userExp || userExp <= payTime) {
-                        // DB not yet updated or replication lag?
-                        // Actually, transaction committed before writing to payments table.
-                        // But let's be safe.
-                        // If userExp is 2099, it's definitely > payTime.
-                        // If userExp is +1 month, it's > payTime.
-                        // If userExp is OLD (expired), it's < payTime.
-
-                        // Edge case: If user bought license, but it expired 1ms later? Unlikely.
-                        // Wait. If user had valid license expiring in 2026.
-                        // They buy extension -> 2027. 2027 > payTime.
-                        // If user had expired license (2020).
-                        // They buy extension -> 2020 + 1 month? No, MAX(NOW, OLD). So NOW + 1 month.
-                        // So Expiry will always be > Payment Time.
-
-                        // Condition:
-                        if (!userExp || userExp <= payTime) {
-                             // "Hanging Screen Fix" -> Wait
-                             return res.json({ success: true, status: 'processing_user_sync' });
-                        }
-                    }
-                }
-            }
-
-            // SUCCESS CONDITION: Row exists and status is 'succeeded' or 'completed' (for backward compat)
-            const isSuccess = row.status === 'succeeded' || row.status === 'completed';
-
-            if (isSuccess) {
-                return res.json({
-                    success: true,
-                    status: 'completed',
-                    keys: meta.keys_generated || [],
-                    renewed: !!meta.renewed,
-                    customer_email: session.customer_email
-                });
-            } else {
-                return res.json({ success: true, status: 'processing' });
-            }
-
-        } else {
-            console.warn('[ORDER-STATUS] Payment Not Found in DB:', paymentIntentId);
+        if (result.rows.length === 0) {
             return res.json({ success: true, status: 'processing' });
         }
+
+        const row = result.rows[0];
+        const isSuccess = row.status === 'succeeded' || row.status === 'completed';
+
+        if (!isSuccess) {
+            return res.json({ success: true, status: 'processing' });
+        }
+
+        // 2. Parse Metadata
+        const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+
+        // 3. User Sync Check (Double Safety for Logged-In Users)
+        if (meta.user_id && meta.renewed) {
+             const uRes = await pool.query('SELECT license_expiration FROM users WHERE id = $1', [meta.user_id]);
+             if (uRes.rows.length > 0) {
+                 const userExp = uRes.rows[0].license_expiration ? new Date(uRes.rows[0].license_expiration) : null;
+                 const payTime = new Date(row.completed_at);
+
+                 // Double Safety: Expiration must be NEWER than the payment time.
+                 if (!userExp || userExp <= payTime) {
+                     return res.json({ success: true, status: 'processing_user_sync' });
+                 }
+             }
+        }
+
+        // 4. Success
+        return res.json({
+            success: true,
+            status: 'completed',
+            keys: meta.keys_generated || [],
+            renewed: !!meta.renewed,
+            customer_email: session.customer_email
+        });
 
     } catch (err) {
         console.error("Order Status Error:", err);
