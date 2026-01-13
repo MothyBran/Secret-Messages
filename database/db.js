@@ -42,6 +42,47 @@ async function createTables() {
             currency TEXT,
             metadata JSONB,
             completed_at TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            recipient_id INTEGER,
+            subject TEXT,
+            body TEXT,
+            type TEXT,
+            is_read BOOLEAN DEFAULT FALSE,
+            ticket_id TEXT,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS support_tickets (
+            id SERIAL PRIMARY KEY,
+            ticket_id TEXT UNIQUE,
+            username TEXT,
+            email TEXT,
+            subject TEXT,
+            message TEXT,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS license_renewals (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            extended_until TIMESTAMP,
+            used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            key_code_hash TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS settings (
+            key TEXT UNIQUE,
+            value TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS analytics_events (
+            id SERIAL PRIMARY KEY,
+            event_type TEXT,
+            source TEXT,
+            anonymized_ip TEXT,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`
     ];
 

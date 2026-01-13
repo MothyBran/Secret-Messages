@@ -41,6 +41,7 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 const app = express();
 
 // MUSS GANZ OBEN STEHEN:
+// Stripe Webhook Middleware (Raw Body required for signature verification)
 app.use('/api/webhook', express.raw({ type: 'application/json' }));
 
 // DEBUG: Webhook Logger

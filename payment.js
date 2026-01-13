@@ -215,7 +215,9 @@ async function handleCheckoutCompleted(session) {
             ${isPostgreSQL() ? 'RETURNING id' : ''}
         `;
         // Metadata needs to include user_id if present for analytics
-        const finalMeta = JSON.stringify({ ...meta, user_id: userId, email: customerEmail });
+        const metaObj = { ...meta, user_id: userId, email: customerEmail };
+        // FIX: PostgreSQL supports JSONB objects directly, SQLite needs a string
+        const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
         const now = new Date().toISOString();
 
         await client.query(paymentSql, [session.id, paymentAmount, now, finalMeta]);
@@ -290,7 +292,10 @@ async function handleCheckoutCompleted(session) {
             // Or easier: Just return them in the polling endpoint by querying license_keys created recently?
             // Safer: Store them in a temporary "order" table or update the payment metadata.
             // Let's update the payment metadata.
-            const updatedMeta = JSON.stringify({ ...meta, user_id: userId, email: customerEmail, generated_keys: keysGenerated });
+            const updMetaObj = { ...meta, user_id: userId, email: customerEmail, generated_keys: keysGenerated };
+            // FIX: PostgreSQL supports JSONB objects directly, SQLite needs a string
+            const updatedMeta = isPostgreSQL() ? updMetaObj : JSON.stringify(updMetaObj);
+
             await client.query('UPDATE payments SET metadata = $1 WHERE payment_id = $2', [updatedMeta, session.id]);
 
             console.log('Webhook Step 3: DB Updates finished');
@@ -352,7 +357,7 @@ router.get('/order-status', async (req, res) => {
         return res.json({ 
             success: true, 
             status: 'completed', 
-            renewed: isRenewal,
+            renewed: !!isRenewal, // Ensure strict boolean for frontend
             keys: meta.generated_keys || []
         });
 
