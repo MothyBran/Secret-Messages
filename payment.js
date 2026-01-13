@@ -211,6 +211,7 @@ async function handleCheckoutCompleted(session) {
         // --- 1. EXTRACT DATA ---
         const meta = session.metadata || {};
         const userId = session.client_reference_id ? parseInt(session.client_reference_id, 10) : null;
+        // Explicitly convert boolean string from Stripe metadata
         const isRenewal = meta.is_renewal === 'true';
         const productType = meta.product_type || 'unknown';
         const product = PRICES[productType];
@@ -220,8 +221,8 @@ async function handleCheckoutCompleted(session) {
         // Safety check on product config
         if (!product) throw new Error("Unknown Product Config in Webhook");
 
-        const count = parseInt(meta.keys_count) || 1;
-        const months = parseInt(meta.duration_months) || 0;
+        const count = parseInt(meta.keys_count, 10) || 1;
+        const months = parseInt(meta.duration_months, 10) || 0;
         const customerEmail = session.customer_details?.email || session.customer_email;
         const paymentAmount = session.amount_total; // in cents
 
