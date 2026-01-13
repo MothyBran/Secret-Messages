@@ -331,15 +331,28 @@ router.get('/order-status', async (req, res) => {
         }
 
         const payment = payRes.rows[0];
-        if (payment.status !== 'completed' && payment.status !== 'succeeded') {
+        // Prüfe auf Erfolg
+        const isFinished = payment.status === 'completed' || payment.status === 'succeeded';
+
+        if (!isFinished) {
              return res.json({ status: 'processing' });
         }
 
-        const meta = JSON.parse(payment.metadata || '{}');
+        // SICHERES PARSING: Erkennt, ob metadata schon ein Objekt ist oder noch Text
+        let meta = {};
+        try {
+            meta = (typeof payment.metadata === 'string') ? JSON.parse(payment.metadata) : (payment.metadata || {});
+        } catch (e) {
+            console.error("Metadata Parse Error:", e);
+        }
+
+        // SICHERER VERGLEICH: Erkennt 'true' als Text UND als echten Boolean
+        const isRenewal = meta.is_renewal === true || meta.is_renewal === 'true';
+
         return res.json({ 
             success: true, 
             status: 'completed', 
-            renewed: meta.is_renewal === 'true',
+            renewed: isRenewal,
             keys: meta.generated_keys || []
         });
 
@@ -347,7 +360,7 @@ router.get('/order-status', async (req, res) => {
         console.error("Polling Error:", e);
         res.status(500).json({ error: "Server Error" });
     } finally {
-        if (client) client.release(); // WICHTIG: Verbindung wieder freigeben!
+        if (client) client.release(); // WICHTIG: Gibt die Verbindung sofort frei
     }
 });
 
