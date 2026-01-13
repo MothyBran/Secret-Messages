@@ -201,7 +201,7 @@ async function handleCheckoutCompleted(session) {
         const paymentSql = `
             INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
             VALUES ($1, $2, 'eur', 'completed', 'stripe', $3, $4)
-            ${isPostgreSQL ? 'RETURNING id' : ''}
+            ${isPostgreSQL() ? 'RETURNING id' : ''}
         `;
         // Metadata needs to include user_id if present for analytics
         const finalMeta = JSON.stringify({ ...meta, user_id: userId, email: customerEmail });
@@ -242,7 +242,7 @@ async function handleCheckoutCompleted(session) {
             const msgSubject = "Lizenz verlängert";
             const msgBody = `Vielen Dank! Ihre Lizenz wurde erfolgreich verlängert bis: ${newExpiry ? new Date(newExpiry).toLocaleDateString('de-DE') : 'Unbegrenzt'}.`;
             await client.query(
-                `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL ? 'false' : '0'}, $4)`,
+                `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
                 [userId, msgSubject, msgBody, now]
             );
 
@@ -268,7 +268,7 @@ async function handleCheckoutCompleted(session) {
                 const origin = userId ? 'shop_addon' : 'shop_guest';
 
                 await client.query(
-                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin, created_at) VALUES ($1, $2, $3, ${isPostgreSQL ? 'false' : '0'}, $4, $5)`,
+                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin, created_at) VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, $4, $5)`,
                     [keyRaw, keyHash, productType, origin, now]
                 );
                 keysGenerated.push(keyRaw);
@@ -309,37 +309,34 @@ router.get('/order-status', async (req, res) => {
     const { session_id } = req.query;
     if (!session_id) return res.status(400).json({ error: "Missing Session ID" });
 
+    let client;
     try {
-        const client = await getTransactionClient(); // Just need query
+        client = await getTransactionClient(); 
 
-        // 1. Check Payment Status
-        const payRes = await client.query('SELECT status, metadata, completed_at FROM payments WHERE payment_id = $1', [session_id]);
-        if (payRes.rows.length === 0) return res.json({ status: 'pending' }); // Not yet hooked
+        const payRes = await client.query('SELECT status, metadata FROM payments WHERE payment_id = $1', [session_id]);
+        
+        if (payRes.rows.length === 0) {
+            return res.json({ status: 'pending' });
+        }
 
         const payment = payRes.rows[0];
-
-        // Ensure "processing" is returned if exists but not completed
         if (payment.status !== 'completed' && payment.status !== 'succeeded') {
-             return res.json({ status: payment.status || 'processing' });
+             return res.json({ status: 'processing' });
         }
 
         const meta = JSON.parse(payment.metadata || '{}');
-        const isRenewal = meta.is_renewal === 'true';
-        const userId = meta.user_id;
-
-        // 2. Simplified Verification Logic (Atomic Trust)
-        if (isRenewal && userId) {
-            // We trust the transaction has committed if status is completed/succeeded
-            return res.json({ success: true, status: 'completed', renewed: true });
-        } else {
-            // Return Keys
-            const keys = meta.generated_keys || [];
-            return res.json({ success: true, status: 'completed', keys: keys, renewed: false });
-        }
+        return res.json({ 
+            success: true, 
+            status: 'completed', 
+            renewed: meta.is_renewal === 'true',
+            keys: meta.generated_keys || []
+        });
 
     } catch (e) {
         console.error("Polling Error:", e);
         res.status(500).json({ error: "Server Error" });
+    } finally {
+        if (client) client.release(); // WICHTIG: Verbindung wieder freigeben!
     }
 });
 
