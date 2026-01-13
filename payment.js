@@ -146,19 +146,30 @@ router.post('/create-checkout-session', async (req, res) => {
  * Note: express.raw parsing is handled globally in server.js for /api/webhook
  */
 router.post('/webhook', async (req, res) => {
+    console.log(">>> STRIPE WEBHOOK HIT <<<");
     const sig = req.headers['stripe-signature'];
     let event;
 
     try {
+        // Hier passiert oft der Fehler:
         event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        console.log("✅ Webhook-Signatur verifiziert! Typ:", event.type);
     } catch (err) {
-        console.error(`Webhook Error: ${err.message}`);
+        // Wenn das im Railway-Log erscheint, ist der Raw-Body oder das Secret falsch!
+        console.error(`❌ Webhook Signature Error: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        await handleCheckoutCompleted(session);
+        try {
+            console.log("🔄 Starte handleCheckoutCompleted...");
+            await handleCheckoutCompleted(event.data.object);
+            console.log("✅ handleCheckoutCompleted erfolgreich abgeschlossen!");
+        } catch (err) {
+            console.error("❌ Fehler bei handleCheckoutCompleted:", err);
+            // Wir senden trotzdem 200, damit Stripe nicht ständig wiederholt, 
+            // aber wir sehen den Fehler im Log.
+        }
     }
 
     res.json({ received: true });
