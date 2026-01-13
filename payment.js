@@ -160,16 +160,39 @@ router.post('/webhook', async (req, res) => {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    if (event.type === 'checkout.session.completed') {
-        try {
-            console.log("🔄 Starte handleCheckoutCompleted...");
-            await handleCheckoutCompleted(event.data.object);
-            console.log("✅ handleCheckoutCompleted erfolgreich abgeschlossen!");
-        } catch (err) {
-            console.error("❌ Fehler bei handleCheckoutCompleted:", err);
-            // Wir senden trotzdem 200, damit Stripe nicht ständig wiederholt, 
-            // aber wir sehen den Fehler im Log.
-        }
+    switch (event.type) {
+        case 'checkout.session.completed':
+            const session = event.data.object;
+            console.log(`🎯 Checkout Session beendet: ${session.id}`);
+            try {
+                await handleCheckoutCompleted(session);
+            } catch (err) {
+                console.error("❌ Fehler bei handleCheckoutCompleted:", err);
+            }
+            break;
+
+        case 'payment_intent.succeeded':
+            console.log(`💰 PaymentIntent erfolgreich: ${event.data.object.id}`);
+            break;
+
+        case 'payment_intent.payment_failed':
+            const failedIntent = event.data.object;
+            console.error(`❌ Zahlung fehlgeschlagen: ${failedIntent.last_payment_error?.message}`);
+            // Optional: DB-Update auf 'failed'
+            try {
+                await dbQuery("UPDATE payments SET status = 'failed' WHERE payment_id = $1", [failedIntent.id]);
+            } catch(e) { console.error("DB Error on fail update:", e); }
+            break;
+
+        case 'checkout.session.expired':
+            console.warn(`🕒 Checkout abgelaufen: ${event.data.object.id}`);
+            try {
+                await dbQuery("UPDATE payments SET status = 'expired' WHERE payment_id = $1", [event.data.object.id]);
+            } catch(e) { console.error("DB Error on expire update:", e); }
+            break;
+
+        default:
+            console.log(`ℹ️ Unbehandeltes Event: ${event.type}`);
     }
 
     res.json({ received: true });
@@ -207,19 +230,23 @@ async function handleCheckoutCompleted(session) {
         await client.query('BEGIN');
         console.log('Webhook Step 2: Transaction started');
 
-        // --- 3. LOG PAYMENT ---
-        // We log first to have a record.
-        const paymentSql = `
-            INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-            VALUES ($1, $2, 'eur', 'completed', 'stripe', $3, $4)
-            ${isPostgreSQL() ? 'RETURNING id' : ''}
-        `;
-        // Metadata needs to include user_id if present for analytics
-        const metaObj = { ...meta, user_id: userId, email: customerEmail };
-        // FIX: PostgreSQL supports JSONB objects directly, SQLite needs a string
+        // --- 3. LOG PAYMENT (IMMEDIATELY) ---
+        // We write 'processing' status first so polling finds the record immediately.
+        // Also ensure strict boolean conversion for is_renewal in metadata.
+        const metaObj = {
+            ...meta,
+            user_id: userId,
+            email: customerEmail,
+            is_renewal: !!isRenewal // Force boolean
+        };
         const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
         const now = new Date().toISOString();
 
+        const paymentSql = `
+            INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
+            VALUES ($1, $2, 'eur', 'processing', 'stripe', $3, $4)
+            ${isPostgreSQL() ? 'RETURNING id' : ''}
+        `;
         await client.query(paymentSql, [session.id, paymentAmount, now, finalMeta]);
 
         // --- 4. LOGIC SWITCH ---
@@ -259,6 +286,9 @@ async function handleCheckoutCompleted(session) {
                 [userId, msgSubject, msgBody, now]
             );
 
+            // Update Status to Completed
+            await client.query("UPDATE payments SET status = 'completed' WHERE payment_id = $1", [session.id]);
+
             console.log('Webhook Step 3: DB Updates finished');
 
             // Commit here for Renewal
@@ -292,11 +322,18 @@ async function handleCheckoutCompleted(session) {
             // Or easier: Just return them in the polling endpoint by querying license_keys created recently?
             // Safer: Store them in a temporary "order" table or update the payment metadata.
             // Let's update the payment metadata.
-            const updMetaObj = { ...meta, user_id: userId, email: customerEmail, generated_keys: keysGenerated };
+            const updMetaObj = {
+                ...meta,
+                user_id: userId,
+                email: customerEmail,
+                generated_keys: keysGenerated,
+                is_renewal: !!isRenewal
+            };
             // FIX: PostgreSQL supports JSONB objects directly, SQLite needs a string
             const updatedMeta = isPostgreSQL() ? updMetaObj : JSON.stringify(updMetaObj);
 
-            await client.query('UPDATE payments SET metadata = $1 WHERE payment_id = $2', [updatedMeta, session.id]);
+            // Update metadata AND status to 'completed'
+            await client.query("UPDATE payments SET metadata = $1, status = 'completed' WHERE payment_id = $2", [updatedMeta, session.id]);
 
             console.log('Webhook Step 3: DB Updates finished');
 
