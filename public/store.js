@@ -246,7 +246,7 @@ async function pollPaymentStatus(sessionId) {
       const res = await fetch(`/api/order-status?session_id=${sessionId}`);
       const data = await res.json();
 
-      if (data.success && data.status === 'completed') {
+      if (data.success && (data.status === 'completed' || data.status === 'succeeded')) {
         // --- ERFOLG ---
         processingDiv.style.display = "none";
         successDiv.style.display = "block";
@@ -314,8 +314,8 @@ async function pollPaymentStatus(sessionId) {
     }
   };
 
-  // Start
-  check();
+  // Start with delay to allow webhook to catch up
+  setTimeout(() => check(), 1500);
 }
 
 // 3. Copy-Funktion (Global verfügbar machen für onclick im HTML)
