@@ -130,33 +130,81 @@ async function handleSuccessfulPayment(session) {
         const months = parseInt(meta.duration_months) || 0;
         const keysGenerated = [];
         const now = new Date().toISOString();
+        const userEmail = session.customer_details?.email;
+        const productType = meta.product_type || "Lizenz";
 
-        if (userId && isRenewal) {
-            // --- LOGIK FÜR VERLÄNGERUNG ---
-            const userRes = await client.query('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
-            
-            if (userRes.rows.length > 0) {
-                const currentExpiry = userRes.rows[0].license_expiration;
-                // Berechne neues Datum (Master-Formel: Max(Now, Expiry) + Monate)
-                const newExpiry = calculateNewExpiration(currentExpiry, months);
+        if (userId) {
+            // --- EINGELOGGT ---
+            if (isRenewal) {
+                // --- FALL 2 (RENEWAL) ---
+                const userRes = await client.query('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
 
-                // User-Tabelle aktualisieren
+                if (userRes.rows.length > 0) {
+                    const currentExpiry = userRes.rows[0].license_expiration;
+                    const username = userRes.rows[0].username;
+                    // Berechne neues Datum (Master-Formel: Max(Now, Expiry) + Monate)
+                    const newExpiry = calculateNewExpiration(currentExpiry, months);
+
+                    // 1. User Update
+                    await client.query(
+                        'UPDATE users SET license_expiration = $1 WHERE id = $2',
+                        [newExpiry, userId]
+                    );
+
+                    // 2. Renewal Log (Mit STRIPE_RENEWAL Marker)
+                    await client.query(
+                        'INSERT INTO license_renewals (user_id, extended_until, used_at, key_code_hash) VALUES ($1, $2, $3, $4)',
+                        [userId, newExpiry, now, 'STRIPE_RENEWAL']
+                    );
+
+                    // 3. Interne Nachricht
+                    const msgSubject = "✅ Lizenz verlängert";
+                    const msgBody = `Deine Lizenz wurde erfolgreich bis zum ${new Date(newExpiry).toLocaleDateString('de-DE')} verlängert.`;
+
+                    await client.query(
+                        `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                         VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, NOW())`,
+                        [userId, msgSubject, msgBody]
+                    );
+
+                    // 4. E-Mail Senden (Trotz interner Nachricht)
+                    mailer.sendRenewalConfirmation(userEmail, new Date(newExpiry).toLocaleDateString('de-DE'), username).catch(console.error);
+
+                    console.log(`✅ User ${userId} verlängert bis: ${newExpiry || 'Lifetime'}`);
+                }
+            } else {
+                // --- FALL 2/3 (AKTIV ABER NEUER KEY) ---
+                const keyExpiry = calculateNewExpiration(null, months);
+
+                for(let i=0; i<count; i++) {
+                    const key = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+                    const hash = crypto.createHash('sha256').update(key).digest('hex');
+
+                    await client.query(
+                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at)
+                         VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, NOW(), $4)`,
+                        [key, hash, meta.product_type, keyExpiry]
+                    );
+                    keysGenerated.push(key);
+                }
+
+                // Interne Nachricht mit Keys
+                const msgSubject = "🔑 Neuer Key erworben";
+                const msgBody = `Du hast einen neuen Key erworben: ${keysGenerated.join(', ')}`;
+
                 await client.query(
-                    'UPDATE users SET license_expiration = $1 WHERE id = $2', 
-                    [newExpiry, userId]
+                    `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, NOW())`,
+                    [userId, msgSubject, msgBody]
                 );
 
-                // Optional: In license_renewals loggen, falls Tabelle existiert
-                await client.query(
-                    'INSERT INTO license_renewals (user_id, extended_until, used_at) VALUES ($1, $2, $3)',
-                    [userId, newExpiry, now]
-                );
+                // E-Mail Senden
+                mailer.sendLicenseEmail(userEmail, keysGenerated, productType).catch(console.error);
 
-                console.log(`✅ User ${userId} verlängert bis: ${newExpiry || 'Lifetime'}`);
+                console.log(`✅ ${keysGenerated.length} neue Keys für User ${userId} generiert.`);
             }
         } else {
-            // --- NEUE KEYS GENERIEREN ---
-            // Berechne Ablaufdatum für die neuen Keys (startet immer ab "jetzt")
+            // --- FALL 1 (GAST) ---
             const keyExpiry = calculateNewExpiration(null, months);
 
             for(let i=0; i<count; i++) {
@@ -170,7 +218,10 @@ async function handleSuccessfulPayment(session) {
                 );
                 keysGenerated.push(key);
             }
-            console.log(`✅ ${keysGenerated.length} neue Keys generiert.`);
+
+            // Nur E-Mail Senden (Kein User -> Keine interne Nachricht)
+            mailer.sendLicenseEmail(userEmail, keysGenerated, productType).catch(console.error);
+            console.log(`✅ ${keysGenerated.length} neue Keys für Gast generiert.`);
         }
 
         // --- FINALES UPDATE DES ZAHLUNGSSTATUS ---
