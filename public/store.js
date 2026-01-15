@@ -246,7 +246,19 @@ async function pollPaymentStatus(sessionId) {
       const res = await fetch(`/api/order-status?session_id=${sessionId}&t=${Date.now()}`);
       const data = await res.json();
 
-      if (data.success && (data.status === 'completed' || data.status === 'succeeded')) {
+      // Granulares Feedback (succeeded, aber noch keine Keys)
+      if (data.status === 'succeeded') {
+          // Nur Text aktualisieren, nicht abbrechen!
+          const loadingText = document.querySelector("#status-processing p");
+          if(loadingText) loadingText.textContent = data.message || "Zahlung bestätigt, erstelle Zugang...";
+
+          if (attempts < maxAttempts) {
+             setTimeout(check, 1000); // Schnelleres Polling jetzt
+             return;
+          }
+      }
+
+      if (data.success && data.status === 'completed') {
         // --- ERFOLG ---
         processingDiv.style.display = "none";
         successDiv.style.display = "block";

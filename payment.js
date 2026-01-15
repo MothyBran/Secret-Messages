@@ -145,9 +145,9 @@ router.post('/create-checkout-session', async (req, res) => {
             const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
 
             await client.query(
-                `INSERT INTO payments (payment_id, payment_intent_id, amount, currency, status, payment_method, completed_at, metadata)
-                 VALUES ($1, $2, $3, 'eur', 'pending', 'stripe', $4, $5)`,
-                [session.id, session.payment_intent, product.price, null, finalMeta]
+                `INSERT INTO payments (payment_id, payment_intent_id, status, amount, currency, payment_method, metadata)
+                 VALUES ($1, $2, 'pending', $3, 'eur', 'stripe', $4)`,
+                [session.id, session.payment_intent, product.price, finalMeta]
             );
         } catch(e) {
             console.warn("Early Record Insert Failed:", e.message);
@@ -197,8 +197,11 @@ router.post('/webhook', async (req, res) => {
         case 'payment_intent.succeeded':
             console.log(`💰 PaymentIntent erfolgreich: ${event.data.object.id}`);
             try {
-                // Update status if we have the record via Early Record
-                await dbQuery("UPDATE payments SET status = 'succeeded' WHERE payment_intent_id = $1", [event.data.object.id]);
+                // Granulares Update: Frontend soll sehen "Zahlung da, erstelle Zugang..."
+                await dbQuery(
+                    "UPDATE payments SET status = 'succeeded' WHERE payment_intent_id = $1",
+                    [event.data.object.id]
+                );
             } catch(e) { console.error("DB Error on PI update:", e); }
             break;
 
@@ -415,8 +418,18 @@ router.get('/order-status', async (req, res) => {
         }
 
         const payment = payRes.rows[0];
-        // Prüfe auf Erfolg
-        const isFinished = payment.status === 'completed' || payment.status === 'succeeded';
+
+        // Granulares Feedback
+        if (payment.status === 'succeeded') {
+            return res.json({
+                success: false,
+                status: 'succeeded',
+                message: 'Zahlung bestätigt, erstelle Zugang...'
+            });
+        }
+
+        // Prüfe auf echten Abschluss (completed = Keys generiert)
+        const isFinished = payment.status === 'completed';
 
         if (!isFinished) {
              return res.json({ status: 'processing' });
