@@ -246,18 +246,6 @@ async function pollPaymentStatus(sessionId) {
       const res = await fetch(`/api/order-status?session_id=${sessionId}&t=${Date.now()}`);
       const data = await res.json();
 
-      // Granulares Feedback (succeeded, aber noch keine Keys)
-      if (data.status === 'succeeded') {
-          // Nur Text aktualisieren, nicht abbrechen!
-          const loadingText = document.querySelector("#status-processing p");
-          if(loadingText) loadingText.textContent = data.message || "Zahlung bestätigt, erstelle Zugang...";
-
-          if (attempts < maxAttempts) {
-             setTimeout(check, 1000); // Schnelleres Polling jetzt
-             return;
-          }
-      }
-
       if (data.success && data.status === 'completed') {
         // --- ERFOLG ---
         processingDiv.style.display = "none";
@@ -305,8 +293,14 @@ async function pollPaymentStatus(sessionId) {
 
         return; // Polling beenden
 
-      } else if (data.status === 'processing' || data.status === 'pending' || data.status === 'processing_user_sync' || !data.status) {
-        // --- NOCH WARTEN (Inklusive User Sync Wait) ---
+      } else if (['pending', 'processing', 'succeeded', 'processing_user_sync'].includes(data.status) || !data.status) {
+        // Granulares Update im UI (falls succeeded)
+        if (data.status === 'succeeded' && data.message) {
+             const loadingText = document.querySelector("#status-processing p");
+             if(loadingText) loadingText.textContent = data.message;
+        }
+
+        // --- NOCH WARTEN ---
         if (attempts < maxAttempts) {
            setTimeout(check, 2000); // Weiter warten
         } else {
