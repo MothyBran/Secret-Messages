@@ -30,7 +30,6 @@ if (IS_ENTERPRISE) {
     console.log("🏢 ENTERPRISE MODE ACTIVE");
     enterpriseManager = require('./enterprise/manager');
     socketServer = require('./enterprise/socketServer');
-    // Init will be called in startServer
 }
 
 // MOCK CLOUD SERVICES IF ENTERPRISE
@@ -40,57 +39,41 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 
 const app = express();
 
+// ==================================================================
+// 1. MIDDLEWARE
+// ==================================================================
+
 // MUSS GANZ OBEN STEHEN:
 // Stripe Webhook Middleware (Raw Body required for signature verification)
 app.use('/api/webhook', express.raw({ type: 'application/json' }));
 
-// DEBUG: Webhook Logger
-app.use('/api/webhook', (req, res, next) => {
-    console.log('>>> STRIPE WEBHOOK HIT <<<');
-    next();
-});
 // Cloud-Security: Trust Proxy für korrekte Erkennung von SSL und IPs hinter Load Balancern (Railway)
 app.set('trust proxy', 1);
-
-// ==================================================================
-// 1. MIDDLEWARE
-// ==================================================================
 
 // ERST DANACH (für alle anderen Routen):
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// HTTPS Redirect Middleware (Optimized for Railway & Enterprise Localhost)
+// HTTPS Redirect Middleware
 app.use((req, res, next) => {
-    // 1. Skip localhost (Development & Enterprise Local Mode)
     if (req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
-
-    // 2. Determine Protocol via X-Forwarded-Proto (Standard for Proxies/Railway)
     const isHttps = req.headers['x-forwarded-proto'] === 'https';
     const isRoot = req.hostname === 'secure-msg.app';
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // 3. Cloud Production Logic: Force HTTPS
-    // Only apply strict HTTPS enforcement if we are in Production AND NOT in Enterprise Mode
-    // (Although req.hostname check above already catches most Enterprise/Local cases, this is extra safety)
     if (isProduction && !IS_ENTERPRISE) {
         if (!isHttps) {
              return res.redirect(301, `https://${req.headers.host}${req.url}`);
         }
     }
-
-    // 4. Canonical Redirect (Root -> WWW)
-    // Only applies if we are hitting the naked domain
     if (isRoot) {
         return res.redirect(301, `https://www.secure-msg.app${req.url}`);
     }
-
     next();
 });
 
 // MAINTENANCE MODE MIDDLEWARE
 app.use(async (req, res, next) => {
-    // 1. Exclude Admin, Auth, API (except specific checks if needed), and Static Files
     if (req.path.startsWith('/admin') ||
         req.path.startsWith('/api/admin') ||
         req.path.startsWith('/api/auth/login') ||
@@ -98,25 +81,19 @@ app.use(async (req, res, next) => {
         req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$/)) {
         return next();
     }
-
     try {
-        if (!dbQuery) return next(); // Database not ready
-
+        if (!dbQuery) return next();
         const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
         const isMaintenance = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
-
         if (isMaintenance) {
-            // Check if it's an API request -> return 503
             if (req.path.startsWith('/api')) {
                 return res.status(503).json({ error: 'MAINTENANCE_MODE' });
             }
-            // Otherwise redirect to maintenance page
             return res.redirect('/maintenance');
         }
     } catch (e) {
         console.error("Maintenance Check Error:", e);
     }
-
     next();
 });
 
@@ -134,7 +111,6 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"]
     }
   },
-  // HSTS Config: Force browsers to remember HTTPS for 1 year
   strictTransportSecurity: {
       maxAge: 31536000,
       includeSubDomains: true,
@@ -160,78 +136,54 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
-// Helper: Parse potential German date strings (DD.MM.YYYY) to ISO Date objects
 function parseDbDate(dateStr) {
     if (!dateStr) return null;
-    // Check if it's a string looking like DD.MM.YYYY
     if (typeof dateStr === 'string' && dateStr.includes('.')) {
         const parts = dateStr.split('.');
         if (parts.length >= 3) {
             const d = parts[0];
             const m = parts[1];
             let y = parts[2];
-
-            // Clean year (remove time if present)
             if (y.includes(' ')) y = y.split(' ')[0];
-
-            // Basic sanity check: Year should be 4 digits
             if (y.length === 4) {
                 return new Date(`${y}-${m}-${d}`);
             }
         }
     }
-    // Fallback: Standard Date constructor (handles ISO strings, timestamps, Date objects)
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? null : d;
 }
 
-/**
- * Calculates the new expiration date based on the new Master Formula:
- * New_Expiry = MAX(CURRENT_TIMESTAMP, license_expiration) + Key_Duration
- */
 function calculateNewExpiration(currentExpirationStr, extensionMonths) {
-    if (!extensionMonths || extensionMonths <= 0) return null; // Logic error handling
-
-    // 1. Determine Base Date: MAX(Now, CurrentExpiry)
+    if (!extensionMonths || extensionMonths <= 0) return null;
     let baseDate = new Date();
     const currentExpiry = parseDbDate(currentExpirationStr);
-
     if (currentExpiry && currentExpiry > baseDate) {
         baseDate = currentExpiry;
     }
-
-    // 2. Add Duration
-    // Using strict Date manipulation to avoid reference issues
     const newDate = new Date(baseDate.getTime());
     newDate.setMonth(newDate.getMonth() + extensionMonths);
-
     return newDate.toISOString();
 }
 
 // ==================================================================
 // 2. DATABASE SETUP
 // ==================================================================
-
-// Moved to database/db.js. Initialized below.
 initializeDatabase();
-
 
 // ==================================================================
 // 2.1 ANALYTICS HELPERS
 // ==================================================================
 const anonymizeIp = (ip) => {
     if (!ip) return '0.0.0.0';
-    // Cleanup ::ffff: prefix if present
     if (ip.startsWith('::ffff:')) ip = ip.substring(7);
-
-    if (ip.includes(':')) { // IPv6
+    if (ip.includes(':')) {
         const parts = ip.split(':');
         if (parts.length > 1) {
              return parts.slice(0, Math.max(1, parts.length - 1)).join(':') + ':XXXX';
         }
         return ip;
     }
-    // IPv4
     const parts = ip.split('.');
     if (parts.length === 4) {
         return `${parts[0]}.${parts[1]}.${parts[2]}.XXX`;
@@ -246,7 +198,6 @@ const trackEvent = async (req, type, source, meta = {}) => {
         const safeIp = anonymizeIp(ip);
         const metaStr = JSON.stringify(meta);
         const now = new Date().toISOString();
-
         await dbQuery(
             `INSERT INTO analytics_events (event_type, source, anonymized_ip, metadata, created_at) VALUES ($1, $2, $3, $4, $5)`,
             [type, source, safeIp, metaStr, now]
@@ -261,17 +212,15 @@ const trackEvent = async (req, type, source, meta = {}) => {
 // ==================================================================
 
 app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
-// ANALYTICS CLIENT ENDPOINT
+
 app.post('/api/analytics/event', async (req, res) => {
     try {
         const { type, source, meta } = req.body;
         if (!type || !source) return res.status(400).json({ error: "Missing data" });
-
         await trackEvent(req, type, source, meta || {});
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: "Tracking failed" }); }
 });
-
 
 app.get('/api/shop-status', async (req, res) => {
     try {
@@ -283,25 +232,17 @@ app.get('/api/shop-status', async (req, res) => {
 
 // SUPPORT ENDPOINT
 app.post('/api/support', rateLimiter, async (req, res) => {
-    console.log(`>> Anfrage erhalten für: ${req.body.username || req.body.email}`);
     const { username, subject, email, message } = req.body;
-
     if ((!email && !username) || !message || !subject) {
         return res.status(400).json({ success: false, error: 'Bitte Pflichtfelder ausfüllen.' });
     }
-
-    // 1. Ticket-Nummer generieren
     const ticketId = 'TIC-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const createdAt = new Date().toISOString();
-
     try {
-        // DB SAVE
         await dbQuery(
             `INSERT INTO support_tickets (ticket_id, username, email, subject, message, created_at, status) VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
             [ticketId, username || null, email || null, subject, message, createdAt]
         );
-
-        // --- NEW: Copy to User Inbox if registered ---
         if (username) {
             try {
                 const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
@@ -313,77 +254,33 @@ app.post('/api/support', rateLimiter, async (req, res) => {
                         [userId, `[Ticket: ${ticketId}] ${subject}`, message, createdAt, ticketId]
                     );
                 }
-            } catch (err) {
-                console.warn(">> Could not save copy to user inbox:", err.message);
-            }
+            } catch (err) { console.warn(">> Could not save copy to user inbox:", err.message); }
         }
-        // ---------------------------------------------
-
-        console.log(`>> Sende Support-Email via Resend (Ticket: ${ticketId})...`);
 
         const receiver = process.env.EMAIL_RECEIVER || 'support@secure-msg.app';
         const sender = 'support@secure-msg.app';
-
-        // 1. Email an Support-Team
         const replyTo = email || 'no-reply@secure-msg.app';
-
         const { error: errorTeam } = await resend.emails.send({
             from: sender,
             to: receiver,
             reply_to: replyTo,
             subject: `[SUPPORT] ${subject} [${ticketId}]`,
             text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${username || 'Gast'}\nEmail: ${email || 'Keine (Interner Support)'}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
-            html: `
-                <h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3>
-                <p><strong>Von:</strong> ${username || 'Gast'}</p>
-                <p><strong>Email:</strong> ${email || 'Keine (Interner Support)'}</p>
-                <p><strong>Betreff:</strong> ${subject}</p>
-                <hr>
-                <p style="white-space: pre-wrap;">${message}</p>
-                ${username ? '<p style="color:green; font-weight:bold;">Interne ID vorhanden: ' + username + '</p>' : ''}
-            `
+            html: `<h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3><p><strong>Von:</strong> ${username || 'Gast'}</p><p><strong>Email:</strong> ${email || 'Keine (Interner Support)'}</p><p><strong>Betreff:</strong> ${subject}</p><hr><p style="white-space: pre-wrap;">${message}</p>`
         });
+        if (errorTeam) console.error('>> Resend API Error (Team):', errorTeam);
 
-        if (errorTeam) {
-            console.error('>> Resend API Error (Team):', errorTeam);
-        }
-
-        // 2. Bestätigung an Kunden (Auto-Reply) NUR wenn Email vorhanden
         if (email) {
             const { error: errorClient } = await resend.emails.send({
                 from: sender,
                 to: email,
                 subject: `Bestätigung Ihrer Support-Anfrage [Ticket-Nr: ${ticketId}]`,
-                html: `
-                    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-                        <h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3>
-                        <p>Hallo ${username || 'Nutzer'},</p>
-                        <p>Ihre Nachricht ist bei uns eingegangen. Unser Support-Team wird sich schnellstmöglich bei Ihnen melden.</p>
-                        <p><strong>Ihre Ticket-Nummer:</strong> ${ticketId}</p>
-                        <div style="background-color: #f4f4f4; padding: 15px; border-left: 4px solid #00BFFF; margin: 20px 0; color: #555;">
-                            <strong>Ihre Nachricht:</strong><br><br>
-                            ${message.replace(/\n/g, '<br>')}
-                        </div>
-                        <br>
-                        <hr style="border: 0; border-top: 1px solid #ddd;">
-                        <div style="font-size: 12px; color: #777;">
-                            <p><strong>Secure Message Support Team</strong></p>
-                        </div>
-                    </div>
-                `
+                html: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;"><h3 style="color: #00BFFF;">Vielen Dank für Ihre Anfrage!</h3><p>Hallo ${username || 'Nutzer'},</p><p>Ihre Nachricht ist bei uns eingegangen.</p><p><strong>Ticket:</strong> ${ticketId}</p></div>`
             });
-
-            if (errorClient) {
-                console.warn('>> Warnung: Bestätigungsmail konnte nicht gesendet werden:', errorClient);
-            }
+            if (errorClient) console.warn('>> Warnung: Bestätigungsmail konnte nicht gesendet werden:', errorClient);
         }
-
-        console.log(`>> Support-Vorgang erfolgreich. Ticket: ${ticketId}`);
         return res.status(200).json({ success: true, ticketId });
-
     } catch (error) {
-        console.error(`>> Unerwarteter Fehler: ${error.message}`);
-        console.error(error);
         return res.status(500).json({ success: false, error: "Versand fehlgeschlagen: " + error.message });
     }
 });
@@ -392,61 +289,42 @@ async function authenticateUser(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Kein Token' });
-
     jwt.verify(token, JWT_SECRET, async (err, user) => {
         if (err) return res.status(403).json({ error: 'Token ungültig' });
         try {
             const userResult = await dbQuery("SELECT is_blocked FROM users WHERE id = $1", [user.id]);
             const dbUser = userResult.rows[0];
             const blocked = dbUser ? (isPostgreSQL() ? dbUser.is_blocked : (dbUser.is_blocked === 1)) : false;
-
-            if (!dbUser || blocked) {
-                return res.status(403).json({ error: "Konto gesperrt." });
-            }
+            if (!dbUser || blocked) return res.status(403).json({ error: "Konto gesperrt." });
             req.user = user;
             next();
-        } catch (dbError) {
-            return res.status(500).json({ error: 'Auth Error' });
-        }
+        } catch (dbError) { return res.status(500).json({ error: 'Auth Error' }); }
     });
 }
 
 app.post('/api/auth/login', rateLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;
-        const userRes = await dbQuery(`
-            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
-            FROM users u
-            LEFT JOIN license_keys l ON u.license_key_id = l.id
-            WHERE u.username = $1
-        `, [username]);
-
+        const userRes = await dbQuery(`SELECT u.*, l.expires_at, l.is_blocked as key_blocked FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.username = $1`, [username]);
         if (userRes.rows.length === 0) return res.status(401).json({ success: false, error: "Benutzer nicht gefunden" });
         const user = userRes.rows[0];
 
-        // CHECK IF LICENSE IS BLOCKED (Enterprise/Admin Block)
         const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
         if (isKeyBlocked) {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'license_blocked' });
             return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
         }
-
-        // --- SELF-HEALING MIGRATION: Sync Expiration to User Table ---
         if (!user.license_expiration && user.expires_at) {
             try {
                 await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [user.expires_at, user.id]);
-                user.license_expiration = user.expires_at; // Update local object
-            } catch (e) { console.warn("Expiration Sync Failed", e); }
+                user.license_expiration = user.expires_at;
+            } catch (e) { }
         }
-        // -------------------------------------------------------------
-
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) {
             await trackEvent(req, 'login_fail', 'auth', { username });
             return res.status(401).json({ success: false, error: "Falscher Zugangscode" });
         }
-
-        // --- PIK MIGRATION (SILENT) ---
         if (!user.pik_encrypted) {
             try {
                 if (user.license_key_id) {
@@ -456,58 +334,28 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
                         let pikRaw = crypto.createHash('sha256').update(licenseKey).digest('hex');
                         const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
                         const pikEncrypted = encryptServerSide(pikRaw, accessCode);
-
-                        await dbQuery(
-                            'UPDATE users SET pik_encrypted = $1, registration_key_hash = $2 WHERE id = $3',
-                            [pikEncrypted, regKeyHash, user.id]
-                        );
-                        // Memory Hygiene
-                        licenseKey = null;
-                        pikRaw = null;
+                        await dbQuery('UPDATE users SET pik_encrypted = $1, registration_key_hash = $2 WHERE id = $3', [pikEncrypted, regKeyHash, user.id]);
                     }
                 }
-            } catch (migErr) {
-                console.warn(`>> PIK Migration Warning (User: ${user.username}):`, migErr.message);
-                // Fail-Safe: Proceed with login despite migration error
-            }
+            } catch (migErr) { }
         }
-        // ------------------------------
-
-        // HARD LOGIN BLOCK
         const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (isBlocked) {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'account_blocked' });
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
-
         if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            // STRICT HARDWARE BINDING - BLOCK ACCESS
             await trackEvent(req, 'login_device_mismatch', 'auth', { username });
             return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
         }
         if (!user.allowed_device_id) {
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
-
-            const msgSubject = "Sicherheits-Info: Neues Gerät verknüpft";
-            const msgBody = `Ihr Account wurde erfolgreich mit diesem Gerät verknüpft.\nGerät-ID: ${sanitizedDeviceId}`;
-
-            await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-                [user.id, msgSubject, msgBody, 'automated', (isPostgreSQL() ? false : 0), new Date().toISOString()]);
         }
-
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
-
         await trackEvent(req, 'login_success', 'auth', { username });
-
-        res.json({
-            success: true,
-            token,
-            username: user.username,
-            expiresAt: user.license_expiration || 'lifetime',
-            hasLicense: !!user.license_key_id
-        });
+        res.json({ success: true, token, username: user.username, expiresAt: user.license_expiration || 'lifetime', hasLicense: !!user.license_key_id });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
@@ -521,73 +369,43 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
 app.post('/api/auth/activate', async (req, res) => {
     const { licenseKey, username, accessCode, deviceId } = req.body;
     if (!deviceId) return res.status(400).json({ error: 'Geräte-ID fehlt.' });
-
     try {
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
         const key = keyRes.rows[0];
         if (!key) return res.status(404).json({ error: 'Key nicht gefunden' });
-
         const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
-
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
-
-        // CHECK ASSIGNED ID
         if (key.assigned_user_id) {
-            if (key.assigned_user_id !== username) {
-                return res.status(403).json({ error: 'Dieser Key ist für eine andere ID reserviert.' });
-            }
+            if (key.assigned_user_id !== username) return res.status(403).json({ error: 'Dieser Key ist für eine andere ID reserviert.' });
         }
-
         const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
-        // CALCULATE EXPIRATION
-        // Logic: For new activation, base is NOW.
-        // But we use the helper to be consistent (Current Expiration is null/past)
         const pc = (key.product_code || '').toLowerCase();
         let extensionMonths = 0;
         let expiresAt = null;
-
         if (pc === '1m') extensionMonths = 1;
         else if (pc === '3m') extensionMonths = 3;
         else if (pc === '6m') extensionMonths = 6;
         else if (pc === '1j' || pc === '12m') extensionMonths = 12;
 
-        if (pc === 'unl' || pc === 'unlimited') {
-             expiresAt = null;
-        } else if (extensionMonths > 0) {
-             expiresAt = calculateNewExpiration(null, extensionMonths);
-        }
+        if (pc === 'unl' || pc === 'unlimited') expiresAt = null;
+        else if (extensionMonths > 0) expiresAt = calculateNewExpiration(null, extensionMonths);
 
         const hash = await bcrypt.hash(accessCode, 10);
-
-        // 1. Generate PIK (SHA-256 of the FIRST License Key)
-        // This is the Secret Identity Anchor
         const pikRaw = crypto.createHash('sha256').update(licenseKey).digest('hex');
-
-        // 2. Encrypt PIK (Server-Side using Access Code, readable by Client)
         const pikEncrypted = encryptServerSide(pikRaw, accessCode);
-
-        // 3. Hash of the Registration Key (Permanent Anchor)
-        // SECURITY FIX: Double Hash the PIK/Key to avoid storing the secret PIK in plaintext.
-        // Stored Hash = SHA256(PIK) = SHA256(SHA256(Key))
         const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
 
         let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at, registration_key_hash, pik_encrypted, license_expiration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
         if (isPostgreSQL()) { insertSql += ' RETURNING id'; }
 
-        const insertUser = await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted, expiresAt]);
-
-        await dbQuery(
-            'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4',
-            [(isPostgreSQL() ? true : 1), new Date().toISOString(), expiresAt, key.id]
-        );
-
+        await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted, expiresAt]);
+        await dbQuery('UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4', [(isPostgreSQL() ? true : 1), new Date().toISOString(), expiresAt, key.id]);
         await trackEvent(req, 'activation_success', 'auth', { username, product: key.product_code });
         res.json({ success: true });
     } catch (e) {
-        console.error("Activation Error:", e);
         res.status(500).json({ error: 'Aktivierung fehlgeschlagen: ' + e.message });
     }
 });
@@ -595,107 +413,65 @@ app.post('/api/auth/activate', async (req, res) => {
 app.post('/api/renew-license', authenticateUser, async (req, res) => {
     const { licenseKey } = req.body;
     if (!licenseKey) return res.status(400).json({ error: "Kein Key angegeben" });
-
     try {
         const userId = req.user.id;
-
-        // 1. Validate New Key
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.status(404).json({ error: 'Key nicht gefunden' });
         const key = keyRes.rows[0];
-
         const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
-        // 1. Hole den User und das Key-Objekt
         const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
         const currentExpiryStr = userRes.rows[0].license_expiration;
 
         const pc = (key.product_code || '').toLowerCase();
-        let extensionMonths = 1; // Default
+        let extensionMonths = 1;
         if (pc === '3m') extensionMonths = 3;
         else if (pc === '1m') extensionMonths = 1;
         else if (pc === '6m') extensionMonths = 6;
         else if (pc === '1j' || pc === '12m') extensionMonths = 12;
 
         let newExpiresAt = null;
-        if (pc === 'unl' || pc === 'unlimited') {
-            newExpiresAt = null;
-        } else {
-            // Use Centralized Logic
-            newExpiresAt = calculateNewExpiration(currentExpiryStr, extensionMonths);
-        }
+        if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
+        else newExpiresAt = calculateNewExpiration(currentExpiryStr, extensionMonths);
 
-        console.log(`[RENEWAL] User: ${userId}, Old: ${currentExpiryStr}, Added: ${extensionMonths}m, New: ${newExpiresAt}`);
-
-        // 3. Mark Key as Used
-        await dbQuery(
-            'UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4 WHERE id = $5',
-            [(isPostgreSQL() ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]
-        );
-
-        // 4. Update User Expiration (Only expiration, NOT identity!)
+        await dbQuery('UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4 WHERE id = $5', [(isPostgreSQL() ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]);
         await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [newExpiresAt, userId]);
-
-        // 5. Log Renewal
-        await dbQuery(
-            'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
-            [userId, key.key_hash, newExpiresAt, new Date().toISOString()]
-        );
-
+        await dbQuery('INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)', [userId, key.key_hash, newExpiresAt, new Date().toISOString()]);
         await trackEvent(req, 'renewal_success', 'shop', { userId });
         res.json({ success: true, newExpiresAt: newExpiresAt || 'Unlimited' });
-
-    } catch (e) {
-        console.error("Renewal Error:", e);
-        res.status(500).json({ error: "Fehler bei Verlängerung: " + e.message });
-    }
+    } catch (e) { res.status(500).json({ error: "Fehler: " + e.message }); }
 });
 
 app.post('/api/auth/check-license', async (req, res) => {
     try {
-        const { licenseKey, username } = req.body; // username optional for prediction
+        const { licenseKey, username } = req.body;
         if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
         const keyRes = await dbQuery('SELECT assigned_user_id, is_active, is_blocked, product_code FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.json({ isValid: false });
-
         const key = keyRes.rows[0];
-
         const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.json({ isValid: false, error: 'Lizenz gesperrt' });
-
         const isActive = isPostgreSQL() ? key.is_active : (key.is_active === 1);
         if (isActive) return res.json({ isValid: false, error: 'Bereits benutzt' });
 
-        // Prediction Logic
         let predictedExpiry = null;
         if (username) {
             const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
             if (userRes.rows.length > 0) {
                 const currentExpiryStr = userRes.rows[0].license_expiration;
-
                 const pc = (key.product_code || '').toLowerCase();
                 const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
-
-                let startDate;
                 const dbDate = parseDbDate(currentExpiryStr);
-
-                if (dbDate && dbDate > new Date()) {
-                    startDate = dbDate;
-                } else {
-                    startDate = new Date();
-                }
-
-                if (pc === 'unl' || pc === 'unlimited') {
-                    predictedExpiry = 'Unlimited';
-                } else {
+                const startDate = (dbDate && dbDate > new Date()) ? dbDate : new Date();
+                if (pc === 'unl' || pc === 'unlimited') predictedExpiry = 'Unlimited';
+                else {
                     startDate.setMonth(startDate.getMonth() + extensionMonths);
                     predictedExpiry = startDate.toISOString();
                 }
             }
         }
-
         res.json({ isValid: true, assignedUserId: key.assigned_user_id || null, predictedExpiry });
     } catch (e) { res.status(500).json({ error: 'Serverfehler' }); }
 });
@@ -706,7 +482,7 @@ app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
         const hash = await bcrypt.hash(newAccessCode, 10);
         await dbQuery("UPDATE users SET access_code_hash = $1 WHERE id = $2", [hash, req.user.id]);
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: "Fehler beim Ändern." }); }
+    } catch(e) { res.status(500).json({ error: "Fehler." }); }
 });
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
@@ -731,7 +507,6 @@ app.post('/api/users/exists', authenticateUser, async (req, res) => {
         if (!targetUsername) return res.json({ exists: false });
         const result = await dbQuery(`SELECT id, is_blocked FROM users WHERE username = $1`, [targetUsername.trim()]);
         if (result.rows.length === 0) return res.json({ exists: false });
-
         const user = result.rows[0];
         const isBlocked = (isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1));
         if (isBlocked) return res.json({ exists: false });
@@ -749,17 +524,11 @@ app.delete('/api/auth/delete-account', authenticateUser, async (req, res) => {
             const keyRes = await dbQuery('SELECT key_code FROM license_keys WHERE id = $1', [user.license_key_id]);
             if (keyRes.rows.length > 0) licenseCode = keyRes.rows[0].key_code;
         }
-        await dbQuery('INSERT INTO account_deletions (username, license_key_code, reason, deleted_at) VALUES ($1, $2, $3, $4)',
-            [user.username, licenseCode, 'user_request', new Date().toISOString()]);
+        await dbQuery('INSERT INTO account_deletions (username, license_key_code, reason, deleted_at) VALUES ($1, $2, $3, $4)', [user.username, licenseCode, 'user_request', new Date().toISOString()]);
         await dbQuery('DELETE FROM users WHERE id = $1', [req.user.id]);
-        if (user.license_key_id) {
-            await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
-        }
+        if (user.license_key_id) await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
         res.json({ success: true });
-    } catch (e) {
-        console.error("Delete Account Error:", e);
-        res.status(500).json({ error: 'Fehler beim Löschen des Accounts.' });
-    }
+    } catch (e) { res.status(500).json({ error: 'Fehler beim Löschen des Accounts.' }); }
 });
 
 app.post('/api/auth/validate', async (req, res) => {
@@ -768,25 +537,17 @@ app.post('/api/auth/validate', async (req, res) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const userRes = await dbQuery(`SELECT u.*, l.expires_at, l.is_blocked as key_blocked FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
-
         if (userRes.rows.length > 0) {
             const user = userRes.rows[0];
             const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
             if (isBlocked) return res.json({ valid: false, reason: 'blocked' });
-
             const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
             if (isKeyBlocked) return res.json({ valid: false, reason: 'license_blocked' });
             if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
-
-            // STRICT: Use license_expiration from users table
-            let expirySource = user.license_expiration;
-            // Fallback for session validation if migration hasn't happened yet (rare edge case, usually login fixes it)
-            if (!expirySource && user.expires_at) expirySource = user.expires_at;
-
+            let expirySource = user.license_expiration || user.expires_at;
             let isExpired = false;
             if (expirySource) {
-                const expDate = new Date(expirySource);
-                if (expDate < new Date()) isExpired = true;
+                if (new Date(expirySource) < new Date()) isExpired = true;
             }
             if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: expirySource });
             res.json({ valid: true, username: user.username, expiresAt: expirySource || 'lifetime' });
@@ -796,23 +557,13 @@ app.post('/api/auth/validate', async (req, res) => {
     } catch (e) { res.json({ valid: false, reason: 'invalid_token' }); }
 });
 
-// ==================================================================
-// 3.5 PROFILE TRANSFER (Secure QR)
-// ==================================================================
-
-// In-Memory Storage for Pending Transfers (Timeout Management)
-// Key: UID, Value: { timer, attempts }
 const pendingTransfers = new Map();
-
 app.get('/api/auth/export-profile', authenticateUser, async (req, res) => {
     try {
         const userRes = await dbQuery('SELECT pik_encrypted FROM users WHERE id = $1', [req.user.id]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const { pik_encrypted } = userRes.rows[0];
-
         if (!pik_encrypted) return res.status(400).json({ error: "Kein PIK vorhanden" });
-
-        // Return encrypted PIK. Client decrypts with Code -> Re-encrypts for QR.
         res.json({ success: true, pik_encrypted, uid: req.user.username });
     } catch(e) { res.status(500).json({ error: "Fehler beim Export" }); }
 });
@@ -820,195 +571,90 @@ app.get('/api/auth/export-profile', authenticateUser, async (req, res) => {
 app.post('/api/auth/transfer-start', async (req, res) => {
     const { uid } = req.body;
     if (!uid) return res.status(400).json({ error: "UID missing" });
-
-    // Prevent spam
-    if (pendingTransfers.has(uid)) {
-        clearTimeout(pendingTransfers.get(uid).timer);
-    }
-
-    // Start 60s Timer
+    if (pendingTransfers.has(uid)) clearTimeout(pendingTransfers.get(uid).timer);
     const timer = setTimeout(async () => {
         try {
             pendingTransfers.delete(uid);
-
-            // Fetch User ID
             const uRes = await dbQuery('SELECT id FROM users WHERE username = $1', [uid]);
             if (uRes.rows.length > 0) {
                 const userId = uRes.rows[0].id;
-                // Send Warning to Inbox
-                const subject = "⚠️ SICHERHEITSWARNUNG: Profil-Transfer";
-                const body = "ACHTUNG: Ein unberechtigter Versuch, Ihr Profil auf ein neues Gerät zu übertragen, wurde blockiert.\n\nFalls Sie dies nicht selbst waren, ändern Sie bitte sofort Ihren Zugangscode.";
-
                 await dbQuery(
-                    `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
-                    [userId, subject, body, new Date().toISOString()]
+                    `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
+                    [userId, "⚠️ SICHERHEITSWARNUNG: Profil-Transfer", "ACHTUNG: Ein unberechtigter Versuch, Ihr Profil auf ein neues Gerät zu übertragen, wurde blockiert.", new Date().toISOString()]
                 );
             }
         } catch(e) { console.error("Transfer Timeout Error", e); }
     }, 60000);
-
     pendingTransfers.set(uid, { timer, attempts: 1 });
-
     res.json({ success: true });
 });
 
 app.post('/api/auth/transfer-complete', async (req, res) => {
     const { uid, proof, timestamp, deviceId } = req.body;
-
-    if (!uid || !proof || !timestamp || !deviceId) {
-        return res.status(400).json({ error: "Invalid Data" });
-    }
-
+    if (!uid || !proof || !timestamp || !deviceId) return res.status(400).json({ error: "Invalid Data" });
     try {
-        // 1. Check Timer/Pending State
-        if (!pendingTransfers.has(uid)) {
-            return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
-        }
-
-        // 2. Fetch User & Hash
-        const uRes = await dbQuery(`
-            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
-            FROM users u
-            LEFT JOIN license_keys l ON u.license_key_id = l.id
-            WHERE u.username = $1
-        `, [uid]);
-
+        if (!pendingTransfers.has(uid)) return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
+        const uRes = await dbQuery(`SELECT u.* FROM users u WHERE u.username = $1`, [uid]);
         if (uRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = uRes.rows[0];
-
-        // 3. Verify Timestamp (Max 2 mins drift allowed to be safe, but should be instant)
         const sentTime = new Date(timestamp).getTime();
         const now = Date.now();
-        if (Math.abs(now - sentTime) > 120000) {
-            return res.status(403).json({ error: "Zeitstempel ungültig (Replay-Schutz)." });
-        }
-
-        // 4. Verify Proof: SHA256(registration_key_hash + timestamp)
-        // registration_key_hash in DB is SHA256(PIK).
+        if (Math.abs(now - sentTime) > 120000) return res.status(403).json({ error: "Zeitstempel ungültig" });
         const serverHash = user.registration_key_hash;
-        if (!serverHash) return res.status(403).json({ error: "Integritätsfehler (Kein Hash)." });
-
+        if (!serverHash) return res.status(403).json({ error: "Integritätsfehler" });
         const expectedProof = crypto.createHash('sha256').update(serverHash + timestamp).digest('hex');
+        if (proof !== expectedProof) return res.status(403).json({ error: "Identifizierung fehlgeschlagen." });
 
-        if (proof !== expectedProof) {
-            console.warn(`>> Transfer PROOF FAILED for ${uid}.`);
-            return res.status(403).json({ error: "Identifizierung fehlgeschlagen." });
-        }
-
-        // 5. SUCCESS!
-        // Clear Timer
         clearTimeout(pendingTransfers.get(uid).timer);
         pendingTransfers.delete(uid);
-
-        // Update Device ID
         await dbQuery("UPDATE users SET allowed_device_id = $1, last_login = CURRENT_TIMESTAMP WHERE id = $2", [deviceId, user.id]);
-
-        // Generate Token
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
-
-        // Notify User (Success)
-        const msgSubject = "Info: Profil erfolgreich übertragen";
-        const msgBody = `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`;
-        await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)",
-            [user.id, msgSubject, msgBody, (isPostgreSQL() ? false : 0), new Date().toISOString()]);
-
-        res.json({
-            success: true,
-            token,
-            username: user.username,
-            expiresAt: user.expires_at || 'lifetime',
-            hasLicense: !!user.license_key_id
-        });
-
-    } catch(e) {
-        console.error("Transfer Error", e);
-        res.status(500).json({ error: "Serverfehler" });
-    }
+        await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)", [user.id, "Info: Profil erfolgreich übertragen", `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`, (isPostgreSQL() ? false : 0), new Date().toISOString()]);
+        res.json({ success: true, token, username: user.username, expiresAt: user.license_expiration || 'lifetime', hasLicense: !!user.license_key_id });
+    } catch(e) { res.status(500).json({ error: "Serverfehler" }); }
 });
 
-// ==================================================================
-// 4. ADMIN DASHBOARD ROUTES
-// ==================================================================
-
 const requireAdmin = async (req, res, next) => {
-    // 1. Check for Bearer Token (JWT)
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            if (decoded.role === 'admin') {
-                return next();
-            }
+            if (decoded.role === 'admin') return next();
         } catch (e) { }
     }
-
-    // 2. Fallback: Check for x-admin-password (LEGACY, only allowed if 2FA is DISABLED)
-    // IMPORTANT: If 2FA is enabled, we REQUIRE JWT flow (which proves 2FA was passed)
     const sentPassword = req.headers['x-admin-password'] || req.body.password;
     if (sentPassword === ADMIN_PASSWORD) {
-        // Check if 2FA is enabled globally
-        if (dbQuery) { // Defensive check if db is ready
+        if (dbQuery) {
             const resSettings = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_enabled'");
             const is2FA = resSettings.rows.length > 0 && resSettings.rows[0].value === 'true';
-
-            if (is2FA) {
-                // Deny access if trying to bypass 2FA with just password
-                console.warn('Blocked Admin Access: 2FA is enabled but not provided.');
-                return res.status(403).json({ success: false, error: '2FA required. Please login.' });
-            }
+            if (is2FA) return res.status(403).json({ success: false, error: '2FA required. Please login.' });
         }
         return next();
     }
-
     return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
 };
 
-// ADMIN LOGIN ENDPOINT
 app.post('/api/admin/auth', async (req, res) => {
     const { password } = req.body;
-    // Check header for token as requested
     const token = req.headers['x-admin-2fa-token'] || req.body.token;
-
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(403).json({ success: false, error: 'Falsches Passwort' });
-    }
-
+    if (password !== ADMIN_PASSWORD) return res.status(403).json({ success: false, error: 'Falsches Passwort' });
     try {
-        // Check if 2FA secret exists (implies enabled)
         const resSecret = await dbQuery("SELECT value FROM settings WHERE key = 'admin_2fa_secret'");
         const hasSecret = resSecret.rows.length > 0 && resSecret.rows[0].value;
-
         if (hasSecret) {
             if (!token) return res.json({ success: false, error: '2FA Token erforderlich' });
-
-            const secret = resSecret.rows[0].value;
-            const verified = speakeasy.totp.verify({
-                secret: secret,
-                encoding: 'base32',
-                token: token
-            });
-
+            const verified = speakeasy.totp.verify({ secret: resSecret.rows[0].value, encoding: 'base32', token: token });
             if (!verified) return res.json({ success: false, error: 'Ungültiger 2FA Code' });
         }
-
-        // Generate Admin JWT
         const jwtToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '4h' });
         res.json({ success: true, token: jwtToken });
-
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ success: false, error: 'Auth Error' });
-    }
+    } catch (e) { res.status(500).json({ success: false, error: 'Auth Error' }); }
 });
 
-// 2FA SETUP ENDPOINTS
 app.get('/api/admin/2fa-setup', requireAdmin, async (req, res) => {
     try {
-        // console.log('2FA Setup requested');
         const secret = speakeasy.generateSecret({ name: "SecureMsg Admin" });
-        // Return secret and QR code data URL
         QRCode.toDataURL(secret.otpauth_url, async (err, data_url) => {
             if (err) return res.status(500).json({ success: false, error: 'QR Gen Error' });
             res.json({ success: true, secret: secret.base32, qrCode: data_url });
@@ -1016,29 +662,15 @@ app.get('/api/admin/2fa-setup', requireAdmin, async (req, res) => {
     } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// Legacy POST for compatibility if needed, but primary is GET now
-app.post('/api/admin/2fa/setup', requireAdmin, async (req, res) => {
-    // Redirect to GET logic or duplicate
-    res.redirect(307, '/api/admin/2fa-setup');
-});
-
 app.post('/api/admin/2fa/verify', requireAdmin, async (req, res) => {
     const { token, secret } = req.body;
     try {
-        const verified = speakeasy.totp.verify({
-            secret: secret,
-            encoding: 'base32',
-            token: token
-        });
-
+        const verified = speakeasy.totp.verify({ secret: secret, encoding: 'base32', token: token });
         if (verified) {
-            // Save secret and enable 2FA
             await dbQuery("INSERT INTO settings (key, value) VALUES ('admin_2fa_secret', $1) ON CONFLICT(key) DO UPDATE SET value = $1", [secret]);
             await dbQuery("INSERT INTO settings (key, value) VALUES ('admin_2fa_enabled', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'");
             res.json({ success: true });
-        } else {
-            res.json({ success: false, error: 'Ungültiger Code' });
-        }
+        } else { res.json({ success: false, error: 'Ungültiger Code' }); }
     } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -1060,7 +692,6 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         const totalRevenue = await dbQuery(`SELECT SUM(amount) as s FROM payments WHERE status = 'completed'`);
         const totalBundles = await dbQuery(`SELECT COUNT(*) as c FROM license_bundles`);
         const unassignedBundleKeys = await dbQuery(`SELECT COUNT(*) as c FROM license_keys WHERE bundle_id IS NOT NULL AND is_active = ${isPostgreSQL() ? 'false' : '0'}`);
-
         res.json({
             success: true,
             stats: {
@@ -1077,119 +708,50 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     } catch (e) { res.json({ success: false, error: 'DB Error' }); }
 });
 
-/**
- * ADVANCED STATISTICS API
- * Aggregates data from multiple tables (analytics_events, payments, support_tickets)
- * to provide a comprehensive dashboard overview.
- *
- * Logic:
- * 1. Timeframe: Defaults to last 30 days if not provided.
- * 2. Traffic: Counts distinct anonymized IPs per day from analytics_events.
- * 3. Finance: Sums 'amount' from payments table where status='completed'.
- * 4. Products: Aggregates sales count by 'product_type' metadata from payments.
- * 5. System: Calculates PIK migration % and security event counts.
- * 6. Support: Counts total tickets and FAQ views in the period.
- */
 app.get('/api/admin/stats/advanced', requireAdmin, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        // Default to 30 days if not set
         const end = endDate ? new Date(endDate) : new Date();
-        // Set end to end of day
         end.setHours(23, 59, 59, 999);
-
         const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
         start.setHours(0, 0, 0, 0);
-
         const startIso = start.toISOString();
         const endIso = end.toISOString();
-
-        // 1. Traffic (Daily Unique Visitors)
         const dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
         const dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
 
-        const trafficSql = `
-            SELECT ${dateFunc} as day, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views
-            FROM analytics_events
-            WHERE event_type = 'page_view' AND created_at >= $1 AND created_at <= $2
-            GROUP BY day
-            ORDER BY day ASC
-        `;
+        const trafficSql = `SELECT ${dateFunc} as day, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views FROM analytics_events WHERE event_type = 'page_view' AND created_at >= $1 AND created_at <= $2 GROUP BY day ORDER BY day ASC`;
         const trafficRes = await dbQuery(trafficSql, [startIso, endIso]);
 
-        // 2. Financials (Daily Revenue)
-        const financeSql = `
-            SELECT ${dateFuncPayments} as day, SUM(amount) as revenue, COUNT(*) as sales
-            FROM payments
-            WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2
-            GROUP BY day
-            ORDER BY day ASC
-        `;
+        const financeSql = `SELECT ${dateFuncPayments} as day, SUM(amount) as revenue, COUNT(*) as sales FROM payments WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2 GROUP BY day ORDER BY day ASC`;
         const financeRes = await dbQuery(financeSql, [startIso, endIso]);
 
-        // 3. Product Sales Distribution
         const productSql = `SELECT metadata FROM payments WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2`;
         const productRes = await dbQuery(productSql, [startIso, endIso]);
         const products = {};
-        productRes.rows.forEach(row => {
-            try {
-                const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
-                const type = meta.product_type || 'Unknown';
-                products[type] = (products[type] || 0) + 1;
-            } catch(e){}
-        });
+        productRes.rows.forEach(row => { try { const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata; const type = meta.product_type || 'Unknown'; products[type] = (products[type] || 0) + 1; } catch(e){} });
 
-        // 4. System & Security
         const pikTotal = await dbQuery(`SELECT COUNT(*) as c FROM users`);
         const pikMigrated = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE pik_encrypted IS NOT NULL`);
-
-        const securitySql = `
-            SELECT event_type, COUNT(*) as c
-            FROM analytics_events
-            WHERE event_type IN ('login_blocked', 'login_fail', 'login_device_mismatch')
-            AND created_at >= $1 AND created_at <= $2
-            GROUP BY event_type
-        `;
+        const securitySql = `SELECT event_type, COUNT(*) as c FROM analytics_events WHERE event_type IN ('login_blocked', 'login_fail', 'login_device_mismatch') AND created_at >= $1 AND created_at <= $2 GROUP BY event_type`;
         const securityRes = await dbQuery(securitySql, [startIso, endIso]);
-
-        // 5. Support
-        const ticketsSql = `SELECT COUNT(*) as c FROM support_tickets WHERE created_at >= $1 AND created_at <= $2`;
-        const ticketsRes = await dbQuery(ticketsSql, [startIso, endIso]);
-
-        const faqSql = `SELECT COUNT(*) as c FROM analytics_events WHERE event_type = 'faq_open' AND created_at >= $1 AND created_at <= $2`;
-        const faqRes = await dbQuery(faqSql, [startIso, endIso]);
+        const ticketsRes = await dbQuery(`SELECT COUNT(*) as c FROM support_tickets WHERE created_at >= $1 AND created_at <= $2`, [startIso, endIso]);
+        const faqRes = await dbQuery(`SELECT COUNT(*) as c FROM analytics_events WHERE event_type = 'faq_open' AND created_at >= $1 AND created_at <= $2`, [startIso, endIso]);
 
         res.json({
             success: true,
             traffic: trafficRes.rows,
             finance: financeRes.rows,
             products: products,
-            system: {
-                pik_total: pikTotal.rows[0].c,
-                pik_migrated: pikMigrated.rows[0].c,
-                security_events: securityRes.rows
-            },
-            support: {
-                tickets: ticketsRes.rows[0].c,
-                faq_views: faqRes.rows[0].c
-            }
+            system: { pik_total: pikTotal.rows[0].c, pik_migrated: pikMigrated.rows[0].c, security_events: securityRes.rows },
+            support: { tickets: ticketsRes.rows[0].c, faq_views: faqRes.rows[0].c }
         });
-
-    } catch(e) {
-        console.error(e);
-        res.status(500).json({ success: false, error: e.message });
-    }
+    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
-
 
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT k.*, u.username, u.id as user_id
-                     FROM license_keys k
-                     LEFT JOIN users u ON u.license_key_id = k.id
-                     WHERE (k.product_code != 'ENTERPRISE' OR k.product_code IS NULL)
-                     ORDER BY k.created_at DESC LIMIT 200`;
-        const result = await dbQuery(sql);
+        const result = await dbQuery(`SELECT k.*, u.username, u.id as user_id FROM license_keys k LEFT JOIN users u ON u.license_key_id = k.id WHERE (k.product_code != 'ENTERPRISE' OR k.product_code IS NULL) ORDER BY k.created_at DESC LIMIT 200`);
         const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1202,22 +764,14 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
         let updateSql = `UPDATE license_keys SET expires_at = $1`;
         const params = [expires_at || null];
         let pIndex = 2;
-
         if (product_code) { updateSql += `, product_code = $${pIndex}`; params.push(product_code); pIndex++; }
         updateSql += ` WHERE id = $${pIndex}`; params.push(keyId);
         await dbQuery(updateSql, params);
-
-        // SYNC: Also update linked User's license_expiration to match
-        // Note: license_keys table does NOT have assigned_user_id link for *active* relationship in some contexts,
-        // but here we check 'users' table linking.
-        // We update any user linked to this key.
         await dbQuery(`UPDATE users SET license_expiration = $1 WHERE license_key_id = $2`, [expires_at || null, keyId]);
-
         await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
         if (user_id) {
             const userCheck = await dbQuery(`SELECT id FROM users WHERE id = $1`, [user_id]);
             if (userCheck.rows.length > 0) {
-                // Relink
                 await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [keyId, expires_at || null, user_id]);
                 const now = new Date().toISOString();
                 await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
@@ -1230,70 +784,15 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
 app.delete('/api/admin/keys/:id', requireAdmin, async (req, res) => {
     const keyId = req.params.id;
     const cascade = req.query.cascade === 'true';
-
     try {
         await dbQuery('BEGIN');
-
         if (cascade) {
-             // Find linked user and DELETE
              const userRes = await dbQuery('SELECT id FROM users WHERE license_key_id = $1', [keyId]);
-             if (userRes.rows.length > 0) {
-                 const userId = userRes.rows[0].id;
-                 await dbQuery('DELETE FROM users WHERE id = $1', [userId]);
-             }
+             if (userRes.rows.length > 0) await dbQuery('DELETE FROM users WHERE id = $1', [userRes.rows[0].id]);
         } else {
-             // Unlink only
              await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
         }
-
         await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
-        await dbQuery('COMMIT');
-        res.json({ success: true });
-    } catch (e) {
-        await dbQuery('ROLLBACK');
-        res.status(500).json({ success: false, error: "Löschen fehlgeschlagen: " + e.message });
-    }
-});
-
-app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
-    const userId = req.params.id;
-    const cascade = req.query.cascade === 'true';
-
-    try {
-        // 1. Get User Details
-        const userRes = await dbQuery('SELECT license_key_id, username FROM users WHERE id = $1', [userId]);
-        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
-        const user = userRes.rows[0];
-
-        // Start Transaction
-        await dbQuery('BEGIN');
-
-        // 2. Unlink & Handle Linked License
-        if (user.license_key_id) {
-            // First UNLINK the user so we can delete the user record safely
-            await dbQuery('UPDATE users SET license_key_id = NULL WHERE id = $1', [userId]);
-
-            if (cascade) {
-                // If cascade: Delete the License Key AFTER unlinking
-                // NOTE: We delete the user first (step 3), then the key? Or key then user?
-                // Safest: Unlink -> Delete User -> Delete Key
-                // We'll mark it for deletion
-            } else {
-                // If NO cascade: Reset the license to 'free' state
-                // Note: license_keys table does NOT have assigned_user_id, relationship is in users table.
-                // We just need to reset the active flag and timestamps.
-                await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'false' : '0'}, activated_at = NULL WHERE id = $1`, [user.license_key_id]);
-            }
-        }
-
-        // 3. Delete User
-        await dbQuery('DELETE FROM users WHERE id = $1', [userId]);
-
-        // 4. Delete Key if Cascading (After user is gone)
-        if (cascade && user.license_key_id) {
-             await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
-        }
-
         await dbQuery('COMMIT');
         res.json({ success: true });
     } catch (e) {
@@ -1302,81 +801,63 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// USER DETAILS API (For Modal)
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+    const userId = req.params.id;
+    const cascade = req.query.cascade === 'true';
+    try {
+        const userRes = await dbQuery('SELECT license_key_id, username FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
+        const user = userRes.rows[0];
+        await dbQuery('BEGIN');
+        if (user.license_key_id) {
+            await dbQuery('UPDATE users SET license_key_id = NULL WHERE id = $1', [userId]);
+            if (!cascade) await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'false' : '0'}, activated_at = NULL WHERE id = $1`, [user.license_key_id]);
+        }
+        await dbQuery('DELETE FROM users WHERE id = $1', [userId]);
+        if (cascade && user.license_key_id) await dbQuery('DELETE FROM license_keys WHERE id = $1', [user.license_key_id]);
+        await dbQuery('COMMIT');
+        res.json({ success: true });
+    } catch (e) {
+        await dbQuery('ROLLBACK');
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
     try {
         const userId = req.params.id;
-        const userRes = await dbQuery(`
-            SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked, allowed_device_id
-            FROM users WHERE id = $1
-        `, [userId]);
-
+        const userRes = await dbQuery(`SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked, allowed_device_id FROM users WHERE id = $1`, [userId]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
-        const user = {
-            ...userRes.rows[0],
-            is_blocked: isPostgreSQL() ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1)
-        };
-
-        // License History
-        const histSql = `
-            SELECT key_code, product_code, activated_at, expires_at, is_active, origin
-            FROM license_keys
-            WHERE assigned_user_id = $1 OR id = $2
-            ORDER BY activated_at DESC
-        `;
-        const historyRes = await dbQuery(histSql, [user.username, user.license_key_id]);
-
-        const history = historyRes.rows.map(r => ({
-            ...r,
-            is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1)
-        }));
-
+        const user = { ...userRes.rows[0], is_blocked: isPostgreSQL() ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1) };
+        const historyRes = await dbQuery(`SELECT key_code, product_code, activated_at, expires_at, is_active, origin FROM license_keys WHERE assigned_user_id = $1 OR id = $2 ORDER BY activated_at DESC`, [user.username, user.license_key_id]);
+        const history = historyRes.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json({ success: true, user, history });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// MANUAL KEY LINK (Full Activation)
 app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
     const userId = req.params.id;
     const { keyCode } = req.body;
-
     if (!keyCode) return res.status(400).json({ error: "Key Code missing" });
-
     try {
-        // 1. Get User
         const userRes = await dbQuery('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [userId]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = userRes.rows[0];
-
-        // 1.5 Check Existing License (Lifetime Protection & History Archiving)
         if (user.license_key_id) {
             const currentKeyRes = await dbQuery('SELECT expires_at, product_code FROM license_keys WHERE id = $1', [user.license_key_id]);
             if (currentKeyRes.rows.length > 0) {
                 const currentKey = currentKeyRes.rows[0];
-                // Check Lifetime
                 const isLifetime = !currentKey.expires_at || (currentKey.product_code && currentKey.product_code.toLowerCase().includes('unl'));
-
-                // If user has Lifetime (and DB agrees via NULL expiration or flag), block overwrite
-                // Note: user.license_expiration is the source of truth, but we check key too for logic consistency
-                if (isLifetime || !user.license_expiration) { // NULL user.license_expiration also means Lifetime
-                     return res.status(403).json({ error: "Benutzer hat bereits eine Lifetime-Lizenz. Upgrade nicht möglich." });
-                }
-
-                // History Preservation: Ensure the OLD key is permanently assigned to this user by name
-                // This ensures it stays in the history list even after we unlink the ID from users table
+                if (isLifetime || !user.license_expiration) return res.status(403).json({ error: "Benutzer hat bereits eine Lifetime-Lizenz." });
                 await dbQuery('UPDATE license_keys SET assigned_user_id = $1 WHERE id = $2', [user.username, user.license_key_id]);
             }
         }
-
-        // 2. Validate Key
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
         if (keyRes.rows.length === 0) return res.status(404).json({ error: "Key not found" });
         const key = keyRes.rows[0];
-
         const isActive = isPostgreSQL() ? key.is_active : (key.is_active === 1);
         if (isActive) return res.status(403).json({ error: "Key already active" });
 
-        // 3. Calculate New Expiration
         const pc = (key.product_code || '').toLowerCase();
         let extensionMonths = 1;
         if (pc === '3m') extensionMonths = 3;
@@ -1384,87 +865,39 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
         else if (pc === '1j' || pc === '12m') extensionMonths = 12;
 
         let newExpiresAt = null;
-        if (pc === 'unl' || pc === 'unlimited') {
-            newExpiresAt = null;
-        } else {
-            newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
-        }
+        if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
+        else newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
 
-        // 4. Update Database
         await dbQuery('BEGIN');
-
-        // Update Key
         const now = new Date().toISOString();
-        await dbQuery(
-            `UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
-            [now, newExpiresAt, user.username, key.id]
-        );
-
-        // Update User (Link License & Set Expiration)
-        await dbQuery(
-            `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
-            [key.id, newExpiresAt, userId]
-        );
-
-        // Audit Log (Using existing or new audit table? We have audit_logs table in schema but used by enterprise?
-        // Global Server doesn't seem to have robust audit_log usage in `server.js` yet,
-        // but we can use `account_deletions` style or just rely on `license_renewals`.
-        // Requirement says "im Log vermerkt". I will add to `license_renewals` with a note/flag if possible,
-        // or just rely on standard flow. `license_renewals` has user_id, key_code_hash.
-        // I will add to `license_renewals` as that tracks history.
-        await dbQuery(
-            'INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)',
-            [userId, key.key_hash, newExpiresAt, now]
-        );
-
+        await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`, [now, newExpiresAt, user.username, key.id]);
+        await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [key.id, newExpiresAt, userId]);
+        await dbQuery('INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)', [userId, key.key_hash, newExpiresAt, now]);
         await dbQuery('COMMIT');
-
         res.json({ success: true, newExpiresAt });
-
     } catch (e) {
         await dbQuery('ROLLBACK');
-        console.error("Link Key Error:", e);
         res.status(500).json({ error: "Fehler beim Verknüpfen: " + e.message });
     }
 });
 
-// ENTERPRISE MANAGEMENT
 app.post('/api/admin/generate-enterprise', requireAdmin, async (req, res) => {
     try {
         const { clientName, quota, expiresAt } = req.body;
-
-        // Generate Unique Master Key (Max 17 chars DB limit: ENT-XXXXX-XXXXX = 15 chars)
-        const rand = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 chars
+        const rand = crypto.randomBytes(5).toString('hex').toUpperCase();
         const keyRaw = 'ENT-' + rand.substring(0, 5) + '-' + rand.substring(5, 10);
         const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-
         const quotaInt = parseInt(quota) || 5;
-
-        // Insert
-        let insertSql = `INSERT INTO license_keys (key_code, key_hash, product_code, client_name, max_users, expires_at, is_active)
-                         VALUES ($1, $2, 'ENTERPRISE', $3, $4, $5, ${isPostgreSQL() ? 'false' : '0'})`;
-
+        let insertSql = `INSERT INTO license_keys (key_code, key_hash, product_code, client_name, max_users, expires_at, is_active) VALUES ($1, $2, 'ENTERPRISE', $3, $4, $5, ${isPostgreSQL() ? 'false' : '0'})`;
         await dbQuery(insertSql, [keyRaw, keyHash, clientName, quotaInt, expiresAt || null]);
-
         res.json({ success: true, key: keyRaw });
-    } catch (e) { res.status(500).json({ error: "Fehler: " + e.message }); }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/admin/enterprise-keys', requireAdmin, async (req, res) => {
     try {
-        // Fetch Enterprise keys (Privacy Update: No usage tracking from Global Server)
-        const sql = `
-            SELECT k.*
-            FROM license_keys k
-            WHERE k.product_code = 'ENTERPRISE'
-            ORDER BY k.created_at DESC
-        `;
-        const result = await dbQuery(sql);
-        const keys = result.rows.map(r => ({
-            ...r,
-            is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1),
-            is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1)
-        }));
+        const result = await dbQuery(`SELECT k.* FROM license_keys k WHERE k.product_code = 'ENTERPRISE' ORDER BY k.created_at DESC`);
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1), is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1) }));
         res.json(keys);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1489,9 +922,7 @@ app.put('/api/admin/enterprise-keys/:id/quota', requireAdmin, async (req, res) =
 app.delete('/api/admin/enterprise-keys/:id', requireAdmin, async (req, res) => {
     try {
         const keyId = req.params.id;
-        // Unlink users first
         await dbQuery('UPDATE users SET license_key_id = NULL WHERE license_key_id = $1', [keyId]);
-        // Delete key
         await dbQuery('DELETE FROM license_keys WHERE id = $1', [keyId]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1505,16 +936,11 @@ app.post('/api/admin/generate-keys', requireAdmin, async (req, res) => {
         for(let i=0; i < amount; i++) {
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            // Ensure origin is strictly 'admin'
-            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin) VALUES ($1, $2, $3, $4, 'admin')`,
-                [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0)]);
+            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, origin) VALUES ($1, $2, $3, $4, 'admin')`, [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0)]);
             newKeys.push(keyRaw);
         }
         res.json({ success: true, keys: newKeys });
-    } catch (e) {
-        console.error("Generate Keys Error:", e);
-        res.status(500).json({ error: "Fehler beim Generieren: " + e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
@@ -1523,11 +949,7 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
         const amount = parseInt(count) || 1;
         const start = parseInt(startNumber) || 1;
         const orderNum = 'ORD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-
-        let insertBundle = await dbQuery(
-            `INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL() ? 'RETURNING id' : ''}`,
-            [name, orderNum, amount, new Date().toISOString()]
-        );
+        let insertBundle = await dbQuery(`INSERT INTO license_bundles (name, order_number, total_keys, created_at) VALUES ($1, $2, $3, $4) ${isPostgreSQL() ? 'RETURNING id' : ''}`, [name, orderNum, amount, new Date().toISOString()]);
         let bundleId = isPostgreSQL() ? insertBundle.rows[0].id : insertBundle.lastID;
         const newKeys = [];
         for(let i = 0; i < amount; i++) {
@@ -1535,32 +957,23 @@ app.post('/api/admin/generate-bundle', requireAdmin, async (req, res) => {
             const assignedId = `${idStem}${String(seqNum).padStart(3, '0')}`;
             const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
             const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-            await dbQuery(
-                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id, origin) VALUES ($1, $2, $3, $4, $5, $6, 'admin')`,
-                [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0), bundleId, assignedId]
-            );
+            await dbQuery(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, bundle_id, assigned_user_id, origin) VALUES ($1, $2, $3, $4, $5, $6, 'admin')`, [keyRaw, keyHash, productCode, (isPostgreSQL() ? false : 0), bundleId, assignedId]);
             newKeys.push({ key: keyRaw, assignedId });
         }
         res.json({ success: true, bundleId, keys: newKeys });
-    } catch(e) { res.status(500).json({ error: "Bundle Fehler: " + e.message }); }
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/admin/bundles', requireAdmin, async (req, res) => {
     try {
-        const sql = `
-            SELECT b.*,
-            (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = ${isPostgreSQL() ? 'TRUE' : '1'}) as active_count
-            FROM license_bundles b ORDER BY b.created_at DESC
-        `;
-        const result = await dbQuery(sql);
+        const result = await dbQuery(`SELECT b.*, (SELECT COUNT(*) FROM license_keys k WHERE k.bundle_id = b.id AND k.is_active = ${isPostgreSQL() ? 'TRUE' : '1'}) as active_count FROM license_bundles b ORDER BY b.created_at DESC`);
         res.json(result.rows);
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/admin/bundles/:id/keys', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT key_code, assigned_user_id, is_active, expires_at FROM license_keys WHERE bundle_id = $1 ORDER BY assigned_user_id ASC`;
-        const result = await dbQuery(sql, [req.params.id]);
+        const result = await dbQuery(`SELECT key_code, assigned_user_id, is_active, expires_at FROM license_keys WHERE bundle_id = $1 ORDER BY assigned_user_id ASC`, [req.params.id]);
         const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
     } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1578,37 +991,17 @@ app.put('/api/admin/bundles/:id/extend', requireAdmin, async (req, res) => {
 app.delete('/api/admin/bundles/:id', requireAdmin, async (req, res) => {
     try {
         const bundleId = req.params.id;
-        // 1. Unlink Users assigned to keys in this bundle
-        await dbQuery(`
-            UPDATE users SET license_key_id = NULL
-            WHERE license_key_id IN (SELECT id FROM license_keys WHERE bundle_id = $1)
-        `, [bundleId]);
-
-        // 2. Delete Keys
+        await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id IN (SELECT id FROM license_keys WHERE bundle_id = $1)`, [bundleId]);
         await dbQuery(`DELETE FROM license_keys WHERE bundle_id = $1`, [bundleId]);
-
-        // 3. Delete Bundle
         await dbQuery(`DELETE FROM license_bundles WHERE id = $1`, [bundleId]);
-
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: "Fehler beim Löschen: " + e.message }); }
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
-        const sql = `
-            SELECT u.*, k.key_code,
-            (SELECT COUNT(*) FROM license_keys WHERE id = u.license_key_id OR assigned_user_id = u.username) as license_count
-            FROM users u
-            LEFT JOIN license_keys k ON u.license_key_id = k.id
-            ORDER BY u.registered_at DESC LIMIT 100
-        `;
-        const result = await dbQuery(sql);
-        const users = result.rows.map(r => ({
-            ...r,
-            is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1),
-            is_online: isPostgreSQL() ? r.is_online : (r.is_online === 1)
-        }));
+        const result = await dbQuery(`SELECT u.*, k.key_code, (SELECT COUNT(*) FROM license_keys WHERE id = u.license_key_id OR assigned_user_id = u.username) as license_count FROM users u LEFT JOIN license_keys k ON u.license_key_id = k.id ORDER BY u.registered_at DESC LIMIT 100`);
+        const users = result.rows.map(r => ({ ...r, is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1), is_online: isPostgreSQL() ? r.is_online : (r.is_online === 1) }));
         res.json(users);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1619,19 +1012,9 @@ app.get('/api/admin/users/:id/licenses', requireAdmin, async (req, res) => {
         const userRes = await dbQuery('SELECT username, license_key_id FROM users WHERE id = $1', [userId]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const { username, license_key_id } = userRes.rows[0];
-
-        const sql = `
-            SELECT * FROM license_keys
-            WHERE id = $1 OR assigned_user_id = $2
-            ORDER BY activated_at DESC
-        `;
-        const result = await dbQuery(sql, [license_key_id, username]);
-        const keys = result.rows.map(r => ({
-             ...r,
-             is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1)
-        }));
+        const result = await dbQuery(`SELECT * FROM license_keys WHERE id = $1 OR assigned_user_id = $2 ORDER BY activated_at DESC`, [license_key_id, username]);
+        const keys = result.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json(keys);
-
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1657,27 +1040,17 @@ app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     try {
-        const sql = `SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`;
-        const result = await dbQuery(sql);
+        const result = await dbQuery(`SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`);
         const purchases = result.rows.map(r => {
             let meta = {};
             try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata || {}; } catch(e){}
             const email = meta.email || meta.customer_email || meta.customerEmail || '?';
-            return {
-                id: r.payment_id,
-                email: email,
-                product: meta.product_type || '?',
-                amount: r.amount,
-                currency: r.currency,
-                date: r.completed_at,
-                status: r.status
-            };
+            return { id: r.payment_id, email: email, product: meta.product_type || '?', amount: r.amount, currency: r.currency, date: r.completed_at, status: r.status };
         });
         res.json(purchases);
     } catch (e) { res.json([]); }
 });
 
-// SUPPORT TICKETS (ADMIN)
 app.get('/api/admin/support-tickets', requireAdmin, async (req, res) => {
     try {
         const result = await dbQuery(`SELECT * FROM support_tickets ORDER BY created_at DESC`);
@@ -1685,100 +1058,60 @@ app.get('/api/admin/support-tickets', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Update Ticket Status (Viewed/Open)
 app.put('/api/admin/support-tickets/:id/status', requireAdmin, async (req, res) => {
-    const { status } = req.body; // 'in_progress', 'closed'
-    const ticketId = req.params.id; // Database ID (INT)
+    const { status } = req.body;
+    const ticketId = req.params.id;
     try {
-        // Get Ticket Details to find real ticket_id (String)
         const ticketRes = await dbQuery("SELECT ticket_id, username FROM support_tickets WHERE id = $1", [ticketId]);
         if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
-        const { ticket_id, username } = ticketRes.rows[0];
-
-        // Update Ticket Status
+        const { ticket_id } = ticketRes.rows[0];
         await dbQuery("UPDATE support_tickets SET status = $1 WHERE id = $2", [status, ticketId]);
-
-        // Update Linked Message Status (if exists)
-        if (ticket_id) {
-            await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
-        }
-
+        if (ticket_id) await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// NEW: Manual Status Update (Requested PATCH /messages/:id/status)
 app.patch('/api/admin/messages/:id/status', requireAdmin, async (req, res) => {
-    const { status } = req.body; // 'closed'
+    const { status } = req.body;
     const ticketId = req.params.id;
     try {
         const ticketRes = await dbQuery("SELECT ticket_id FROM support_tickets WHERE id = $1", [ticketId]);
         if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
         const { ticket_id } = ticketRes.rows[0];
-
         await dbQuery("UPDATE support_tickets SET status = $1 WHERE id = $2", [status, ticketId]);
-
-        if (ticket_id) {
-            await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
-        }
+        if (ticket_id) await dbQuery("UPDATE messages SET status = $1 WHERE ticket_id = $2", [status, ticket_id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// NEW: Delete Ticket Message (Requested DELETE /messages/:id)
 app.delete('/api/admin/messages/:id', requireAdmin, async (req, res) => {
     const ticketId = req.params.id;
     try {
-        // Get ticket details to clean up linked messages
         const ticketRes = await dbQuery("SELECT ticket_id FROM support_tickets WHERE id = $1", [ticketId]);
-
         if (ticketRes.rows.length > 0) {
             const { ticket_id } = ticketRes.rows[0];
-            // Delete from messages if linked
-            if (ticket_id) {
-                await dbQuery("DELETE FROM messages WHERE ticket_id = $1", [ticket_id]);
-            }
+            if (ticket_id) await dbQuery("DELETE FROM messages WHERE ticket_id = $1", [ticket_id]);
         }
-
         await dbQuery("DELETE FROM support_tickets WHERE id = $1", [ticketId]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// Reply to Ticket
 app.post('/api/admin/support-tickets/:id/reply', requireAdmin, async (req, res) => {
     const ticketDbId = req.params.id;
     const { message, username } = req.body;
-
     if (!message || !username) return res.status(400).json({ error: "Missing data" });
-
     try {
-        // 1. Get Ticket Details
         const ticketRes = await dbQuery("SELECT ticket_id, subject FROM support_tickets WHERE id = $1", [ticketDbId]);
         if (ticketRes.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
         const { ticket_id, subject } = ticketRes.rows[0];
-
-        // 2. Find User ID
         const userRes = await dbQuery("SELECT id FROM users WHERE username = $1", [username]);
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const userId = userRes.rows[0].id;
-
-        // 3. Send Reply Message
         const replySubject = `RE: ${subject} - Ticket: #${ticket_id}`;
-        await dbQuery(
-            `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-             VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
-            [userId, replySubject, message, new Date().toISOString()]
-        );
-
-        // 4. Close Ticket
+        await dbQuery(`INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'ticket_reply', ${isPostgreSQL() ? 'false' : '0'}, $4)`, [userId, replySubject, message, new Date().toISOString()]);
         await dbQuery("UPDATE support_tickets SET status = 'closed' WHERE id = $1", [ticketDbId]);
-
-        // 5. Close User's Original Ticket Message (Unlocks Delete)
-        if (ticket_id) {
-            await dbQuery("UPDATE messages SET status = 'closed' WHERE ticket_id = $1", [ticket_id]);
-        }
-
+        if (ticket_id) await dbQuery("UPDATE messages SET status = 'closed' WHERE ticket_id = $1", [ticket_id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1790,7 +1123,6 @@ app.delete('/api/admin/support-tickets/:id', requireAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// Get/Set Settings (for Templates)
 app.get('/api/admin/settings/:key', requireAdmin, async (req, res) => {
     try {
         const result = await dbQuery("SELECT value FROM settings WHERE key = $1", [req.params.key]);
@@ -1802,13 +1134,9 @@ app.get('/api/admin/settings/:key', requireAdmin, async (req, res) => {
 app.post('/api/admin/settings', requireAdmin, async (req, res) => {
     try {
         const { key, value } = req.body;
-        // Upsert logic (simplistic)
         const check = await dbQuery("SELECT key FROM settings WHERE key = $1", [key]);
-        if (check.rows.length > 0) {
-            await dbQuery("UPDATE settings SET value = $1 WHERE key = $2", [value, key]);
-        } else {
-            await dbQuery("INSERT INTO settings (key, value) VALUES ($1, $2)", [key, value]);
-        }
+        if (check.rows.length > 0) await dbQuery("UPDATE settings SET value = $1 WHERE key = $2", [value, key]);
+        else await dbQuery("INSERT INTO settings (key, value) VALUES ($1, $2)", [key, value]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1818,9 +1146,7 @@ app.get('/api/admin/maintenance-status', requireAdmin, async (req, res) => {
         const result = await dbQuery("SELECT value FROM settings WHERE key = 'maintenance_mode'");
         const isActive = result.rows.length > 0 && result.rows[0].value === 'true';
         res.json({ success: true, maintenance: isActive });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
@@ -1829,9 +1155,7 @@ app.post('/api/admin/toggle-maintenance', requireAdmin, async (req, res) => {
         const val = active ? 'true' : 'false';
         await dbQuery("UPDATE settings SET value = $1 WHERE key = 'maintenance_mode'", [val]);
         res.json({ success: true, maintenance: active });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.get('/api/admin/shop-status', requireAdmin, async (req, res) => {
@@ -1870,33 +1194,17 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
 // MESSAGING SYSTEM
 // ==================================================================
 
-// GET MESSAGES
 app.get('/api/messages', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
         const now = new Date().toISOString();
-
-        // UPDATED LOGIC:
-        // 1. Personal messages that are unread OR Type='ticket' (always show tickets)
-        // 2. Broadcasts (recipient=NULL) that are not expired
-        const sql = `
-            SELECT * FROM messages
-            WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL() ? 'false' : '0'} OR type = 'ticket'))
-            OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2))
-            ORDER BY created_at DESC
-        `;
-
+        const sql = `SELECT * FROM messages WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL() ? 'false' : '0'} OR type = 'ticket')) OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2)) ORDER BY created_at DESC`;
         const result = await dbQuery(sql, [userId, now]);
-        const msgs = result.rows.map(r => ({
-            ...r,
-            is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1)
-        }));
-
+        const msgs = result.rows.map(r => ({ ...r, is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1) }));
         res.json(msgs);
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// MARK READ
 app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
@@ -1905,150 +1213,78 @@ app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE MESSAGE (USER)
 app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
-        // User can only delete their own messages
-        // Also check if it's a TICKET and if it is OPEN (which shouldn't be deleted)
-        // But the frontend already locks it. Server side validation is good too.
-
-        // 1. Check status if ticket
         const msgRes = await dbQuery("SELECT type, status FROM messages WHERE id = $1 AND recipient_id = $2", [msgId, req.user.id]);
         if(msgRes.rows.length === 0) return res.status(404).json({ error: "Nachricht nicht gefunden" });
-
         const msg = msgRes.rows[0];
-        if (msg.type === 'ticket' && msg.status !== 'closed') {
-            return res.status(403).json({ error: "Ticket noch offen. Löschen nicht erlaubt." });
-        }
-
+        if (msg.type === 'ticket' && msg.status !== 'closed') return res.status(403).json({ error: "Ticket noch offen." });
         await dbQuery(`DELETE FROM messages WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ADMIN SEND
 app.post('/api/admin/send-message', requireAdmin, async (req, res) => {
     try {
         const { recipientId, subject, body, type, expiresAt } = req.body;
-
         await dbQuery(
             `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [recipientId || null, subject, body, type || 'general', expiresAt || null, new Date().toISOString(), (isPostgreSQL() ? false : 0)]
         );
-
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// SCHEDULER (License Expiry)
 const checkLicenseExpiries = async () => {
     try {
         if (!dbQuery) return;
-
         const now = new Date();
-        const thresholds = [30, 10, 3]; // Days
-
-        // Fetch active keys with users
-        const sql = `
-            SELECT u.id as user_id, l.expires_at
-            FROM users u
-            JOIN license_keys l ON u.license_key_id = l.id
-            WHERE l.expires_at IS NOT NULL AND l.is_active = ${isPostgreSQL() ? 'true' : '1'}
-        `;
-
+        const thresholds = [30, 10, 3];
+        const sql = `SELECT u.id as user_id, l.expires_at FROM users u JOIN license_keys l ON u.license_key_id = l.id WHERE l.expires_at IS NOT NULL AND l.is_active = ${isPostgreSQL() ? 'true' : '1'}`;
         const result = await dbQuery(sql);
-
         for (const row of result.rows) {
             const expDate = new Date(row.expires_at);
             const diffTime = expDate - now;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
             if (thresholds.includes(diffDays)) {
                 const subject = `Lizenz läuft ab in ${diffDays} Tagen`;
-
-                // Avoid duplicates (check last 24h)
-                const existing = await dbQuery(`
-                    SELECT id FROM messages
-                    WHERE recipient_id = $1 AND subject = $2 AND created_at > $3
-                `, [row.user_id, subject, new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()]);
-
+                const existing = await dbQuery(`SELECT id FROM messages WHERE recipient_id = $1 AND subject = $2 AND created_at > $3`, [row.user_id, subject, new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()]);
                 if (existing.rows.length === 0) {
-                    await dbQuery(`
-                        INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                        VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)
-                    `, [
-                        row.user_id,
-                        subject,
-                        `Ihre Lizenz läuft am ${expDate.toLocaleDateString('de-DE')} ab. Bitte verlängern Sie rechtzeitig.`,
-                        new Date().toISOString()
-                    ]);
+                    await dbQuery(`INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`, [row.user_id, subject, `Ihre Lizenz läuft am ${expDate.toLocaleDateString('de-DE')} ab.`, new Date().toISOString()]);
                 }
             }
         }
     } catch(e) { console.error("Scheduler Error:", e); }
 };
-
-// Run Scheduler every 12 hours
 setInterval(checkLicenseExpiries, 12 * 60 * 60 * 1000);
-// Run once on start (delayed)
 setTimeout(checkLicenseExpiries, 10000);
 
 // ==================================================================
 // 5. START & ROUTING
 // ==================================================================
 
-// ENTERPRISE ROUTES
 if (IS_ENTERPRISE) {
     app.get('/api/config', async (req, res) => {
         const stats = await enterpriseManager.init();
-        res.json({
-            mode: 'ENTERPRISE',
-            activated: stats.activated,
-            stats: enterpriseManager.getStats()
-        });
+        res.json({ mode: 'ENTERPRISE', activated: stats.activated, stats: enterpriseManager.getStats() });
     });
-
     app.post('/api/enterprise/activate', async (req, res) => {
         try {
-            const { licenseKey } = req.body; // Adjusted to match Client Payload
+            const { licenseKey } = req.body;
             if (!licenseKey) return res.status(400).json({ error: "licenseKey is required" });
-
-            // Pass to manager (which calls Cloud)
             const result = await enterpriseManager.activate(licenseKey);
             res.json(result);
-        } catch(e) {
-            console.error("Local Enterprise Activation Error:", e);
-            res.status(500).json({ error: "Activation failed: " + e.message, details: e.stack });
-        }
+        } catch(e) { res.status(500).json({ error: "Activation failed: " + e.message, details: e.stack }); }
     });
-
-    // NEW: Complete Activation (Receive result from Frontend)
     app.post('/api/enterprise/complete-activation', async (req, res) => {
-        // Security Check: Only Localhost
-        const remoteIp = req.socket.remoteAddress;
-        // In Electron, usually ::1 or 127.0.0.1
-        // We rely on the fact that this port is only bound locally anyway if we did it right,
-        // but 'app.listen(port)' listens on all interfaces by default.
-        // However, middleware filters localhost usually.
-        // Let's rely on standard logic + explicitly trust this endpoint is called by our frontend.
-
         try {
-            console.log("📥 Receiving Activation Data from Frontend...");
-            const activationData = req.body; // { licenseKey, bundleId, quota, clientName, valid }
-
-            if (!activationData || !activationData.valid) {
-                 return res.status(400).json({ error: "Invalid Activation Data" });
-            }
-
+            const activationData = req.body;
+            if (!activationData || !activationData.valid) return res.status(400).json({ error: "Invalid Activation Data" });
             const result = await enterpriseManager.completeActivation(activationData);
             res.json(result);
-        } catch(e) {
-            console.error("Complete Activation Error:", e);
-            res.status(500).json({ error: e.message });
-        }
+        } catch(e) { res.status(500).json({ error: e.message }); }
     });
-
     app.post('/api/enterprise/users', async (req, res) => {
         try {
             const { username, openRecipient } = req.body;
@@ -2056,112 +1292,37 @@ if (IS_ENTERPRISE) {
             res.json(result);
         } catch(e) { res.status(400).json({ error: e.message }); }
     });
-
-    app.get('/api/enterprise/users', async (req, res) => {
-        res.json(enterpriseManager.getUsers());
-    });
-
+    app.get('/api/enterprise/users', async (req, res) => { res.json(enterpriseManager.getUsers()); });
     app.get('/api/enterprise/admin/messages', async (req, res) => {
         try {
             if(dbQuery) {
                 const r = await dbQuery("SELECT * FROM enterprise_messages ORDER BY created_at DESC");
-                const tickets = r.rows.map(m => ({
-                    id: m.id,
-                    ticket_id: m.id,
-                    username: m.sender_id,
-                    subject: m.subject,
-                    message: m.body,
-                    created_at: m.created_at,
-                    status: m.is_read ? 'closed' : 'open',
-                    email: ''
-                }));
+                const tickets = r.rows.map(m => ({ id: m.id, ticket_id: m.id, username: m.sender_id, subject: m.subject, message: m.body, created_at: m.created_at, status: m.is_read ? 'closed' : 'open', email: '' }));
                 res.json(tickets);
-            } else {
-                res.json([]);
-            }
+            } else { res.json([]); }
         } catch(e) { res.status(500).json({ error: e.message }); }
     });
-
 } else {
-    // Cloud Config
-    app.get('/api/config', (req, res) => {
-        res.json({ mode: 'CLOUD' });
-    });
-
-    // CLOUD-SIDE ENTERPRISE ACTIVATION ENDPOINT
-    // Validates the Master Key from a Local Hub
+    app.get('/api/config', (req, res) => { res.json({ mode: 'CLOUD' }); });
     app.post('/api/enterprise/activate', async (req, res) => {
-        // CORS HEADERS FOR ELECTRON (Allow any origin for this specific endpoint)
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-
         try {
-            // Extract from Header
             const authHeader = req.headers['authorization'];
             const licenseKey = authHeader && authHeader.split(' ')[1];
-
-            console.log("Enterprise Activation Request for Key (Header):", licenseKey ? "PRESENT" : "MISSING");
-
-            if (!licenseKey) {
-                return res.status(400).json({ success: false, error: "EMPTY_HEADER", details: "Authorization Header missing" });
-            }
-
-            // 1. Try license_keys (Main Table)
+            if (!licenseKey) return res.status(400).json({ success: false, error: "EMPTY_HEADER" });
             let result = await dbQuery("SELECT * FROM license_keys WHERE key_code = $1 AND product_code = 'ENTERPRISE'", [licenseKey]);
-
-            // 2. Fallback to enterprise_keys (Recovery Table) if empty
-            if (result.rows.length === 0) {
-                 result = await dbQuery("SELECT * FROM enterprise_keys WHERE key = $1", [licenseKey]);
-            }
-
-            if (result.rows.length === 0) {
-                console.log("Key not found in DB");
-                return res.status(404).json({ success: false, valid: false, error: 'Invalid Enterprise Key' });
-            }
-
+            if (result.rows.length === 0) result = await dbQuery("SELECT * FROM enterprise_keys WHERE key = $1", [licenseKey]);
+            if (result.rows.length === 0) return res.status(404).json({ success: false, valid: false, error: 'Invalid Enterprise Key' });
             const license = result.rows[0];
             const isBlocked = isPostgreSQL() ? license.is_blocked : (license.is_blocked === 1);
-
-            // Handle schema diffs (license_keys vs enterprise_keys)
-            // license_keys has: key_code, product_code, max_users, client_name
-            // enterprise_keys has: key, quota_max, bundle_id
-
-            // Normalize
-            const quota = license.max_users || license.quota_max || 10;
-            const bundleId = license.bundle_id || 'ENT-BUNDLE';
-            const clientName = license.client_name || 'Enterprise Customer';
-            const dbId = license.id;
+            if (isBlocked) return res.status(403).json({ success: false, valid: false, error: 'License Blocked' });
+            if (license.activated_at) return res.status(403).json({ success: false, valid: false, error: 'License Already Activated' });
             const tableUsed = license.key_code ? 'license_keys' : 'enterprise_keys';
-
-            if (isBlocked) {
-                console.log("Key Blocked");
-                return res.status(403).json({ success: false, valid: false, error: 'License Blocked' });
-            }
-
-            // ONE-TIME CHECK: If already activated, BLOCK re-use strictly
-            if (license.activated_at) {
-                console.log("Key Already Used");
-                return res.status(403).json({ success: false, valid: false, error: 'License Already Activated' });
-            }
-
-            // Update Activated status
-            await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`,
-                [(isPostgreSQL() ? true : 1), new Date().toISOString(), dbId]);
-
-            console.log("Activation Success for", clientName);
-
-            res.json({
-                success: true,
-                valid: true,
-                bundleId: bundleId,
-                quota: quota,
-                clientName: clientName
-            });
-
-        } catch (e) {
-            console.error("DETAILED_ERROR:", e.stack);
-            res.status(500).json({ success: false, error: "Server Error", details: e.message });
-        }
+            const dbId = license.id;
+            await dbQuery(`UPDATE ${tableUsed} SET is_active = $1, activated_at = $2 WHERE id = $3`, [(isPostgreSQL() ? true : 1), new Date().toISOString(), dbId]);
+            res.json({ success: true, valid: true, bundleId: license.bundle_id || 'ENT-BUNDLE', quota: license.max_users || license.quota_max || 10, clientName: license.client_name || 'Enterprise Customer' });
+        } catch (e) { res.status(500).json({ success: false, error: "Server Error" }); }
     });
 }
 
@@ -2170,40 +1331,26 @@ if (!IS_ENTERPRISE) {
     app.use('/api', require('./payment.js'));
 }
 
-// ACTIVATION & ROUTING LOGIC
 app.get('/activation', (req, res) => {
-    if (IS_ENTERPRISE) {
-        res.sendFile(path.join(__dirname, 'public', 'activation.html'));
-    } else {
-        res.redirect('/');
-    }
+    if (IS_ENTERPRISE) res.sendFile(path.join(__dirname, 'public', 'activation.html'));
+    else res.redirect('/');
 });
-
 app.get('/enterprise', async (req, res) => {
     if (IS_ENTERPRISE) {
-        // STRICT ACTIVATION CHECK
         const stats = await enterpriseManager.init();
-        if(!stats.activated) {
-            return res.redirect('/activation');
-        }
+        if(!stats.activated) return res.redirect('/activation');
         res.sendFile(path.join(__dirname, 'public', 'it-admin.html'));
-    } else {
-        res.redirect('/');
-    }
+    } else res.redirect('/');
 });
-
 app.get('/', async (req, res) => {
     if (IS_ENTERPRISE) {
         const stats = await enterpriseManager.init();
-        if(!stats.activated) {
-            return res.redirect('/activation');
-        }
+        if(!stats.activated) return res.redirect('/activation');
         return res.redirect('/enterprise');
     }
     await trackEvent(req, 'page_view', 'landing');
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
-
 app.get('/app', async (req, res) => {
     if (!IS_ENTERPRISE) await trackEvent(req, 'page_view', 'app');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -2214,88 +1361,38 @@ app.get('/shop', async (req, res) => {
 });
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/maintenance', (req, res) => res.sendFile(path.join(__dirname, 'public', 'maintenance.html')));
-
 app.get('*', (req, res) => {
-    if (req.path.startsWith('/api') || req.path.match(/\.[0-9a-z]+$/i)) {
-        res.status(404).send('Not Found');
-    } else {
-        res.redirect('/');
-    }
+    if (req.path.startsWith('/api') || req.path.match(/\.[0-9a-z]+$/i)) res.status(404).send('Not Found');
+    else res.redirect('/');
 });
 
 let httpServer;
 let activeSockets = new Set();
-
-// EXPORTABLE START FUNCTION
 function startServer(port = PORT) {
-    if (httpServer) {
-        console.warn("Server already running");
-        return httpServer;
-    }
-
+    if (httpServer) { console.warn("Server already running"); return httpServer; }
     httpServer = app.listen(port, () => {
         console.log(`🚀 Server running on Port ${port}`);
         if (IS_ENTERPRISE) {
-            // Init extra table for Enterprise Messages
             if(!isPostgreSQL && db) {
-                db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (
-                    id TEXT PRIMARY KEY,
-                    sender_id TEXT,
-                    recipient_id TEXT,
-                    subject TEXT,
-                    body TEXT,
-                    attachment TEXT,
-                    is_read INTEGER DEFAULT 0,
-                    created_at DATETIME
-                )`, (err) => {
-                    if(err) console.error("EntDB Error", err);
-                });
+                db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (id TEXT PRIMARY KEY, sender_id TEXT, recipient_id TEXT, subject TEXT, body TEXT, attachment TEXT, is_read INTEGER DEFAULT 0, created_at DATETIME)`, (err) => { if(err) console.error("EntDB Error", err); });
             }
-
             if(socketServer) socketServer.attach(httpServer, dbQuery);
-            if(enterpriseManager) {
-                enterpriseManager.init().then(config => {
-                    if(config.activated) {
-                        require('./enterprise/discovery').start(port);
-                    }
-                });
-            }
+            if(enterpriseManager) enterpriseManager.init().then(config => { if(config.activated) require('./enterprise/discovery').start(port); });
         }
     });
-
-    // Track connections for graceful shutdown
     httpServer.on('connection', (socket) => {
         activeSockets.add(socket);
         socket.on('close', () => activeSockets.delete(socket));
     });
-
     return httpServer;
 }
-
-// EXPORTABLE STOP FUNCTION
 function stopServer() {
     return new Promise((resolve) => {
         if (!httpServer) return resolve();
-
         console.log("🛑 Stopping Server...");
-
-        // Destroy all open sockets to force close
-        for (const socket of activeSockets) {
-            socket.destroy();
-            activeSockets.delete(socket);
-        }
-
-        httpServer.close(() => {
-            console.log("✅ Server stopped.");
-            httpServer = null;
-            resolve();
-        });
+        for (const socket of activeSockets) { socket.destroy(); activeSockets.delete(socket); }
+        httpServer.close(() => { console.log("✅ Server stopped."); httpServer = null; resolve(); });
     });
 }
-
-// AUTO-START if run directly (node server.js)
-if (require.main === module) {
-    startServer();
-}
-
+if (require.main === module) startServer();
 module.exports = { app, startServer, stopServer };
