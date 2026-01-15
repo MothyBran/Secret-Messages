@@ -117,6 +117,7 @@ router.post('/create-checkout-session', async (req, res) => {
             mode: 'payment',
             success_url: `${DOMAIN}/shop?session_id={CHECKOUT_SESSION_ID}&success=true`,
             cancel_url: `${DOMAIN}/shop?canceled=true`,
+            // Metadata direkt am Session-Objekt, nicht in payment_intent_data
             metadata: metadata,
         };
 
@@ -188,21 +189,16 @@ router.post('/webhook', async (req, res) => {
             const session = event.data.object;
             console.log(`🎯 Checkout Session beendet: ${session.id}`);
             try {
-                await handleCheckoutCompleted(session);
+                await handleSuccessfulPayment(session);
             } catch (err) {
-                console.error("❌ Fehler bei handleCheckoutCompleted:", err);
+                console.error("❌ Fehler bei handleSuccessfulPayment:", err);
             }
             break;
 
         case 'payment_intent.succeeded':
-            console.log(`💰 PaymentIntent erfolgreich: ${event.data.object.id}`);
-            try {
-                // Granulares Update: Frontend soll sehen "Zahlung da, erstelle Zugang..."
-                await dbQuery(
-                    "UPDATE payments SET status = 'succeeded' WHERE payment_intent_id = $1",
-                    [event.data.object.id]
-                );
-            } catch(e) { console.error("DB Error on PI update:", e); }
+            // Wir ignorieren PI succeeded, da wir alles über session.completed steuern,
+            // um ID-Konflikte (pi_ vs cs_) zu vermeiden.
+            console.log(`ℹ️ PaymentIntent succeeded (ignoriert): ${event.data.object.id}`);
             break;
 
         case 'payment_intent.payment_failed':
@@ -231,7 +227,7 @@ router.post('/webhook', async (req, res) => {
 /**
  * Handle Successful Payment
  */
-async function handleCheckoutCompleted(session) {
+async function handleSuccessfulPayment(session) {
     console.log(`>>> PROCESSING PAYMENT: ${session.id}`);
 
     const client = await getTransactionClient();
@@ -239,45 +235,40 @@ async function handleCheckoutCompleted(session) {
 
     try {
         // --- 1. EXTRACT DATA ---
+        // Ensure metadata is pulled directly (as configured in create-checkout-session)
         const meta = session.metadata || {};
         const userId = session.client_reference_id ? parseInt(session.client_reference_id, 10) : null;
-        // Explicitly convert boolean string from Stripe metadata
         const isRenewal = meta.is_renewal === true || meta.is_renewal === 'true';
         const productType = meta.product_type || 'unknown';
         const product = PRICES[productType];
 
         console.log('Webhook Step 1: Data extracted', userId, productType);
 
-        // Safety check on product config
         if (!product) throw new Error("Unknown Product Config in Webhook");
 
         const count = parseInt(meta.keys_count, 10) || 1;
         const months = parseInt(meta.duration_months, 10) || 0;
         const customerEmail = session.customer_details?.email || session.customer_email;
         const paymentAmount = session.amount_total; // in cents
+        const now = new Date().toISOString();
 
         // --- 2. START TRANSACTION ---
-        // Unified BEGIN for both PG and SQLite
         await client.query('BEGIN');
         console.log('Webhook Step 2: Transaction started');
 
-        // --- 3. LOG PAYMENT (IMMEDIATELY) ---
-        // We write 'processing' status first so polling finds the record immediately.
-        // Also ensure strict boolean conversion for is_renewal in metadata.
+        // --- 3. PREPARE METADATA & UPDATE ---
+        // Common metadata
         const metaObj = {
             ...meta,
             user_id: userId,
             email: customerEmail,
-            is_renewal: !!isRenewal // Force boolean
+            is_renewal: !!isRenewal,
+            // Will append keys later if generated
         };
-        const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
-        const now = new Date().toISOString();
-
-        // (Removed immediate processing update - relying on pending state from early insert)
 
         // --- 4. LOGIC SWITCH ---
 
-        // CASE 2: RENEWAL (User Logged In AND Requested Renewal)
+        // CASE 2: RENEWAL
         if (userId && isRenewal) {
             console.log(`>> MODE: RENEWAL (User ${userId})`);
 
@@ -288,13 +279,9 @@ async function handleCheckoutCompleted(session) {
 
             // Master Formula
             let newExpiry = null;
-            if (months > 0) { // Not Lifetime
+            if (months > 0) {
                 newExpiry = calculateNewExpiration(user.license_expiration, months);
             }
-            // If Lifetime (months=0), newExpiry stays null (conceptually) or we set a far future date?
-            // Existing logic often used NULL for lifetime. Let's stick to NULL or '2099'.
-            // "Unlimited" in PRICES has months: 0.
-            // If months=0, we assume Lifetime.
             if (months === 0) newExpiry = null; // Lifetime
 
             // Update User
@@ -312,28 +299,16 @@ async function handleCheckoutCompleted(session) {
                 [userId, msgSubject, msgBody, now]
             );
 
-            // Update Status to Completed
-            await client.query("UPDATE payments SET status = 'completed', completed_at = $1 WHERE payment_id = $2", [now, session.id]);
-
-            console.log('Webhook Step 3: DB Updates finished');
-
-            // Commit here for Renewal
-            await client.query('COMMIT');
-            console.log('Webhook Step 4: Transaction Committed');
-            console.log(`[SUCCESS] DB updated for User ${userId}`);
-
             // Send Email
             await sendRenewalConfirmation(customerEmail, newExpiry ? new Date(newExpiry).toLocaleDateString('de-DE') : 'Unbegrenzt', user.username);
 
         } else {
-            // CASE 1 (Guest) OR CASE 3 (User buying extra keys)
+            // CASE 1 & 3: GENERATE KEYS
             console.log(`>> MODE: GENERATE KEYS (User: ${userId || 'Guest'})`);
 
             for(let i=0; i<count; i++) {
                 const keyRaw = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
                 const keyHash = crypto.createHash('sha256').update(keyRaw).digest('hex');
-
-                // Determine origin
                 const origin = userId ? 'shop_addon' : 'shop_guest';
 
                 await client.query(
@@ -343,47 +318,47 @@ async function handleCheckoutCompleted(session) {
                 keysGenerated.push(keyRaw);
             }
 
-            // Update Payment Metadata with generated keys (for polling)
-            // We need to update the payment record we just inserted?
-            // Or easier: Just return them in the polling endpoint by querying license_keys created recently?
-            // Safer: Store them in a temporary "order" table or update the payment metadata.
-            // Let's update the payment metadata.
-            const updMetaObj = {
-                ...meta,
-                user_id: userId,
-                email: customerEmail,
-                generated_keys: keysGenerated,
-                is_renewal: !!isRenewal
-            };
-            // FIX: PostgreSQL supports JSONB objects directly, SQLite needs a string
-            const updatedMeta = isPostgreSQL() ? updMetaObj : JSON.stringify(updMetaObj);
-
-            // Update metadata AND status to 'completed'
-            // We use UPSERT logic here to ensure robustness even if Early Record failed
-            const updateRes = await client.query(
-                "UPDATE payments SET metadata = $1, status = 'completed', completed_at = $2, amount = $3 WHERE payment_id = $4",
-                [updatedMeta, now, paymentAmount, session.id]
-            );
-
-            // Fallback: If no row updated (Early Record missing), Insert new
-            const rowCount = isPostgreSQL() ? updateRes.rowCount : (updateRes.changes || 0);
-            if (rowCount === 0) {
-                 await client.query(
-                    `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-                     VALUES ($1, $2, 'eur', 'completed', 'stripe', $3, $4)`,
-                    [session.id, paymentAmount, now, updatedMeta]
-                );
-            }
-
-            console.log('Webhook Step 3: DB Updates finished');
-
-            await client.query('COMMIT');
-            console.log('Webhook Step 4: Transaction Committed');
-            console.log(`[SUCCESS] Keys generated for User ${userId || 'Guest'}`);
+            metaObj.generated_keys = keysGenerated;
 
             // Send Email
             await sendLicenseEmail(customerEmail, keysGenerated, product.name);
         }
+
+        // --- 5. FINAL UPDATE (The crucial fix) ---
+        // We update based on payment_id (which is session.id).
+        // We explicitly set status to 'completed' and save the PI ID.
+
+        const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
+
+        const updateRes = await client.query(
+            `UPDATE payments
+             SET status = 'completed',
+                 completed_at = $1,
+                 metadata = $2,
+                 payment_intent_id = $3
+             WHERE payment_id = $4`,
+            [now, finalMeta, session.payment_intent, session.id]
+        );
+
+        if (isPostgreSQL() ? updateRes.rowCount === 0 : updateRes.changes === 0) {
+            console.warn("⚠️ Warning: Early Record not found for update, inserting new.");
+             await client.query(
+                `INSERT INTO payments (payment_id, payment_intent_id, amount, currency, status, payment_method, completed_at, metadata)
+                 VALUES ($1, $2, $3, 'eur', 'completed', 'stripe', $4, $5)`,
+                [session.id, session.payment_intent, paymentAmount, now, finalMeta]
+            );
+        }
+
+        await client.query('COMMIT');
+        console.log('Webhook Step 4: Transaction Committed');
+
+    } catch (e) {
+        console.error("Payment Transaction Error:", e);
+        await client.query('ROLLBACK');
+    } finally {
+        client.release();
+    }
+}
 
     } catch (e) {
         console.error("Payment Transaction Error:", e);
