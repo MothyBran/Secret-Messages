@@ -243,7 +243,7 @@ async function pollPaymentStatus(sessionId) {
     console.log(`📡 Status-Check ${attempts}...`);
 
     try {
-      const res = await fetch(`/api/order-status?session_id=${sessionId}`);
+      const res = await fetch(`/api/order-status?session_id=${sessionId}&t=${Date.now()}`);
       const data = await res.json();
 
       if (data.success && (data.status === 'completed' || data.status === 'succeeded')) {

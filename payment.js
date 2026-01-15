@@ -147,7 +147,7 @@ router.post('/create-checkout-session', async (req, res) => {
             await client.query(
                 `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
                  VALUES ($1, $2, 'eur', 'pending', 'stripe', $3, $4)`,
-                [session.id, product.price, now, finalMeta]
+                [session.id, product.price, null, finalMeta]
             );
         } catch(e) {
             console.warn("Early Record Insert Failed:", e.message);
@@ -272,7 +272,7 @@ async function handleCheckoutCompleted(session) {
         const meta = session.metadata || {};
         const userId = session.client_reference_id ? parseInt(session.client_reference_id, 10) : null;
         // Explicitly convert boolean string from Stripe metadata
-        const isRenewal = meta.is_renewal === 'true';
+        const isRenewal = meta.is_renewal === true || meta.is_renewal === 'true';
         const productType = meta.product_type || 'unknown';
         const product = PRICES[productType];
 
@@ -391,8 +391,8 @@ async function handleCheckoutCompleted(session) {
             // Update metadata AND status to 'completed'
             // We use UPSERT logic here to ensure robustness even if Early Record failed
             const updateRes = await client.query(
-                "UPDATE payments SET metadata = $1, status = 'completed', completed_at = $2 WHERE payment_id = $3",
-                [updatedMeta, now, session.id]
+                "UPDATE payments SET metadata = $1, status = 'completed', completed_at = $2, amount = $3 WHERE payment_id = $4",
+                [updatedMeta, now, paymentAmount, session.id]
             );
 
             // Fallback: If no row updated (Early Record missing), Insert new
