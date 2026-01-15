@@ -40,6 +40,7 @@ async function createTables() {
             status TEXT,
             amount INTEGER,
             currency TEXT,
+            payment_method TEXT,
             metadata JSONB,
             completed_at TIMESTAMP
         )`,
