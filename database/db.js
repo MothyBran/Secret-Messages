@@ -34,7 +34,6 @@ async function createTables() {
             assigned_user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
-        `DROP TABLE IF EXISTS payments`,
         `CREATE TABLE IF NOT EXISTS payments (
             id SERIAL PRIMARY KEY,
             payment_id TEXT UNIQUE,
