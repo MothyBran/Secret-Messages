@@ -94,44 +94,100 @@ router.post('/webhook', async (req, res) => {
     res.json({ received: true });
 });
 
+/**
+ * Hilfsfunktion zur Berechnung des neuen Ablaufdatums.
+ * Addiert Monate auf das aktuelle Datum ODER das bestehende Ablaufdatum (falls in der Zukunft).
+ */
+function calculateNewExpiration(currentExpirationStr, extensionMonths) {
+    const months = parseInt(extensionMonths);
+    if (isNaN(months) || months <= 0) return null; // Lifetime/Unbegrenzt
+
+    let baseDate = new Date();
+    
+    // Falls ein gültiges Ablaufdatum existiert und in der Zukunft liegt, nimm dieses als Basis
+    if (currentExpirationStr) {
+        const currentExpiry = new Date(currentExpirationStr);
+        if (!isNaN(currentExpiry.getTime()) && currentExpiry > baseDate) {
+            baseDate = currentExpiry;
+        }
+    }
+
+    const newDate = new Date(baseDate.getTime());
+    newDate.setMonth(newDate.getMonth() + months);
+    return newDate.toISOString();
+}
+
 async function handleSuccessfulPayment(session) {
     console.log(`Processing Payment: ${session.id}`);
     const client = await getTransactionClient();
     try {
         await client.query('BEGIN');
+        
         const meta = session.metadata || {};
         const userId = session.client_reference_id ? parseInt(session.client_reference_id) : null;
         const isRenewal = meta.is_renewal === 'true';
         const count = parseInt(meta.keys_count) || 1;
         const months = parseInt(meta.duration_months) || 0;
         const keysGenerated = [];
+        const now = new Date().toISOString();
 
         if (userId && isRenewal) {
-            // Logik für Verlängerung
+            // --- LOGIK FÜR VERLÄNGERUNG ---
             const userRes = await client.query('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+            
             if (userRes.rows.length > 0) {
-                const newExpiry = new Date(); // Hier deine calculateNewExpiration Logik einfügen
-                newExpiry.setMonth(newExpiry.getMonth() + months);
-                await client.query('UPDATE users SET license_expiration = $1 WHERE id = $2', [newExpiry.toISOString(), userId]);
+                const currentExpiry = userRes.rows[0].license_expiration;
+                // Berechne neues Datum (Master-Formel: Max(Now, Expiry) + Monate)
+                const newExpiry = calculateNewExpiration(currentExpiry, months);
+
+                // User-Tabelle aktualisieren
+                await client.query(
+                    'UPDATE users SET license_expiration = $1 WHERE id = $2', 
+                    [newExpiry, userId]
+                );
+
+                // Optional: In license_renewals loggen, falls Tabelle existiert
+                await client.query(
+                    'INSERT INTO license_renewals (user_id, extended_until, used_at) VALUES ($1, $2, $3)',
+                    [userId, newExpiry, now]
+                );
+
+                console.log(`✅ User ${userId} verlängert bis: ${newExpiry || 'Lifetime'}`);
             }
         } else {
-            // Neue Keys generieren
+            // --- NEUE KEYS GENERIEREN ---
+            // Berechne Ablaufdatum für die neuen Keys (startet immer ab "jetzt")
+            const keyExpiry = calculateNewExpiration(null, months);
+
             for(let i=0; i<count; i++) {
                 const key = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
                 const hash = crypto.createHash('sha256').update(key).digest('hex');
-                await client.query(`INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at) VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, NOW())`, [key, hash, meta.product_type]);
+                
+                await client.query(
+                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at) 
+                     VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, NOW(), $4)`, 
+                    [key, hash, meta.product_type, keyExpiry]
+                );
                 keysGenerated.push(key);
             }
+            console.log(`✅ ${keysGenerated.length} neue Keys generiert.`);
         }
 
-        const finalMeta = JSON.stringify({ ...meta, generated_keys: keysGenerated, email: session.customer_details?.email });
+        // --- FINALES UPDATE DES ZAHLUNGSSTATUS ---
+        const finalMeta = JSON.stringify({ 
+            ...meta, 
+            generated_keys: keysGenerated, 
+            email: session.customer_details?.email 
+        });
+
         await client.query(
             `UPDATE payments SET status = 'completed', completed_at = NOW(), metadata = $1, payment_intent_id = $2 WHERE payment_id = $3`,
             [finalMeta, session.payment_intent, session.id]
         );
 
         await client.query('COMMIT');
-        console.log(`✅ Payment ${session.id} erfolgreich verarbeitet.`);
+        console.log(`✅ Payment ${session.id} erfolgreich in DB abgeschlossen.`);
+
     } catch (e) {
         await client.query('ROLLBACK');
         console.error("❌ Webhook Transaction Error:", e);
