@@ -43,15 +43,21 @@ const app = express();
 // 1. MIDDLEWARE
 // ==================================================================
 
-// MUSS GANZ OBEN STEHEN:
-// Stripe Webhook Middleware (Raw Body required for signature verification)
+// 1. Stripe Webhook (Raw)
 app.use('/api/webhook', express.raw({ type: 'application/json' }));
 
-// Cloud-Security: Trust Proxy für korrekte Erkennung von SSL und IPs hinter Load Balancern (Railway)
+// 2. Trust Proxy für Railway
 app.set('trust proxy', 1);
 
-// ERST DANACH (für alle anderen Routen):
-app.use(express.json());
+// 3. Globaler JSON-Parser, aber NICHT für den Webhook-Pfad
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(express.urlencoded({ extended: true }));
 
 // HTTPS Redirect Middleware
