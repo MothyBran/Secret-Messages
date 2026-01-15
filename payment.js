@@ -303,23 +303,7 @@ async function handleCheckoutCompleted(session) {
         const finalMeta = isPostgreSQL() ? metaObj : JSON.stringify(metaObj);
         const now = new Date().toISOString();
 
-        // UPSERT LOGIC: Update if exists (from early insert), otherwise Insert
-        // We use UPDATE first.
-        const updateRes = await client.query(
-            `UPDATE payments SET status = 'processing', completed_at = $1, metadata = $2 WHERE payment_id = $3`,
-            [now, finalMeta, session.id]
-        );
-
-        // Fallback: If no row updated, Insert
-        const rowCount = isPostgreSQL() ? updateRes.rowCount : (updateRes.changes || 0); // SQLite uses changes
-        if (rowCount === 0) {
-             const paymentSql = `
-                INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
-                VALUES ($1, $2, 'eur', 'processing', 'stripe', $3, $4)
-                ${isPostgreSQL() ? 'RETURNING id' : ''}
-            `;
-            await client.query(paymentSql, [session.id, paymentAmount, now, finalMeta]);
-        }
+        // (Removed immediate processing update - relying on pending state from early insert)
 
         // --- 4. LOGIC SWITCH ---
 
@@ -359,7 +343,7 @@ async function handleCheckoutCompleted(session) {
             );
 
             // Update Status to Completed
-            await client.query("UPDATE payments SET status = 'completed' WHERE payment_id = $1", [session.id]);
+            await client.query("UPDATE payments SET status = 'completed', completed_at = $1 WHERE payment_id = $2", [now, session.id]);
 
             console.log('Webhook Step 3: DB Updates finished');
 
@@ -405,7 +389,21 @@ async function handleCheckoutCompleted(session) {
             const updatedMeta = isPostgreSQL() ? updMetaObj : JSON.stringify(updMetaObj);
 
             // Update metadata AND status to 'completed'
-            await client.query("UPDATE payments SET metadata = $1, status = 'completed' WHERE payment_id = $2", [updatedMeta, session.id]);
+            // We use UPSERT logic here to ensure robustness even if Early Record failed
+            const updateRes = await client.query(
+                "UPDATE payments SET metadata = $1, status = 'completed', completed_at = $2 WHERE payment_id = $3",
+                [updatedMeta, now, session.id]
+            );
+
+            // Fallback: If no row updated (Early Record missing), Insert new
+            const rowCount = isPostgreSQL() ? updateRes.rowCount : (updateRes.changes || 0);
+            if (rowCount === 0) {
+                 await client.query(
+                    `INSERT INTO payments (payment_id, amount, currency, status, payment_method, completed_at, metadata)
+                     VALUES ($1, $2, 'eur', 'completed', 'stripe', $3, $4)`,
+                    [session.id, paymentAmount, now, updatedMeta]
+                );
+            }
 
             console.log('Webhook Step 3: DB Updates finished');
 
