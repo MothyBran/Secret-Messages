@@ -360,15 +360,6 @@ async function handleSuccessfulPayment(session) {
     }
 }
 
-    } catch (e) {
-        console.error("Payment Transaction Error:", e);
-        // Unified ROLLBACK for both PG and SQLite
-        await client.query('ROLLBACK');
-    } finally {
-        client.release();
-    }
-}
-
 /**
  * GET /api/order-status
  * Polling Endpoint
