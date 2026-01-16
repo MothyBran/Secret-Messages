@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/fontawesome-css/all.min.css">
+    <link href="/assets/css/ui.css" rel="stylesheet">
     <style>
         :root {
             --bg-dark: #050505;
@@ -599,6 +600,7 @@
 </head>
 <body>
     <div class="bg-grid"></div>
+    <div id="toast-container"></div>
 
     <header>
         <div class="container">
@@ -1355,5 +1357,8 @@
         }
     </script>
 
+    <script src="/assets/js/ui.js"></script>
+    <div id="messageModal" class="modal"><div class="modal-box"><h3 id="msgModalTitle">Info</h3><p id="msgModalText"></p><div class="modal-actions"><button id="msgModalBtn" class="modal-btn primary">OK</button></div></div></div>
+    <div id="confirmModal" class="modal"><div class="modal-box"><h3 id="confirmModalTitle">Bestätigen</h3><p id="confirmModalText"></p><div class="modal-actions"><button id="confirmModalBtnNo" class="modal-btn">Nein</button><button id="confirmModalBtnYes" class="modal-btn primary">Ja</button></div></div></div>
 </body>
 </html>
