@@ -136,30 +136,68 @@ async function handleSuccessfulPayment(session) {
         if (userId) {
             // --- EINGELOGGT ---
             if (isRenewal) {
-                // --- FALL 2 (RENEWAL) ---
-                const userRes = await client.query('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+                // --- FALL 2 (RENEWAL: Neuer Key generiert) ---
+                const userRes = await client.query(`
+                    SELECT u.username, u.license_key_id, l.expires_at
+                    FROM users u
+                    LEFT JOIN license_keys l ON u.license_key_id = l.id
+                    WHERE u.id = $1
+                `, [userId]);
 
                 if (userRes.rows.length > 0) {
-                    const currentExpiry = userRes.rows[0].license_expiration;
-                    const username = userRes.rows[0].username;
+                    const userData = userRes.rows[0];
+                    const currentExpiry = userData.expires_at;
+                    const username = userData.username;
+                    const oldKeyId = userData.license_key_id;
+
                     // Berechne neues Datum (Master-Formel: Max(Now, Expiry) + Monate)
                     const newExpiry = calculateNewExpiration(currentExpiry, months);
 
-                    // 1. User Update
-                    await client.query(
-                        'UPDATE users SET license_expiration = $1 WHERE id = $2',
-                        [newExpiry, userId]
+                    // 0. Alten Key deaktivieren (Historie)
+                    if (oldKeyId) {
+                         const inActiveVal = isPostgreSQL() ? false : 0;
+                         await client.query(`UPDATE license_keys SET is_active = ${inActiveVal} WHERE id = $1`, [oldKeyId]);
+                    }
+
+                    // 1. Neuen Key generieren
+                    const key = crypto.randomBytes(6).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
+                    const hash = crypto.createHash('sha256').update(key).digest('hex');
+                    const isActiveVal = isPostgreSQL() ? true : 1;
+
+                    // Insert new key (active)
+                    const insertKeyRes = await client.query(
+                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, assigned_user_id)
+                         VALUES ($1, $2, $3, ${isActiveVal}, NOW(), $4, $5) ${isPostgreSQL() ? 'RETURNING id' : ''}`,
+                        [key, hash, productType, newExpiry, username]
                     );
 
-                    // 2. Renewal Log (Mit STRIPE_RENEWAL Marker)
+                    let newKeyId;
+                    if (isPostgreSQL()) {
+                        newKeyId = insertKeyRes.rows[0].id;
+                    } else {
+                        // SQLite hack to get lastID if needed, but we can query by key_code if lastID is not reliable in this mock
+                        // However, server.js handles SQLite ID retrieval via this.lastID in the callback.
+                        // The getTransactionClient mock for SQLite returns a promise.
+                        // Ideally we query back the ID.
+                        const kRes = await client.query('SELECT id FROM license_keys WHERE key_code = $1', [key]);
+                        newKeyId = kRes.rows[0].id;
+                    }
+
+                    // 2. User Update (Link new key)
+                    await client.query(
+                        'UPDATE users SET license_key_id = $1 WHERE id = $2',
+                        [newKeyId, userId]
+                    );
+
+                    // 3. Renewal Log (Mit STRIPE_RENEWAL Marker)
                     await client.query(
                         'INSERT INTO license_renewals (user_id, extended_until, used_at, key_code_hash) VALUES ($1, $2, $3, $4)',
                         [userId, newExpiry, now, 'STRIPE_RENEWAL']
                     );
 
-                    // 3. Interne Nachricht
+                    // 4. Interne Nachricht (Jetzt mit neuem Key Code!)
                     const msgSubject = "✅ Lizenz verlängert";
-                    const msgBody = `Deine Lizenz wurde erfolgreich bis zum ${new Date(newExpiry).toLocaleDateString('de-DE')} verlängert.`;
+                    const msgBody = `Deine Lizenz wurde erfolgreich verlängert. Dein neuer Key lautet: ${key}. Er wurde automatisch aktiviert. Gültig bis: ${new Date(newExpiry).toLocaleDateString('de-DE')}`;
 
                     await client.query(
                         `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
@@ -167,10 +205,12 @@ async function handleSuccessfulPayment(session) {
                         [userId, msgSubject, msgBody]
                     );
 
-                    // 4. E-Mail Senden (Trotz interner Nachricht)
-                    mailer.sendRenewalConfirmation(userEmail, new Date(newExpiry).toLocaleDateString('de-DE'), username).catch(console.error);
+                    // 5. E-Mail Senden (Benutze sendLicenseEmail, da wir jetzt einen Key haben, oder RenewalConf mit Key?)
+                    // User bat um: "Sende den neuen Key-Code sowohl per E-Mail als auch als interne Nachricht"
+                    // mailer.sendLicenseEmail supports list of keys.
+                    mailer.sendLicenseEmail(userEmail, [key], productType).catch(console.error);
 
-                    console.log(`✅ User ${userId} verlängert bis: ${newExpiry || 'Lifetime'}`);
+                    console.log(`✅ User ${userId} verlängert. Neuer Key: ${key} bis: ${newExpiry || 'Lifetime'}`);
                 }
             } else {
                 // --- FALL 2/3 (AKTIV ABER NEUER KEY) ---

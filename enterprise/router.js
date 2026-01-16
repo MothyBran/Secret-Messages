@@ -176,10 +176,36 @@ module.exports = (dbQuery) => {
             const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
 
             // Store User (Local Admin) - Using access_code_hash
-            await dbQuery(
-                `INSERT INTO users (username, access_code_hash, is_admin, department, role_title, registered_at, registration_key_hash, pik_encrypted, license_expiration) VALUES ($1, $2, 1, 'Management', 'System Administrator', datetime('now'), $3, $4, datetime('now', '+10 years'))`,
+            // REMOVED license_expiration column insert
+            const userInsertRes = await dbQuery(
+                `INSERT INTO users (username, access_code_hash, is_admin, department, role_title, registered_at, registration_key_hash, pik_encrypted) VALUES ($1, $2, 1, 'Management', 'System Administrator', datetime('now'), $3, $4)`,
                 [username, hash, regKeyHash, pikEncrypted]
             );
+            const userId = userInsertRes.lastID || (await dbQuery("SELECT id FROM users WHERE username = $1", [username])).rows[0].id;
+
+            // Generate "System License" (10 Years)
+            const sysKey = 'SYS-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+            const sysHash = crypto.createHash('sha256').update(sysKey).digest('hex');
+            const expiresAt = new Date();
+            expiresAt.setFullYear(expiresAt.getFullYear() + 10);
+            const expiresAtIso = expiresAt.toISOString();
+
+            const keyInsertRes = await dbQuery(
+                `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, activated_at, assigned_user_id)
+                 VALUES ($1, $2, 'SYSTEM', 1, datetime('now'), $3, datetime('now'), $4)`,
+                [sysKey, sysHash, expiresAtIso, username]
+            );
+
+            // Note: server-enterprise.js wrapper for sqlite returns lastID in callback, but promise wrapper handles it via 'this.lastID' if implemented correctly
+            // But dbQuery wrapper in server-enterprise.js resolves with { rows: [], rowCount, lastID }
+            // Wait, I should verify dbQuery return structure in server-enterprise.js.
+            // It resolves with { rows: [], rowCount: this.changes, lastID: this.lastID } for non-SELECT.
+            const keyId = keyInsertRes.lastID;
+
+            // Link Key to User
+            if (keyId) {
+                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, userId]);
+            }
 
             // Store Master Key in Settings (Securely? Ideally hashed, but we need it for derivation...)
             // Requirement says: "Der AES-256-Key muss aus (1) dem Master-Key..."
@@ -428,9 +454,13 @@ module.exports = (dbQuery) => {
         if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
         try {
             const userId = req.params.id;
+            // Join license_keys to get expires_at (aliased)
             const userRes = await dbQuery(`
-                SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked
-                FROM users WHERE id = $1
+                SELECT u.id, u.username, u.registered_at, u.last_login, u.registration_key_hash,
+                       u.license_key_id, l.expires_at as license_expiration, u.is_blocked
+                FROM users u
+                LEFT JOIN license_keys l ON u.license_key_id = l.id
+                WHERE u.id = $1
             `, [userId]);
 
             if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
@@ -439,10 +469,6 @@ module.exports = (dbQuery) => {
                 is_blocked: (userRes.rows[0].is_blocked === 1)
             };
 
-            // In Enterprise, users might not have individual keys in license_keys table if using Master Key.
-            // But if they do (e.g. from Cloud migration or local assignment), we try to fetch.
-            // Note: server-enterprise.js schema usually doesn't have license_keys table unless customized.
-            // If table missing, dbQuery might fail. We wrap in try-catch.
             let history = [];
             try {
                 const histSql = `
@@ -470,15 +496,18 @@ module.exports = (dbQuery) => {
         if (!keyCode) return res.status(400).json({ error: "Key Code missing" });
 
         try {
-            // 1. Get User
-            const userRes = await dbQuery('SELECT username, license_expiration FROM users WHERE id = $1', [userId]);
+            // 1. Get User & Current Expiry from JOIN
+            const userRes = await dbQuery(`
+                SELECT u.username, u.license_key_id, l.expires_at
+                FROM users u
+                LEFT JOIN license_keys l ON u.license_key_id = l.id
+                WHERE u.id = $1
+            `, [userId]);
+
             if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
             const user = userRes.rows[0];
 
-            // 2. Validate Key (Check if license_keys table exists)
-            // Enterprise normally uses Master Key. If this is a "Local License Key", it implies existence of the table.
-            // We assume if the Admin calls this, they expect it to work or fail if feature unavailable.
-            // We'll try to find the key.
+            // 2. Validate Key
             let key;
             try {
                 const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
@@ -501,19 +530,28 @@ module.exports = (dbQuery) => {
             if (pc === 'unl' || pc === 'unlimited') {
                 newExpiresAt = null;
             } else {
-                newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
+                // Use fetched expires_at from key (via user object)
+                newExpiresAt = calculateNewExpiration(user.expires_at, extensionMonths);
             }
 
             // 4. Update
             const now = new Date().toISOString();
+
+            // Archive old key
+            if (user.license_key_id) {
+                await dbQuery(`UPDATE license_keys SET is_active = 0 WHERE id = $1`, [user.license_key_id]);
+            }
+
+            // Activate new key
             await dbQuery(
                 `UPDATE license_keys SET is_active = 1, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`,
                 [now, newExpiresAt, user.username, key.id]
             );
 
+            // Link new key (no license_expiration update)
             await dbQuery(
-                `UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`,
-                [key.id, newExpiresAt, userId]
+                `UPDATE users SET license_key_id = $1 WHERE id = $2`,
+                [key.id, userId]
             );
 
             await logAction('MANUAL_LINK', `Linked Key ${keyCode} to User ${userId}`, req);
