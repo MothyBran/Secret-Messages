@@ -21,7 +21,7 @@ async function createTables() {
             username TEXT UNIQUE,
             password_hash TEXT,
             registration_key_hash TEXT,
-            license_expiration TIMESTAMP,
+            license_key_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS license_keys (
@@ -103,6 +103,24 @@ async function createTables() {
             console.error("Table Creation Error:", err.message);
         }
     }
+
+    // --- MIGRATION: license_key_id hinzufügen ---
+    try {
+        console.log('🔄 Running Migrations...');
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS license_key_id INTEGER`);
+        } else {
+            // SQLite hat kein "ADD COLUMN IF NOT EXISTS", daher prüfen wir vorher
+            const check = await internalDbQuery(`PRAGMA table_info(users)`);
+            const hasCol = check.rows.some(c => c.name === 'license_key_id');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE users ADD COLUMN license_key_id INTEGER`);
+                console.log('✅ Migrated: Added license_key_id to users (SQLite)');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (license_key_id):", e.message);
+    }
 }
 
 /**
@@ -130,7 +148,7 @@ const initializeDatabase = async () => {
         internalDbQuery = (text, params) => {
             return new Promise((resolve, reject) => {
                 const sql = text.replace(/\$\d/g, '?'); // $1 -> ? für SQLite
-                if (text.trim().toLowerCase().startsWith('select')) {
+                if (text.trim().toLowerCase().startsWith('select') || text.trim().toLowerCase().startsWith('pragma')) {
                     db.all(sql, params, (err, rows) => err ? reject(err) : resolve({ rows }));
                 } else {
                     db.run(sql, params, function(err) { 

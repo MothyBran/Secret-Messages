@@ -311,7 +311,14 @@ async function authenticateUser(req, res, next) {
 app.post('/api/auth/login', rateLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;
-        const userRes = await dbQuery(`SELECT u.*, l.expires_at, l.is_blocked as key_blocked FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.username = $1`, [username]);
+        // Updated to use LEFT JOIN on license_keys to fetch the correct expires_at
+        const userRes = await dbQuery(`
+            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.username = $1
+        `, [username]);
+
         if (userRes.rows.length === 0) return res.status(401).json({ success: false, error: "Benutzer nicht gefunden" });
         const user = userRes.rows[0];
 
@@ -320,12 +327,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'license_blocked' });
             return res.status(403).json({ success: false, error: "LIZENZ GESPERRT" });
         }
-        if (!user.license_expiration && user.expires_at) {
-            try {
-                await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [user.expires_at, user.id]);
-                user.license_expiration = user.expires_at;
-            } catch (e) { }
-        }
+
         const match = await bcrypt.compare(accessCode, user.access_code_hash);
         if (!match) {
             await trackEvent(req, 'login_fail', 'auth', { username });
@@ -361,7 +363,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
         await trackEvent(req, 'login_success', 'auth', { username });
-        res.json({ success: true, token, username: user.username, expiresAt: user.license_expiration || 'lifetime', hasLicense: !!user.license_key_id });
+        res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
@@ -404,10 +406,10 @@ app.post('/api/auth/activate', async (req, res) => {
         const pikEncrypted = encryptServerSide(pikRaw, accessCode);
         const regKeyHash = crypto.createHash('sha256').update(pikRaw).digest('hex');
 
-        let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at, registration_key_hash, pik_encrypted, license_expiration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
+        let insertSql = 'INSERT INTO users (username, access_code_hash, license_key_id, allowed_device_id, registered_at, registration_key_hash, pik_encrypted) VALUES ($1, $2, $3, $4, $5, $6, $7)';
         if (isPostgreSQL()) { insertSql += ' RETURNING id'; }
 
-        await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted, expiresAt]);
+        await dbQuery(insertSql, [username, hash, key.id, deviceId, new Date().toISOString(), regKeyHash, pikEncrypted]);
         await dbQuery('UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3 WHERE id = $4', [(isPostgreSQL() ? true : 1), new Date().toISOString(), expiresAt, key.id]);
         await trackEvent(req, 'activation_success', 'auth', { username, product: key.product_code });
         res.json({ success: true });
@@ -421,15 +423,26 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
     if (!licenseKey) return res.status(400).json({ error: "Kein Key angegeben" });
     try {
         const userId = req.user.id;
+        // 1. Hole den neuen Key aus der DB
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [licenseKey]);
         if (keyRes.rows.length === 0) return res.status(404).json({ error: 'Key nicht gefunden' });
         const key = keyRes.rows[0];
+
         const isBlocked = isPostgreSQL() ? key.is_blocked : (key.is_blocked === 1);
         if (isBlocked) return res.status(403).json({ error: 'Lizenz gesperrt' });
         if (key.activated_at) return res.status(403).json({ error: 'Key bereits benutzt' });
 
-        const userRes = await dbQuery('SELECT license_expiration FROM users WHERE id = $1', [userId]);
-        const currentExpiryStr = userRes.rows[0].license_expiration;
+        // 2. Hole aktuelle Lizenzdaten des Users
+        const userRes = await dbQuery(`
+            SELECT u.username, u.license_key_id, l.expires_at
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.id = $1
+        `, [userId]);
+
+        const userData = userRes.rows[0];
+        const currentExpiryStr = userData.expires_at;
+        const oldKeyId = userData.license_key_id;
 
         const pc = (key.product_code || '').toLowerCase();
         let extensionMonths = 1;
@@ -442,9 +455,29 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
         else newExpiresAt = calculateNewExpiration(currentExpiryStr, extensionMonths);
 
-        await dbQuery('UPDATE license_keys SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4 WHERE id = $5', [(isPostgreSQL() ? true : 1), new Date().toISOString(), newExpiresAt, req.user.username, key.id]);
-        await dbQuery('UPDATE users SET license_expiration = $1 WHERE id = $2', [newExpiresAt, userId]);
-        await dbQuery('INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)', [userId, key.key_hash, newExpiresAt, new Date().toISOString()]);
+        // 3. Transaktion für sichere Aktualisierung
+        const now = new Date().toISOString();
+        const isActiveVal = isPostgreSQL() ? true : 1;
+        const inActiveVal = isPostgreSQL() ? false : 0;
+
+        // Alten Key deaktivieren (Historie)
+        if (oldKeyId) {
+            await dbQuery(`UPDATE license_keys SET is_active = ${inActiveVal} WHERE id = $1`, [oldKeyId]);
+        }
+
+        // Neuen Key aktivieren
+        await dbQuery(`
+            UPDATE license_keys
+            SET is_active = $1, activated_at = $2, expires_at = $3, assigned_user_id = $4
+            WHERE id = $5
+        `, [isActiveVal, now, newExpiresAt, userData.username, key.id]);
+
+        // User mit neuem Key verknüpfen (Kein update von license_expiration!)
+        await dbQuery('UPDATE users SET license_key_id = $1 WHERE id = $2', [key.id, userId]);
+
+        // Loggen
+        await dbQuery('INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)', [userId, key.key_hash, newExpiresAt, now]);
+
         await trackEvent(req, 'renewal_success', 'shop', { userId });
         res.json({ success: true, newExpiresAt: newExpiresAt || 'Unlimited' });
     } catch (e) { res.status(500).json({ error: "Fehler: " + e.message }); }
@@ -464,9 +497,16 @@ app.post('/api/auth/check-license', async (req, res) => {
 
         let predictedExpiry = null;
         if (username) {
-            const userRes = await dbQuery('SELECT license_expiration FROM users WHERE username = $1', [username]);
+            // Updated to fetch expiry from license_keys via license_key_id
+            const userRes = await dbQuery(`
+                SELECT l.expires_at
+                FROM users u
+                LEFT JOIN license_keys l ON u.license_key_id = l.id
+                WHERE u.username = $1
+            `, [username]);
+
             if (userRes.rows.length > 0) {
-                const currentExpiryStr = userRes.rows[0].license_expiration;
+                const currentExpiryStr = userRes.rows[0].expires_at;
                 const pc = (key.product_code || '').toLowerCase();
                 const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
                 const dbDate = parseDbDate(currentExpiryStr);
@@ -493,15 +533,14 @@ app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
     try {
-        const userRes = await dbQuery('SELECT * FROM users WHERE id = $1', [req.user.id]);
+        const userRes = await dbQuery('SELECT u.*, l.expires_at FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1', [req.user.id]);
         const user = userRes.rows[0];
         if (!user) return res.json({ status: 'banned' });
         const blocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (blocked) return res.json({ status: 'banned' });
-        const keyRes = await dbQuery('SELECT * FROM license_keys WHERE id = $1', [user.license_key_id]);
-        const key = keyRes.rows[0];
-        if (key && key.expires_at) {
-            if (new Date(key.expires_at) < new Date()) return res.json({ status: 'expired' });
+
+        if (user.expires_at) {
+            if (new Date(user.expires_at) < new Date()) return res.json({ status: 'expired' });
         }
         res.json({ status: 'active' });
     } catch (e) { res.status(500).json({ error: 'Error' }); }
@@ -542,7 +581,14 @@ app.post('/api/auth/validate', async (req, res) => {
     if (!token) return res.json({ valid: false });
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const userRes = await dbQuery(`SELECT u.*, l.expires_at, l.is_blocked as key_blocked FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1`, [decoded.id]);
+        // Explicitly SELECT l.expires_at via JOIN
+        const userRes = await dbQuery(`
+            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.id = $1
+        `, [decoded.id]);
+
         if (userRes.rows.length > 0) {
             const user = userRes.rows[0];
             const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
@@ -550,7 +596,9 @@ app.post('/api/auth/validate', async (req, res) => {
             const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
             if (isKeyBlocked) return res.json({ valid: false, reason: 'license_blocked' });
             if (!user.license_key_id) return res.json({ valid: false, reason: 'no_license' });
-            let expirySource = user.license_expiration || user.expires_at;
+
+            // source of truth is l.expires_at (fetched via join)
+            let expirySource = user.expires_at;
             let isExpired = false;
             if (expirySource) {
                 if (new Date(expirySource) < new Date()) isExpired = true;
@@ -600,7 +648,15 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
     if (!uid || !proof || !timestamp || !deviceId) return res.status(400).json({ error: "Invalid Data" });
     try {
         if (!pendingTransfers.has(uid)) return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
-        const uRes = await dbQuery(`SELECT u.* FROM users u WHERE u.username = $1`, [uid]);
+
+        // Join with license_keys to get expires_at
+        const uRes = await dbQuery(`
+            SELECT u.*, l.expires_at
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.username = $1
+        `, [uid]);
+
         if (uRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = uRes.rows[0];
         const sentTime = new Date(timestamp).getTime();
@@ -616,7 +672,7 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
         await dbQuery("UPDATE users SET allowed_device_id = $1, last_login = CURRENT_TIMESTAMP WHERE id = $2", [deviceId, user.id]);
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)", [user.id, "Info: Profil erfolgreich übertragen", `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`, (isPostgreSQL() ? false : 0), new Date().toISOString()]);
-        res.json({ success: true, token, username: user.username, expiresAt: user.license_expiration || 'lifetime', hasLicense: !!user.license_key_id });
+        res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
     } catch(e) { res.status(500).json({ error: "Serverfehler" }); }
 });
 
@@ -773,12 +829,15 @@ app.put('/api/admin/keys/:id', requireAdmin, async (req, res) => {
         if (product_code) { updateSql += `, product_code = $${pIndex}`; params.push(product_code); pIndex++; }
         updateSql += ` WHERE id = $${pIndex}`; params.push(keyId);
         await dbQuery(updateSql, params);
-        await dbQuery(`UPDATE users SET license_expiration = $1 WHERE license_key_id = $2`, [expires_at || null, keyId]);
+        // Do NOT update users.license_expiration (column deprecated)
+        // await dbQuery(`UPDATE users SET license_expiration = $1 WHERE license_key_id = $2`, [expires_at || null, keyId]);
+
         await dbQuery(`UPDATE users SET license_key_id = NULL WHERE license_key_id = $1`, [keyId]);
         if (user_id) {
             const userCheck = await dbQuery(`SELECT id FROM users WHERE id = $1`, [user_id]);
             if (userCheck.rows.length > 0) {
-                await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [keyId, expires_at || null, user_id]);
+                // Only update license_key_id
+                await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [keyId, user_id]);
                 const now = new Date().toISOString();
                 await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = COALESCE(activated_at, $2) WHERE id = $1`, [keyId, now]);
             }
@@ -832,7 +891,15 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
     try {
         const userId = req.params.id;
-        const userRes = await dbQuery(`SELECT id, username, registered_at, last_login, registration_key_hash, license_key_id, license_expiration, is_blocked, allowed_device_id FROM users WHERE id = $1`, [userId]);
+        // Fetch expires_at from license_keys and alias it as license_expiration
+        const userRes = await dbQuery(`
+            SELECT u.id, u.username, u.registered_at, u.last_login, u.registration_key_hash,
+                   u.license_key_id, l.expires_at as license_expiration, u.is_blocked, u.allowed_device_id
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.id = $1
+        `, [userId]);
+
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = { ...userRes.rows[0], is_blocked: isPostgreSQL() ? userRes.rows[0].is_blocked : (userRes.rows[0].is_blocked === 1) };
         const historyRes = await dbQuery(`SELECT key_code, product_code, activated_at, expires_at, is_active, origin FROM license_keys WHERE assigned_user_id = $1 OR id = $2 ORDER BY activated_at DESC`, [user.username, user.license_key_id]);
@@ -846,18 +913,31 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
     const { keyCode } = req.body;
     if (!keyCode) return res.status(400).json({ error: "Key Code missing" });
     try {
-        const userRes = await dbQuery('SELECT username, license_expiration, license_key_id FROM users WHERE id = $1', [userId]);
+        // Fetch current expiration from JOIN
+        const userRes = await dbQuery(`
+            SELECT u.username, u.license_key_id, l.expires_at
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.id = $1
+        `, [userId]);
+
         if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = userRes.rows[0];
+
         if (user.license_key_id) {
             const currentKeyRes = await dbQuery('SELECT expires_at, product_code FROM license_keys WHERE id = $1', [user.license_key_id]);
             if (currentKeyRes.rows.length > 0) {
                 const currentKey = currentKeyRes.rows[0];
                 const isLifetime = !currentKey.expires_at || (currentKey.product_code && currentKey.product_code.toLowerCase().includes('unl'));
-                if (isLifetime || !user.license_expiration) return res.status(403).json({ error: "Benutzer hat bereits eine Lifetime-Lizenz." });
-                await dbQuery('UPDATE license_keys SET assigned_user_id = $1 WHERE id = $2', [user.username, user.license_key_id]);
+                // Use expires_at from key
+                if (isLifetime) return res.status(403).json({ error: "Benutzer hat bereits eine Lifetime-Lizenz." });
+
+                // Archive old key by setting is_active=false (as per instructions)
+                const inActiveVal = isPostgreSQL() ? false : 0;
+                await dbQuery(`UPDATE license_keys SET is_active = ${inActiveVal} WHERE id = $1`, [user.license_key_id]);
             }
         }
+
         const keyRes = await dbQuery('SELECT * FROM license_keys WHERE key_code = $1', [keyCode]);
         if (keyRes.rows.length === 0) return res.status(404).json({ error: "Key not found" });
         const key = keyRes.rows[0];
@@ -872,12 +952,15 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
 
         let newExpiresAt = null;
         if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
-        else newExpiresAt = calculateNewExpiration(user.license_expiration, extensionMonths);
+        else newExpiresAt = calculateNewExpiration(user.expires_at, extensionMonths);
 
         await dbQuery('BEGIN');
         const now = new Date().toISOString();
         await dbQuery(`UPDATE license_keys SET is_active = ${isPostgreSQL() ? 'true' : '1'}, activated_at = $1, expires_at = $2, assigned_user_id = $3 WHERE id = $4`, [now, newExpiresAt, user.username, key.id]);
-        await dbQuery(`UPDATE users SET license_key_id = $1, license_expiration = $2 WHERE id = $3`, [key.id, newExpiresAt, userId]);
+
+        // Update ONLY license_key_id
+        await dbQuery(`UPDATE users SET license_key_id = $1 WHERE id = $2`, [key.id, userId]);
+
         await dbQuery('INSERT INTO license_renewals (user_id, key_code_hash, extended_until, used_at) VALUES ($1, $2, $3, $4)', [userId, key.key_hash, newExpiresAt, now]);
         await dbQuery('COMMIT');
         res.json({ success: true, newExpiresAt });
@@ -1006,7 +1089,14 @@ app.delete('/api/admin/bundles/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
-        const result = await dbQuery(`SELECT u.*, k.key_code, (SELECT COUNT(*) FROM license_keys WHERE id = u.license_key_id OR assigned_user_id = u.username) as license_count FROM users u LEFT JOIN license_keys k ON u.license_key_id = k.id ORDER BY u.registered_at DESC LIMIT 100`);
+        // JOIN license_keys to get the correct expires_at (aliased as license_expiration for frontend compatibility)
+        const result = await dbQuery(`
+            SELECT u.*, k.key_code, k.expires_at as license_expiration,
+                   (SELECT COUNT(*) FROM license_keys WHERE id = u.license_key_id OR assigned_user_id = u.username) as license_count
+            FROM users u
+            LEFT JOIN license_keys k ON u.license_key_id = k.id
+            ORDER BY u.registered_at DESC LIMIT 100
+        `);
         const users = result.rows.map(r => ({ ...r, is_blocked: isPostgreSQL() ? r.is_blocked : (r.is_blocked === 1), is_online: isPostgreSQL() ? r.is_online : (r.is_online === 1) }));
         res.json(users);
     } catch (e) { res.status(500).json({ error: e.message }); }

@@ -50,7 +50,6 @@ async function ensureDbSchema() {
             registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             registration_key_hash TEXT,
             pik_encrypted TEXT,
-            license_expiration DATETIME,
             allowed_device_id TEXT,
             last_login DATETIME,
             is_online INTEGER DEFAULT 0
@@ -157,7 +156,8 @@ async function ensureDbSchema() {
         await safeAlter('users', 'role_title', 'TEXT');
         await safeAlter('users', 'password', 'TEXT');
         await safeAlter('users', 'is_admin', 'INTEGER DEFAULT 0');
-        await safeAlter('users', 'license_expiration', 'DATETIME');
+        // license_expiration deprecated
+        // await safeAlter('users', 'license_expiration', 'DATETIME');
 
         // License Keys
         await safeAlter('license_keys', 'origin', "VARCHAR(20) DEFAULT 'unknown'");

@@ -105,6 +105,7 @@ const initializeDatabase = async () => {
 
 const createTables = async () => {
     // Minimal schema for Enterprise operation
+    // REMOVED license_expiration from users table definition
     await dbQuery(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE,
@@ -117,8 +118,25 @@ const createTables = async () => {
         role_title TEXT,
         registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         registration_key_hash TEXT,
-        pik_encrypted TEXT,
-        license_expiration DATETIME
+        pik_encrypted TEXT
+    )`);
+
+    // Added license_keys table for consistency with new logic
+    await dbQuery(`CREATE TABLE IF NOT EXISTS license_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_code TEXT UNIQUE,
+        key_hash TEXT,
+        product_code TEXT,
+        is_active INTEGER DEFAULT 0,
+        origin TEXT,
+        assigned_user_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        activated_at DATETIME,
+        max_users INTEGER,
+        client_name TEXT,
+        is_blocked INTEGER DEFAULT 0,
+        bundle_id INTEGER
     )`);
 
     await dbQuery(`CREATE TABLE IF NOT EXISTS license_renewals (
@@ -160,7 +178,8 @@ const createTables = async () => {
     try { await dbQuery("ALTER TABLE users ADD COLUMN access_code_hash TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN registration_key_hash TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN pik_encrypted TEXT"); } catch (e) { /* ignore */ }
-    try { await dbQuery("ALTER TABLE users ADD COLUMN license_expiration DATETIME"); } catch (e) { /* ignore */ }
+    // Do not migrate license_expiration
+    // try { await dbQuery("ALTER TABLE users ADD COLUMN license_expiration DATETIME"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN department TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE users ADD COLUMN role_title TEXT"); } catch (e) { /* ignore */ }
     try { await dbQuery("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch (e) { /* ignore */ }
