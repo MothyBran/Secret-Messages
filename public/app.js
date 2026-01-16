@@ -39,14 +39,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupUIEvents();
     
-    // URL Check
+    // URL Check & Auto-Fill
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('action') === 'activate') {
+    const action = urlParams.get('action');
+    const keyParam = urlParams.get('key');
+
+    if (keyParam) {
+        const actInput = document.getElementById('licenseKey');
+        if (actInput) actInput.value = keyParam;
+
+        const renInput = document.getElementById('manualRenewalKey');
+        if (renInput) renInput.value = keyParam;
+    }
+
+    if (action === 'activate' || action === 'register') {
         showSection('activationSection');
     } else {
         const token = localStorage.getItem('sm_token');
         if (token) {
-            checkExistingSession();
+            checkExistingSession().then(() => {
+                if (action === 'renew' && authToken) {
+                    const modal = document.getElementById('manualRenewalModal');
+                    if(modal) modal.classList.add('active');
+                }
+            });
         } else {
             updateSidebarInfo(null);
             showSection('loginSection');

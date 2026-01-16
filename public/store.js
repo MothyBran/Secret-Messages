@@ -252,38 +252,56 @@ async function pollPaymentStatus(sessionId) {
         successDiv.style.display = "block";
         
         let contentHtml = "";
+        const isLoggedIn = !!localStorage.getItem('sm_token');
 
-        // A) VERLÄNGERUNG ERFOLGREICH
+        // FALL 3: REINE VERLÄNGERUNG (RENEWAL)
         if (data.renewed) {
              contentHtml += `
                 <div style="text-align:center; padding:20px; border:1px solid var(--success-green); border-radius:5px; background:rgba(0,255,65,0.05); margin-bottom: 20px;">
-                    <h3 style="color:var(--success-green); margin-bottom:10px;">✅ ACCOUNT VERLÄNGERT!</h3>
-                    <p style="color:#fff;">Ihre Lizenz wurde sofort aktualisiert.</p>
+                    <h3 style="color:var(--success-green); margin-bottom:10px;">✅ ACCOUNT ERFOLGREICH REAKTIVIERT</h3>
+                    <p style="color:#fff; margin-bottom:15px;">Ihre Lizenz wurde sofort aktualisiert.</p>
+                    <a href="/app" class="btn" style="display:inline-block; text-decoration:none; color:#000; background:var(--success-green); font-weight:bold;">DIREKT ZUR WEBAPP</a>
                 </div>
              `;
         }
 
-        // B) ZUSÄTZLICHE KEYS (z.B. bei Bundles oder Gast-Kauf)
+        // FALL 1 & 2: NEUE KEYS (GAST ODER AKTIV)
         if (data.keys && data.keys.length > 0) {
-           contentHtml += `<p style="color:#e0e0e0; margin-bottom:10px;">Hier sind Ihre weiteren Zugangsschlüssel:</p>`;
+           contentHtml += `<p style="color:#e0e0e0; margin-bottom:10px;">Vielen Dank! Hier ist Ihr Zugangsschlüssel:</p>`;
+
            data.keys.forEach(key => {
+               // Link generieren basierend auf Login-Status
+               // Gast -> Registrieren (/app?action=register&key=...)
+               // Eingeloggt -> Verlängern (/app?action=renew&key=...)
+
+               const actionLabel = isLoggedIn ? "LIZENZ JETZT VERLÄNGERN" : "JETZT REGISTRIEREN";
+               const actionParam = isLoggedIn ? "renew" : "register";
+               const actionUrl = `/app?action=${actionParam}&key=${key}`;
+
                contentHtml += `
-                  <div class="key-display-box">
-                    <span style="letter-spacing:2px; color:#fff; font-weight:bold;">${key}</span>
-                    <br>
-                    <button class="btn" style="margin-top:15px; padding:8px 20px; font-size:0.8rem;" onclick="window.copyKey(this, '${key}')">KOPIEREN</button>
+                  <div class="key-display-box" style="margin-bottom:20px; padding:15px; border:1px solid #333; background:rgba(255,255,255,0.05);">
+                    <div style="font-size:1.5rem; letter-spacing:3px; color:#fff; font-weight:bold; margin-bottom:15px; word-break:break-all;">${key}</div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn" style="flex:1; min-width:140px; padding:10px;" onclick="window.copyKey(this, '${key}')">KEY KOPIEREN</button>
+                        <a href="${actionUrl}" class="btn btn-primary" style="flex:1; min-width:160px; padding:10px; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">${actionLabel}</a>
+                    </div>
                   </div>
                `;
            });
+
+           if (!isLoggedIn) {
+               contentHtml += `<p style="font-size:0.8rem; color:#888; margin-top:10px;">Eine Kopie wurde an Ihre E-Mail-Adresse gesendet.</p>`;
+           }
         }
 
-        if (!data.keys || data.keys.length === 0 && !data.renewed) {
+        if ((!data.keys || data.keys.length === 0) && !data.renewed) {
              contentHtml += "<p>Zahlung erfolgreich verarbeitet. Bitte prüfen Sie Ihre E-Mails.</p>";
         }
 
         keysArea.innerHTML = contentHtml;
 
-        // UI Cleanups wenn nur Verlängerung
+        // UI Cleanups
         const warningEl = document.querySelector("#status-success > p[style*='color: #ffcc00']");
         if(data.renewed && (!data.keys || data.keys.length === 0)) {
              if(warningEl) warningEl.style.display = 'none';
