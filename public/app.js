@@ -3,7 +3,7 @@
 const APP_VERSION = 'Beta v0.61';
 
 // Import encryption functions including backup helpers
-import { encryptFull, decryptFull, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
+import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -195,6 +195,14 @@ function setupUIEvents() {
         startQRScanner(true); // true = transfer mode
     });
     document.getElementById('btnConfirmTransferImport')?.addEventListener('click', handleTransferImportDecrypt);
+
+    // Manual Transfer Modals
+    document.getElementById('btnOpenManualTransfer')?.addEventListener('click', () => {
+        stopQRScanner();
+        document.getElementById('manualTransferModal').classList.add('active');
+    });
+    document.getElementById('btnSubmitManualTransfer')?.addEventListener('click', submitManualTransfer);
+    document.getElementById('btnUnlockProfile')?.addEventListener('click', handleUnlockProfile);
 
     document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select'));
     
@@ -725,24 +733,42 @@ function resetIdleTimer() {
 async function validateSessionStrict() {
     if (!authToken) { handleLogout(); return false; }
     try {
+        // 1. Basic Token Validation
         const res = await fetch(`${API_BASE}/auth/validate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token: authToken }) });
         const data = await res.json();
         if (!data.valid) {
             if (data.reason === 'blocked') { window.showMessage("Konto gesperrt", "Ihr Zugang wurde administrativ gesperrt.", () => handleLogout()); return false; }
             else if (data.reason === 'expired') { showRenewalModal(); return false; }
             else if (data.reason === 'no_license') {
-                // "Lizenz abgelaufen" / None: Modal with Shop Button
                 showRenewalModal();
                 return false;
             }
             else { window.showMessage("Sitzung abgelaufen", "Bitte melden Sie sich erneut an.", () => handleLogout(), "Anmelden"); return false; }
         }
+
+        // 2. Strict Device Check
+        const devId = await generateDeviceFingerprint();
+        const checkRes = await fetch(`${API_BASE}/checkAccess?deviceId=${devId}`, { headers: {'Authorization': `Bearer ${authToken}`} });
+        const checkData = await checkRes.json();
+
+        if (checkData.status === 'device_mismatch') {
+            localStorage.removeItem('sm_token');
+            window.showMessage("Sitzung beendet", "Ihr Account wurde auf ein neues Gerät übertragen. Dieses Gerät ist nicht mehr autorisiert.", () => {
+                window.location.href = '/';
+            }, "OK");
+            return false;
+        }
+
         // Valid Session: Update Expiration in Sidebar (Real-time sync)
         if (data.expiresAt !== undefined) {
             updateSidebarInfo(currentUser.name, data.expiresAt);
         }
         return true;
-    } catch (e) { showAppStatus("Verbindung prüfen...", 'error'); return false; }
+    } catch (e) {
+        console.warn("Session check warning", e);
+        // Do not logout on simple network error, allow retry
+        return true;
+    }
 }
 
 function validateActivationInputs() {
@@ -892,6 +918,11 @@ let isTransferScan = false;
 function startQRScanner(transferMode = false) {
     if(location.protocol!=='https:' && location.hostname!=='localhost') return alert("Kamera benötigt HTTPS.");
     isTransferScan = transferMode;
+
+    // UI Setup for Transfer vs Normal
+    const manualBtn = document.getElementById('btnOpenManualTransfer');
+    if (manualBtn) manualBtn.style.display = transferMode ? 'block' : 'none';
+
     document.getElementById('qrScannerModal').classList.add('active');
 
     if(!qrScan) qrScan = new Html5Qrcode("qr-reader");
@@ -977,14 +1008,44 @@ async function handleTransferExportStart() {
         // 4. Generate QR (UID:PACKAGE)
         const qrContent = `${uid}:${transferPackage}`;
 
+        // 5. Signal Server to Start & Get Manual Code
+        // (Previously we called this in scan success, but now we call it here to get the manual code)
+        // Wait, the logic for QR scan was: Scan -> Call 'transfer-start' with UID.
+        // Now we need the code *before* the other device scans, or at least concurrently.
+        // Actually, the previous logic was: Scan QR -> New Device Calls 'transfer-start'.
+        // But the Prompt says: "/api/auth/transfer-start: Generate... code... Return this code to the old device."
+        // So we must call it HERE on the Old Device.
+
+        const startRes = await fetch(`${API_BASE}/auth/transfer-start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ uid })
+        });
+        const startData = await startRes.json();
+
+        if (!startData.success) throw new Error("Transfer-Start fehlgeschlagen");
+        const manualCode = startData.transferCode; // e.g. "ABC123"
+
         document.getElementById('transferSecurityModal').classList.remove('active');
         document.getElementById('transferExportModal').classList.add('active');
 
+        // Display QR
         const qrContainer = document.getElementById('transferQrDisplay');
         qrContainer.innerHTML = '';
         new QRCode(qrContainer, { text: qrContent, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.L });
 
-        // 5. Start Countdown (2 Min)
+        // Display Manual Code
+        const codeDisplay = document.getElementById('transferManualCodeDisplay');
+        if (codeDisplay) codeDisplay.textContent = manualCode;
+
+        // Update Cancel Button to Reload
+        const cancelBtn = document.getElementById('btnCancelTransferExport');
+        if (cancelBtn) {
+            cancelBtn.textContent = "Schließen (Logout)";
+            cancelBtn.onclick = () => window.location.reload();
+        }
+
+        // 6. Start Countdown (2 Min)
         let timeLeft = 120;
         const timerEl = document.getElementById('transferTimer');
         const interval = setInterval(() => {
@@ -995,7 +1056,8 @@ async function handleTransferExportStart() {
             if (timeLeft <= 0 || !document.getElementById('transferExportModal').classList.contains('active')) {
                 clearInterval(interval);
                 document.getElementById('transferExportModal').classList.remove('active');
-                if(timeLeft <= 0) showToast("QR-Code abgelaufen.", 'error');
+                if(timeLeft <= 0) showToast("Zeit abgelaufen.", 'error');
+                window.location.reload(); // Auto reload on timeout too? Safer.
             }
         }, 1000);
 
@@ -1020,21 +1082,16 @@ async function handleTransferScanSuccess(decodedText) {
     showLoader("Verbinde mit Server...");
 
     try {
-        // 1. Send Signal to Server
-        const res = await fetch(`${API_BASE}/auth/transfer-start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid })
-        });
-
-        hideLoader();
-
-        if (!res.ok) {
-            const d = await res.json();
-            throw new Error(d.error || "Server verweigert Transfer");
-        }
+        // Legacy Support: We just assume the Old Device already called 'transfer-start'
+        // when it generated the QR code. We don't need to call it again here.
+        // We just verify we can proceed.
+        // Actually, 'transfer-start' resets the timer. If we call it again, we might reset the code?
+        // The Old Device called it to get the Manual Code.
+        // If we scan the QR, we have the payload.
+        // We just need to decrypt it.
 
         // 2. Open Decrypt Modal
+        hideLoader();
         document.getElementById('transferImportModal').classList.add('active');
         document.getElementById('transferImportCode').value = '';
         document.getElementById('transferImportCode').focus();
@@ -1121,6 +1178,86 @@ async function handleTransferImportDecrypt() {
         }
     } finally {
         btn.textContent = "Installieren"; btn.disabled = false;
+    }
+}
+
+// --- MANUAL TRANSFER LOGIC ---
+let pendingPikEncrypted = null;
+let pendingTransferUser = null;
+
+async function submitManualTransfer() {
+    const uid = document.getElementById('manualTransferUser').value.trim();
+    const code = document.getElementById('manualTransferCode').value.trim();
+
+    if(!uid || !code) return showToast("Bitte beide Felder ausfüllen.", 'error');
+
+    const btn = document.getElementById('btnSubmitManualTransfer');
+    const oldTxt = btn.textContent; btn.textContent = "Verbinde..."; btn.disabled = true;
+
+    try {
+        const deviceId = await generateDeviceFingerprint();
+        const res = await fetch(`${API_BASE}/auth/transfer-complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                uid: uid,
+                transferCode: code,
+                deviceId: deviceId
+            })
+        });
+
+        const data = await res.json();
+        if(!data.success) throw new Error(data.error || "Verbindung fehlgeschlagen");
+
+        // Success: Store Token temporarily, ask for PIK Decryption
+        authToken = data.token; // Temp store
+        pendingPikEncrypted = data.pik_encrypted;
+        pendingTransferUser = { name: data.username, sm_id: parseJwt(authToken).id, expiresAt: data.expiresAt };
+
+        document.getElementById('manualTransferModal').classList.remove('active');
+        document.getElementById('unlockProfileModal').classList.add('active');
+
+    } catch(e) {
+        showToast(e.message, 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+    }
+}
+
+async function handleUnlockProfile() {
+    const code = document.getElementById('unlockProfileCode').value;
+    if(code.length !== 5) return showToast("Code muss 5-stellig sein", 'error');
+
+    const btn = document.getElementById('btnUnlockProfile');
+    btn.textContent = "Entschlüssle..."; btn.disabled = true;
+
+    try {
+        if(!pendingPikEncrypted) throw new Error("Keine Daten vorhanden.");
+
+        // Decrypt the PIK using the user's 5-digit code
+        // If this succeeds, the code is correct and we "own" the profile.
+        await decryptBackup(pendingPikEncrypted, code);
+
+        // If we are here, it worked.
+        // Finalize Login
+        currentUser = pendingTransferUser;
+        localStorage.setItem('sm_token', authToken);
+        localStorage.setItem('sm_user', JSON.stringify(currentUser));
+
+        contacts = [];
+        setEnterpriseKeys([]);
+        loadUserContacts();
+        updateSidebarInfo(currentUser.name, currentUser.expiresAt);
+
+        document.getElementById('unlockProfileModal').classList.remove('active');
+        showSection('mainSection');
+
+        showAppStatus(`Willkommen zurück, ${currentUser.name}!`, 'success');
+
+    } catch(e) {
+        showToast("Falscher Code. Entschlüsselung fehlgeschlagen.", 'error');
+    } finally {
+        btn.textContent = "Profil entsperren"; btn.disabled = false;
     }
 }
 

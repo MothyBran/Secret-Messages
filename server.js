@@ -533,11 +533,16 @@ app.post('/api/auth/change-code', authenticateUser, async (req, res) => {
 
 app.get('/api/checkAccess', authenticateUser, async (req, res) => {
     try {
+        const { deviceId } = req.query;
         const userRes = await dbQuery('SELECT u.*, l.expires_at FROM users u LEFT JOIN license_keys l ON u.license_key_id = l.id WHERE u.id = $1', [req.user.id]);
         const user = userRes.rows[0];
         if (!user) return res.json({ status: 'banned' });
         const blocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (blocked) return res.json({ status: 'banned' });
+
+        if (deviceId && user.allowed_device_id && user.allowed_device_id !== deviceId) {
+            return res.json({ status: 'device_mismatch' });
+        }
 
         if (user.expires_at) {
             if (new Date(user.expires_at) < new Date()) return res.json({ status: 'expired' });
@@ -626,6 +631,9 @@ app.post('/api/auth/transfer-start', async (req, res) => {
     const { uid } = req.body;
     if (!uid) return res.status(400).json({ error: "UID missing" });
     if (pendingTransfers.has(uid)) clearTimeout(pendingTransfers.get(uid).timer);
+
+    const transferCode = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6 chars
+
     const timer = setTimeout(async () => {
         try {
             pendingTransfers.delete(uid);
@@ -638,16 +646,24 @@ app.post('/api/auth/transfer-start', async (req, res) => {
                 );
             }
         } catch(e) { console.error("Transfer Timeout Error", e); }
-    }, 60000);
-    pendingTransfers.set(uid, { timer, attempts: 1 });
-    res.json({ success: true });
+    }, 120000); // Increased to 2 minutes
+
+    pendingTransfers.set(uid, { timer, attempts: 0, code: transferCode });
+    res.json({ success: true, transferCode });
 });
 
 app.post('/api/auth/transfer-complete', async (req, res) => {
-    const { uid, proof, timestamp, deviceId } = req.body;
-    if (!uid || !proof || !timestamp || !deviceId) return res.status(400).json({ error: "Invalid Data" });
+    const { uid, proof, timestamp, deviceId, transferCode } = req.body;
+    if (!uid || !deviceId) return res.status(400).json({ error: "Invalid Data" });
+
     try {
-        if (!pendingTransfers.has(uid)) return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
+        const transferSession = pendingTransfers.get(uid);
+        if (!transferSession) return res.status(403).json({ error: "Kein aktiver Transfer-Versuch oder Timeout." });
+
+        if (transferSession.attempts >= 3) {
+            pendingTransfers.delete(uid);
+            return res.status(403).json({ error: "Zu viele Fehlversuche. Transfer abgebrochen." });
+        }
 
         // Join with license_keys to get expires_at
         const uRes = await dbQuery(`
@@ -659,20 +675,45 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
 
         if (uRes.rows.length === 0) return res.status(404).json({ error: "User not found" });
         const user = uRes.rows[0];
-        const sentTime = new Date(timestamp).getTime();
-        const now = Date.now();
-        if (Math.abs(now - sentTime) > 120000) return res.status(403).json({ error: "Zeitstempel ungültig" });
-        const serverHash = user.registration_key_hash;
-        if (!serverHash) return res.status(403).json({ error: "Integritätsfehler" });
-        const expectedProof = crypto.createHash('sha256').update(serverHash + timestamp).digest('hex');
-        if (proof !== expectedProof) return res.status(403).json({ error: "Identifizierung fehlgeschlagen." });
 
-        clearTimeout(pendingTransfers.get(uid).timer);
+        let valid = false;
+
+        // Way 1: QR Proof
+        if (proof && timestamp) {
+            const sentTime = new Date(timestamp).getTime();
+            const now = Date.now();
+            if (Math.abs(now - sentTime) > 120000) return res.status(403).json({ error: "Zeitstempel ungültig" });
+            const serverHash = user.registration_key_hash;
+            if (!serverHash) return res.status(403).json({ error: "Integritätsfehler" });
+            const expectedProof = crypto.createHash('sha256').update(serverHash + timestamp).digest('hex');
+            if (proof === expectedProof) valid = true;
+        }
+        // Way 2: Manual Code
+        else if (transferCode) {
+            if (transferCode.toUpperCase() === transferSession.code) valid = true;
+        }
+
+        if (!valid) {
+            transferSession.attempts++;
+            return res.status(403).json({ error: "Identifizierung fehlgeschlagen." });
+        }
+
+        clearTimeout(transferSession.timer);
         pendingTransfers.delete(uid);
+
         await dbQuery("UPDATE users SET allowed_device_id = $1, last_login = CURRENT_TIMESTAMP WHERE id = $2", [deviceId, user.id]);
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+
         await dbQuery("INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at) VALUES ($1, $2, $3, 'automated', $4, $5)", [user.id, "Info: Profil erfolgreich übertragen", `Ihr Profil wurde erfolgreich auf ein neues Gerät übertragen.\nGerät-ID: ${deviceId.substring(0,10)}...`, (isPostgreSQL() ? false : 0), new Date().toISOString()]);
-        res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
+
+        res.json({
+            success: true,
+            token,
+            username: user.username,
+            expiresAt: user.expires_at || 'lifetime',
+            hasLicense: !!user.license_key_id,
+            pik_encrypted: user.pik_encrypted // Sent for manual decryption on client
+        });
     } catch(e) { res.status(500).json({ error: "Serverfehler" }); }
 });
 
