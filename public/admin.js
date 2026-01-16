@@ -56,65 +56,19 @@ window.switchTab = function(tabName) {
 
 
 // --- HELPERS (MODALS & FEEDBACK) ---
-let confirmCallback = null;
+// Note: showToast, showMessage, showConfirm are now loaded from /assets/js/ui.js
+// We maintain wrapper signatures here if necessary, but ui.js implementation is compatible.
 
+// Legacy wrapper to adapt old admin.js confirm signature to new ui.js
+const originalShowConfirm = window.showConfirm;
 window.showConfirm = function(message, onConfirm, checkboxOptions = null) {
-    document.getElementById('confirmMessage').textContent = message;
-
-    // Checkbox Logic
-    const cbArea = document.getElementById('confirmCheckboxArea');
-    const cb = document.getElementById('confirmCascadeCheckbox');
-    const cbLabel = document.getElementById('confirmCheckboxLabel');
-
+    let options = {};
     if (checkboxOptions) {
-        cbArea.style.display = 'flex';
-        cbLabel.textContent = checkboxOptions.label || 'Verknüpfte Daten ebenfalls löschen';
-        cb.checked = false; // Default: unchecked (Safety)
-    } else {
-        cbArea.style.display = 'none';
-        cb.checked = false;
+        options.checkboxLabel = checkboxOptions.label || 'Verknüpfte Daten ebenfalls löschen';
     }
-
-    document.getElementById('confirmModal').style.display = 'flex';
-
-    confirmCallback = () => {
-        // Pass checkbox state to callback if options provided
-        onConfirm(checkboxOptions ? cb.checked : false);
-    };
+    // ui.js showConfirm(message, onConfirm, options)
+    originalShowConfirm(message, onConfirm, options);
 };
-
-window.showMessage = function(title, message, isError = false) {
-    const t = document.getElementById('msgTitle');
-    t.textContent = title;
-    t.style.color = isError ? 'var(--error-red)' : 'var(--accent-blue)';
-    document.getElementById('msgText').textContent = message;
-    document.getElementById('messageModal').style.display = 'flex';
-};
-
-// --- TOAST NOTIFICATIONS (ADMIN) ---
-window.showToast = function(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    let icon = 'ℹ️';
-    if (type === 'success') icon = '✅';
-    if (type === 'error') icon = '❌';
-
-    toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
-    container.appendChild(toast);
-
-    requestAnimationFrame(() => {
-        toast.classList.add('show');
-    });
-
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 400);
-    }, 4000);
-}
 
 // Global functions
 window.loadUsers = async function() {
@@ -1099,18 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchBundle')?.addEventListener('input', window.filterBundles);
     document.getElementById('searchEnterprise')?.addEventListener('input', window.filterEnterpriseKeys);
 
-    document.getElementById('btnConfirmYes')?.addEventListener('click', () => {
-        if(confirmCallback) confirmCallback();
-        document.getElementById('confirmModal').style.display = 'none';
-        confirmCallback = null;
-    });
-    document.getElementById('btnConfirmNo')?.addEventListener('click', () => {
-        document.getElementById('confirmModal').style.display = 'none';
-        confirmCallback = null;
-    });
-    document.getElementById('btnMsgOk')?.addEventListener('click', () => {
-        document.getElementById('messageModal').style.display = 'none';
-    });
+    // Note: Event listeners for global modals are now handled in ui.js
 
     setupInfoTooltips();
 });

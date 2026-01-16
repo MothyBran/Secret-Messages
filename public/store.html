@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" href="/favicon.png">
 
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="/assets/css/ui.css" rel="stylesheet">
 
   <style>
     :root {
@@ -568,7 +569,10 @@
         }
     </script>
 
+  <script src="/assets/js/ui.js"></script>
   <script src="store.js"></script>
   <script src="https://js.stripe.com/v3/"></script>
+    <div id="messageModal" class="modal"><div class="modal-box"><h3 id="msgModalTitle">Info</h3><p id="msgModalText"></p><div class="modal-actions"><button id="msgModalBtn" class="modal-btn primary">OK</button></div></div></div>
+    <div id="confirmModal" class="modal"><div class="modal-box"><h3 id="confirmModalTitle">Bestätigen</h3><p id="confirmModalText"></p><div class="modal-actions"><button id="confirmModalBtnNo" class="modal-btn">Nein</button><button id="confirmModalBtnYes" class="modal-btn primary">Ja</button></div></div></div>
 </body>
 </html>

@@ -107,51 +107,17 @@ window.fetch = async function(...args) {
     } catch (error) { throw error; }
 };
 
-window.showToast = function(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    let icon = 'ℹ️'; if (type === 'success') icon = '✅'; if (type === 'error') icon = '❌';
-    toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span>${message}</span>`;
-    container.appendChild(toast);
-    requestAnimationFrame(() => { toast.classList.add('show'); });
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 4000);
-};
+// Note: showToast, showLoader, hideLoader, showConfirm are now from ui.js
+// Wrappers below ensure compatibility if internal calls use `window.showAppConfirm`
 
-window.showLoader = function(text = "Verarbeite Daten...") {
-    const loader = document.getElementById('global-loader');
-    if (!loader) return;
-    loader.querySelector('.loader-text').textContent = text;
-    loader.classList.add('active');
-};
-
-window.hideLoader = function() {
-    const loader = document.getElementById('global-loader');
-    if (loader) loader.classList.remove('active');
-};
-
-let appConfirmCallback = null;
 window.showAppConfirm = function(message, onConfirm, labels = null) {
-    document.getElementById('appConfirmMessage').textContent = message;
-    document.getElementById('appConfirmModal').classList.add('active');
-
-    const btnYes = document.getElementById('btnAppConfirmYes');
-    const btnNo = document.getElementById('btnAppConfirmNo');
-
+    let options = {};
     if (labels) {
-        btnYes.textContent = labels.confirm || 'Ja';
-        btnNo.textContent = labels.cancel || 'Nein';
-    } else {
-        btnYes.textContent = 'Ja';
-        btnNo.textContent = 'Nein';
+        options.confirm = labels.confirm;
+        options.cancel = labels.cancel;
     }
-
-    appConfirmCallback = onConfirm;
+    window.showConfirm(message, onConfirm, options);
 };
-
-document.getElementById('btnAppConfirmYes')?.addEventListener('click', () => { if(appConfirmCallback) appConfirmCallback(); document.getElementById('appConfirmModal').classList.remove('active'); appConfirmCallback = null; });
-document.getElementById('btnAppConfirmNo')?.addEventListener('click', () => { document.getElementById('appConfirmModal').classList.remove('active'); appConfirmCallback = null; });
 
 function setupUIEvents() {
     const menuBtn = document.getElementById('menuToggle');
@@ -651,8 +617,8 @@ async function handleLogin(e) {
             loadUserContacts();
             initEnterpriseKeys();
 
-            if (data.hasLicense === false) { updateSidebarInfo(currentUser.name, null); alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key."); showRenewalScreen(); return; }
-            if(data.expiresAt && data.expiresAt !== 'lifetime') { const expDate = new Date(String(data.expiresAt).replace(' ', 'T')); if(expDate < new Date()) { updateSidebarInfo(currentUser.name, data.expiresAt); showRenewalScreen(); return; } }
+            if (data.hasLicense === false) { updateSidebarInfo(currentUser.name, null); showRenewalModal(); return; }
+            if(data.expiresAt && data.expiresAt !== 'lifetime') { const expDate = new Date(String(data.expiresAt).replace(' ', 'T')); if(expDate < new Date()) { updateSidebarInfo(currentUser.name, data.expiresAt); showRenewalModal(); return; } }
             updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
             if (data.error === "ACCOUNT_BLOCKED") { localStorage.removeItem('sm_token'); showSection('blockedSection'); }
@@ -664,9 +630,9 @@ async function handleLogin(e) {
 
 async function handleActivation(e) {
     e.preventDefault();
-    if (!document.getElementById('agbCheck').checked) { alert("Bitte akzeptieren Sie die AGB und Nutzungsbedingungen."); return; }
+    if (!document.getElementById('agbCheck').checked) { window.showToast("Bitte akzeptieren Sie die AGB und Nutzungsbedingungen.", 'error'); return; }
     const code1 = document.getElementById('newAccessCode').value; const code2 = document.getElementById('newAccessCodeRepeat').value;
-    if (code1 !== code2) { alert("Die Zugangscodes stimmen nicht überein!"); return; }
+    if (code1 !== code2) { window.showToast("Die Zugangscodes stimmen nicht überein!", 'error'); return; }
     const devId = await generateDeviceFingerprint(); const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
     try { const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success'); showSection('loginSection'); document.getElementById('u_ident_entry').value = payload.username; } else { showAppStatus(d.error || "Aktivierung fehlgeschlagen", 'error'); } } catch(e) { showAppStatus("Fehler bei der Aktivierung", 'error'); }
 }
@@ -738,7 +704,23 @@ async function generateDeviceFingerprint() {
 
 let idleTimer; const IDLE_TIMEOUT = 15 * 60 * 1000;
 function setupIdleTimer() { window.onload = resetIdleTimer; window.onmousemove = resetIdleTimer; window.onmousedown = resetIdleTimer; window.ontouchstart = resetIdleTimer; window.onclick = resetIdleTimer; window.onkeypress = resetIdleTimer; window.addEventListener('scroll', resetIdleTimer, true); }
-function resetIdleTimer() { if (!currentUser) return; clearTimeout(idleTimer); idleTimer = setTimeout(() => { if(currentUser) { alert("Automatische Abmeldung wegen Inaktivität."); handleLogout(); } }, IDLE_TIMEOUT); }
+function resetIdleTimer() {
+    if (!currentUser) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        if(currentUser) {
+            // "Inaktivitäts-Logout": messageModal with login button
+            window.showMessage("Sitzung abgelaufen", "Sie wurden automatisch abgemeldet.", () => {
+                // Callback does nothing specific here, user is already logged out below
+                // or user clicks Login which is just closing modal usually, but we want to ensure they go to login
+                // handleLogout switches to loginSection.
+                // The prompt asked for "Login-Button". showMessage has OK button.
+                // We'll customize it.
+            }, "Anmelden");
+            handleLogout();
+        }
+    }, IDLE_TIMEOUT);
+}
 
 async function validateSessionStrict() {
     if (!authToken) { handleLogout(); return false; }
@@ -746,10 +728,14 @@ async function validateSessionStrict() {
         const res = await fetch(`${API_BASE}/auth/validate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token: authToken }) });
         const data = await res.json();
         if (!data.valid) {
-            if (data.reason === 'blocked') { alert("Sitzung beendet: Konto wurde gesperrt."); handleLogout(); return false; }
-            else if (data.reason === 'expired') { showRenewalScreen(); return false; }
-            else if (data.reason === 'no_license') { alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key."); showRenewalScreen(); return false; }
-            else { alert("Sitzung abgelaufen."); handleLogout(); return false; }
+            if (data.reason === 'blocked') { window.showMessage("Konto gesperrt", "Ihr Zugang wurde administrativ gesperrt.", () => handleLogout()); return false; }
+            else if (data.reason === 'expired') { showRenewalModal(); return false; }
+            else if (data.reason === 'no_license') {
+                // "Lizenz abgelaufen" / None: Modal with Shop Button
+                showRenewalModal();
+                return false;
+            }
+            else { window.showMessage("Sitzung abgelaufen", "Bitte melden Sie sich erneut an.", () => handleLogout(), "Anmelden"); return false; }
         }
         // Valid Session: Update Expiration in Sidebar (Real-time sync)
         if (data.expiresAt !== undefined) {
@@ -813,6 +799,18 @@ async function checkExistingSession() {
 }
 
 function showRenewalScreen() { showSection('renewalSection'); const wrapper = document.getElementById('headerSwitchWrapper'); if(wrapper) wrapper.style.display = 'none'; }
+
+function showRenewalModal() {
+    // Custom Modal for Renewal
+    // "Modal, das direkt einen Button 'Jetzt im Shop verlängern' enthält."
+    const msg = "Ihre Lizenz ist abgelaufen oder nicht vorhanden. Bitte verlängern Sie Ihren Zugang.";
+    window.showMessage("Lizenz Erforderlich", msg, () => {
+        window.location.href = "/shop";
+    }, "Jetzt im Shop verlängern");
+
+    // Also redirect to renewal section behind modal?
+    showRenewalScreen();
+}
 
 function openSupportModal() {
     const modal = document.getElementById('supportModal'); const userField = document.getElementById('supportUsername'); document.getElementById('supportForm').reset();
