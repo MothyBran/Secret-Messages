@@ -1009,7 +1009,7 @@
     </div>
     
     <div id="qrScannerModal" class="modal">
-        <div class="modal-box" style="width: 100%; max-width: 500px; padding: 0; overflow: hidden; background: #000; border: 1px solid var(--accent-blue);">
+        <div class="modal-box" style="width: 100%; max-width: 500px; padding: 0; overflow: hidden; background: #000; border: 1px solid var(--accent-blue); display: flex; flex-direction: column;">
             <div style="padding: 10px; background: #111; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
                 <h4 style="color: var(--accent-blue); margin: 0;">KAMERA SCANNER</h4>
                 <button id="closeScannerBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor:pointer;">✕</button>
@@ -1018,6 +1018,48 @@
             <div style="padding: 15px; text-align: center; color: #ccc; font-size: 0.9rem;">
                 Bitte Kamera freigeben und Code scannen.<br>
                 <small style="color: #777;">(Funktioniert über sichere HTTPS!)</small>
+            </div>
+            <button id="btnOpenManualTransfer" class="btn" style="border-top:1px solid #333; background: #111; display:none;">
+                ⌨️ Code manuell eingeben
+            </button>
+        </div>
+    </div>
+
+    <!-- MANUAL TRANSFER MODAL (New Device) -->
+    <div id="manualTransferModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">MANUELLER TRANSFER</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Geben Sie die Daten vom alten Gerät ein.
+            </p>
+            <div class="input-group">
+                <label class="input-label">Benutzer-ID (vom alten Gerät)</label>
+                <input type="text" id="manualTransferUser" class="input-field" placeholder="USER.ID">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Transfer-Code (6-stellig)</label>
+                <input type="text" id="manualTransferCode" class="input-field" placeholder="ABC123" maxlength="6" style="text-align: center; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('manualTransferModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnSubmitManualTransfer" style="flex:1;">Verbinden</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UNLOCK PROFILE MODAL (Final Step Manual Transfer) -->
+    <div id="unlockProfileModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">PROFIL ENTSPERREN</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Verbindung hergestellt! <br>Bitte geben Sie Ihren <b>5-stelligen Zugangscode</b> ein, um das Profil auf diesem Gerät zu installieren.
+            </p>
+            <div class="input-group">
+                <input type="password" id="unlockProfileCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('unlockProfileModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnUnlockProfile" style="flex:1;">Profil Entsperren</button>
             </div>
         </div>
     </div>
@@ -1267,18 +1309,25 @@
         <div class="modal-box" style="text-align: center;">
             <h3 style="color: var(--accent-blue); margin-bottom: 10px;">PROFIL ÜBERTRAGEN</h3>
             <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">
-                Scannen Sie diesen Code mit Ihrem neuen Gerät, um Ihr Profil sicher zu übertragen.
+                Scannen Sie den QR-Code oder geben Sie den Transfer-Code manuell auf dem neuen Gerät ein.
             </p>
 
             <div id="transferQrDisplay" style="margin: 0 auto 20px auto; background: white; padding: 10px; width: fit-content;">
                 <!-- QR Code here -->
             </div>
 
+            <div style="margin-bottom:15px;">
+                <p style="font-size:0.8rem; color:#777; margin-bottom:5px;">MANUELLER TRANSFER CODE</p>
+                <div id="transferManualCodeDisplay" style="font-size: 2rem; color: var(--success-green); font-family: 'Roboto Mono'; letter-spacing: 5px; font-weight: bold;">
+                    Loading...
+                </div>
+            </div>
+
             <div style="margin-bottom: 20px; font-size: 1.2rem; color: var(--error-red); font-weight: bold;" id="transferTimer">
                 2:00
             </div>
 
-            <button onclick="document.getElementById('transferExportModal').classList.remove('active')" class="btn" style="width:100%;">Abbrechen</button>
+            <button id="btnCancelTransferExport" class="btn" style="width:100%;">Abbrechen</button>
         </div>
     </div>
 
