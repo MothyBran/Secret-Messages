@@ -52,6 +52,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (renInput) renInput.value = keyParam;
     }
 
+    // Clean URL Params to prevent Loop/Re-trigger on Refresh
+    if (action || keyParam) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     if (action === 'activate' || action === 'register') {
         showSection('activationSection');
     } else {

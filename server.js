@@ -627,9 +627,11 @@ app.get('/api/auth/export-profile', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Fehler beim Export" }); }
 });
 
-app.post('/api/auth/transfer-start', async (req, res) => {
+app.post('/api/auth/transfer-start', authenticateUser, async (req, res) => {
     const { uid } = req.body;
-    if (!uid) return res.status(400).json({ error: "UID missing" });
+    // Security: Ensure the requested UID matches the authenticated user
+    if (!uid || uid !== req.user.username) return res.status(403).json({ error: "Unauthorized Transfer Request" });
+
     if (pendingTransfers.has(uid)) clearTimeout(pendingTransfers.get(uid).timer);
 
     const transferCode = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6 chars
