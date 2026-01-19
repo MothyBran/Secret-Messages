@@ -1262,6 +1262,9 @@ window.openUserProfile = async function(userId) {
 
             document.getElementById('upPikHash').textContent = u.registration_key_hash || 'N/A';
 
+            // Badge
+            document.getElementById('userBadgeSelect').value = u.badge || '';
+
             // Bind Actions with correct context
             const btnReset = document.getElementById('btnResetDevice');
             btnReset.onclick = () => { window.resetDevice(u.id); };
@@ -1313,6 +1316,26 @@ window.openUserProfile = async function(userId) {
             window.showToast("Fehler beim Laden.", "error");
         }
     } catch(e) { console.error(e); window.showToast("Netzwerkfehler", "error"); }
+};
+
+window.updateUserBadge = async function() {
+    if(!currentUserProfileId) return;
+    const badge = document.getElementById('userBadgeSelect').value;
+
+    try {
+        const res = await fetch(`${API_BASE}/users/${currentUserProfileId}/badge`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ badge })
+        });
+        const data = await res.json();
+        if(data.success) {
+            window.showToast("Badge aktualisiert", "success");
+            window.loadUsers(); // Refresh main table
+        } else {
+            window.showToast("Fehler beim Speichern", "error");
+        }
+    } catch(e) { window.showToast("Netzwerkfehler", "error"); }
 };
 
 window.submitManualLink = async function() {

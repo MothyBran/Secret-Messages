@@ -940,6 +940,24 @@
                         <div id="upPikHash" style="font-family:'Roboto Mono'; font-size:0.8rem; color:#666; word-break:break-all;">-</div>
                     </div>
 
+                    <div class="detail-group" style="margin-bottom:20px;">
+                        <label style="color:#888; font-size:0.8rem; display:block;">Benutzer Badge</label>
+                        <div style="display:flex; gap:10px;">
+                            <select id="userBadgeSelect" style="width:100%;">
+                                <option value="">Kein Badge</option>
+                                <option value="Founder 🎖️">Founder 🎖️</option>
+                                <option value="Dev 👾">Dev 👾</option>
+                                <option value="Admin 🛡️">Admin 🛡️</option>
+                                <option value="Beta 🧪">Beta 🧪</option>
+                                <option value="Pro ⭐">Pro ⭐</option>
+                                <option value="Demo 🔖">Demo 🔖</option>
+                                <option value="Partner ⚜️">Partner ⚜️</option>
+                                <option value="VIP 💠">VIP 💠</option>
+                            </select>
+                            <button class="btn-action" onclick="updateUserBadge()" style="padding:5px 10px; font-size:0.8rem;">💾</button>
+                        </div>
+                    </div>
+
                     <h5 style="color:#fff; margin-top:30px; margin-bottom:10px;">Lizenz Historie</h5>
                     <div class="table-container" style="max-height:300px; overflow-y:auto; border:none; background:transparent;">
                         <table style="font-size:0.85rem;">

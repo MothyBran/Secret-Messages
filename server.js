@@ -363,7 +363,7 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
         await trackEvent(req, 'login_success', 'auth', { username });
-        res.json({ success: true, token, username: user.username, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
+        res.json({ success: true, token, username: user.username, badge: user.badge, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
@@ -609,7 +609,7 @@ app.post('/api/auth/validate', async (req, res) => {
                 if (new Date(expirySource) < new Date()) isExpired = true;
             }
             if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: expirySource });
-            res.json({ valid: true, username: user.username, expiresAt: expirySource || 'lifetime' });
+            res.json({ valid: true, username: user.username, badge: user.badge, expiresAt: expirySource || 'lifetime' });
         } else {
             res.json({ valid: false, reason: 'user_not_found' });
         }
@@ -936,7 +936,7 @@ app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
         const userId = req.params.id;
         // Fetch expires_at from license_keys and alias it as license_expiration
         const userRes = await dbQuery(`
-            SELECT u.id, u.username, u.registered_at, u.last_login, u.registration_key_hash,
+            SELECT u.id, u.username, u.registered_at, u.last_login, u.registration_key_hash, u.badge,
                    u.license_key_id, l.expires_at as license_expiration, u.is_blocked, u.allowed_device_id
             FROM users u
             LEFT JOIN license_keys l ON u.license_key_id = l.id
@@ -949,6 +949,15 @@ app.get('/api/admin/users/:id/details', requireAdmin, async (req, res) => {
         const history = historyRes.rows.map(r => ({ ...r, is_active: isPostgreSQL() ? r.is_active : (r.is_active === 1) }));
         res.json({ success: true, user, history });
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/admin/users/:id/badge', requireAdmin, async (req, res) => {
+    const userId = req.params.id;
+    const { badge } = req.body;
+    try {
+        await dbQuery("UPDATE users SET badge = $1 WHERE id = $2", [badge || null, userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
