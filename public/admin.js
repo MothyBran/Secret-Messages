@@ -1667,3 +1667,103 @@ window.exportStatisticsCSV = function() {
     link.click();
     document.body.removeChild(link);
 };
+
+// =========================================================
+// NEW MAIL SERVICE LOGIC (FIX)
+// =========================================================
+
+window.toggleSubjectInput = function() {
+    const val = document.getElementById('msgSubjectSelect').value;
+    const customInput = document.getElementById('msgSubjectCustom');
+    if (customInput) {
+        customInput.style.display = (val === 'custom') ? 'block' : 'none';
+    }
+};
+
+window.sendAdminMessage = async function() {
+    const btn = event.target || document.querySelector('#view-mail-compose button.btn-action');
+    const oldText = btn ? btn.textContent : 'Absenden';
+    if(btn) { btn.textContent = "Sende..."; btn.disabled = true; }
+
+    try {
+        const typeSelect = document.getElementById('mailRecipientType');
+        const recipientType = typeSelect ? typeSelect.value : 'broadcast';
+
+        const recipientIdInput = document.getElementById('mailRecipientId');
+        const recipientId = recipientIdInput ? recipientIdInput.value.trim() : '';
+
+        const subjectSelect = document.getElementById('msgSubjectSelect');
+        let subject = subjectSelect ? subjectSelect.value : '';
+        if (subject === 'custom') {
+            subject = document.getElementById('msgSubjectCustom').value.trim();
+        }
+
+        const body = document.getElementById('msgBody').value.trim();
+        const expiryDate = document.getElementById('msgExpiry').value;
+
+        // Validation
+        if (!subject) throw new Error("Betreff fehlt.");
+        if (!body) throw new Error("Nachricht fehlt.");
+        if (recipientType === 'user' && !recipientId) throw new Error("Benutzer-ID fehlt.");
+
+        // Timestamp Logic
+        let finalBody = body;
+        let expiresAtIso = null;
+        if (expiryDate) {
+            const d = new Date(expiryDate);
+            if (!isNaN(d.getTime())) {
+                finalBody += `\n\n--- Diese Nachricht ist gültig bis: ${d.toLocaleString('de-DE')} ---`;
+                expiresAtIso = d.toISOString();
+            }
+        }
+
+        const payload = {
+            type: recipientType, // 'broadcast' or 'user'
+            recipientId: (recipientType === 'user') ? recipientId : null,
+            subject: subject,
+            body: finalBody,
+            expiresAt: expiresAtIso
+        };
+
+        const res = await fetch(`${API_BASE}/mail/send`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            window.showToast("Nachricht erfolgreich versendet!", "success");
+            // Reset
+            document.getElementById('msgBody').value = '';
+            if(document.getElementById('msgSubjectCustom')) document.getElementById('msgSubjectCustom').value = '';
+            if(recipientIdInput) recipientIdInput.value = '';
+            if(document.getElementById('msgExpiry')) document.getElementById('msgExpiry').value = '';
+            if(subjectSelect) {
+                subjectSelect.value = subjectSelect.options[0].value;
+                window.toggleSubjectInput();
+            }
+        } else {
+            throw new Error(data.error || "Serverfehler");
+        }
+
+    } catch (e) {
+        window.showToast(e.message, "error");
+    }
+
+    if(btn) { btn.textContent = oldText; btn.disabled = false; }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Event Listener for Mail Recipient Toggle
+    const mailTypeSelect = document.getElementById('mailRecipientType');
+    if (mailTypeSelect) {
+        mailTypeSelect.addEventListener('change', function() {
+            const val = this.value;
+            const singleField = document.getElementById('singleUserField');
+            if (singleField) {
+                singleField.style.display = (val === 'user') ? 'block' : 'none';
+            }
+        });
+    }
+});

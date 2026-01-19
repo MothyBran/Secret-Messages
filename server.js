@@ -787,6 +787,54 @@ app.post('/api/admin/2fa/disable', requireAdmin, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/admin/mail/send', requireAdmin, async (req, res) => {
+    const { type, recipientId, subject, body, expiresAt } = req.body;
+    if (!subject || !body) return res.status(400).json({ error: "Betreff/Nachricht fehlt." });
+
+    try {
+        const now = new Date().toISOString();
+        const isReadVal = isPostgreSQL() ? false : 0;
+
+        if (type === 'broadcast') {
+            // Send to ALL users
+            // 1. Get all user IDs
+            const usersRes = await dbQuery("SELECT id FROM users");
+            if (usersRes.rows.length === 0) return res.json({ success: true, count: 0 });
+
+            // 2. Bulk Insert (or loop)
+            // Using loop for simplicity and DB compatibility (SQLite/Postgres)
+            // Ideally use batch insert but loop is safer for cross-db compatibility here
+            await dbQuery('BEGIN');
+            for (const row of usersRes.rows) {
+                await dbQuery(
+                    `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, 'broadcast', $4, $5, $6)`,
+                    [row.id, subject, body, expiresAt || null, now, isReadVal]
+                );
+            }
+            await dbQuery('COMMIT');
+            return res.json({ success: true, count: usersRes.rows.length });
+
+        } else if (type === 'user') {
+            if (!recipientId) return res.status(400).json({ error: "User ID fehlt." });
+
+            // Validate User
+            const uCheck = await dbQuery("SELECT id FROM users WHERE id = $1", [recipientId]);
+            if (uCheck.rows.length === 0) return res.status(404).json({ error: "User ID nicht gefunden." });
+
+            await dbQuery(
+                `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, 'admin_msg', $4, $5, $6)`,
+                [recipientId, subject, body, expiresAt || null, now, isReadVal]
+            );
+            return res.json({ success: true });
+        } else {
+            return res.status(400).json({ error: "Ungültiger Empfängertyp." });
+        }
+    } catch(e) {
+        await dbQuery('ROLLBACK');
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     try {
         const now = isPostgreSQL() ? 'NOW()' : 'DATETIME("now")';
