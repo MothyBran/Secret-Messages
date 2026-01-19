@@ -155,6 +155,22 @@ async function createTables() {
     } catch (e) {
         console.warn("Migration Warning (users badge):", e.message);
     }
+
+    // --- MIGRATION: is_deleted zu messages hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(messages)`);
+            const hasCol = check.rows.some(c => c.name === 'is_deleted');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE messages ADD COLUMN is_deleted INTEGER DEFAULT 0`);
+                console.log('✅ Migrated: Added is_deleted to messages (SQLite)');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (messages is_deleted):", e.message);
+    }
 }
 
 /**

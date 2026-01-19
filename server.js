@@ -1395,7 +1395,15 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
         const now = new Date().toISOString();
-        const sql = `SELECT * FROM messages WHERE (recipient_id = $1 AND (is_read = ${isPostgreSQL() ? 'false' : '0'} OR type = 'ticket')) OR (recipient_id IS NULL AND (expires_at IS NULL OR expires_at > $2)) ORDER BY created_at DESC`;
+        const isDeletedCheck = isPostgreSQL() ? 'is_deleted IS FALSE' : 'is_deleted = 0';
+
+        // Fetch all non-deleted messages that are not expired
+        const sql = `SELECT * FROM messages WHERE
+            ((recipient_id = $1 AND (${isDeletedCheck} OR is_deleted IS NULL))
+            OR (recipient_id IS NULL))
+            AND (expires_at IS NULL OR expires_at > $2)
+            ORDER BY created_at DESC`;
+
         const result = await dbQuery(sql, [userId, now]);
         const msgs = result.rows.map(r => ({ ...r, is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1) }));
         res.json(msgs);
@@ -1417,7 +1425,10 @@ app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
         if(msgRes.rows.length === 0) return res.status(404).json({ error: "Nachricht nicht gefunden" });
         const msg = msgRes.rows[0];
         if (msg.type === 'ticket' && msg.status !== 'closed') return res.status(403).json({ error: "Ticket noch offen." });
-        await dbQuery(`DELETE FROM messages WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
+
+        // Soft Delete
+        const val = isPostgreSQL() ? 'TRUE' : '1';
+        await dbQuery(`UPDATE messages SET is_deleted = ${val} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1571,7 +1582,15 @@ function startServer(port = PORT) {
         console.log(`🚀 Server running on Port ${port}`);
         if (IS_ENTERPRISE) {
             if(!isPostgreSQL && db) {
-                db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (id TEXT PRIMARY KEY, sender_id TEXT, recipient_id TEXT, subject TEXT, body TEXT, attachment TEXT, is_read INTEGER DEFAULT 0, created_at DATETIME)`, (err) => { if(err) console.error("EntDB Error", err); });
+                // Enterprise Messages Table (Added is_deleted, expires_at)
+                db.run(`CREATE TABLE IF NOT EXISTS enterprise_messages (id TEXT PRIMARY KEY, sender_id TEXT, recipient_id TEXT, subject TEXT, body TEXT, attachment TEXT, is_read INTEGER DEFAULT 0, is_deleted INTEGER DEFAULT 0, expires_at DATETIME, created_at DATETIME)`, (err) => {
+                    if(err) console.error("EntDB Error", err);
+                    else {
+                        // Attempt to add columns if missing (SQLite specific migration for Enterprise)
+                        db.run(`ALTER TABLE enterprise_messages ADD COLUMN is_deleted INTEGER DEFAULT 0`, () => {});
+                        db.run(`ALTER TABLE enterprise_messages ADD COLUMN expires_at DATETIME`, () => {});
+                    }
+                });
             }
             if(socketServer) socketServer.attach(httpServer, dbQuery);
             if(enterpriseManager) enterpriseManager.init().then(config => { if(config.activated) require('./enterprise/discovery').start(port); });
