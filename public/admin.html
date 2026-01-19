@@ -575,11 +575,14 @@
 
                     <div class="control-bar" style="flex-direction:column; align-items:stretch;">
                         <label style="color:#888; font-size:0.9rem;">Empfänger</label>
-                        <select id="msgRecipientType" onchange="toggleRecipientInput()" style="margin-bottom:10px;">
+                        <select id="mailRecipientType" style="margin-bottom:10px;">
                             <option value="broadcast">📢 Alle Benutzer (Broadcast)</option>
-                            <option value="single">👤 Einzelner Benutzer</option>
+                            <option value="user">👤 Einzelner Benutzer</option>
                         </select>
-                        <input type="text" id="msgRecipientId" placeholder="User ID eingeben..." style="display:none; margin-bottom:10px;">
+                        <div id="singleUserField" style="display:none; margin-top:10px; margin-bottom:10px;">
+                            <label class="input-label" style="display:block; color:#888; margin-bottom:5px;">Benutzer-ID</label>
+                            <input type="text" id="mailRecipientId" class="input-field" placeholder="z.B. USER.ID" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:8px 12px; font-family:'Roboto Mono';">
+                        </div>
 
                         <label style="color:#888; font-size:0.9rem;">Betreff</label>
                         <select id="msgSubjectSelect" onchange="toggleSubjectInput()" style="margin-bottom:5px;">
