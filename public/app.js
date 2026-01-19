@@ -798,6 +798,16 @@ function updateSidebarInfo(user, expiryData) {
         else { licenseLabel.textContent = "LIZENZ: Unbekannt"; licenseLabel.style.color = "#888"; }
     } else if (licenseLabel) { licenseLabel.textContent = "Nicht verbunden"; licenseLabel.style.color = "#888"; }
 
+    // BADGE RENDERING
+    if (user && currentUser && currentUser.badge) {
+        // Map badge name to class
+        const badgeName = currentUser.badge.split(' ')[0].toLowerCase(); // e.g. "Dev 👾" -> "dev"
+        const badgeClass = `user-badge badge-${badgeName}`;
+
+        const badgeHtml = ` <span class="${badgeClass}">${currentUser.badge}</span>`;
+        userLabel.innerHTML = (user || 'Gast') + badgeHtml;
+    }
+
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
     guestElements.forEach(el => el.style.display = user ? 'none' : 'flex');
 }
