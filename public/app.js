@@ -1362,7 +1362,7 @@ async function loadAndShowInbox() {
             const isPersonal = !!m.recipient_id; const isBroadcast = !isPersonal; const isUnread = (isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id));
             const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
 
-            let classes = 'msg-card'; if(isUnread) classes += ' unread'; if(m.type === 'automated') classes += ' type-automated'; if(m.type === 'support') classes += ' type-support'; if(isTicket) classes += ' type-ticket';
+            let classes = 'msg-card'; if(isUnread) classes += ' unread'; else classes += ' read-message'; if(m.type === 'automated') classes += ' type-automated'; if(m.type === 'support') classes += ' type-support'; if(isTicket) classes += ' type-ticket';
             let icon = '📩'; if(m.type === 'automated') icon = '⚠️'; else if(m.type === 'support') icon = '💬'; else if(isTicket) icon = '🎫'; else if(!isPersonal) icon = '📢';
 
             let badgeHtml = '';
