@@ -22,6 +22,7 @@ async function createTables() {
             password_hash TEXT,
             registration_key_hash TEXT,
             license_key_id INTEGER,
+            badge TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS license_keys (
@@ -137,6 +138,22 @@ async function createTables() {
         }
     } catch (e) {
         console.warn("Migration Warning (payments created_at):", e.message);
+    }
+
+    // --- MIGRATION: badge zu users hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS badge TEXT`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(users)`);
+            const hasCol = check.rows.some(c => c.name === 'badge');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE users ADD COLUMN badge TEXT`);
+                console.log('✅ Migrated: Added badge to users (SQLite)');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (users badge):", e.message);
     }
 }
 
