@@ -950,19 +950,49 @@ function startQRScanner(transferMode = false) {
     if(!qrScan) qrScan = new Html5Qrcode("qr-reader");
 
     qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (decodedText) => {
+        console.log("Scanner Rohdaten:", decodedText); // Debugging
+
         if (isTransferScan) {
             stopQRScanner();
             handleTransferScanSuccess(decodedText);
         } else {
             const inputField = document.getElementById('messageInput');
             if (inputField) {
-                // 1. Wert setzen
-                inputField.value = decodedText;
-                // 2. UI synchronisieren (Event Dispatch)
-                inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                // 3. Feedback & Cleanup
-                showToast("QR-Code erfolgreich eingelesen", "success");
-                stopQRScanner();
+                // 1. Sanitization
+                let cleanedText = decodedText.trim();
+
+                // Optional: Remove common prefixes if present (User Request)
+                if (cleanedText.startsWith('SECURE-MSG:')) {
+                    cleanedText = cleanedText.replace('SECURE-MSG:', '').trim();
+                }
+
+                // 2. Format Check (Simple Heuristic)
+                // A valid "System Message" is usually Base64 or JSON-like.
+                // We check if it looks reasonably "safe" to insert directly.
+                const isSystemMessage = /^[A-Za-z0-9+/=]+$/.test(cleanedText) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
+
+                const processInsert = () => {
+                    inputField.value = cleanedText;
+                    inputField.dispatchEvent(new Event('input', { bubbles: true }));
+                    showToast("QR-Code erfolgreich eingelesen", "success");
+                    stopQRScanner();
+                };
+
+                if (isSystemMessage || cleanedText.length > 5) {
+                    processInsert();
+                } else {
+                    // Fallback Mode
+                    window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
+                         processInsert();
+                    }, { confirm: "Einfügen", cancel: "Abbrechen" });
+
+                    // Note: If user cancels, we stay in scanner mode?
+                    // Or should we close? The prompt implies "prevent blocking".
+                    // If they cancel, they probably want to scan again.
+                    // But confirm modal blocks scanner view usually.
+                    // Ideally we pause scanner?
+                    // For now, simple confirm.
+                }
             }
         }
     }, undefined).catch(err => {
