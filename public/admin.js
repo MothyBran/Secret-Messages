@@ -1389,9 +1389,10 @@ function renderKeysTable(keys) {
         }
 
         // Origin Badge
-        let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">?</span>`;
-        if(k.origin === 'shop') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">SHOP</span>`;
+        let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">${k.origin || '?'}</span>`;
+        if(k.origin === 'shop' || k.origin === 'Kauf') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">KAUF</span>`;
         if(k.origin === 'admin') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(255, 165, 0, 0.2); color:orange; border:1px solid orange;">ADMIN</span>`;
+        if(k.origin === 'Stripe') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 191, 255, 0.2); color:var(--accent-blue); border:1px solid var(--accent-blue);">STRIPE</span>`;
 
         // Show Username instead of ID (Fallback to assigned_user_id)
         const uName = k.username || k.assigned_user_id;

@@ -1179,12 +1179,12 @@ app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
     try {
-        const result = await dbQuery(`SELECT * FROM payments ORDER BY completed_at DESC LIMIT 100`);
+        const result = await dbQuery(`SELECT * FROM payments ORDER BY COALESCE(completed_at, created_at) DESC LIMIT 100`);
         const purchases = result.rows.map(r => {
             let meta = {};
             try { meta = (typeof r.metadata === 'string') ? JSON.parse(r.metadata) : r.metadata || {}; } catch(e){}
             const email = meta.email || meta.customer_email || meta.customerEmail || '?';
-            return { id: r.payment_id, email: email, product: meta.product_type || '?', amount: r.amount, currency: r.currency, date: r.completed_at, status: r.status };
+            return { id: r.payment_id, email: email, product: meta.product_type || '?', amount: r.amount, currency: r.currency, date: r.completed_at || r.created_at, status: r.status };
         });
         res.json(purchases);
     } catch (e) { res.json([]); }

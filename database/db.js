@@ -43,7 +43,8 @@ async function createTables() {
             currency TEXT,
             payment_method TEXT,
             metadata JSONB,
-            completed_at TIMESTAMP
+            completed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY,
@@ -120,6 +121,22 @@ async function createTables() {
         }
     } catch (e) {
         console.warn("Migration Warning (license_key_id):", e.message);
+    }
+
+    // --- MIGRATION: created_at zu payments hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(payments)`);
+            const hasCol = check.rows.some(c => c.name === 'created_at');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE payments ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+                console.log('✅ Migrated: Added created_at to payments (SQLite)');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (payments created_at):", e.message);
     }
 }
 
