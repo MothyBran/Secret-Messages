@@ -260,6 +260,13 @@ function setupUIEvents() {
     document.getElementById('qrScanBtn')?.addEventListener('click', startQRScanner);
     document.getElementById('closeScannerBtn')?.addEventListener('click', stopQRScanner);
 
+    // Close QR Scanner on click outside
+    document.getElementById('qrScannerModal')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('qrScannerModal')) {
+            stopQRScanner();
+        }
+    });
+
     document.getElementById('closeContactSidebar')?.addEventListener('click', closeContactSidebar);
     document.getElementById('contactSearch')?.addEventListener('input', (e) => renderContactList(e.target.value));
     document.getElementById('sortByName')?.addEventListener('click', () => toggleSort('name'));
@@ -943,24 +950,39 @@ function startQRScanner(transferMode = false) {
     if(!qrScan) qrScan = new Html5Qrcode("qr-reader");
 
     qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (decodedText) => {
-        stopQRScanner();
         if (isTransferScan) {
+            stopQRScanner();
             handleTransferScanSuccess(decodedText);
         } else {
-            document.getElementById('messageInput').value = decodedText;
-            showAppStatus("QR Code erkannt!");
+            const inputField = document.getElementById('messageInput');
+            if (inputField) {
+                // 1. Wert setzen
+                inputField.value = decodedText;
+                // 2. UI synchronisieren (Event Dispatch)
+                inputField.dispatchEvent(new Event('input', { bubbles: true }));
+                // 3. Feedback & Cleanup
+                showToast("QR-Code erfolgreich eingelesen", "success");
+                stopQRScanner();
+            }
         }
-    }, (errorMessage) => {
-    }).catch(err => {
+    }, undefined).catch(err => {
         console.error(err);
         document.getElementById('qr-reader').innerHTML = `<div style="color:red;padding:20px;">Kamera-Fehler: ${err}</div>`;
     });
 }
 
-function stopQRScanner() {
+async function stopQRScanner() {
     document.getElementById('qrScannerModal').classList.remove('active');
-    if(qrScan && qrScan.isScanning) {
-        qrScan.stop().then(() => { qrScan.clear(); }).catch(err => console.error(err));
+    if (qrScan) {
+        try {
+            if(qrScan.isScanning) {
+                await qrScan.stop();
+            }
+            qrScan.clear();
+        } catch (err) {
+            console.warn("Kamera Stop Fehler:", err);
+        }
+        qrScan = null;
     }
 }
 
