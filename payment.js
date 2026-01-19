@@ -66,7 +66,7 @@ router.post('/create-checkout-session', async (req, res) => {
         // Datenbank-Eintrag (Pending)
         const metaForDb = JSON.stringify({ ...metadata, user_id: userId, email: customer_email });
         await dbQuery(
-            `INSERT INTO payments (payment_id, status, amount, currency, metadata) VALUES ($1, 'pending', $2, 'eur', $3)`,
+            `INSERT INTO payments (payment_id, status, amount, currency, metadata, created_at) VALUES ($1, 'pending', $2, 'eur', $3, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'})`,
             [session.id, product.price, metaForDb]
         );
 
@@ -166,8 +166,8 @@ async function handleSuccessfulPayment(session) {
 
                     // Insert new key (active)
                     const insertKeyRes = await client.query(
-                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, assigned_user_id)
-                         VALUES ($1, $2, $3, ${isActiveVal}, NOW(), $4, $5) ${isPostgreSQL() ? 'RETURNING id' : ''}`,
+                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, assigned_user_id, origin)
+                         VALUES ($1, $2, $3, ${isActiveVal}, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'}, $4, $5, 'Stripe') ${isPostgreSQL() ? 'RETURNING id' : ''}`,
                         [key, hash, productType, newExpiry, username]
                     );
 
@@ -201,7 +201,7 @@ async function handleSuccessfulPayment(session) {
 
                     await client.query(
                         `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                         VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, NOW())`,
+                         VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'})`,
                         [userId, msgSubject, msgBody]
                     );
 
@@ -221,8 +221,8 @@ async function handleSuccessfulPayment(session) {
                     const hash = crypto.createHash('sha256').update(key).digest('hex');
 
                     await client.query(
-                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at)
-                         VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, NOW(), $4)`,
+                        `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, origin)
+                         VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'}, $4, 'Stripe')`,
                         [key, hash, meta.product_type, keyExpiry]
                     );
                     keysGenerated.push(key);
@@ -234,7 +234,7 @@ async function handleSuccessfulPayment(session) {
 
                 await client.query(
                     `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
-                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, NOW())`,
+                     VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'})`,
                     [userId, msgSubject, msgBody]
                 );
 
@@ -252,8 +252,8 @@ async function handleSuccessfulPayment(session) {
                 const hash = crypto.createHash('sha256').update(key).digest('hex');
                 
                 await client.query(
-                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at) 
-                     VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, NOW(), $4)`, 
+                    `INSERT INTO license_keys (key_code, key_hash, product_code, is_active, created_at, expires_at, origin)
+                     VALUES ($1, $2, $3, ${isPostgreSQL() ? 'false' : '0'}, ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'}, $4, 'Stripe')`,
                     [key, hash, meta.product_type, keyExpiry]
                 );
                 keysGenerated.push(key);
@@ -272,7 +272,7 @@ async function handleSuccessfulPayment(session) {
         });
 
         await client.query(
-            `UPDATE payments SET status = 'completed', completed_at = NOW(), metadata = $1, payment_intent_id = $2 WHERE payment_id = $3`,
+            `UPDATE payments SET status = 'completed', completed_at = ${isPostgreSQL() ? 'NOW()' : 'CURRENT_TIMESTAMP'}, metadata = $1, payment_intent_id = $2 WHERE payment_id = $3`,
             [finalMeta, session.payment_intent, session.id]
         );
 
