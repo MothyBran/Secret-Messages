@@ -712,6 +712,7 @@ app.post('/api/auth/transfer-complete', async (req, res) => {
             success: true,
             token,
             username: user.username,
+            badge: user.badge,
             expiresAt: user.expires_at || 'lifetime',
             hasLicense: !!user.license_key_id,
             pik_encrypted: user.pik_encrypted // Sent for manual decryption on client
