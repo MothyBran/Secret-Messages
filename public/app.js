@@ -14,6 +14,7 @@ let currentUser = null; // Object { name: string, sm_id: number }
 let authToken = null;
 let currentAttachmentBase64 = null;
 let currentMode = 'encrypt'; 
+let currentScannerMode = 'message'; // 'message' or 'transfer'
 
 // Kontakt State
 let contacts = [];
@@ -197,7 +198,7 @@ function setupUIEvents() {
     document.getElementById('navTransferImport')?.addEventListener('click', (e) => {
         e.preventDefault();
         toggleMainMenu(true);
-        startQRScanner(true); // true = transfer mode
+        startTransferScanner();
     });
     document.getElementById('btnConfirmTransferImport')?.addEventListener('click', handleTransferImportDecrypt);
 
@@ -257,12 +258,19 @@ function setupUIEvents() {
     });
     document.getElementById('closeQrBtn')?.addEventListener('click', () => document.getElementById('qrModal').classList.remove('active'));
     document.getElementById('saveQrBtn')?.addEventListener('click', downloadQR);
-    document.getElementById('qrScanBtn')?.addEventListener('click', startQRScanner);
+    document.getElementById('qrScanBtn')?.addEventListener('click', startMessageScanner);
     document.getElementById('closeScannerBtn')?.addEventListener('click', stopQRScanner);
 
     // Close QR Scanner on click outside
     document.getElementById('qrScannerModal')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('qrScannerModal')) {
+            stopQRScanner();
+        }
+    });
+
+    // Close QR Scanner on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('qrScannerModal').classList.contains('active')) {
             stopQRScanner();
         }
     });
@@ -935,15 +943,23 @@ function handleTxtImport(e) {
 function showQRModal(text) { document.getElementById('qrModal').classList.add('active'); const c=document.getElementById('qrDisplay'); c.innerHTML=""; try { new QRCode(c, { text:text, width:190, height:190, colorDark:"#000", colorLight:"#fff", correctLevel:QRCode.CorrectLevel.L }); } catch(e){c.textContent="QR Lib Error";} }
 function downloadQR() { const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); } }
 let qrScan=null;
-let isTransferScan = false;
 
-function startQRScanner(transferMode = false) {
+function startMessageScanner() {
+    currentScannerMode = 'message';
+    startScannerInternal();
+}
+
+function startTransferScanner() {
+    currentScannerMode = 'transfer';
+    startScannerInternal();
+}
+
+function startScannerInternal() {
     if(location.protocol!=='https:' && location.hostname!=='localhost') return alert("Kamera benötigt HTTPS.");
-    isTransferScan = transferMode;
 
     // UI Setup for Transfer vs Normal
     const manualBtn = document.getElementById('btnOpenManualTransfer');
-    if (manualBtn) manualBtn.style.display = transferMode ? 'block' : 'none';
+    if (manualBtn) manualBtn.style.display = (currentScannerMode === 'transfer') ? 'block' : 'none';
 
     document.getElementById('qrScannerModal').classList.add('active');
 
@@ -952,10 +968,17 @@ function startQRScanner(transferMode = false) {
     qrScan.start({facingMode:"environment"}, {fps:10, qrbox:250}, (decodedText) => {
         console.log("Scanner Rohdaten:", decodedText); // Debugging
 
-        if (isTransferScan) {
-            stopQRScanner();
+        if (currentScannerMode === 'transfer') {
+            // Logik für Profil-Transfer
+            // Simple validation before closing scanner
+            if (!decodedText || !decodedText.includes(':')) {
+                showToast("Ungültiger Transfer-Code", "error");
+                return; // Scanner offen lassen
+            }
+            stopQRScanner(); // Beendet Kamera & schließt Modal
             handleTransferScanSuccess(decodedText);
         } else {
+            // Logik für Nachrichten
             const inputField = document.getElementById('messageInput');
             if (inputField) {
                 // 1. Sanitization
@@ -974,7 +997,7 @@ function startQRScanner(transferMode = false) {
                 const processInsert = () => {
                     inputField.value = cleanedText;
                     inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                    showToast("QR-Code erfolgreich eingelesen", "success");
+                    showToast("Nachricht eingelesen", "success");
                     stopQRScanner();
                 };
 
@@ -985,13 +1008,6 @@ function startQRScanner(transferMode = false) {
                     window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
                          processInsert();
                     }, { confirm: "Einfügen", cancel: "Abbrechen" });
-
-                    // Note: If user cancels, we stay in scanner mode?
-                    // Or should we close? The prompt implies "prevent blocking".
-                    // If they cancel, they probably want to scan again.
-                    // But confirm modal blocks scanner view usually.
-                    // Ideally we pause scanner?
-                    // For now, simple confirm.
                 }
             }
         }
