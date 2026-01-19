@@ -623,7 +623,7 @@ async function handleLogin(e) {
         if (data.success) {
             authToken = data.token;
             const decoded = parseJwt(authToken);
-            currentUser = { name: data.username, sm_id: decoded.id };
+            currentUser = { name: data.username, sm_id: decoded.id, badge: data.badge };
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', JSON.stringify(currentUser));
 
             // ISOLATED LOAD
@@ -803,9 +803,9 @@ function updateSidebarInfo(user, expiryData) {
         // Map badge name to class
         const badgeName = currentUser.badge.split(' ')[0].toLowerCase(); // e.g. "Dev 👾" -> "dev"
         const badgeClass = `user-badge badge-${badgeName}`;
-
-        const badgeHtml = ` <span class="${badgeClass}">${currentUser.badge}</span>`;
-        userLabel.innerHTML = (user || 'Gast') + badgeHtml;
+        userLabel.innerHTML = `👤 ${user} <span class="user-badge ${badgeClass}">${currentUser.badge}</span>`;
+    } else {
+        userLabel.innerHTML = user ? `👤 ${user}` : 'Gast';
     }
 
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
@@ -821,7 +821,7 @@ async function checkExistingSession() {
             const res = await fetch(`${API_BASE}/auth/validate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ token }) });
             const data = await res.json();
             if (data.valid) {
-                authToken = token; const decoded = parseJwt(token); currentUser = { name: data.username || userName, sm_id: decoded.id };
+                authToken = token; const decoded = parseJwt(token); currentUser = { name: data.username || userName, sm_id: decoded.id, badge: data.badge };
                 localStorage.setItem('sm_user', JSON.stringify(currentUser));
 
                 // ISOLATED LOAD
@@ -1164,7 +1164,7 @@ async function handleTransferImportDecrypt() {
 
             // Auto Login
             authToken = data.token;
-            currentUser = { name: data.username, sm_id: parseJwt(authToken).id };
+            currentUser = { name: data.username, sm_id: parseJwt(authToken).id, badge: data.badge };
             localStorage.setItem('sm_token', authToken);
             localStorage.setItem('sm_user', JSON.stringify(currentUser));
 
