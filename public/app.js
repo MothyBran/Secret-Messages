@@ -355,9 +355,17 @@ function setupUIEvents() {
             reader.onload = function(evt) {
                 currentAttachmentBase64 = evt.target.result;
                 if (spinner) spinner.style.display = 'none'; if (check) check.style.display = 'inline-block'; if (nameSpan) nameSpan.textContent = "📎 " + file.name;
-                if (textArea) { textArea.value = "[Datei bereit zur Verschlüsselung]"; }
+
+                if (textArea) {
+                    textArea.value = `[Datei ausgewählt: ${file.name}]`;
+                    textArea.disabled = true; // Disable typing when file is selected
+                }
+
                 hideLoader();
                 showToast("Datei erfolgreich geladen.", 'success');
+
+                // Trigger Wizard State Update
+                updateWizardState();
             };
             reader.onerror = function() { hideLoader(); showToast("Fehler beim Laden der Datei.", 'error'); };
             reader.readAsDataURL(file);
@@ -1074,7 +1082,18 @@ function handleTxtImport(e) {
     const file = e.target.files[0]; if (!file) return;
     if (file.type !== "text/plain" && !file.name.endsWith('.txt')) { alert("Bitte nur .txt Dateien verwenden."); return; }
     const reader = new FileReader();
-    reader.onload = function(evt) { const content = evt.target.result; document.getElementById('messageInput').value = content; const fb = document.getElementById('importFeedback'); fb.textContent = `Importiert: ${file.name}`; fb.style.display = 'block'; };
+    reader.onload = function(evt) {
+        const content = evt.target.result;
+        const input = document.getElementById('messageInput');
+        input.value = content;
+
+        const fb = document.getElementById('importFeedback');
+        fb.textContent = `Importiert: ${file.name}`;
+        fb.style.display = 'block';
+
+        // Trigger Wizard State Update
+        updateWizardState();
+    };
     reader.readAsText(file);
 }
 
