@@ -39,6 +39,26 @@
                 element.classList.add('active');
             }
         }
+
+        // Custom Guide Accordion Logic
+        function toggleGuideSection(header) {
+            const item = header.parentElement;
+            const isActive = item.classList.contains('active');
+
+            // Close all other guide items (Exclusive Mode)
+            document.querySelectorAll('.accordion-guide-item').forEach(el => {
+                if (el !== item) {
+                    el.classList.remove('active');
+                }
+            });
+
+            // Toggle current
+            if (isActive) {
+                item.classList.remove('active');
+            } else {
+                item.classList.add('active');
+            }
+        }
     </script>
 
     <style>
@@ -506,7 +526,7 @@
         </label>
     </header>
 
-    <div class="app-main-wrapper">
+    <div style="flex: 1; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column;">
 
         <div id="loginSection" class="section active">
             <h2 style="text-align:center; margin-bottom:20px;">IDENTIFIZIERUNG</h2>
@@ -719,40 +739,101 @@
         </div>
 
         <div id="guideSection" class="section">
-            <h2 style="color:var(--accent-blue); margin-bottom:20px; text-align:center;">ANLEITUNG</h2>
-
-            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; margin-bottom:15px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">1. Verschlüsseln</h3>
-                <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
-                    <li>Wähle oben rechts den Modus <b>VERSCHLÜSSELN</b> (Slider Links).</li>
-                    <li>Wähle Empfänger aus (Klick auf 📇) oder gib User-IDs ein.</li>
-                    <li>Gib einen <b>5-stelligen Code</b> ein (nur Zahlen). <b>Ohne diesen Code können die Daten niemals wiederhergestellt werden.</b></li>
-                    <li>Tippe deinen Text ein oder laden Sie eine Datei (Bild oder PDF-Dokument) über die 📎 hoch</li>
-                    <li>Klicke auf <b>DATEN VERSCHLÜSSELN</b>.</li>
-                    <li>Nutze "Kopieren" oder "Als QR-Code Anzeigen" bzw. "Als .TXT Speichern", um das Ergebnis anschließend über einen beliebigen Kanal zu versenden.</li>
-                </ol>
+            <div class="guide-header-custom">
+                <h3 style="color:var(--accent-blue); margin:0; letter-spacing:1px;">ANLEITUNG</h3>
+                <button id="btnBackGuide" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">✕</button>
             </div>
 
-            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; margin-bottom:15px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">2. Entschlüsseln</h3>
-                <ol style="margin-left:20px; color:#ccc; line-height:1.6;">
-                    <li>Wechsle oben rechts auf <b>ENTSCHLÜSSELN</b> (Slider Rechts).</li>
-                    <li>Füge den Geheimtext ein oder scanne einen QR-Code bzw. lade die Verschlüsselte .TXT-Datei hoch</li>
-                    <li>Gib den vereinbarten <b>5-stelligen Code</b> ein.</li>
-                    <li>Klicke auf <b>ENTSCHLÜSSELN</b>.</li>
-                    <li>Wenn du berechtigt bist (Empfänger passt), erscheint der Klartext oder das Bild bzw. die entschlüsselte PDF-Datei.</li>
-                </ol>
-            </div>
+            <div class="accordion-guide-container">
+                <!-- 1. Erste Schritte -->
+                <div class="accordion-guide-item active">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>🔑 Erste Schritte</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            <p style="margin-bottom:10px;">Die Registrierung erfolgt anonym; du erhältst eine eindeutige User-ID.</p>
+                            <p><strong style="color:var(--accent-blue);">Wichtig:</strong> Dein 5-stelliger Sicherheitsschlüssel ist dein persönlicher Master-Key. Ohne diesen können Daten niemals wiederhergestellt werden. Er wird nicht auf unseren Servern gespeichert.</p>
+                        </div>
+                    </div>
+                </div>
 
-            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px;">
-                <h3 style="color:#fff; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:10px;">3. Kontakte verwalten</h3>
-                <p style="color:#ccc;">
-                    Öffne das Menü (oben links) und klicke auf "Kontaktverzeichnis".<br>
-                    Dort kannst du User-IDs speichern, Gruppen anlegen (z.B. "Arbeit") und Kontakte schneller auswählen.
-                </p>
-            </div>
+                <!-- 2. Das Kern-Tool -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>🛡️ Das Kern-Tool</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            <p style="margin-bottom:10px;"><strong style="color:var(--success-green);">Verschlüsseln:</strong> Gib eine Nachricht ein oder lade eine Datei (bis 25 MB) hoch. Wähle den Empfänger und gib deinen Key ein. Das Ergebnis kann als Text kopiert oder als QR-Code geteilt werden.</p>
+                            <p><strong style="color:var(--accent-blue);">Entschlüsseln:</strong> Füge den Geheimtext ein, scanne einen QR-Code oder lade eine verschlüsselte .txt-Datei hoch. Nach Eingabe des Keys wird der Inhalt sofort im Browser sichtbar.</p>
+                        </div>
+                    </div>
+                </div>
 
-            <button id="btnBackGuide" class="btn" style="width:100%; margin-top:20px;">Zurück zur App</button>
+                <!-- 3. Postfach & Hinweise -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>📥 Postfach & Hinweise</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            Dies ist kein Chat-System. Das Postfach dient ausschließlich dem Empfang von System-Warnungen, Sicherheits-Updates und direkten Nachrichten vom Support.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Kontaktverzeichnis -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>👥 Kontaktverzeichnis</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            <p style="margin-bottom:10px;">Speichere User-IDs von häufigen Empfängern ab.</p>
+                            <p>Nutze die Gruppen-Funktion, um Kontakte (z.B. „Team A“, „Privat“) zu sortieren und Nachrichten schneller zu adressieren.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Profil übertragen -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>⚙️ Profil übertragen</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            <p style="margin-bottom:10px;">Gehe in die Einstellungen auf „Profil exportieren“. Du erhältst einen Transfer-Code.</p>
+                            <p>Auf dem neuen Gerät wählst du beim Start „Profil importieren“ und gibst den Code ein. Alle Kontakte und Einstellungen werden sicher übertragen.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Enterprise & Lizenzen -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>🏢 Enterprise & Lizenzen</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            <p style="margin-bottom:10px;">Hier kannst du Enterprise-Keys aktivieren, um erweiterte Firmenmodule freizuschalten.</p>
+                            <p>Lizenzen können innerhalb der Organisation übertragen werden, um Arbeitsplätze flexibel zu verwalten.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Support & Hilfe -->
+                <div class="accordion-guide-item">
+                    <button class="accordion-guide-header" onclick="toggleGuideSection(this)">
+                        <span>✉️ Support & Hilfe</span> <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-guide-body">
+                        <div class="accordion-guide-content">
+                            Bei technischen Fragen nutze bitte das Support-Formular (Menü -> Hilfe -> Support). Deine Anfrage wird direkt an unsere Techniker weitergeleitet.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="infoSection" class="section">
