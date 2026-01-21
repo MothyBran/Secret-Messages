@@ -310,6 +310,12 @@
     font-size: 1rem;
     transition: 0.3s;
     border-radius: 4px;
+    /* Hide scrollbar completely but allow scrolling */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE 10+ */
+}
+.wizard-textarea::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
 }
 .wizard-textarea:focus {
     border-color: var(--accent-blue);
@@ -418,15 +424,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-}
-
-/* Hide scrollbar completely but allow scrolling */
-.wizard-textarea {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none;  /* IE 10+ */
-}
-.wizard-textarea::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
 }
 
 /* App Main Wrapper (Responsive) */
