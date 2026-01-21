@@ -1,6 +1,6 @@
 // app.js - Frontend Logic (Final Polish: User-Scoped Enterprise Keys)
 
-const APP_VERSION = 'Beta v0.61';
+const APP_VERSION = 'Beta v1.11';
 
 // Import encryption functions including backup helpers
 import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
@@ -355,65 +355,40 @@ function setupUIEvents() {
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (file) processUpload(file);
-            // Reset value to allow re-selection
-            this.value = '';
+            if (!file) return;
+            if (file.size > 25 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); this.value = ''; return; }
+
+            if (file.size > 10 * 1024 * 1024) {
+                 showToast("Große Datei wird verarbeitet... Bitte warten.", 'info');
+            }
+
+            showLoader("Lade Datei...");
+            const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
+
+            if (infoDiv) infoDiv.style.display = 'flex'; if (spinner) spinner.style.display = 'inline-block'; if (check) check.style.display = 'none'; if (nameSpan) nameSpan.textContent = "Lade " + file.name + "...";
+
+            if (textArea) { textArea.disabled = true; textArea.value = "Lade Datei..."; }
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                currentAttachmentBase64 = evt.target.result;
+                if (spinner) spinner.style.display = 'none'; if (check) check.style.display = 'inline-block'; if (nameSpan) nameSpan.textContent = "📎 " + file.name;
+
+                if (textArea) {
+                    textArea.value = `[Datei ausgewählt: ${file.name}]`;
+                    textArea.disabled = true; // Disable typing when file is selected
+                }
+
+                hideLoader();
+                showToast("Datei erfolgreich geladen.", 'success');
+
+                // Trigger Wizard State Update
+                updateWizardState();
+            };
+            reader.onerror = function() { hideLoader(); showToast("Fehler beim Laden der Datei.", 'error'); };
+            reader.readAsDataURL(file);
         });
     }
-
-    // Drag & Drop
-    const dropZone = document.getElementById('wizardInputStep');
-    if (dropZone) {
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-
-        dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-over'));
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', handleDrop);
-    }
-}
-
-function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-
-function handleDrop(e) {
-    const dropZone = document.getElementById('wizardInputStep');
-    if(dropZone) dropZone.classList.remove('drag-over');
-
-    const dt = e.dataTransfer;
-    const file = dt.files[0];
-    if (file) processUpload(file);
-}
-
-function processUpload(file) {
-    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-    if (file.size > MAX_FILE_SIZE) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); return; }
-
-    showLoader("Lade Datei...");
-    const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
-
-    if (infoDiv) infoDiv.style.display = 'flex'; if (spinner) spinner.style.display = 'inline-block'; if (check) check.style.display = 'none'; if (nameSpan) nameSpan.textContent = "Lade " + file.name + "...";
-
-    if (textArea) { textArea.disabled = true; textArea.value = "Lade Datei..."; }
-
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-        currentAttachmentBase64 = evt.target.result;
-        if (spinner) spinner.style.display = 'none'; if (check) check.style.display = 'inline-block'; if (nameSpan) nameSpan.textContent = "📎 " + file.name;
-
-        if (textArea) {
-            textArea.value = `[Datei ausgewählt: ${file.name}]`;
-            textArea.disabled = true; // Disable typing when file is selected
-        }
-
-        hideLoader();
-        showToast("Datei erfolgreich geladen.", 'success');
-
-        // Trigger Wizard State Update
-        updateWizardState();
-    };
-    reader.onerror = function() { hideLoader(); showToast("Fehler beim Laden der Datei.", 'error'); };
-    reader.readAsDataURL(file);
 }
 
 function showSection(id) {
@@ -793,7 +768,7 @@ function updateWizardState() {
 }
 
 function resetApplicationState() {
-    // 1. Reset Global State Variables
+    // 1. Reset Global State Variables (SECURITY WIPE)
     currentAttachmentBase64 = null;
 
     // 2. Clear All Inputs
@@ -802,13 +777,13 @@ function resetApplicationState() {
     const recipientInput = document.getElementById('recipientName');
 
     if (msgInput) {
-        msgInput.value = '';
+        msgInput.value = ''; // Force clear source input
         msgInput.disabled = false;
     }
     if (codeInput) codeInput.value = '';
     if (recipientInput) recipientInput.value = '';
 
-    document.getElementById('messageOutput').value = '';
+    document.getElementById('messageOutput').value = ''; // Force clear result output
     document.getElementById('mediaOutput').innerHTML = '';
     document.getElementById('mediaOutput').style.display = 'none';
 
@@ -833,7 +808,12 @@ function resetApplicationState() {
     // 6. Reset legacy/helper feedback
     document.getElementById('importFeedback').style.display = 'none';
 
-    console.log("App State Hard Reset Complete");
+    // Explicit GC Hint
+    try {
+       if(window.gc) window.gc();
+    } catch(e){}
+
+    console.log("App State Hard Reset Complete (Security Wipe)");
 }
 
 function resetWizard() {
@@ -844,7 +824,7 @@ function resetWizard() {
 
 async function handleMainAction() {
     const code = document.getElementById('messageCode').value;
-    let payload = document.getElementById('messageInput').value;
+    let payload = document.getElementById('messageInput').value; // 'let' ensures we can nullify it later
 
     // Strict Input Retrieval
     if (currentMode === 'encrypt') {
@@ -863,7 +843,8 @@ async function handleMainAction() {
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
     const isValid = await validateSessionStrict(); if (!isValid) return;
 
-    const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
+    const btn = document.getElementById('actionBtn'); const old = btn.textContent;
+    btn.textContent = "Processing..."; btn.disabled = true;
 
     try {
         let res = "";
@@ -873,6 +854,11 @@ async function handleMainAction() {
 
             // WIZARD: Show Result
             enterResultState(res, 'text');
+
+            // SECURITY WIPE (Encryption): Clear Source Material
+            document.getElementById('messageInput').value = '';
+            currentAttachmentBase64 = null;
+            payload = null; // Hint for GC
 
         } else {
             // Decryption Logic
@@ -885,7 +871,20 @@ async function handleMainAction() {
 
             // WIZARD: Show Result (Decrypted)
             enterResultState(res, 'auto'); // Auto-detect image/pdf inside
+
+            // SECURITY WIPE (Decryption): Clear Encrypted Input
+            document.getElementById('messageInput').value = '';
+            currentAttachmentBase64 = null;
+            payload = null;
         }
+
+        // Visual Feedback: Security Pulse
+        const indicator = document.getElementById('statusIndicator');
+        if (indicator) {
+            indicator.classList.add('security-pulse');
+            setTimeout(() => indicator.classList.remove('security-pulse'), 1000);
+        }
+
     } catch (e) {
         console.error("Action Failed", e);
         showAppStatus(e.message || "Fehler", 'error');
