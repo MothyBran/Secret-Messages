@@ -1,6 +1,6 @@
 // app.js - Frontend Logic (Final Polish: User-Scoped Enterprise Keys)
 
-const APP_VERSION = 'Beta v0.61';
+const APP_VERSION = 'Beta v1.11';
 
 // Import encryption functions including backup helpers
 import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
