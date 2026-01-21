@@ -386,7 +386,8 @@ function handleDrop(e) {
 }
 
 function processUpload(file) {
-    if (file.size > 5 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 5MB.", 'error'); return; }
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+    if (file.size > MAX_FILE_SIZE) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); return; }
 
     showLoader("Lade Datei...");
     const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
