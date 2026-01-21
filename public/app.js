@@ -13,6 +13,8 @@ const API_BASE = '/api';
 let currentUser = null; // Object { name: string, sm_id: number }
 let authToken = null;
 let currentAttachmentBase64 = null;
+let currentResultData = null; // Store decrypted result for saving
+let currentResultType = null; // 'text', 'image', 'pdf'
 let currentMode = 'encrypt'; 
 let currentScannerMode = 'message'; // 'message' or 'transfer'
 
@@ -230,12 +232,24 @@ function setupUIEvents() {
         const content = document.getElementById('messageOutput').value; if(content) downloadTxtFile(content);
     });
 
-    // Save Image Btn (Wizard Result)
-    document.getElementById('saveImgBtn')?.addEventListener('click', () => {
-        const img = document.querySelector('#mediaOutput img');
-        if(img) {
-             const a = document.createElement('a'); a.href = img.src; a.download = `secure-image-${Date.now()}.png`; a.click();
+    // Save Media Btn (Wizard Result - Image/PDF)
+    document.getElementById('saveMediaBtn')?.addEventListener('click', () => {
+        if (!currentResultData) return;
+
+        const a = document.createElement('a');
+        a.href = currentResultData;
+
+        if (currentResultType === 'image') {
+            a.download = `secure-image-${Date.now()}.png`;
+        } else if (currentResultType === 'pdf') {
+            a.download = `secure-doc-${Date.now()}.pdf`;
+        } else {
+            a.download = `secure-file-${Date.now()}.bin`;
         }
+
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     });
 
     document.getElementById('uploadTxtBtn')?.addEventListener('click', () => { document.getElementById('txtFileInput').click(); });
@@ -852,14 +866,17 @@ async function handleMainAction() {
 }
 
 function enterResultState(resultData, type) {
-    // 1. Shrink Input
+    // 1. Store Global State
+    currentResultData = resultData;
+
+    // 2. Shrink Input
     document.getElementById('wizardInputStep').classList.add('minimized');
 
-    // 2. Hide Meta & Action
+    // 3. Hide Meta & Action
     document.getElementById('wizardMetaWrapper').classList.add('hidden');
     document.getElementById('wizardActionWrapper').classList.add('hidden');
 
-    // 3. Show Result Container
+    // 4. Show Result Container
     const outGroup = document.getElementById('outputGroup');
     outGroup.classList.remove('hidden');
 
@@ -868,13 +885,13 @@ function enterResultState(resultData, type) {
     const copyBtn = document.getElementById('copyBtn');
     const qrBtn = document.getElementById('qrGenBtn');
     const saveTxtBtn = document.getElementById('saveTxtBtn');
-    const saveImgBtn = document.getElementById('saveImgBtn');
+    const saveMediaBtn = document.getElementById('saveMediaBtn');
 
     // Reset Buttons
     copyBtn.style.display = 'none';
     qrBtn.style.display = 'none';
     saveTxtBtn.style.display = 'none';
-    saveImgBtn.style.display = 'none';
+    saveMediaBtn.style.display = 'none';
 
     // Clear Outputs
     textOut.style.display = 'none';
@@ -888,15 +905,25 @@ function enterResultState(resultData, type) {
         else type = 'text';
     }
 
+    currentResultType = type;
+
     if (type === 'text') {
         textOut.value = resultData;
         textOut.style.display = 'block';
-        copyBtn.style.display = 'block';
+        copyBtn.style.display = 'block'; // Copy always available for text
 
-        if (resultData.length > 9999) {
-            saveTxtBtn.style.display = 'block';
+        if (currentMode === 'encrypt') {
+            // ENCRYPT: Show QR (Standard) or Save (Large)
+            if (resultData.length > 9999) {
+                saveTxtBtn.style.display = 'block';
+                saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
+            } else {
+                qrBtn.style.display = 'block';
+            }
         } else {
-            qrBtn.style.display = 'block';
+            // DECRYPT: Show Save (.txt) instead of QR
+            saveTxtBtn.style.display = 'block';
+            saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
         }
 
     } else if (type === 'image') {
@@ -908,20 +935,21 @@ function enterResultState(resultData, type) {
         img.style.maxHeight = '300px';
         img.style.objectFit = 'contain';
         mediaOut.appendChild(img);
-        saveImgBtn.style.display = 'block';
+
+        saveMediaBtn.style.display = 'block';
+        saveMediaBtn.textContent = "💾 BILD SPEICHERN";
 
     } else if (type === 'pdf') {
         mediaOut.style.display = 'flex';
         const icon = document.createElement('div');
         icon.innerHTML = '📄 PDF DOKUMENT';
-        icon.style.fontSize = '1.2rem';
+        icon.style.fontSize = '1.5rem';
         icon.style.color = 'var(--accent-blue)';
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'btn';
-        dlBtn.textContent = '⬇ Herunterladen';
-        dlBtn.onclick = () => { const a = document.createElement('a'); a.href = resultData; a.download = `secure-doc-${Date.now()}.pdf`; a.click(); };
+        icon.style.marginBottom = '10px';
         mediaOut.appendChild(icon);
-        mediaOut.appendChild(dlBtn);
+
+        saveMediaBtn.style.display = 'block';
+        saveMediaBtn.textContent = "💾 PDF SPEICHERN";
     }
 }
 
