@@ -420,6 +420,36 @@
     gap: 10px;
 }
 
-/* Hide legacy scrollbar on textarea if possible */
-.wizard-textarea::-webkit-scrollbar { width: 5px; }
-.wizard-textarea::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+/* Hide scrollbar completely but allow scrolling */
+.wizard-textarea {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE 10+ */
+}
+.wizard-textarea::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+/* App Main Wrapper (Responsive) */
+.app-main-wrapper {
+    flex: 1;
+    padding: 20px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    max-width: 600px; /* Default Mobile */
+    transition: max-width 0.3s ease;
+}
+
+@media (min-width: 1000px) {
+    .app-main-wrapper {
+        max-width: 1200px; /* Desktop */
+    }
+}
+
+/* Drop Zone Highlight */
+.wizard-step-input.drag-over .input-group-wrapper {
+    border: 2px dashed var(--accent-blue);
+    background: rgba(0, 191, 255, 0.1);
+    border-radius: 4px;
+}
