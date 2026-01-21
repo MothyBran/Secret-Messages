@@ -114,6 +114,7 @@
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
+
 /* === TOAST NOTIFICATIONS === */
 #toast-container {
     position: fixed;
@@ -439,7 +440,22 @@
     flex: 1;
     padding: 20px;
     width: 100%;
-    margin: 0 auto;
+    height: 36px;
+    background-color: #ff0000; /* Signal Red */
+    color: #ffffff;
+    z-index: 99999; /* Highest z-index */
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    font-family: 'Roboto Mono', monospace;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 36px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    white-space: nowrap;
+}
+
+.marquee-track {
     display: flex;
     flex-direction: column;
     max-width: 600px; /* Default Mobile */
