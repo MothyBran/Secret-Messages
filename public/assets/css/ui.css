@@ -543,7 +543,7 @@
 .marquee-track {
     display: flex;
     white-space: nowrap;
-    animation: marquee-scroll 40s linear infinite;
+    animation: marquee-scroll 80s linear infinite;
     will-change: transform;
 }
 
