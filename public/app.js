@@ -215,10 +215,27 @@ function setupUIEvents() {
     document.getElementById('modeSwitch')?.addEventListener('change', (e) => { updateAppMode(e.target.checked ? 'decrypt' : 'encrypt'); });
     document.getElementById('actionBtn')?.addEventListener('click', handleMainAction);
     document.getElementById('copyBtn')?.addEventListener('click', copyToClipboard);
+
+    // New Logic for Wizard
+    document.getElementById('messageInput')?.addEventListener('input', updateWizardState);
+    document.getElementById('messageCode')?.addEventListener('input', updateWizardState);
+    document.getElementById('wizardResetLink')?.addEventListener('click', resetWizard);
+    document.getElementById('btnNewMessage')?.addEventListener('click', resetWizard);
+    document.getElementById('embeddedQrScanBtn')?.addEventListener('click', startMessageScanner);
+
+    // Legacy support (hidden buttons)
     document.getElementById('clearFieldsBtn')?.addEventListener('click', clearAllFields);
 
     document.getElementById('saveTxtBtn')?.addEventListener('click', () => {
         const content = document.getElementById('messageOutput').value; if(content) downloadTxtFile(content);
+    });
+
+    // Save Image Btn (Wizard Result)
+    document.getElementById('saveImgBtn')?.addEventListener('click', () => {
+        const img = document.querySelector('#mediaOutput img');
+        if(img) {
+             const a = document.createElement('a'); a.href = img.src; a.download = `secure-image-${Date.now()}.png`; a.click();
+        }
     });
 
     document.getElementById('uploadTxtBtn')?.addEventListener('click', () => { document.getElementById('txtFileInput').click(); });
@@ -671,57 +688,171 @@ async function handleLogout() {
 
 function updateAppMode(mode) {
     if (document.activeElement) document.activeElement.blur();
-    currentMode = mode; const isDec = (mode === 'decrypt');
+    currentMode = mode;
+    const isDec = (mode === 'decrypt');
+
     document.getElementById('modeTitle').textContent = isDec ? 'ENTSCHLÜSSELUNG' : 'VERSCHLÜSSELUNG';
     document.getElementById('statusIndicator').textContent = isDec ? '● EMPFANGSBEREIT' : '● GESICHERT';
-    const btn = document.getElementById('actionBtn'); btn.textContent = isDec ? '🔓 NACHRICHT ENTSCHLÜSSELN' : '🔒 DATEN VERSCHLÜSSELN';
-    btn.className = isDec ? 'btn' : 'btn btn-primary'; if(isDec) { btn.style.border='1px solid var(--accent-blue)'; btn.style.color='var(--accent-blue)'; } else { btn.style.border=''; btn.style.color=''; }
+    const btn = document.getElementById('actionBtn');
+    btn.textContent = isDec ? '🔓 NACHRICHT ENTSCHLÜSSELN' : '🔒 DATEN VERSCHLÜSSELN';
+
+    btn.className = isDec ? 'btn' : 'btn btn-primary';
+    if(isDec) { btn.style.border='1px solid var(--accent-blue)'; btn.style.color='var(--accent-blue)'; }
+    else { btn.style.border=''; btn.style.color=''; }
+
     document.getElementById('textLabel').textContent = isDec ? 'Verschlüsselter Text' : 'Nachrichteneingabe (Klartext)';
-    document.getElementById('recipientGroup').style.display = isDec ? 'none' : 'block';
-    document.getElementById('qrScanBtn').style.display = isDec ? 'block' : 'none';
-    document.getElementById('qrGenBtn').style.display = isDec ? 'none' : 'block';
-    document.getElementById('saveTxtBtn').style.display = 'none';
-    document.getElementById('uploadTxtBtn').style.display = isDec ? 'block' : 'none';
-    const attachBtn = document.getElementById('attachmentBtn'); if (attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
-    clearAllFields(); document.getElementById('messageInput').value = ''; document.getElementById('messageOutput').value = ''; document.getElementById('outputGroup').style.display = 'none';
+
+    // Icon Toggle
+    const attachBtn = document.getElementById('attachmentBtn');
+    const qrBtn = document.getElementById('embeddedQrScanBtn');
+
+    if(attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
+    if(qrBtn) qrBtn.style.display = isDec ? 'block' : 'none';
+
+    // Recipient logic handled in updateWizardState now, but let's hide it initially
+    const rGroup = document.getElementById('recipientGroup');
+    if(rGroup) rGroup.style.display = isDec ? 'none' : 'block';
+
+    resetWizard();
+}
+
+function updateWizardState() {
+    const textVal = document.getElementById('messageInput').value;
+    const hasInput = (textVal.length > 0 || currentAttachmentBase64 !== null);
+    const codeVal = document.getElementById('messageCode').value;
+    const isReady = (hasInput && codeVal.length === 5);
+
+    const metaWrapper = document.getElementById('wizardMetaWrapper');
+    const actionWrapper = document.getElementById('wizardActionWrapper');
+
+    if (hasInput) {
+        metaWrapper.classList.remove('hidden');
+    } else {
+        metaWrapper.classList.add('hidden');
+        actionWrapper.classList.add('hidden'); // Hide action if input cleared
+    }
+
+    if (isReady) {
+        actionWrapper.classList.remove('hidden');
+    } else {
+        actionWrapper.classList.add('hidden');
+    }
+}
+
+function resetWizard() {
+    clearAllFields();
+    document.getElementById('messageInput').value = '';
+    document.getElementById('messageCode').value = '';
+    document.getElementById('recipientName').value = '';
+    document.getElementById('wizardInputStep').classList.remove('minimized');
+    document.getElementById('outputGroup').classList.add('hidden');
+
+    // Force Recipient visible for encrypt mode if it was hidden by decrypt mode
+    if (currentMode === 'encrypt') document.getElementById('recipientGroup').style.display = 'block';
+
+    updateWizardState();
 }
 
 async function handleMainAction() {
-    const code = document.getElementById('messageCode').value; let payload = document.getElementById('messageInput').value;
+    const code = document.getElementById('messageCode').value;
+    let payload = document.getElementById('messageInput').value;
+
     if (currentMode === 'encrypt' && currentAttachmentBase64) payload = currentAttachmentBase64;
+
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
     const isValid = await validateSessionStrict(); if (!isValid) return;
 
     const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
+
     try {
         let res = "";
         if (currentMode === 'encrypt') {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s); if(!rIds.includes(currentUser.name)) rIds.push(currentUser.name);
             res = await encryptFull(payload, code, rIds, currentUser.name);
-             const textOut = document.getElementById('messageOutput'); const mediaOut = document.getElementById('mediaOutput');
-             if(textOut) { textOut.value = res; textOut.style.display = 'block'; } if(mediaOut) mediaOut.style.display = 'none';
-             if (res.length > 9999) { document.getElementById('qrGenBtn').style.display = 'none'; document.getElementById('saveTxtBtn').style.display = 'block'; } else { document.getElementById('qrGenBtn').style.display = 'block'; document.getElementById('saveTxtBtn').style.display = 'none'; }
+
+            // WIZARD: Show Result
+            enterResultState(res, 'text');
+
         } else {
             res = await decryptFull(payload, code, currentUser.name);
-            renderDecryptedOutput(res);
+            // WIZARD: Show Result (Decrypted)
+            enterResultState(res, 'auto'); // Auto-detect image/pdf inside
         }
-        document.getElementById('outputGroup').style.display = 'block'; setTimeout(() => document.getElementById('outputGroup').scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
     } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
 }
 
-function renderDecryptedOutput(res) {
-    const textArea = document.getElementById('messageOutput'); const mediaDiv = document.getElementById('mediaOutput'); mediaDiv.innerHTML = '';
-    if (res.startsWith('data:image')) {
-        textArea.style.display = 'none'; mediaDiv.style.display = 'flex';
-        const img = document.createElement('img'); img.src = res; img.style.maxWidth = '100%'; img.style.border = '1px solid #333'; img.style.borderRadius = '4px';
-        const dlBtn = document.createElement('button'); dlBtn.className = 'btn'; dlBtn.textContent = '💾 Bild speichern'; dlBtn.onclick = () => { const a = document.createElement('a'); a.href = res; a.download = `secure-image-${Date.now()}.png`; a.click(); };
-        mediaDiv.appendChild(img); mediaDiv.appendChild(dlBtn);
-    } else if (res.startsWith('data:application/pdf')) {
-        textArea.style.display = 'none'; mediaDiv.style.display = 'flex';
-        const icon = document.createElement('div'); icon.innerHTML = '📄 PDF DOKUMENT'; icon.style.fontSize = '1.2rem'; icon.style.color = 'var(--accent-blue)';
-        const dlBtn = document.createElement('button'); dlBtn.className = 'btn'; dlBtn.textContent = '⬇ PDF Herunterladen'; dlBtn.onclick = () => { const a = document.createElement('a'); a.href = res; a.download = `secure-document-${Date.now()}.pdf`; a.click(); };
-        mediaDiv.appendChild(icon); mediaDiv.appendChild(dlBtn);
-    } else { textArea.style.display = 'block'; mediaDiv.style.display = 'none'; textArea.value = res; }
+function enterResultState(resultData, type) {
+    // 1. Shrink Input
+    document.getElementById('wizardInputStep').classList.add('minimized');
+
+    // 2. Hide Meta & Action
+    document.getElementById('wizardMetaWrapper').classList.add('hidden');
+    document.getElementById('wizardActionWrapper').classList.add('hidden');
+
+    // 3. Show Result Container
+    const outGroup = document.getElementById('outputGroup');
+    outGroup.classList.remove('hidden');
+
+    const textOut = document.getElementById('messageOutput');
+    const mediaOut = document.getElementById('mediaOutput');
+    const copyBtn = document.getElementById('copyBtn');
+    const qrBtn = document.getElementById('qrGenBtn');
+    const saveTxtBtn = document.getElementById('saveTxtBtn');
+    const saveImgBtn = document.getElementById('saveImgBtn');
+
+    // Reset Buttons
+    copyBtn.style.display = 'none';
+    qrBtn.style.display = 'none';
+    saveTxtBtn.style.display = 'none';
+    saveImgBtn.style.display = 'none';
+
+    // Clear Outputs
+    textOut.style.display = 'none';
+    mediaOut.style.display = 'none';
+    mediaOut.innerHTML = '';
+
+    // Logic for content type
+    if (type === 'auto') {
+        if (resultData.startsWith('data:image')) type = 'image';
+        else if (resultData.startsWith('data:application/pdf')) type = 'pdf';
+        else type = 'text';
+    }
+
+    if (type === 'text') {
+        textOut.value = resultData;
+        textOut.style.display = 'block';
+        copyBtn.style.display = 'block';
+
+        if (resultData.length > 9999) {
+            saveTxtBtn.style.display = 'block';
+        } else {
+            qrBtn.style.display = 'block';
+        }
+
+    } else if (type === 'image') {
+        mediaOut.style.display = 'flex';
+        const img = document.createElement('img');
+        img.src = resultData;
+        img.style.maxWidth = '100%';
+        img.style.borderRadius = '4px';
+        img.style.maxHeight = '300px';
+        img.style.objectFit = 'contain';
+        mediaOut.appendChild(img);
+        saveImgBtn.style.display = 'block';
+
+    } else if (type === 'pdf') {
+        mediaOut.style.display = 'flex';
+        const icon = document.createElement('div');
+        icon.innerHTML = '📄 PDF DOKUMENT';
+        icon.style.fontSize = '1.2rem';
+        icon.style.color = 'var(--accent-blue)';
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'btn';
+        dlBtn.textContent = '⬇ Herunterladen';
+        dlBtn.onclick = () => { const a = document.createElement('a'); a.href = resultData; a.download = `secure-doc-${Date.now()}.pdf`; a.click(); };
+        mediaOut.appendChild(icon);
+        mediaOut.appendChild(dlBtn);
+    }
 }
 
 async function generateDeviceFingerprint() {
@@ -900,9 +1031,16 @@ async function handleSupportSubmit(e) {
 }
 
 window.clearAttachment = function() {
-    document.getElementById('fileInput').value = ''; currentAttachmentBase64 = null; document.getElementById('fileInfo').style.display = 'none';
-    document.getElementById('fileSpinner').style.display = 'none'; document.getElementById('fileCheck').style.display = 'none';
-    const textArea = document.getElementById('messageInput'); textArea.disabled = false; textArea.value = '';
+    document.getElementById('fileInput').value = '';
+    currentAttachmentBase64 = null;
+    document.getElementById('fileInfo').style.display = 'none';
+    document.getElementById('fileSpinner').style.display = 'none';
+    document.getElementById('fileCheck').style.display = 'none';
+    const textArea = document.getElementById('messageInput');
+    textArea.disabled = false;
+
+    // Retrigger state check
+    updateWizardState();
 };
 
 window.startRenewal = async function(planType) {
