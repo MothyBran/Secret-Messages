@@ -603,67 +603,100 @@
         </div>
 
         <div id="mainSection" class="section">
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
-                <h3 id="modeTitle" style="color:var(--accent-blue); font-size: 1.6rem; letter-spacing: 2px; line-height: 1;">VERSCHLÜSSELUNG</h3>
-                <span id="statusIndicator" style="font-size:0.5rem; color:var(--success-green);">● SICHER</span>
-            </div>
-
-            <div class="input-group" id="recipientGroup">
-                <label class="input-label">Empfänger ID's</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB...">
-                    <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
+            <div class="wizard-container">
+                <!-- Header Area -->
+                <div class="wizard-header">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                        <h3 id="modeTitle" style="color:var(--accent-blue); font-size: 1.6rem; letter-spacing: 2px; line-height: 1;">VERSCHLÜSSELUNG</h3>
+                        <div style="display:flex; align-items:center; gap: 10px;">
+                            <span id="statusIndicator" style="font-size:0.5rem; color:var(--success-green);">● SICHER</span>
+                            <button id="wizardResetLink" style="background:none; border:none; color:var(--text-muted); font-size:1.2rem; cursor:pointer; padding:0 5px;" title="Reset">✕</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="input-group">
-                <label class="input-label">Schlüssel (5-stellig)</label>
-                <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric">
-            </div>
+                <!-- Step 1: Input (Main Focus) -->
+                <div class="wizard-step-input" id="wizardInputStep">
+                    <div class="input-group" style="margin-bottom: 5px;">
+                        <label class="input-label" id="textLabel">Nachrichteneingabe</label>
+                    </div>
+                    <div class="input-group-wrapper" style="position: relative; width: 100%; margin-bottom: 10px; flex: 1; display: flex; flex-direction: column;">
+                        <textarea id="messageInput" class="input-field wizard-textarea" placeholder="Nachricht schreiben..." style="flex: 1; min-height: 150px; padding-right: 40px; resize: none;"></textarea>
 
-            <div class="input-group" style="margin-bottom: 0;">
-                <label class="input-label" id="textLabel">Nachrichteneingabe</label>
-            </div>
-            <div class="input-group-wrapper" style="position: relative; width: 100%; margin-bottom: 15px;">
-                <textarea id="messageInput" class="input-field" placeholder="Nachricht schreiben..." style="min-height: 120px; padding-right: 40px;"></textarea>
+                        <!-- Icons inside Textarea -->
+                        <div class="input-icons-wrapper">
+                            <label for="fileInput" id="attachmentBtn" class="icon-btn" title="Bild oder PDF anhängen">
+                                📎
+                            </label>
+                            <button id="embeddedQrScanBtn" class="icon-btn" style="display:none;" title="Scan QR">
+                                📷
+                            </button>
+                        </div>
 
-                <label for="fileInput" id="attachmentBtn" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 1.4rem; opacity: 0.7; transition: opacity 0.2s;" title="Bild oder PDF anhängen">
-                    📎
-                </label>
+                        <!-- Hidden Inputs -->
+                        <input type="file" id="fileInput" accept="image/*,application/pdf" style="display: none;">
+                        <input type="file" id="txtFileInput" accept=".txt" style="display: none;">
+                        <div id="importFeedback" style="font-size: 0.8rem; color: var(--accent-blue); margin-top: 5px; display:none;"></div>
 
-                <input type="file" id="fileInput" accept="image/*,application/pdf" style="display: none;">
-                <input type="file" id="txtFileInput" accept=".txt" style="display: none;">
-                <div id="importFeedback" style="font-size: 0.8rem; color: var(--accent-blue); margin-top: 5px; display:none;"></div>
-            </div>
+                        <!-- File Upload Feedback -->
+                        <div id="fileInfo" style="display: none; align-items: center; gap: 10px; margin-top: 10px; color: #00BFFF; font-size: 0.9rem;">
+                            <span id="fileSpinner" class="spinner" style="display: none;"></span>
+                            <span id="fileCheck" style="display: none; color: var(--success-green); font-weight: bold;">✓</span>
+                            <span id="fileName"></span>
+                            <button onclick="clearAttachment()" style="background: none; border: none; color: #ff3333; cursor: pointer; font-weight: bold;">(✖)</button>
+                        </div>
+                    </div>
+                </div>
 
-            <div id="fileInfo" style="display: none; align-items: center; gap: 10px; margin-top: -10px; margin-bottom: 15px; color: #00BFFF; font-size: 0.9rem;">
-                <span id="fileSpinner" class="spinner" style="display: none;"></span>
-                <span id="fileCheck" style="display: none; color: var(--success-green); font-weight: bold;">✓</span>
-                <span id="fileName"></span>
-                <button onclick="clearAttachment()" style="background: none; border: none; color: #ff3333; cursor: pointer; font-weight: bold;">(Löschen ✖)</button>
-            </div>
+                <!-- Step 2: Meta Data (Progressive Disclosure) -->
+                <div id="wizardMetaWrapper" class="wizard-meta hidden">
+                    <!-- Recipient (Encrypt Only) -->
+                    <div class="input-group" id="recipientGroup">
+                        <label class="input-label">Empfänger ID's</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="recipientName" class="input-field" placeholder="z.B. UserA, UserB...">
+                            <button class="btn" id="contactsBtn" style="padding:0 15px;">📇</button>
+                        </div>
+                    </div>
 
-            <button id="actionBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: bold; letter-spacing: 1px;">
-                🔒 DATEN VERSCHLÜSSELN
-            </button>
+                    <!-- Key -->
+                    <div class="input-group">
+                        <label class="input-label">Schlüssel (5-stellig)</label>
+                        <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric">
+                    </div>
+                </div>
 
-            <div class="input-group" id="outputGroup" style="display:none; margin-bottom:20px; border-top:1px solid #333; padding-top:15px;">
-                <label class="input-label">Ergebnis</label>
-                <textarea id="messageOutput" class="input-field" rows="4" readonly style="color:var(--accent-blue); font-weight: bold;"></textarea>
-                <div id="mediaOutput" style="display:none; flex-direction:column; gap:10px; align-items:center; margin-top:10px;"></div>
-            </div>
+                <!-- Step 3: Action Button -->
+                <div id="wizardActionWrapper" class="wizard-action hidden">
+                    <button id="actionBtn" class="btn btn-primary" style="width: 100%; font-weight: bold; letter-spacing: 1px; padding: 15px;">
+                        🔒 DATEN VERSCHLÜSSELN
+                    </button>
+                </div>
 
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <button id="copyBtn" class="btn">📋 KOPIEREN</button>
-                    <button id="clearFieldsBtn" class="btn btn-danger">🧹 LEEREN</button>
+                <!-- Result Area -->
+                <div id="outputGroup" class="wizard-result hidden">
+                    <div class="result-header">ERGEBNIS</div>
+                    <textarea id="messageOutput" class="input-field result-textarea" rows="4" readonly></textarea>
+                    <div id="mediaOutput" style="display:none; flex-direction:column; gap:10px; align-items:center; width:100%;"></div>
+
+                    <div class="result-actions">
+                        <button id="copyBtn" class="btn">📋 KOPIEREN</button>
+                        <button id="qrGenBtn" class="btn">📱 QR-CODE</button>
+                        <button id="saveTxtBtn" class="btn" style="display:none;">💾 SPEICHERN</button>
+                        <button id="saveImgBtn" class="btn" style="display:none;">💾 BILD SPEICHERN</button>
+                    </div>
+
+                    <button id="btnNewMessage" class="btn btn-primary" style="width: 100%; margin-top: 15px;">
+                        ✨ NEUE NACHRICHT
+                    </button>
                 </div>
                 
-                <button id="qrGenBtn" class="btn">📱 ALS QR-CODE ANZEIGEN</button>
-                <button id="saveTxtBtn" class="btn" style="display:none;">💾 ALS .TXT SPEICHERN</button>
-
-                <button id="qrScanBtn" class="btn" style="display:none;">📷 QR-CODE SCANNEN</button>
-                <button id="uploadTxtBtn" class="btn" style="display:none;">📂 .TXT DATEI HOCHLADEN</button>
+                <!-- Legacy/Hidden Elements (Cleaned up or hidden via CSS if needed to keep logic references temporarily) -->
+                <div style="display:none;">
+                    <button id="clearFieldsBtn">Legacy Clear</button>
+                    <button id="qrScanBtn">Legacy Scan</button>
+                    <button id="uploadTxtBtn">Legacy Upload</button>
+                </div>
             </div>
         </div>
 
