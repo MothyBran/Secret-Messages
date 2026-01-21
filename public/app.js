@@ -355,40 +355,64 @@ function setupUIEvents() {
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (!file) return;
-            if (file.size > 25 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); this.value = ''; return; }
-
-            if (file.size > 10 * 1024 * 1024) {
-                 showToast("Große Datei wird verarbeitet... Bitte warten.", 'info');
-            }
-
-            showLoader("Lade Datei...");
-            const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
-
-            if (infoDiv) infoDiv.style.display = 'flex'; if (spinner) spinner.style.display = 'inline-block'; if (check) check.style.display = 'none'; if (nameSpan) nameSpan.textContent = "Lade " + file.name + "...";
-
-            if (textArea) { textArea.disabled = true; textArea.value = "Lade Datei..."; }
-
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                currentAttachmentBase64 = evt.target.result;
-                if (spinner) spinner.style.display = 'none'; if (check) check.style.display = 'inline-block'; if (nameSpan) nameSpan.textContent = "📎 " + file.name;
-
-                if (textArea) {
-                    textArea.value = `[Datei ausgewählt: ${file.name}]`;
-                    textArea.disabled = true; // Disable typing when file is selected
-                }
-
-                hideLoader();
-                showToast("Datei erfolgreich geladen.", 'success');
-
-                // Trigger Wizard State Update
-                updateWizardState();
-            };
-            reader.onerror = function() { hideLoader(); showToast("Fehler beim Laden der Datei.", 'error'); };
-            reader.readAsDataURL(file);
+            if (file) processUpload(file);
+            // Reset value to allow re-selection
+            this.value = '';
         });
     }
+
+    // Drag & Drop
+    const dropZone = document.getElementById('wizardInputStep');
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-over'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', handleDrop);
+    }
+}
+
+function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+function handleDrop(e) {
+    const dropZone = document.getElementById('wizardInputStep');
+    if(dropZone) dropZone.classList.remove('drag-over');
+
+    const dt = e.dataTransfer;
+    const file = dt.files[0];
+    if (file) processUpload(file);
+}
+
+function processUpload(file) {
+    if (file.size > 5 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 5MB.", 'error'); return; }
+
+    showLoader("Lade Datei...");
+    const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
+
+    if (infoDiv) infoDiv.style.display = 'flex'; if (spinner) spinner.style.display = 'inline-block'; if (check) check.style.display = 'none'; if (nameSpan) nameSpan.textContent = "Lade " + file.name + "...";
+
+    if (textArea) { textArea.disabled = true; textArea.value = "Lade Datei..."; }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        currentAttachmentBase64 = evt.target.result;
+        if (spinner) spinner.style.display = 'none'; if (check) check.style.display = 'inline-block'; if (nameSpan) nameSpan.textContent = "📎 " + file.name;
+
+        if (textArea) {
+            textArea.value = `[Datei ausgewählt: ${file.name}]`;
+            textArea.disabled = true; // Disable typing when file is selected
+        }
+
+        hideLoader();
+        showToast("Datei erfolgreich geladen.", 'success');
+
+        // Trigger Wizard State Update
+        updateWizardState();
+    };
+    reader.onerror = function() { hideLoader(); showToast("Fehler beim Laden der Datei.", 'error'); };
+    reader.readAsDataURL(file);
 }
 
 function showSection(id) {
