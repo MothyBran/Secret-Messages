@@ -285,6 +285,14 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding-bottom: 20px;
+
+    /* Hide scrollbar completely but allow scrolling */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE 10+ */
+}
+
+.wizard-container::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
 }
 
 .wizard-header {
