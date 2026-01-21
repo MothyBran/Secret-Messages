@@ -528,7 +528,7 @@
     height: 36px;
     background-color: #ff0000; /* Signal Red */
     color: #ffffff;
-    z-index: 25000; /* Highest z-index */
+    z-index: 99999; /* Highest z-index */
     display: flex;
     align-items: center;
     overflow: hidden;
