@@ -434,3 +434,87 @@
 .security-pulse {
     animation: security-flash-anim 0.8s ease-out;
 }
+
+/* === GUIDE ACCORDION (Interactive Manual) === */
+.accordion-guide-item {
+    margin-bottom: 10px;
+    border: 1px solid #222;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+}
+
+.accordion-guide-item.active {
+    border-color: var(--accent-blue);
+    background: rgba(0, 191, 255, 0.05);
+}
+
+.accordion-guide-header {
+    width: 100%;
+    padding: 15px 20px;
+    background: none;
+    border: none;
+    text-align: left;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    outline: none;
+}
+
+.accordion-guide-header:hover {
+    color: var(--accent-blue);
+}
+
+.accordion-guide-header .arrow {
+    font-size: 0.8rem;
+    transition: transform 0.3s ease;
+    opacity: 0.7;
+}
+
+.accordion-guide-item.active .accordion-guide-header {
+    color: var(--accent-blue);
+}
+
+.accordion-guide-item.active .arrow {
+    transform: rotate(180deg);
+    opacity: 1;
+    color: var(--accent-blue);
+}
+
+.accordion-guide-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    opacity: 0;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid transparent;
+}
+
+.accordion-guide-item.active .accordion-guide-body {
+    /* Large enough max-height to fit content, but not too large to break transition speed feel */
+    max-height: 800px;
+    opacity: 1;
+    border-top-color: rgba(0, 191, 255, 0.1);
+}
+
+.accordion-guide-content {
+    padding: 20px;
+    color: #ccc;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.guide-header-custom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+}
