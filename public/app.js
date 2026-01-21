@@ -713,9 +713,11 @@ function updateAppMode(mode) {
     // Icon Toggle
     const attachBtn = document.getElementById('attachmentBtn');
     const qrBtn = document.getElementById('embeddedQrScanBtn');
+    const txtBtn = document.getElementById('txtUploadIcon');
 
     if(attachBtn) attachBtn.style.display = isDec ? 'none' : 'block';
     if(qrBtn) qrBtn.style.display = isDec ? 'block' : 'none';
+    if(txtBtn) txtBtn.style.display = isDec ? 'block' : 'none';
 
     // Recipient logic handled in updateWizardState now, but let's hide it initially
     const rGroup = document.getElementById('recipientGroup');
