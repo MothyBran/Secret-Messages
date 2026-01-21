@@ -114,6 +114,7 @@
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
+
 /* === TOAST NOTIFICATIONS === */
 #toast-container {
     position: fixed;
