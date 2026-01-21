@@ -342,7 +342,11 @@ function setupUIEvents() {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            if (file.size > 5 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 5MB.", 'error'); this.value = ''; return; }
+            if (file.size > 25 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); this.value = ''; return; }
+
+            if (file.size > 10 * 1024 * 1024) {
+                 showToast("Große Datei wird verarbeitet... Bitte warten.", 'info');
+            }
 
             showLoader("Lade Datei...");
             const infoDiv = document.getElementById('fileInfo'); const nameSpan = document.getElementById('fileName'); const spinner = document.getElementById('fileSpinner'); const check = document.getElementById('fileCheck'); const textArea = document.getElementById('messageInput');
@@ -750,7 +754,7 @@ function updateWizardState() {
 }
 
 function resetApplicationState() {
-    // 1. Reset Global State Variables
+    // 1. Reset Global State Variables (SECURITY WIPE)
     currentAttachmentBase64 = null;
 
     // 2. Clear All Inputs
@@ -759,13 +763,13 @@ function resetApplicationState() {
     const recipientInput = document.getElementById('recipientName');
 
     if (msgInput) {
-        msgInput.value = '';
+        msgInput.value = ''; // Force clear source input
         msgInput.disabled = false;
     }
     if (codeInput) codeInput.value = '';
     if (recipientInput) recipientInput.value = '';
 
-    document.getElementById('messageOutput').value = '';
+    document.getElementById('messageOutput').value = ''; // Force clear result output
     document.getElementById('mediaOutput').innerHTML = '';
     document.getElementById('mediaOutput').style.display = 'none';
 
@@ -790,7 +794,12 @@ function resetApplicationState() {
     // 6. Reset legacy/helper feedback
     document.getElementById('importFeedback').style.display = 'none';
 
-    console.log("App State Hard Reset Complete");
+    // Explicit GC Hint
+    try {
+       if(window.gc) window.gc();
+    } catch(e){}
+
+    console.log("App State Hard Reset Complete (Security Wipe)");
 }
 
 function resetWizard() {
@@ -801,7 +810,7 @@ function resetWizard() {
 
 async function handleMainAction() {
     const code = document.getElementById('messageCode').value;
-    let payload = document.getElementById('messageInput').value;
+    let payload = document.getElementById('messageInput').value; // 'let' ensures we can nullify it later
 
     // Strict Input Retrieval
     if (currentMode === 'encrypt') {
@@ -820,7 +829,8 @@ async function handleMainAction() {
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
     const isValid = await validateSessionStrict(); if (!isValid) return;
 
-    const btn = document.getElementById('actionBtn'); const old = btn.textContent; btn.textContent="..."; btn.disabled=true;
+    const btn = document.getElementById('actionBtn'); const old = btn.textContent;
+    btn.textContent = "Processing..."; btn.disabled = true;
 
     try {
         let res = "";
@@ -830,6 +840,11 @@ async function handleMainAction() {
 
             // WIZARD: Show Result
             enterResultState(res, 'text');
+
+            // SECURITY WIPE (Encryption): Clear Source Material
+            document.getElementById('messageInput').value = '';
+            currentAttachmentBase64 = null;
+            payload = null; // Hint for GC
 
         } else {
             // Decryption Logic
@@ -842,7 +857,20 @@ async function handleMainAction() {
 
             // WIZARD: Show Result (Decrypted)
             enterResultState(res, 'auto'); // Auto-detect image/pdf inside
+
+            // SECURITY WIPE (Decryption): Clear Encrypted Input
+            document.getElementById('messageInput').value = '';
+            currentAttachmentBase64 = null;
+            payload = null;
         }
+
+        // Visual Feedback: Security Pulse
+        const indicator = document.getElementById('statusIndicator');
+        if (indicator) {
+            indicator.classList.add('security-pulse');
+            setTimeout(() => indicator.classList.remove('security-pulse'), 1000);
+        }
+
     } catch (e) {
         console.error("Action Failed", e);
         showAppStatus(e.message || "Fehler", 'error');

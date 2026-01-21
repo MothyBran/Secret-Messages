@@ -423,3 +423,14 @@
 /* Hide legacy scrollbar on textarea if possible */
 .wizard-textarea::-webkit-scrollbar { width: 5px; }
 .wizard-textarea::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* === SECURITY PULSE ANIMATION === */
+@keyframes security-flash-anim {
+    0% { color: var(--success-green); text-shadow: 0 0 10px var(--success-green); transform: scale(1); }
+    50% { color: #fff; text-shadow: 0 0 20px #fff; transform: scale(1.1); }
+    100% { color: var(--success-green); text-shadow: 0 0 10px var(--success-green); transform: scale(1); }
+}
+
+.security-pulse {
+    animation: security-flash-anim 0.8s ease-out;
+}
