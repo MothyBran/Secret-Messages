@@ -747,17 +747,53 @@ function updateWizardState() {
     }
 }
 
-function resetWizard() {
-    clearAllFields();
-    document.getElementById('messageInput').value = '';
-    document.getElementById('messageCode').value = '';
-    document.getElementById('recipientName').value = '';
+function resetApplicationState() {
+    // 1. Reset Global State Variables
+    currentAttachmentBase64 = null;
+
+    // 2. Clear All Inputs
+    const msgInput = document.getElementById('messageInput');
+    const codeInput = document.getElementById('messageCode');
+    const recipientInput = document.getElementById('recipientName');
+
+    if (msgInput) {
+        msgInput.value = '';
+        msgInput.disabled = false;
+    }
+    if (codeInput) codeInput.value = '';
+    if (recipientInput) recipientInput.value = '';
+
+    document.getElementById('messageOutput').value = '';
+    document.getElementById('mediaOutput').innerHTML = '';
+    document.getElementById('mediaOutput').style.display = 'none';
+
+    // 3. Clear File Inputs
+    document.getElementById('fileInput').value = '';
+    document.getElementById('txtFileInput').value = '';
+    document.getElementById('fileInfo').style.display = 'none';
+
+    // 4. Reset UI State Classes
     document.getElementById('wizardInputStep').classList.remove('minimized');
     document.getElementById('outputGroup').classList.add('hidden');
+    document.getElementById('wizardMetaWrapper').classList.add('hidden');
+    document.getElementById('wizardActionWrapper').classList.add('hidden');
 
-    // Force Recipient visible for encrypt mode if it was hidden by decrypt mode
-    if (currentMode === 'encrypt') document.getElementById('recipientGroup').style.display = 'block';
+    // 5. Mode Specific Adjustments
+    if (currentMode === 'encrypt') {
+        document.getElementById('recipientGroup').style.display = 'block';
+    } else {
+        document.getElementById('recipientGroup').style.display = 'none';
+    }
 
+    // 6. Reset legacy/helper feedback
+    document.getElementById('importFeedback').style.display = 'none';
+
+    console.log("App State Hard Reset Complete");
+}
+
+function resetWizard() {
+    resetApplicationState();
+    // Trigger UI update to ensure correct initial state
     updateWizardState();
 }
 
@@ -765,7 +801,19 @@ async function handleMainAction() {
     const code = document.getElementById('messageCode').value;
     let payload = document.getElementById('messageInput').value;
 
-    if (currentMode === 'encrypt' && currentAttachmentBase64) payload = currentAttachmentBase64;
+    // Strict Input Retrieval
+    if (currentMode === 'encrypt') {
+        if (currentAttachmentBase64) {
+            payload = currentAttachmentBase64;
+        } else {
+            payload = document.getElementById('messageInput').value;
+        }
+    } else {
+        // DECRYPT MODE
+        payload = document.getElementById('messageInput').value.trim();
+        // Ensure no leftover attachment is used for decryption
+        currentAttachmentBase64 = null;
+    }
 
     if (!payload || !code || code.length!==5 || !currentUser) return showAppStatus("Daten unvollständig.", 'error');
     const isValid = await validateSessionStrict(); if (!isValid) return;
@@ -782,11 +830,23 @@ async function handleMainAction() {
             enterResultState(res, 'text');
 
         } else {
+            // Decryption Logic
             res = await decryptFull(payload, code, currentUser.name);
+
+            // Safety check: if res is same as payload, something is wrong with logic or assumption
+            if (res === payload && !res.startsWith('data:')) {
+                console.warn("Decryption returned identical string. Possible logic error.");
+            }
+
             // WIZARD: Show Result (Decrypted)
             enterResultState(res, 'auto'); // Auto-detect image/pdf inside
         }
-    } catch (e) { showAppStatus(e.message, 'error'); } finally { btn.textContent=old; btn.disabled=false; }
+    } catch (e) {
+        console.error("Action Failed", e);
+        showAppStatus(e.message || "Fehler", 'error');
+    } finally {
+        btn.textContent=old; btn.disabled=false;
+    }
 }
 
 function enterResultState(resultData, type) {
