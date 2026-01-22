@@ -509,6 +509,8 @@ textarea::-webkit-scrollbar,
 
     textarea, #messageInput {
         width: 100% !important;
+        height: 450px !important; /* Fixed height for ~20 lines */
+        overflow-y: auto !important; /* Internal scrolling enabled */
     }
 
     /* Ensure other sections stay narrow on desktop */
