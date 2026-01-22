@@ -468,9 +468,61 @@
     gap: 10px;
 }
 
-/* Hide legacy scrollbar on textarea if possible */
-.wizard-textarea::-webkit-scrollbar { width: 5px; }
-.wizard-textarea::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+/* Ziel: Alle Scrollbars im Tool-Bereich unsichtbar machen */
+.wizard-container,
+.wizard-step-input,
+textarea,
+#messageInput,
+#messageOutput {
+    -ms-overflow-style: none !important;  /* IE und Edge */
+    scrollbar-width: none !important;     /* Firefox */
+}
+
+.wizard-container::-webkit-scrollbar,
+.wizard-step-input::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+#messageInput::-webkit-scrollbar,
+#messageOutput::-webkit-scrollbar {
+    display: none !important;             /* Chrome, Safari, Opera */
+}
+
+/* Desktop Optimierung */
+.app-main-wrapper {
+    max-width: 600px; /* Default (Mobile/Tablet) */
+}
+
+@media (min-width: 1024px) {
+    .app-main-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Zentriert den Inhalt horizontal */
+        width: 100%;
+        max-width: none !important; /* Wrapper darf auf Desktop volle Breite haben */
+    }
+
+    .wizard-container {
+        width: 100% !important;
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+        padding: 40px; /* Großzügiger Platz auf Desktop */
+    }
+
+    textarea, #messageInput {
+        width: 100% !important;
+    }
+
+    /* Ensure other sections stay narrow on desktop */
+    #loginSection,
+    #activationSection,
+    #renewalSection,
+    #blockedSection,
+    #infoSection,
+    #guideSection {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+}
 
 /* === SECURITY PULSE ANIMATION === */
 @keyframes security-flash-anim {
