@@ -765,8 +765,34 @@
                     </button>
                     <div class="accordion-guide-body">
                         <div class="accordion-guide-content">
-                            <p style="margin-bottom:10px;"><strong style="color:var(--success-green);">Verschlüsseln:</strong> Gib eine Nachricht ein oder lade eine Datei (bis 25 MB) hoch. Wähle den Empfänger und gib deinen Key ein. Das Ergebnis kann als Text kopiert oder als QR-Code geteilt werden.</p>
-                            <p><strong style="color:var(--accent-blue);">Entschlüsseln:</strong> Füge den Geheimtext ein, scanne einen QR-Code oder lade eine verschlüsselte .txt-Datei hoch. Nach Eingabe des Keys wird der Inhalt sofort im Browser sichtbar.</p>
+                            <strong style="color:var(--success-green); display:block; margin-bottom:5px;">Verschlüsseln:</strong>
+                            <ol style="margin-left:20px; margin-bottom:15px; color:#ccc;">
+                                <li>Gib eine Nachricht ein oder lade eine Datei (Bild/PDF bis 25 MB) über das "📎"-Icon hoch.</li>
+                                <li>Wähle die Empfänger der Nachricht durch manuelle Eingabe oder Auswahl über "📇"-Icon oder lass den Empfänger frei, wenn die Datei nur mit deinem Gerät und ID entschlüsselt werden darf.</li>
+                                <li>Gib einen beliebigen 5-Stelligen Schlüssel ein (mit dem Schlüssel ist nicht dein Zugangscode für die WebApp gemeint!).</li>
+                            </ol>
+                            <div style="background:rgba(255, 165, 0, 0.1); border-left:3px solid var(--accent-orange); padding:10px; margin-bottom:15px; font-size:0.9rem;">
+                                <strong style="color:var(--accent-orange);">WICHTIG:</strong> Den gewählten Sicherheitsschlüssel benötigt jeder Empfänger der Nachricht um sie zu entschlüsseln, du kannst für jede Nachricht ein individuellen Schlüssel festlegen.
+                            </div>
+                            <p style="margin-bottom:20px;">
+                                4. Das Ergebnis kann als Text kopiert oder als QR-Code angezeigt (bzw. bei zu großen Dateien als .txt-Datei heruntergeladen) und anschließend geteilt werden.
+                            </p>
+
+                            <strong style="color:var(--accent-blue); display:block; margin-bottom:5px;">Entschlüsseln:</strong>
+                            <ol style="margin-left:20px; margin-bottom:20px; color:#ccc;">
+                                <li>Füge den verschlüsselten Text ein, scanne einen QR-Code über das "📷"-Icon oder lade eine verschlüsselte .txt-Datei über das "📂"-Icon hoch.</li>
+                                <li>Nach Eingabe des 5-Stelligen Schlüssels wird der Inhalt sofort im Browser sichtbar.</li>
+                                <li>Der Klar-Text bzw. Datei kann kopiert oder herunterladen werden.</li>
+                            </ol>
+
+                            <strong style="color:#fff; display:block; margin-bottom:5px;">Sonstiges:</strong>
+                            <p style="margin-bottom:15px;">
+                                Der "X" -Button oben rechts und der "↩️ Neue Nachricht" -Button Leeren die Maske vollständig und ermöglicht das erstellen einer neuen Nachricht.
+                            </p>
+
+                            <p style="font-style:italic; color:var(--text-muted); font-size:0.85rem; border-top:1px solid #333; padding-top:10px;">
+                                <strong>Hinweis:</strong> Die eingegebenen Daten (eingegebener Text, hochgeladen Dokumente oder Sicherheitsschlüssel) werden zu keinem Zeitpunkt an den Server übermittelt oder in einer Cloud gespeichert, sie existieren lediglich flüchtig für den Moment der Eingabe und Verschlüsselung/Entschlüsselung im Browser Cache!
+                            </p>
                         </div>
                     </div>
                 </div>
