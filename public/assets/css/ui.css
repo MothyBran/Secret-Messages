@@ -498,7 +498,7 @@
 
 .accordion-guide-item.active .accordion-guide-body {
     /* Large enough max-height to fit content, but not too large to break transition speed feel */
-    max-height: 800px;
+    max-height: 1500px;
     opacity: 1;
     border-top-color: rgba(0, 191, 255, 0.1);
 }
