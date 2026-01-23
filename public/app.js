@@ -766,6 +766,8 @@ function updateWizardState() {
         actionWrapper.classList.add('hidden');
     }
 
+    // Toggle Compression State (Fix mobile overlap)
+    document.getElementById('wizardInputStep').classList.toggle('compressed', isReady);
 }
 
 function resetApplicationState() {
@@ -795,6 +797,7 @@ function resetApplicationState() {
 
     // 4. Reset UI State Classes
     document.getElementById('wizardInputStep').classList.remove('minimized');
+    document.getElementById('wizardInputStep').classList.remove('compressed');
     document.getElementById('outputGroup').classList.add('hidden');
     document.getElementById('wizardMetaWrapper').classList.add('hidden');
     document.getElementById('wizardActionWrapper').classList.add('hidden');
