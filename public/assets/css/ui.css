@@ -351,6 +351,8 @@
     flex-shrink: 1; /* Allow shrinking if needed */
     transition: all 0.3s ease;
     min-height: 0; /* Important for flex child scrolling */
+    margin-bottom: 5px; /* Base spacing */
+    padding-bottom: 5px; /* Prevent overlap on shrink */
 }
 
 /* Textarea Defaults */
@@ -471,6 +473,13 @@
     right: 10px;
     display: flex;
     gap: 10px;
+}
+
+/* File Info (Upload Feedback) */
+#fileInfo {
+    margin-top: 10px;
+    margin-bottom: 20px !important; /* Force spacing below file info */
+    flex-shrink: 0; /* Never shrink this info line */
 }
 
 .icon-btn {
