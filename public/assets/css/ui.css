@@ -348,6 +348,7 @@
 .wizard-step-input {
     display: flex;
     flex-direction: column;
+    flex-grow: 1; /* Allow growing to fill empty space */
     flex-shrink: 1; /* Allow shrinking if needed */
     transition: all 0.3s ease;
     min-height: 0; /* Important for flex child scrolling */
