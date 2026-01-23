@@ -36,7 +36,7 @@
         }
 
         .bg-grid {
-            position: fixed; top: 36px; left: 0; width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-image:
                 linear-gradient(rgba(0, 191, 255, 0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0, 191, 255, 0.03) 1px, transparent 1px);
@@ -117,12 +117,17 @@
 
         /* Header */
         header {
-            position: fixed; top: 36px; left: 0; width: 100%;
+            position: fixed; top: 0; left: 0; width: 100%;
             padding: 20px 0;
             background: rgba(5, 5, 5, 0.8);
             backdrop-filter: blur(15px);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             z-index: 1000;
+        }
+
+        /* Banner Position Override for Landing Page */
+        .disclaimer-banner {
+            top: 92px; /* Positioned below the header */
         }
         header .container { display: flex; justify-content: space-between; align-items: center; }
         .logo { font-size: 1.5rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; letter-spacing: 2px; }
@@ -566,7 +571,8 @@
 
             h1 { font-size: 2.5rem; }
             h2 { font-size: 2rem; }
-            .hero { padding-top: 120px; }
+            .hero { padding-top: 170px; }
+            .disclaimer-banner { top: 120px; }
 
             .steps-container { flex-direction: column; gap: 20px; }
             .connector { width: 2px; height: 50px; min-width: 0; }
