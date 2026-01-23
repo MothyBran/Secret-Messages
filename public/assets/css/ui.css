@@ -320,34 +320,40 @@
     border-left-color: var(--accent-blue);
 }
 
-/* === WIZARD / NO-SCROLL LAYOUT === */
+/* === WIZARD / NO-SCROLL LAYOUT (Single Screen) === */
 .wizard-container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 80px); /* Approx Header Height */
-    min-height: 500px;
-    justify-content: center;
-    width: 100%;
-    transition: all 0.3s ease;
-    /* overflow-y: auto for small screens */
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-bottom: 20px;
+    height: calc(100vh - 120px); /* Total Viewport Height - Header/Padding */
+    overflow: hidden; /* Prevent page scroll */
+    width: 100%; /* Mobile default */
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+}
+
+/* Responsive Desktop Width (already 100% on mobile) */
+@media (min-width: 1024px) {
+    .wizard-container {
+        width: 95%; /* Clean margins on desktop */
+    }
 }
 
 .wizard-header {
-    margin-bottom: 20px;
     flex-shrink: 0;
+    margin-bottom: 15px;
 }
 
 .wizard-step-input {
-    flex-grow: 1;
     display: flex;
     flex-direction: column;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    width: 100%;
+    flex-shrink: 1; /* Allow shrinking if needed */
+    transition: all 0.3s ease;
+    min-height: 0; /* Important for flex child scrolling */
 }
 
+/* Textarea Defaults */
 .wizard-textarea {
     width: 100%;
     background: rgba(0,0,0,0.3);
@@ -356,30 +362,39 @@
     color: #fff;
     padding: 15px;
     font-size: 1rem;
-    transition: 0.3s;
     border-radius: 4px;
+    resize: none; /* Controlled by CSS */
+
+    /* Standard Input Mode (State 1) */
+    flex-grow: 1;
+    min-height: 100px; /* Absolute minimum */
+    height: auto;      /* Let flexbox handle it */
+    max-height: 100%;
+    overflow-y: auto;  /* Internal scrolling */
 }
+
 .wizard-textarea:focus {
     border-color: var(--accent-blue);
     border-left-color: var(--accent-blue);
     background: rgba(0, 191, 255, 0.05);
 }
 
-/* Minimized Input State (When Result is Shown) */
+/* Minimized Input State (State 2: Result Visible) */
 .wizard-step-input.minimized {
     flex-grow: 0;
-    height: auto;
-    margin-bottom: 15px;
-    opacity: 0.5;
+    flex-shrink: 0;
+    margin-bottom: 10px;
 }
-.wizard-step-input.minimized .wizard-textarea {
-    min-height: 50px !important;
-    height: 50px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    padding: 12px;
+
+.wizard-step-input.minimized .wizard-textarea,
+.wizard-step-input.minimized #messageInput {
+    height: 120px !important; /* ~5 lines fixed */
+    min-height: 120px !important;
+    max-height: 120px !important;
+    flex-grow: 0;
+    overflow-y: auto !important;
 }
+
 .wizard-step-input.minimized .input-icons-wrapper,
 .wizard-step-input.minimized label {
     display: none;
@@ -387,14 +402,16 @@
 
 /* Progressive Disclosure: Meta & Action */
 .wizard-meta {
+    flex-shrink: 0;
     overflow: hidden;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 1;
-    max-height: 300px; /* Arbitrary large enough height */
+    max-height: 300px;
     margin-bottom: 10px;
 }
 
 .wizard-action {
+    flex-shrink: 0;
     overflow: hidden;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 1;
@@ -408,7 +425,17 @@
     transition: all 0.5s ease;
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex-grow: 1;
+    min-height: 0; /* Enable internal scroll */
+    overflow: hidden; /* Container itself doesn't scroll, content does */
+}
+
+/* Ensure output area handles overflow */
+#messageOutput {
+    flex-grow: 1;
+    height: auto;
+    overflow-y: auto;
+    min-height: 100px;
 }
 
 /* Hidden Utility Class for Transitions */
@@ -495,22 +522,34 @@ textarea::-webkit-scrollbar,
     .app-main-wrapper {
         display: flex;
         flex-direction: column;
-        align-items: center; /* Zentriert den Inhalt horizontal */
+        align-items: center;
         width: 100%;
-        max-width: none !important; /* Wrapper darf auf Desktop volle Breite haben */
+        max-width: none !important;
     }
 
     .wizard-container {
-        width: 100% !important;
+        width: 90% !important;
         max-width: 1200px !important;
         margin: 0 auto !important;
-        padding: 40px; /* Großzügiger Platz auf Desktop */
+        padding: 40px;
+    }
+
+    /* Ensure Input fills vertical space on Desktop */
+    .wizard-step-input {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #mainSection {
+        width: 100%;
     }
 
     textarea, #messageInput {
         width: 100% !important;
-        height: 450px !important; /* Fixed height for ~20 lines */
-        overflow-y: auto !important; /* Internal scrolling enabled */
+        flex-grow: 1; /* Fill the wrapper */
+        height: auto !important;
+        min-height: 400px; /* Minimum visual size */
     }
 
     /* Ensure other sections stay narrow on desktop */
@@ -524,6 +563,21 @@ textarea::-webkit-scrollbar,
         max-width: 600px;
         margin: 0 auto;
     }
+}
+
+/* Force Minimized State (Must be last to override Desktop styles) */
+.wizard-step-input.minimized .wizard-textarea,
+.wizard-step-input.minimized #messageInput {
+    height: 120px !important;
+    min-height: 120px !important;
+    max-height: 120px !important;
+    flex-grow: 0 !important;
+    overflow-y: auto !important;
+}
+
+.wizard-step-input.minimized {
+    flex-grow: 0 !important;
+    min-height: 0 !important;
 }
 
 /* === SECURITY PULSE ANIMATION === */
