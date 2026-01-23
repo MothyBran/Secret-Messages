@@ -856,8 +856,8 @@ async function handleMainAction() {
             enterResultState(res, 'text');
 
             // SECURITY WIPE (Encryption): Clear Source Material
-            document.getElementById('messageInput').value = '';
-            currentAttachmentBase64 = null;
+            // document.getElementById('messageInput').value = ''; // Persist input as requested
+            // currentAttachmentBase64 = null;
             payload = null; // Hint for GC
 
         } else {
