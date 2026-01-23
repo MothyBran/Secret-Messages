@@ -351,6 +351,8 @@
     flex-shrink: 1; /* Allow shrinking if needed */
     transition: all 0.3s ease;
     min-height: 0; /* Important for flex child scrolling */
+    margin-bottom: 5px; /* Base spacing to prevent direct overlap */
+    padding-bottom: 5px;
 }
 
 /* Textarea Defaults */
@@ -379,6 +381,21 @@
     background: rgba(0, 191, 255, 0.05);
 }
 
+/* Compressed Input State (State 3: Button Visible) */
+/* Force shrink to allow room for Button and Meta */
+.wizard-step-input.compressed {
+    flex-grow: 0 !important;
+    flex-shrink: 1 !important;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+}
+
+.wizard-step-input.compressed .wizard-textarea,
+.wizard-step-input.compressed #messageInput {
+    max-height: 35vh !important; /* Limit height to ~1/3 of screen */
+    min-height: 120px !important; /* Keep it usable */
+    flex-grow: 0 !important;
+}
 
 /* Minimized Input State (State 2: Result Visible) */
 .wizard-step-input.minimized {
