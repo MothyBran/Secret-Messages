@@ -979,19 +979,26 @@
 
     <div id="manualRenewalModal" class="modal">
         <div class="modal-box">
-            <h3 style="color: var(--success-green); margin-bottom: 15px; text-align: center;">LIZENZ VERLÄNGERN</h3>
-            <p style="color: #ccc; margin-bottom: 20px; font-size: 0.9rem; text-align: center;">
+            <h3 style="color: var(--success-green); margin-bottom: 10px; text-align: center;">LIZENZ VERLÄNGERN</h3>
+
+            <div id="licenseStatusDisplay" style="margin-bottom: 10px; padding: 8px; background: rgba(0, 191, 255, 0.1); border-left: 3px solid var(--accent-blue); font-size: 0.85rem; color: #ccc; display: none;"></div>
+
+            <p style="color: #ccc; margin-bottom: 10px; font-size: 0.85rem; text-align: center;">
                 Geben Sie Ihren neuen Lizenz-Key ein.<br>
                 <b>Ihre Sicherheits-Identität bleibt unverändert.</b>
             </p>
-            <div class="input-group">
+            <div class="input-group" style="margin-bottom: 15px;">
                 <label class="input-label">Neuer Lizenz-Key</label>
                 <input type="text" id="manualRenewalKey" class="input-field" placeholder="XXXX-XXXX-XXXX" style="text-align: center;">
             </div>
-            <div style="display:flex; gap:10px;">
+            <div style="display:flex; gap:10px; margin-bottom: 10px;">
                 <button class="btn" onclick="document.getElementById('manualRenewalModal').classList.remove('active')" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
                 <button class="btn btn-primary" id="btnConfirmManualRenewal" style="flex:1;">Verlängern</button>
             </div>
+
+            <a href="https://Secure-MSG.app/Shop" target="_blank" class="btn" style="display: block; text-align: center; border: 1px solid var(--accent-blue); color: var(--accent-blue); font-size: 0.85rem; padding: 10px; text-decoration: none;">
+                🛒 Zum Lizenz-Shop
+            </a>
         </div>
     </div>
 
