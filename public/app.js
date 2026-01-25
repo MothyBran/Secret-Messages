@@ -185,7 +185,7 @@ function setupUIEvents() {
     function goBackToMain() { if(currentUser) showSection('mainSection'); else showSection('loginSection'); }
     document.getElementById('btnBackGuide')?.addEventListener('click', goBackToMain);
     document.getElementById('btnBackInfo')?.addEventListener('click', goBackToMain);
-    document.getElementById('btnBackInbox')?.addEventListener('click', goBackToMain);
+    document.getElementById('btnBackInboxArrow')?.addEventListener('click', goBackToMain);
 
     document.getElementById('navDelete')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('deleteAccountModal').classList.add('active'); });
     document.getElementById('btnCancelDelete')?.addEventListener('click', () => { document.getElementById('deleteAccountModal').classList.remove('active'); });
