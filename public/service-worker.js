@@ -1,6 +1,7 @@
 const CACHE_NAME = 'secure-msg-v1';
 const STATIC_ASSETS = [
     '/',
+    '/app',
     '/index.html',
     '/assets/fonts/fonts.css',
     '/assets/css/ui.css',
@@ -50,6 +51,7 @@ self.addEventListener('fetch', (event) => {
     // Ensures we always get the latest security updates
     if (event.request.mode === 'navigate' ||
         url.pathname === '/' ||
+        url.pathname === '/app' ||
         url.pathname.endsWith('index.html') ||
         (url.pathname.endsWith('.js') && !url.pathname.includes('/assets/'))) {
 
