@@ -1026,9 +1026,20 @@ function enterResultState(resultData, type) {
 
 async function installApp(e) {
     if (e) e.preventDefault();
+    const btn = document.getElementById('navInstallApp');
+
+    // Check for "Open" mode
+    if (btn && btn.getAttribute('data-action') === 'open') {
+        window.open('/app?mode=app', '_blank');
+        return;
+    }
+
     if (!window.deferredPrompt) {
-        showToast("Installation momentan nicht möglich (Browser-Block).", "error");
-        console.warn("Install prompt not available. Triggered by user but deferredPrompt is null.");
+        showToast("Installation momentan nicht möglich. App ist eventuell bereits installiert.", "info");
+        // Optional: Offer open anyway
+        window.showAppConfirm("Installation nicht verfügbar. App stattdessen öffnen?", () => {
+             window.open('/app?mode=app', '_blank');
+        }, { confirm: "Öffnen", cancel: "Abbrechen" });
         return;
     }
 
@@ -1036,7 +1047,7 @@ async function installApp(e) {
     const { outcome } = await window.deferredPrompt.userChoice;
     console.log(`User response to the install prompt: ${outcome}`);
     window.deferredPrompt = null;
-    document.getElementById('navInstallApp').style.display = 'none';
+    btn.style.display = 'none';
 }
 
 async function generateDeviceFingerprint() {

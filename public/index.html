@@ -17,7 +17,7 @@
         // PWA Install Prompt Capture (Must be inline to catch early events)
         window.deferredPrompt = null;
 
-        function checkInstallButtonStatus() {
+        async function checkInstallButtonStatus() {
             const btn = document.getElementById('navInstallApp');
             if (!btn) return;
 
@@ -28,11 +28,32 @@
                 // HIDE if installed/running as app
                 btn.style.display = 'none';
                 console.log("App running in standalone/app mode. Install button hidden.");
-            } else {
-                // SHOW otherwise (It is visible by default in HTML, but ensure it here)
-                btn.style.display = 'flex';
-                console.log("Browser mode detected. Install button visible.");
+                return;
             }
+
+            // Detection Check
+            if ('getInstalledRelatedApps' in navigator) {
+                try {
+                    const relatedApps = await navigator.getInstalledRelatedApps();
+                    const isInstalled = relatedApps.some(app => app.platform === 'webapp');
+
+                    if (isInstalled) {
+                        btn.innerText = "📱 App öffnen";
+                        btn.setAttribute('data-action', 'open');
+                        btn.style.display = 'flex';
+                        console.log("App detected as installed. Switching to Open mode.");
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Install check failed", e);
+                }
+            }
+
+            // Default Install Mode
+            btn.innerText = "📱 App installieren";
+            btn.removeAttribute('data-action');
+            btn.style.display = 'flex';
+            console.log("Browser mode detected. Install button visible.");
         }
 
         window.addEventListener('beforeinstallprompt', (e) => {
