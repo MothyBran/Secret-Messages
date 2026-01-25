@@ -44,7 +44,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // PWA Service Worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js')
-            .then(reg => console.log('SW Registered'))
+            .then(reg => {
+                console.log('SW Registered', reg);
+                // Check if we are already installed-ish
+                if (reg.installing) {
+                    console.log('Service worker installing');
+                } else if (reg.waiting) {
+                    console.log('Service worker installed');
+                } else if (reg.active) {
+                    console.log('Service worker active');
+                }
+            })
             .catch(err => console.error('SW Error', err));
     }
 
