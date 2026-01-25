@@ -750,6 +750,16 @@ function updateWizardState() {
     const codeVal = document.getElementById('messageCode').value;
     const isReady = (hasInput && codeVal.length === 5);
 
+    // FIX: Hide icons on Decryption Page if text is present to prevent overlap
+    const iconsWrapper = document.querySelector('.input-icons-wrapper');
+    if (iconsWrapper) {
+        if (currentMode === 'decrypt' && textVal.length > 0) {
+            iconsWrapper.style.display = 'none';
+        } else {
+            iconsWrapper.style.display = 'flex';
+        }
+    }
+
     const metaWrapper = document.getElementById('wizardMetaWrapper');
     const actionWrapper = document.getElementById('wizardActionWrapper');
 
