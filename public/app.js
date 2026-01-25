@@ -165,7 +165,10 @@ function setupUIEvents() {
 
     // Manual Renewal
     document.getElementById('navRenewal')?.addEventListener('click', (e) => {
-        e.preventDefault(); toggleMainMenu(true); document.getElementById('manualRenewalModal').classList.add('active');
+        e.preventDefault();
+        toggleMainMenu(true);
+        updateRenewalModalStatus();
+        document.getElementById('manualRenewalModal').classList.add('active');
         document.getElementById('manualRenewalKey').value = '';
     });
     document.getElementById('btnConfirmManualRenewal')?.addEventListener('click', handleManualRenewal);
@@ -1066,6 +1069,58 @@ function validateActivationInputs() {
     const code1 = document.getElementById('newAccessCode').value; const code2 = document.getElementById('newAccessCodeRepeat').value; const agbChecked = document.getElementById('agbCheck').checked; const btn = document.getElementById('activateBtn'); const warning = document.getElementById('codeMismatchWarning');
     if (code2.length > 0 && code1 !== code2) warning.style.display = 'block'; else warning.style.display = 'none';
     if (agbChecked && (code1 === code2) && (code1.length === 5)) btn.disabled = false; else btn.disabled = true;
+}
+
+function updateRenewalModalStatus() {
+    const statusDiv = document.getElementById('licenseStatusDisplay');
+    if (!statusDiv) return;
+
+    let expiry = localStorage.getItem('sm_exp');
+    // Fallback to currentUser if available
+    if (!expiry && currentUser && currentUser.expiresAt) {
+        expiry = currentUser.expiresAt;
+    }
+
+    if (!expiry) {
+        statusDiv.style.display = 'none';
+        return;
+    }
+
+    statusDiv.style.display = 'block';
+
+    // Check for Lifetime (Case Insensitive)
+    if (String(expiry).toLowerCase() === 'lifetime' || String(expiry).toLowerCase().includes('unlimited')) {
+        statusDiv.textContent = "Status: Lifetime-Zugang (Unbegrenzt gültig)";
+        statusDiv.style.color = 'var(--success-green)';
+        statusDiv.style.borderLeftColor = 'var(--success-green)';
+        statusDiv.style.background = 'rgba(0, 255, 65, 0.1)';
+        return;
+    }
+
+    // Calculate Days
+    const expDate = new Date(String(expiry).replace(' ', 'T'));
+    if (isNaN(expDate.getTime())) {
+        statusDiv.textContent = "";
+        statusDiv.style.display = 'none';
+        return;
+    }
+
+    const now = new Date();
+    const diffTime = expDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+         statusDiv.textContent = "Ihre Lizenz ist abgelaufen.";
+         statusDiv.style.color = 'var(--error-red)';
+         statusDiv.style.borderLeftColor = 'var(--error-red)';
+         statusDiv.style.background = 'rgba(255, 50, 50, 0.1)';
+    } else {
+         statusDiv.textContent = `Ihre Lizenz ist noch ${diffDays} Tage gültig.`;
+         // Default Info Style (Blue)
+         statusDiv.style.color = '#ccc';
+         statusDiv.style.borderLeftColor = 'var(--accent-blue)';
+         statusDiv.style.background = 'rgba(0, 191, 255, 0.1)';
+    }
 }
 
 function updateSidebarInfo(user, expiryData) {
