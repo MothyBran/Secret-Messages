@@ -947,18 +947,6 @@ function enterResultState(resultData, type) {
     const textOut = document.getElementById('messageOutput');
     const mediaOut = document.getElementById('mediaOutput');
     const copyBtn = document.getElementById('copyBtn');
-
-
-async function installApp(e) {
-    if (e) e.preventDefault();
-    if (!deferredPrompt) return;
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-    deferredPrompt = null;
-    document.getElementById('navInstallApp').style.display = 'none';
-}
     const qrBtn = document.getElementById('qrGenBtn');
     const saveTxtBtn = document.getElementById('saveTxtBtn');
     const saveMediaBtn = document.getElementById('saveMediaBtn');
@@ -1027,6 +1015,17 @@ async function installApp(e) {
         saveMediaBtn.style.display = 'block';
         saveMediaBtn.textContent = "💾 PDF SPEICHERN";
     }
+}
+
+async function installApp(e) {
+    if (e) e.preventDefault();
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+    document.getElementById('navInstallApp').style.display = 'none';
 }
 
 async function generateDeviceFingerprint() {
