@@ -10,7 +10,7 @@ import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfi
 // ================================================================
 
 const API_BASE = '/api';
-let deferredPrompt; // PWA Install Prompt
+// deferredPrompt is now managed via window.deferredPrompt
 let currentUser = null; // Object { name: string, sm_id: number }
 let authToken = null;
 let currentAttachmentBase64 = null;
@@ -49,12 +49,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // PWA Install Prompt Logic
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        const btn = document.getElementById('navInstallApp');
-        if (btn) btn.style.display = 'flex';
-    });
+    // If the event fired before app.js loaded, the inline script caught it and set display:flex.
+    // If it fires later, the inline script listener will handle it.
+    // We just need to ensure the Install function uses window.deferredPrompt.
 
     setupUIEvents();
     
@@ -1019,12 +1016,12 @@ function enterResultState(resultData, type) {
 
 async function installApp(e) {
     if (e) e.preventDefault();
-    if (!deferredPrompt) return;
+    if (!window.deferredPrompt) return;
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    window.deferredPrompt.prompt();
+    const { outcome } = await window.deferredPrompt.userChoice;
     console.log(`User response to the install prompt: ${outcome}`);
-    deferredPrompt = null;
+    window.deferredPrompt = null;
     document.getElementById('navInstallApp').style.display = 'none';
 }
 
