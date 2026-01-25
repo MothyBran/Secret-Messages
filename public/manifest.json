@@ -1,7 +1,7 @@
 {
   "name": "SECURE-MSG",
   "short_name": "SECURE-MSG",
-  "start_url": "/?mode=app",
+  "start_url": "/app?mode=app",
   "display": "standalone",
   "background_color": "#050505",
   "theme_color": "#0f1215",
