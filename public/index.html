@@ -16,11 +16,40 @@
     <script>
         // PWA Install Prompt Capture (Must be inline to catch early events)
         window.deferredPrompt = null;
+
+        function showInstallButton() {
+            // Do not show if running in standalone mode (installed)
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                console.log("App running in standalone mode.");
+                return;
+            }
+
+            const btn = document.getElementById('navInstallApp');
+            if (btn) {
+                btn.style.display = 'flex';
+                // Move button to top of list if possible or just ensure it's visible
+                console.log("Install Button Activated");
+            }
+        }
+
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             window.deferredPrompt = e;
-            const btn = document.getElementById('navInstallApp');
-            if (btn) btn.style.display = 'flex';
+            console.log("beforeinstallprompt captured");
+
+            // Try to show button if DOM is ready, otherwise it will be handled by DOMContentLoaded
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', showInstallButton);
+            } else {
+                showInstallButton();
+            }
+        });
+
+        // Also check on load in case we missed it or it was cached
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.deferredPrompt) {
+                showInstallButton();
+            }
         });
 
         function openModal(id) {
