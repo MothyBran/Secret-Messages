@@ -730,7 +730,7 @@ function updateAppMode(mode) {
     else { btn.style.border=''; btn.style.color=''; }
 
     document.getElementById('textLabel').textContent = isDec ? 'Verschlüsselter Text' : 'Nachrichteneingabe (Klartext)';
-    document.getElementById('messageInput').placeholder = isDec ? 'Verschlüsselte Text einfügen...' : 'Nachricht schreiben...';
+    document.getElementById('messageInput').placeholder = isDec ? 'Verschlüsselte Text<br> einfügen...' : 'Nachricht schreiben...';
 
     // Icon Toggle
     const attachBtn = document.getElementById('attachmentBtn');
