@@ -1016,7 +1016,11 @@ function enterResultState(resultData, type) {
 
 async function installApp(e) {
     if (e) e.preventDefault();
-    if (!window.deferredPrompt) return;
+    if (!window.deferredPrompt) {
+        showToast("Installation momentan nicht möglich (Browser-Block).", "error");
+        console.warn("Install prompt not available. Triggered by user but deferredPrompt is null.");
+        return;
+    }
 
     window.deferredPrompt.prompt();
     const { outcome } = await window.deferredPrompt.userChoice;
