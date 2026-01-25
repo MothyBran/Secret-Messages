@@ -10,6 +10,7 @@ import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfi
 // ================================================================
 
 const API_BASE = '/api';
+let deferredPrompt; // PWA Install Prompt
 let currentUser = null; // Object { name: string, sm_id: number }
 let authToken = null;
 let currentAttachmentBase64 = null;
@@ -39,6 +40,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const verEl = document.getElementById('appVersion');
     if(verEl) verEl.textContent = APP_VERSION;
+
+    // PWA Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('SW Registered'))
+            .catch(err => console.error('SW Error', err));
+    }
+
+    // PWA Install Prompt Logic
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const btn = document.getElementById('navInstallApp');
+        if (btn) btn.style.display = 'flex';
+    });
 
     setupUIEvents();
     
@@ -140,6 +156,7 @@ function setupUIEvents() {
     menuBtn?.addEventListener('click', () => toggleMainMenu());
     overlay?.addEventListener('click', () => { toggleMainMenu(true); closeContactSidebar(); });
 
+    document.getElementById('navInstallApp')?.addEventListener('click', installApp);
     document.getElementById('navContacts')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); openContactSidebar('manage'); });
     document.getElementById('navPost')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); loadAndShowInbox(); });
     document.getElementById('navGuide')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); showSection('guideSection'); });
@@ -755,12 +772,13 @@ function updateWizardState() {
     const isReady = (hasInput && codeVal.length === 5);
 
     // FIX: Hide icons if text is present to prevent overlap (Encryption & Decryption)
+    // Using CSS class for smooth transition instead of display:none
     const iconsWrapper = document.querySelector('.input-icons-wrapper');
     if (iconsWrapper) {
         if (textVal.length > 0) {
-            iconsWrapper.style.display = 'none';
+            iconsWrapper.classList.add('hide-icons');
         } else {
-            iconsWrapper.style.display = 'flex';
+            iconsWrapper.classList.remove('hide-icons');
         }
     }
 
@@ -929,6 +947,18 @@ function enterResultState(resultData, type) {
     const textOut = document.getElementById('messageOutput');
     const mediaOut = document.getElementById('mediaOutput');
     const copyBtn = document.getElementById('copyBtn');
+
+
+async function installApp(e) {
+    if (e) e.preventDefault();
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+    document.getElementById('navInstallApp').style.display = 'none';
+}
     const qrBtn = document.getElementById('qrGenBtn');
     const saveTxtBtn = document.getElementById('saveTxtBtn');
     const saveMediaBtn = document.getElementById('saveMediaBtn');

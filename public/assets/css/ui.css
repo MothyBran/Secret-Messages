@@ -478,6 +478,13 @@
     right: 10px;
     display: flex;
     gap: 10px;
+    transition: all 0.3s ease;
+}
+
+.input-icons-wrapper.hide-icons {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* File Info (Upload Feedback) */
