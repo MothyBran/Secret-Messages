@@ -711,3 +711,10 @@ textarea::-webkit-scrollbar,
     padding-bottom: 15px;
     border-bottom: 1px solid #333;
 }
+
+/* === SECURITY FIELDS (Hidden/Masked) === */
+input.secret-field {
+    -webkit-text-security: disc;
+    text-security: disc;
+    font-family: 'Roboto Mono', monospace;
+}
