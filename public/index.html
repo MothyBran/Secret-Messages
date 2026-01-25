@@ -594,7 +594,7 @@
                 </div>
                 <div class="input-group">
                     <label class="input-label">Zugangscode</label>
-                    <input type="password" id="u_key_secure" name="u_key_secure" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false">
+                    <input type="password" id="u_key_secure" name="u_key_secure" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%" id="loginBtn">VERBINDUNG HERSTELLEN</button>
             </form>
@@ -609,14 +609,14 @@
             <form id="activationForm">
                 <div class="input-group"><label class="input-label">Lizenz-Key</label><input type="text" id="licenseKey" class="input-field" required></div>
                 <div class="input-group"><label class="input-label">Neuer Benutzername</label><input type="text" id="newUsername" class="input-field" required></div>
-                <div class="input-group"><label class="input-label">Neuer Zugangscode (5-Stellig)</label><input type="text" id="newAccessCode" class="input-field code-input" maxlength="5" required></div>
+                <div class="input-group"><label class="input-label">Neuer Zugangscode (5-Stellig)</label><input type="password" id="newAccessCode" class="input-field code-input" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly></div>
 
                 <div class="input-group">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <label class="input-label">Neuen Zugangscode wiederholen</label>
                         <span id="codeMismatchWarning" style="color:var(--error-red); font-size:0.8rem; display:none; font-weight:bold;">Code nicht identisch</span>
                     </div>
-                    <input type="text" id="newAccessCodeRepeat" class="input-field code-input" maxlength="5" required>
+                    <input type="password" id="newAccessCodeRepeat" class="input-field code-input" maxlength="5" inputmode="numeric" required autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
                 </div>
 
                 <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px; font-size: 0.8rem; color: #ccc;">
@@ -742,7 +742,7 @@
                     <!-- Key -->
                     <div class="input-group">
                         <label class="input-label">Schlüssel (5-stellig)</label>
-                        <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric">
+                        <input type="password" id="messageCode" class="input-field code-input" placeholder="XXXXX" maxlength="5" inputmode="numeric" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
                     </div>
                 </div>
 
@@ -1100,17 +1100,17 @@
 
             <div class="input-group">
                 <label class="input-label">Aktueller Code</label>
-                <input type="password" id="currentAccessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+                <input type="password" id="currentAccessCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
 
             <div class="input-group">
                 <label class="input-label">Neuer Code</label>
-                <input type="password" id="changeNewCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+                <input type="password" id="changeNewCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
 
             <div class="input-group">
                 <label class="input-label">Neuen Code wiederholen</label>
-                <input type="password" id="changeNewCodeRepeat" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric">
+                <input type="password" id="changeNewCodeRepeat" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
 
             <div style="display:flex; gap:10px;">
@@ -1328,7 +1328,7 @@
                 Verbindung hergestellt! <br>Bitte geben Sie Ihren <b>5-stelligen Zugangscode</b> ein, um das Profil auf diesem Gerät zu installieren.
             </p>
             <div class="input-group">
-                <input type="password" id="unlockProfileCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+                <input type="password" id="unlockProfileCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="document.getElementById('unlockProfileModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
@@ -1532,7 +1532,7 @@
                 Bitte geben Sie einen 5-stelligen Code ein,<br>um die Daten zu verschlüsseln bzw. entschlüsseln.
             </p>
             <div class="input-group">
-                <input type="password" id="contactSecureCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+                <input type="password" id="contactSecureCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
             <div style="display:flex; gap:10px;">
                 <button class="btn" id="btnCancelContactCode" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
@@ -1548,7 +1548,7 @@
                 Code eingeben.
             </p>
             <div class="input-group">
-                <input type="password" id="backupCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+                <input type="password" id="backupCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
             <div style="display:flex; gap:10px;">
                 <button class="btn" id="btnCancelBackup" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
@@ -1612,7 +1612,7 @@
                 Bitte bestätigen Sie Ihre Identität mit Ihrem Zugangscode, um den Transfer zu starten.
             </p>
             <div class="input-group">
-                <input type="password" id="transferSecurityCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+                <input type="password" id="transferSecurityCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="document.getElementById('transferSecurityModal').classList.remove('active')" class="btn" style="flex:1;">Abbrechen</button>
@@ -1629,7 +1629,7 @@
                 Geben Sie Ihren 5-stelligen Zugangscode ein, um das Profil auf diesem Gerät zu installieren.
             </p>
             <div class="input-group">
-                <input type="password" id="transferImportCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;">
+                <input type="password" id="transferImportCode" class="input-field code-input" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="new-password" spellcheck="false" autocorrect="off" autocapitalize="off" readonly>
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="document.getElementById('transferImportModal').classList.remove('active')" class="btn" style="flex:1;">Abbrechen</button>
@@ -1640,6 +1640,25 @@
 
     <script src="/assets/js/ui.js"></script>
     <script type="module" src="app.js"></script>
+    <script>
+        // Security Hardening: Remove readonly on user interaction to bypass autofill
+        document.addEventListener('DOMContentLoaded', () => {
+            const secureFields = document.querySelectorAll('.code-input, #u_key_secure, #messageCode');
+
+            const unlockField = (e) => {
+                const el = e.target;
+                if (el.hasAttribute('readonly')) {
+                    el.removeAttribute('readonly');
+                }
+            };
+
+            secureFields.forEach(el => {
+                el.addEventListener('focus', unlockField);
+                el.addEventListener('click', unlockField);
+                el.addEventListener('touchstart', unlockField);
+            });
+        });
+    </script>
     <div id="messageModal" class="modal"><div class="modal-box"><h3 id="msgModalTitle">Info</h3><p id="msgModalText"></p><div class="modal-actions"><button id="msgModalBtn" class="modal-btn primary">OK</button></div></div></div>
 </body>
 </html>
