@@ -17,18 +17,21 @@
         // PWA Install Prompt Capture (Must be inline to catch early events)
         window.deferredPrompt = null;
 
-        function showInstallButton() {
-            // Do not show if running in standalone mode (installed)
-            if (window.matchMedia('(display-mode: standalone)').matches) {
-                console.log("App running in standalone mode.");
-                return;
-            }
-
+        function checkInstallButtonStatus() {
             const btn = document.getElementById('navInstallApp');
-            if (btn) {
+            if (!btn) return;
+
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            const isAppMode = window.location.search.includes('mode=app');
+
+            if (isStandalone || isAppMode) {
+                // HIDE if installed/running as app
+                btn.style.display = 'none';
+                console.log("App running in standalone/app mode. Install button hidden.");
+            } else {
+                // SHOW otherwise (It is visible by default in HTML, but ensure it here)
                 btn.style.display = 'flex';
-                // Move button to top of list if possible or just ensure it's visible
-                console.log("Install Button Activated");
+                console.log("Browser mode detected. Install button visible.");
             }
         }
 
@@ -36,20 +39,11 @@
             e.preventDefault();
             window.deferredPrompt = e;
             console.log("beforeinstallprompt captured");
-
-            // Try to show button if DOM is ready, otherwise it will be handled by DOMContentLoaded
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', showInstallButton);
-            } else {
-                showInstallButton();
-            }
+            checkInstallButtonStatus();
         });
 
-        // Also check on load in case we missed it or it was cached
         window.addEventListener('DOMContentLoaded', () => {
-            if (window.deferredPrompt) {
-                showInstallButton();
-            }
+            checkInstallButtonStatus();
         });
 
         function openModal(id) {
