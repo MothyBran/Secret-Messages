@@ -1003,10 +1003,18 @@ function enterResultState(resultData, type) {
         copyBtn.style.display = 'block'; // Copy always available for text
 
         if (currentMode === 'encrypt') {
-            // ENCRYPT: Show QR (Always) & Save (Large)
-            qrBtn.style.display = 'block';
+            // ENCRYPT: Show QR & Save (Large)
 
-            if (resultData.length > 9999) {
+            // Check chunk count for QR feasibility (Limit 60 chunks of 250 chars)
+            const chunkCount = Math.ceil(resultData.length / 250);
+            if (chunkCount <= 60) {
+                qrBtn.style.display = 'block';
+            } else {
+                qrBtn.style.display = 'none'; // Too many chunks for animation
+            }
+
+            // Always show save if large enough (e.g. > 9999) OR if QR is hidden due to chunk limit
+            if (resultData.length > 9999 || chunkCount > 60) {
                 saveTxtBtn.style.display = 'block';
                 saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
             }
