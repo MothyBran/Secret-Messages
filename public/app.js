@@ -1369,11 +1369,15 @@ function startQRAnimation(data) {
     container.innerHTML = "";
     if(statusDiv) statusDiv.style.display = 'none';
 
-    if (data.length <= 300) {
+    // Threshold reduced to 150 to ensure QR codes remain simple (Version 6-7)
+    // 300 chars results in Version 10+ which is often too dense for mobile screens.
+    const THRESHOLD = 150;
+
+    if (data.length <= THRESHOLD) {
         try { new QRCode(container, { text: data, width: 190, height: 190, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.L }); } catch (e) { container.textContent = "QR Lib Error"; }
     } else {
         if(statusDiv) statusDiv.style.display = 'block';
-        const chunkSize = 300;
+        const chunkSize = THRESHOLD;
         const chunks = [];
         for (let i = 0; i < data.length; i += chunkSize) {
             chunks.push(data.substring(i, i + chunkSize));
