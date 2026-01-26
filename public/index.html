@@ -280,14 +280,14 @@
         }
         .sidebar-item:hover { background: rgba(0, 191, 255, 0.05); padding-left: 30px; color: var(--accent-blue); }
 
-        /* === KONTAKT-SIDEBAR === */
-        #contactSidebar {
+        /* === KONTAKT-SIDEBAR & POSTFACH-SIDEBAR === */
+        #contactSidebar, #inboxSidebar {
             position: fixed; top: 0; left: 0; width: 100%; max-width: 450px; height: 100%;
             background: var(--bg-panel); border-right: 2px solid var(--accent-blue);
             transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); 
             z-index: 300; display: flex; flex-direction: column; box-shadow: 10px 0 50px rgba(0,0,0,0.9);
         }
-        #contactSidebar.active { transform: translateX(0); }
+        #contactSidebar.active, #inboxSidebar.active { transform: translateX(0); }
         .cs-header { padding: 15px; background: rgba(0,0,0,0.3); border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: space-between; }
         .cs-close-btn { background: none; border: none; color: #777; font-size: 1.5rem; cursor: pointer; padding: 0 10px; }
         .cs-close-btn:hover { color: var(--error-red); }
@@ -571,6 +571,24 @@
         </div>
     </div>
 
+    <div id="inboxSidebar">
+        <div class="cs-header">
+            <button class="cs-close-btn" id="closeInboxSidebar">←</button>
+            <h3 style="color: var(--accent-blue); letter-spacing: 2px;">POSTFACH</h3>
+            <div style="width: 24px;"></div>
+        </div>
+        <div class="cs-content">
+            <div id="inboxList">
+                <!-- Messages Injected Here -->
+            </div>
+
+            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;">
+                <div style="font-size:3rem; margin-bottom:10px;">📭</div>
+                Keine Nachrichten vorhanden.
+            </div>
+        </div>
+    </div>
+
     <header>
         <button class="menu-btn" id="menuToggle">☰</button>
         <a href="/" class="app-logo" style="text-decoration: none; color: inherit;">
@@ -780,22 +798,6 @@
             </div>
         </div>
 
-        <div id="inboxSection" class="section">
-            <div class="cs-header" style="margin-bottom: 20px;">
-                <button class="cs-close-btn" id="btnBackInboxArrow">←</button>
-                <h3 style="color: var(--accent-blue); letter-spacing: 2px;">POSTFACH</h3>
-                <div style="width: 24px;"></div>
-            </div>
-
-            <div id="inboxList">
-                <!-- Messages Injected Here -->
-            </div>
-
-            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;">
-                <div style="font-size:3rem; margin-bottom:10px;">📭</div>
-                Keine Nachrichten vorhanden.
-            </div>
-        </div>
 
         <div id="guideSection" class="section">
             <div class="guide-header-custom">
