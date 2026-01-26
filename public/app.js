@@ -416,6 +416,18 @@ function setupUIEvents() {
             reader.readAsDataURL(file);
         });
     }
+
+    // Auto-Scroll to Top on Blur (Mobile Optimization)
+    // Ensures the UI jumps back to the top after closing the keyboard
+    const scrollFields = ['messageInput', 'recipientName', 'sk_fld_2'];
+    scrollFields.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.addEventListener('blur', () => {
+                setTimeout(() => window.scrollTo(0,0), 100);
+            });
+        }
+    });
 }
 
 function showSection(id) {
