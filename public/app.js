@@ -182,7 +182,7 @@ function setupUIEvents() {
 
     document.getElementById('navChangeCode')?.addEventListener('click', (e) => {
         e.preventDefault(); toggleMainMenu(true); document.getElementById('changeCodeModal').classList.add('active');
-        document.getElementById('currentAccessCode').value = ''; document.getElementById('changeNewCode').value = ''; document.getElementById('changeNewCodeRepeat').value = '';
+        document.getElementById('sk_fld_5').value = ''; document.getElementById('sk_fld_6').value = ''; document.getElementById('sk_fld_7').value = '';
     });
     document.getElementById('btnCancelChangeCode')?.addEventListener('click', () => { document.getElementById('changeCodeModal').classList.remove('active'); });
     document.getElementById('btnConfirmChangeCode')?.addEventListener('click', handleChangeAccessCode);
@@ -218,7 +218,7 @@ function setupUIEvents() {
     // Profile Transfer (Sidebar - Export)
     document.getElementById('navProfileTransfer')?.addEventListener('click', (e) => {
         e.preventDefault(); toggleMainMenu(true);
-        document.getElementById('transferSecurityCode').value = '';
+        document.getElementById('sk_fld_10').value = '';
         document.getElementById('transferSecurityModal').classList.add('active');
     });
     document.getElementById('btnConfirmTransferStart')?.addEventListener('click', handleTransferExportStart);
@@ -247,7 +247,7 @@ function setupUIEvents() {
 
     // New Logic for Wizard
     document.getElementById('messageInput')?.addEventListener('input', updateWizardState);
-    document.getElementById('messageCode')?.addEventListener('input', updateWizardState);
+    document.getElementById('sk_fld_2')?.addEventListener('input', updateWizardState);
     document.getElementById('wizardResetLink')?.addEventListener('click', resetWizard);
     document.getElementById('btnNewMessage')?.addEventListener('click', resetWizard);
     document.getElementById('embeddedQrScanBtn')?.addEventListener('click', startMessageScanner);
@@ -287,7 +287,7 @@ function setupUIEvents() {
     document.getElementById('showActivationLink')?.addEventListener('click', (e) => { e.preventDefault(); showSection('activationSection'); });
     document.getElementById('showLoginLink')?.addEventListener('click', (e) => {
         e.preventDefault(); showSection('loginSection');
-        const u = document.getElementById('u_ident_entry'); const c = document.getElementById('u_key_secure'); if(u) u.value = ''; if(c) c.value = '';
+        const u = document.getElementById('u_ident_entry'); const c = document.getElementById('sk_fld_1'); if(u) u.value = ''; if(c) c.value = '';
     });
 
     document.getElementById('licenseKey')?.addEventListener('blur', async (e) => {
@@ -304,11 +304,11 @@ function setupUIEvents() {
         } catch(e) { console.error(e); }
     });
 
-    document.getElementById('newAccessCode')?.addEventListener('input', validateActivationInputs);
-    document.getElementById('newAccessCodeRepeat')?.addEventListener('input', validateActivationInputs);
+    document.getElementById('sk_fld_3')?.addEventListener('input', validateActivationInputs);
+    document.getElementById('sk_fld_4')?.addEventListener('input', validateActivationInputs);
     document.getElementById('agbCheck')?.addEventListener('change', validateActivationInputs);
 
-    const uField = document.getElementById('u_ident_entry'); const cField = document.getElementById('u_key_secure');
+    const uField = document.getElementById('u_ident_entry'); const cField = document.getElementById('sk_fld_1');
     if (uField) uField.value = ''; if (cField) cField.value = '';
 
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
@@ -347,7 +347,7 @@ function setupUIEvents() {
     document.getElementById('btnImportContacts')?.addEventListener('click', () => document.getElementById('contactImportInput').click());
     document.getElementById('contactImportInput')?.addEventListener('change', (e) => { if(e.target.files.length > 0) handleCsvImport(e.target.files[0]); });
 
-    document.getElementById('btnCancelBackup')?.addEventListener('click', () => { document.getElementById('backupModal').classList.remove('active'); document.getElementById('backupCode').value = ''; document.getElementById('contactImportInput').value = ''; });
+    document.getElementById('btnCancelBackup')?.addEventListener('click', () => { document.getElementById('backupModal').classList.remove('active'); document.getElementById('sk_fld_9').value = ''; document.getElementById('contactImportInput').value = ''; });
 
     document.getElementById('contactForm')?.addEventListener('submit', saveContact);
     document.getElementById('btnCancelEdit')?.addEventListener('click', () => document.getElementById('contactEditModal').classList.remove('active'));
@@ -447,7 +447,7 @@ async function performAccountDeletion() {
 }
 
 async function handleChangeAccessCode() {
-    const currentCode = document.getElementById('currentAccessCode').value; const newCode = document.getElementById('changeNewCode').value; const newCodeRepeat = document.getElementById('changeNewCodeRepeat').value; const btn = document.getElementById('btnConfirmChangeCode');
+    const currentCode = document.getElementById('sk_fld_5').value; const newCode = document.getElementById('sk_fld_6').value; const newCodeRepeat = document.getElementById('sk_fld_7').value; const btn = document.getElementById('btnConfirmChangeCode');
 
     if(!currentCode || !newCode || !newCodeRepeat) return showToast("Bitte alle Felder ausfüllen.", 'error');
     if(newCode.length !== 5 || isNaN(newCode)) return showToast("Der neue Code muss 5 Ziffern haben.", 'error');
@@ -697,7 +697,7 @@ function confirmSelection() {
 }
 
 async function handleLogin(e) {
-    e.preventDefault(); const uInput = document.getElementById('u_ident_entry'); const cInput = document.getElementById('u_key_secure'); const u = uInput.value; const c = cInput.value;
+    e.preventDefault(); const uInput = document.getElementById('u_ident_entry'); const cInput = document.getElementById('sk_fld_1'); const u = uInput.value; const c = cInput.value;
     if(document.body.classList.contains('mode-enterprise')) sessionStorage.setItem('sm_auth_code_temp', c);
     uInput.value = ''; cInput.value = '';
 
@@ -729,9 +729,9 @@ async function handleLogin(e) {
 async function handleActivation(e) {
     e.preventDefault();
     if (!document.getElementById('agbCheck').checked) { window.showToast("Bitte akzeptieren Sie die AGB und Nutzungsbedingungen.", 'error'); return; }
-    const code1 = document.getElementById('newAccessCode').value; const code2 = document.getElementById('newAccessCodeRepeat').value;
+    const code1 = document.getElementById('sk_fld_3').value; const code2 = document.getElementById('sk_fld_4').value;
     if (code1 !== code2) { window.showToast("Die Zugangscodes stimmen nicht überein!", 'error'); return; }
-    const devId = await generateDeviceFingerprint(); const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('newAccessCode').value, deviceId: devId };
+    const devId = await generateDeviceFingerprint(); const payload = { licenseKey: document.getElementById('licenseKey').value, username: document.getElementById('newUsername').value, accessCode: document.getElementById('sk_fld_3').value, deviceId: devId };
     try { const res = await fetch(`${API_BASE}/auth/activate`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { showAppStatus("Aktivierung erfolgreich! Bitte einloggen.", 'success'); showSection('loginSection'); document.getElementById('u_ident_entry').value = payload.username; } else { showAppStatus(d.error || "Aktivierung fehlgeschlagen", 'error'); } } catch(e) { showAppStatus("Fehler bei der Aktivierung", 'error'); }
 }
 
@@ -775,7 +775,7 @@ function updateAppMode(mode) {
 function updateWizardState() {
     const textVal = document.getElementById('messageInput').value;
     const hasInput = (textVal.length > 0 || currentAttachmentBase64 !== null);
-    const codeVal = document.getElementById('messageCode').value;
+    const codeVal = document.getElementById('sk_fld_2').value;
     const isReady = (hasInput && codeVal.length === 5);
 
     // FIX: Hide icons if text is present to prevent overlap (Encryption & Decryption)
@@ -815,7 +815,7 @@ function resetApplicationState() {
 
     // 2. Clear All Inputs
     const msgInput = document.getElementById('messageInput');
-    const codeInput = document.getElementById('messageCode');
+    const codeInput = document.getElementById('sk_fld_2');
     const recipientInput = document.getElementById('recipientName');
 
     if (msgInput) {
@@ -866,7 +866,7 @@ function resetWizard() {
 }
 
 async function handleMainAction() {
-    const code = document.getElementById('messageCode').value;
+    const code = document.getElementById('sk_fld_2').value;
     let payload = document.getElementById('messageInput').value; // 'let' ensures we can nullify it later
 
     // Strict Input Retrieval
@@ -1306,7 +1306,7 @@ function showAppStatus(msg, type='success') {
     requestAnimationFrame(()=>d.classList.add('active')); setTimeout(()=>{d.classList.remove('active');setTimeout(()=>d.remove(),500)},4000);
 }
 function clearAllFields() {
-    document.getElementById('messageInput').value=''; document.getElementById('messageOutput').value=''; document.getElementById('messageCode').value=''; document.getElementById('recipientName').value=''; document.getElementById('outputGroup').style.display='none'; document.getElementById('importFeedback').style.display = 'none'; document.getElementById('importFeedback').textContent = ''; document.getElementById('txtFileInput').value = '';
+    document.getElementById('messageInput').value=''; document.getElementById('messageOutput').value=''; document.getElementById('sk_fld_2').value=''; document.getElementById('recipientName').value=''; document.getElementById('outputGroup').style.display='none'; document.getElementById('importFeedback').style.display = 'none'; document.getElementById('importFeedback').textContent = ''; document.getElementById('txtFileInput').value = '';
     if (window.clearAttachment) window.clearAttachment();
     if (currentMode === 'encrypt') { document.getElementById('qrGenBtn').style.display = 'block'; document.getElementById('saveTxtBtn').style.display = 'none'; }
 }
@@ -1436,7 +1436,7 @@ let transferPayloadCache = null;
 let transferUidCache = null;
 
 async function handleTransferExportStart() {
-    const code = document.getElementById('transferSecurityCode').value;
+    const code = document.getElementById('sk_fld_10').value;
     if (code.length !== 5) return showToast("Code muss 5-stellig sein", 'error');
 
     const btn = document.getElementById('btnConfirmTransferStart');
@@ -1572,8 +1572,8 @@ async function handleTransferScanSuccess(decodedText) {
         // 2. Open Decrypt Modal
         hideLoader();
         document.getElementById('transferImportModal').classList.add('active');
-        document.getElementById('transferImportCode').value = '';
-        document.getElementById('transferImportCode').focus();
+        document.getElementById('sk_fld_11').value = '';
+        document.getElementById('sk_fld_11').focus();
 
     } catch (e) {
         hideLoader();
@@ -1582,7 +1582,7 @@ async function handleTransferScanSuccess(decodedText) {
 }
 
 async function handleTransferImportDecrypt() {
-    const code = document.getElementById('transferImportCode').value;
+    const code = document.getElementById('sk_fld_11').value;
     if (code.length !== 5) return showToast("5-stelliger Code benötigt", 'error');
 
     const btn = document.getElementById('btnConfirmTransferImport');
@@ -1704,7 +1704,7 @@ async function submitManualTransfer() {
 }
 
 async function handleUnlockProfile() {
-    const code = document.getElementById('unlockProfileCode').value;
+    const code = document.getElementById('sk_fld_12').value;
     if(code.length !== 5) return showToast("Code muss 5-stellig sein", 'error');
 
     const btn = document.getElementById('btnUnlockProfile');
