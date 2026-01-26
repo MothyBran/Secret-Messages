@@ -161,7 +161,7 @@ function setupUIEvents() {
     }
 
     menuBtn?.addEventListener('click', () => toggleMainMenu());
-    overlay?.addEventListener('click', () => { toggleMainMenu(true); closeContactSidebar(); });
+    overlay?.addEventListener('click', () => { toggleMainMenu(true); closeContactSidebar(); closeInboxSidebar(); });
 
     document.getElementById('navInstallApp')?.addEventListener('click', installApp);
     document.getElementById('navContacts')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); openContactSidebar('manage'); });
@@ -209,7 +209,8 @@ function setupUIEvents() {
     function goBackToMain() { if(currentUser) showSection('mainSection'); else showSection('loginSection'); }
     document.getElementById('btnBackGuide')?.addEventListener('click', goBackToMain);
     document.getElementById('btnBackInfo')?.addEventListener('click', goBackToMain);
-    document.getElementById('btnBackInboxArrow')?.addEventListener('click', goBackToMain);
+    // Inbox Back Arrow replaced by Sidebar Close
+    document.getElementById('closeInboxSidebar')?.addEventListener('click', closeInboxSidebar);
 
     document.getElementById('navDelete')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('deleteAccountModal').classList.add('active'); });
     document.getElementById('btnCancelDelete')?.addEventListener('click', () => { document.getElementById('deleteAccountModal').classList.remove('active'); });
@@ -564,6 +565,8 @@ function openContactSidebar(mode) {
 }
 
 function closeContactSidebar() { document.getElementById('contactSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active'); }
+
+function closeInboxSidebar() { document.getElementById('inboxSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active'); }
 
 function renderGroupTags() {
     const area = document.getElementById('groupSelectionArea'); area.innerHTML = '<small style="width: 100%; color: #777; margin-bottom: 5px;">Gruppen ankreuzen:</small>';
@@ -1819,7 +1822,11 @@ window.removeEntKey = function(key) {
 };
 
 async function loadAndShowInbox() {
-    showSection('inboxSection'); const container = document.getElementById('inboxList'); const emptyMsg = document.getElementById('inboxEmpty');
+    // showSection('inboxSection'); -> Replaced by Sidebar
+    document.getElementById('inboxSidebar').classList.add('active');
+    document.getElementById('sidebarOverlay').classList.add('active');
+
+    const container = document.getElementById('inboxList'); const emptyMsg = document.getElementById('inboxEmpty');
     container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>'; emptyMsg.style.display = 'none';
 
     try {
