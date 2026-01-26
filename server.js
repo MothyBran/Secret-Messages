@@ -609,6 +609,9 @@ app.post('/api/auth/validate', async (req, res) => {
                 if (new Date(expirySource) < new Date()) isExpired = true;
             }
             if (isExpired) return res.json({ valid: false, reason: 'expired', expiresAt: expirySource });
+
+            // Tracking for Live Stats
+            await trackEvent(req, 'token_validate', 'auth', { username: user.username });
             res.json({ valid: true, username: user.username, badge: user.badge, expiresAt: expirySource || 'lifetime' });
         } else {
             res.json({ valid: false, reason: 'user_not_found' });
@@ -864,43 +867,183 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stats/advanced', requireAdmin, async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
-        const end = endDate ? new Date(endDate) : new Date();
-        end.setHours(23, 59, 59, 999);
-        const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-        start.setHours(0, 0, 0, 0);
+        let { startDate, endDate, granularity } = req.query; // granularity: day, week, month, year, manual
+
+        // 1. Determine Time Range
+        let start, end;
+        const now = new Date();
+
+        if (granularity === 'day') {
+            start = new Date(now); start.setHours(0,0,0,0);
+            end = new Date(now); end.setHours(23,59,59,999);
+        } else if (granularity === 'week') {
+            start = new Date(now); start.setDate(now.getDate() - 7); start.setHours(0,0,0,0);
+            end = new Date(now); end.setHours(23,59,59,999);
+        } else if (granularity === 'month') {
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        } else if (granularity === 'year') {
+            start = new Date(now.getFullYear(), 0, 1);
+            end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        } else {
+            // Manual or Default
+            end = endDate ? new Date(endDate) : new Date();
+            end.setHours(23, 59, 59, 999);
+            start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+            start.setHours(0, 0, 0, 0);
+        }
+
         const startIso = start.toISOString();
         const endIso = end.toISOString();
-        const dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
-        const dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
 
-        const trafficSql = `SELECT ${dateFunc} as day, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views FROM analytics_events WHERE event_type = 'page_view' AND created_at >= $1 AND created_at <= $2 GROUP BY day ORDER BY day ASC`;
+        // 2. Determine Date Grouping Function
+        let dateFunc, dateFuncPayments;
+        if (granularity === 'day') {
+            // Hourly
+            dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM-DD HH24:00')" : "strftime('%Y-%m-%d %H:00', created_at)";
+            dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM-DD HH24:00')" : "strftime('%Y-%m-%d %H:00', completed_at)";
+        } else if (granularity === 'year') {
+            // Monthly
+            dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM')" : "strftime('%Y-%m', created_at)";
+            dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM')" : "strftime('%Y-%m', completed_at)";
+        } else {
+            // Daily (Week, Month, Manual)
+            dateFunc = isPostgreSQL() ? "TO_CHAR(created_at, 'YYYY-MM-DD')" : "DATE(created_at)";
+            dateFuncPayments = isPostgreSQL() ? "TO_CHAR(completed_at, 'YYYY-MM-DD')" : "DATE(completed_at)";
+        }
+
+        // 3. Traffic Logic with Source Breakdown
+        // We aggregate by Time Unit AND Source to get multi-line chart data
+        const trafficSql = `
+            SELECT ${dateFunc} as label, source, COUNT(DISTINCT anonymized_ip) as visitors, COUNT(*) as page_views
+            FROM analytics_events
+            WHERE event_type = 'page_view' AND created_at >= $1 AND created_at <= $2
+            GROUP BY label, source
+            ORDER BY label ASC
+        `;
         const trafficRes = await dbQuery(trafficSql, [startIso, endIso]);
 
-        const financeSql = `SELECT ${dateFuncPayments} as day, SUM(amount) as revenue, COUNT(*) as sales FROM payments WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2 GROUP BY day ORDER BY day ASC`;
+        // 4. Finance Logic
+        const financeSql = `
+            SELECT ${dateFuncPayments} as label, SUM(amount) as revenue, COUNT(*) as sales
+            FROM payments
+            WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2
+            GROUP BY label
+            ORDER BY label ASC
+        `;
         const financeRes = await dbQuery(financeSql, [startIso, endIso]);
 
+        // 5. Product Breakdown
         const productSql = `SELECT metadata FROM payments WHERE status = 'completed' AND completed_at >= $1 AND completed_at <= $2`;
         const productRes = await dbQuery(productSql, [startIso, endIso]);
         const products = {};
-        productRes.rows.forEach(row => { try { const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata; const type = meta.product_type || 'Unknown'; products[type] = (products[type] || 0) + 1; } catch(e){} });
+        productRes.rows.forEach(row => {
+            try {
+                const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+                const type = meta.product_type || 'Unknown';
+                products[type] = (products[type] || 0) + 1;
+            } catch(e){}
+        });
 
-        const pikTotal = await dbQuery(`SELECT COUNT(*) as c FROM users`);
-        const pikMigrated = await dbQuery(`SELECT COUNT(*) as c FROM users WHERE pik_encrypted IS NOT NULL`);
-        const securitySql = `SELECT event_type, COUNT(*) as c FROM analytics_events WHERE event_type IN ('login_blocked', 'login_fail', 'login_device_mismatch') AND created_at >= $1 AND created_at <= $2 GROUP BY event_type`;
+        // 6. LIVE TRAFFIC (Last 10 minutes)
+        // We fetch raw events to process unique Usernames in JS (easier than SQL JSON extraction across DBs)
+        const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const liveEventsSql = `SELECT event_type, source, anonymized_ip, metadata FROM analytics_events WHERE created_at > $1`;
+        const liveRes = await dbQuery(liveEventsSql, [tenMinsAgo]);
+
+        const liveStats = {
+            visitors: new Set(),
+            users: new Set(),
+            guests_approx: 0,
+            pages: { landing: 0, shop: 0, app: 0 }
+        };
+
+        liveRes.rows.forEach(row => {
+            // Visitors (IP based)
+            if (row.event_type === 'page_view') {
+                liveStats.visitors.add(row.anonymized_ip);
+                if (row.source === 'landing') liveStats.pages.landing++;
+                if (row.source === 'shop') liveStats.pages.shop++;
+                if (row.source === 'app') liveStats.pages.app++;
+            }
+            // Users (Login/Validate based)
+            if (['login_success', 'token_validate'].includes(row.event_type)) {
+                try {
+                    const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+                    if (meta && meta.username) liveStats.users.add(meta.username);
+                } catch(e){}
+            }
+        });
+        // Approximate guests (Total Visitors - Logged In Users). Not perfect but decent proxy.
+        liveStats.guests_approx = Math.max(0, liveStats.visitors.size - liveStats.users.size);
+
+        // 7. Retention Logic
+        // Active Users: Users with active license
+        const activeUsersSql = `
+            SELECT COUNT(DISTINCT u.id) as c
+            FROM users u
+            JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.is_blocked = ${isPostgreSQL() ? 'FALSE' : '0'}
+            AND l.is_active = ${isPostgreSQL() ? 'TRUE' : '1'}
+            AND (l.expires_at IS NULL OR l.expires_at > ${isPostgreSQL() ? 'NOW()' : 'DATETIME("now")'})
+        `;
+        const activeUsersRes = await dbQuery(activeUsersSql);
+
+        // Renewed Users: Users who appear in license_renewals
+        const renewedUsersSql = `SELECT COUNT(DISTINCT user_id) as c FROM license_renewals`;
+        const renewedUsersRes = await dbQuery(renewedUsersSql);
+
+        // Expired/Churned (Users with license_key_id but key is expired)
+        // or Users who had a key but now don't (if we tracked that perfectly, hard to say).
+        // Let's count keys that are expired
+        const expiredKeysSql = `SELECT COUNT(*) as c FROM license_keys WHERE expires_at IS NOT NULL AND expires_at < ${isPostgreSQL() ? 'NOW()' : 'DATETIME("now")'}`;
+        const expiredKeysRes = await dbQuery(expiredKeysSql);
+
+        // 8. Support Top List
+        const supportTopSql = `SELECT subject, COUNT(*) as c FROM support_tickets GROUP BY subject ORDER BY c DESC LIMIT 10`;
+        const supportTopRes = await dbQuery(supportTopSql);
+
+        // 9. Security Details
+        const securitySql = `SELECT event_type, metadata, COUNT(*) as c FROM analytics_events WHERE event_type IN ('login_blocked', 'login_fail', 'login_device_mismatch') AND created_at >= $1 AND created_at <= $2 GROUP BY event_type, metadata`;
         const securityRes = await dbQuery(securitySql, [startIso, endIso]);
-        const ticketsRes = await dbQuery(`SELECT COUNT(*) as c FROM support_tickets WHERE created_at >= $1 AND created_at <= $2`, [startIso, endIso]);
-        const faqRes = await dbQuery(`SELECT COUNT(*) as c FROM analytics_events WHERE event_type = 'faq_open' AND created_at >= $1 AND created_at <= $2`, [startIso, endIso]);
+        // Consolidate security events (metadata might scatter grouping, so we process basic types)
+        const securitySummary = { blocked: 0, failed: 0, mismatch: 0, details: [] };
+        securityRes.rows.forEach(r => {
+            if (r.event_type === 'login_blocked') securitySummary.blocked += parseInt(r.c);
+            if (r.event_type === 'login_fail') securitySummary.failed += parseInt(r.c);
+            if (r.event_type === 'login_device_mismatch') securitySummary.mismatch += parseInt(r.c);
+            // Add to details if interesting
+             try {
+                const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+                if(r.event_type === 'login_device_mismatch') {
+                    securitySummary.details.push({ type: 'Wrong Device', user: meta.username, count: r.c });
+                }
+            } catch(e){}
+        });
 
         res.json({
             success: true,
-            traffic: trafficRes.rows,
-            finance: financeRes.rows,
+            granularity,
+            traffic: trafficRes.rows, // contains label, source, visitors, page_views
+            finance: financeRes.rows, // contains label, revenue, sales
             products: products,
-            system: { pik_total: pikTotal.rows[0].c, pik_migrated: pikMigrated.rows[0].c, security_events: securityRes.rows },
-            support: { tickets: ticketsRes.rows[0].c, faq_views: faqRes.rows[0].c }
+            live: {
+                visitors: liveStats.visitors.size,
+                users: liveStats.users.size,
+                guests: liveStats.guests_approx,
+                pages: liveStats.pages
+            },
+            retention: {
+                active_users: activeUsersRes.rows[0].c,
+                renewed_users: renewedUsersRes.rows[0].c,
+                expired_keys: expiredKeysRes.rows[0].c
+            },
+            support: {
+                top_subjects: supportTopRes.rows
+            },
+            security: securitySummary
         });
-    } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+    } catch(e) { console.error(e); res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.get('/api/admin/keys', requireAdmin, async (req, res) => {

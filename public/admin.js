@@ -1494,64 +1494,121 @@ window.filterEnterpriseKeys = filterEnterpriseKeys;
 
 // --- STATISTICS ---
 let currentStatsData = null;
+let currentGranularity = 'day';
 let charts = {};
+let statsPollingInterval = null;
+
+window.setStatsGranularity = function(mode) {
+    currentGranularity = mode;
+    document.querySelectorAll('.stats-granularity').forEach(b => {
+        if(b.dataset.val === mode) b.classList.add('active');
+        else b.classList.remove('active');
+    });
+
+    const manualControls = document.getElementById('statsManualControls');
+    if(mode === 'manual') manualControls.style.display = 'flex';
+    else manualControls.style.display = 'none';
+
+    window.loadStatistics();
+};
 
 window.loadStatistics = async function() {
     const startEl = document.getElementById('statsStart');
     const endEl = document.getElementById('statsEnd');
 
-    // Set default dates if empty
-    if(!startEl.value || !endEl.value) {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - 30);
-
-        endEl.value = end.toISOString().split('T')[0];
-        startEl.value = start.toISOString().split('T')[0];
+    // Init dates if empty (only relevant for manual)
+    if(!startEl.value) {
+        const d = new Date(); d.setDate(d.getDate()-30);
+        startEl.value = d.toISOString().split('T')[0];
+    }
+    if(!endEl.value) {
+        endEl.value = new Date().toISOString().split('T')[0];
     }
 
     try {
-        const query = `?startDate=${startEl.value}&endDate=${endEl.value}`;
+        let query = `?granularity=${currentGranularity}`;
+        if (currentGranularity === 'manual') {
+            query += `&startDate=${startEl.value}&endDate=${endEl.value}`;
+        }
+
         const res = await fetch(`${API_BASE}/stats/advanced${query}`, { headers: getHeaders() });
         const data = await res.json();
 
         if(data.success) {
             currentStatsData = data;
+            renderLiveStats(data.live);
             renderKpis(data);
             renderCharts(data);
+            renderRetention(data.retention);
+            renderSupportTop(data.support);
+            renderSecurity(data.security);
         } else {
-            window.showToast(data.error || "Fehler beim Laden der Statistik", "error");
+            console.error(data.error);
         }
-    } catch(e) {
-        console.error("Stats Load Error", e);
-        window.showToast("Netzwerkfehler", "error");
-    }
+    } catch(e) { console.error("Stats Load Error", e); }
 };
 
-function renderKpis(data) {
-    const today = new Date().toISOString().split('T')[0];
-    const trafficToday = data.traffic.find(t => t.day === today);
-    document.getElementById('kpiVisitors').textContent = trafficToday ? trafficToday.visitors : 0;
+// Polling (every 60s if tab is stats)
+setInterval(() => {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.id === 'tab-stats') {
+        window.loadStatistics();
+    }
+}, 60000);
 
-    const totalRev = data.finance.reduce((acc, curr) => acc + parseFloat(curr.revenue), 0);
+
+function renderLiveStats(live) {
+    if(!live) return;
+    document.getElementById('liveVisitorsVal').textContent = live.visitors;
+    document.getElementById('liveUsersVal').textContent = live.users;
+    document.getElementById('liveGuestsVal').textContent = live.guests;
+
+    document.getElementById('liveLandingVal').textContent = live.pages.landing;
+    document.getElementById('liveShopVal').textContent = live.pages.shop;
+    document.getElementById('liveAppVal').textContent = live.pages.app;
+}
+
+function renderKpis(data) {
+    // Aggregations from arrays
+    const totalVisitors = data.traffic.reduce((acc, c) => acc + parseInt(c.visitors), 0);
+    document.getElementById('kpiVisitors').textContent = totalVisitors;
+
+    const totalRev = data.finance.reduce((acc, c) => acc + parseFloat(c.revenue), 0);
     document.getElementById('kpiRevenue').textContent = (totalRev / 100).toFixed(2) + ' €';
 
-    const totalSales = data.finance.reduce((acc, curr) => acc + parseInt(curr.sales), 0);
-    document.getElementById('kpiLicenses').textContent = totalSales;
+    const totalSales = data.finance.reduce((acc, c) => acc + parseInt(c.sales), 0);
+    document.getElementById('kpiSales').textContent = totalSales;
 
-    if(allTickets.length > 0) {
-        const active = allTickets.filter(t => t.status !== 'closed').length;
-        document.getElementById('kpiSupport').textContent = active;
-    } else {
-        document.getElementById('kpiSupport').textContent = data.support.tickets;
+    // Use retention data for active users kpi
+    if (data.retention) {
+        document.getElementById('kpiRetention').textContent = data.retention.active_users;
     }
-
-    const pikPercent = data.system.pik_total > 0
-        ? Math.round((data.system.pik_migrated / data.system.pik_total) * 100)
-        : 0;
-    document.getElementById('pikPercent').textContent = pikPercent + '%';
-    document.getElementById('pikBar').style.width = pikPercent + '%';
 }
+
+function renderRetention(ret) {
+    if(!ret) return;
+    document.getElementById('retActive').textContent = ret.active_users;
+    document.getElementById('retRenewed').textContent = ret.renewed_users;
+    document.getElementById('retExpired').textContent = ret.expired_keys;
+}
+
+function renderSupportTop(sup) {
+    const tbody = document.getElementById('supportTopTableBody');
+    if(!tbody || !sup.top_subjects) return;
+    tbody.innerHTML = '';
+    sup.top_subjects.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${t.subject}</td><td style="text-align:right;">${t.c}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderSecurity(sec) {
+    if(!sec) return;
+    document.getElementById('secFailed').textContent = sec.failed;
+    document.getElementById('secMismatch').textContent = sec.mismatch;
+}
+
 
 function renderCharts(data) {
     if(typeof Chart === 'undefined') return;
@@ -1564,53 +1621,77 @@ function renderCharts(data) {
         grid: '#333'
     };
 
+    // Prepare Multi-Line Traffic Data
+    // Data comes as [{label: '...', source: '...', visitors: ...}, ...]
+    // We need to pivot this into Datasets
+    const labels = [...new Set(data.traffic.map(d => d.label))].sort();
+
+    const getSourceData = (src) => {
+        return labels.map(l => {
+            const entry = data.traffic.find(d => d.label === l && d.source === src);
+            return entry ? entry.visitors : 0;
+        });
+    };
+
+    // TRAFFIC CHART
     renderChart('chartTraffic', 'line', {
-        labels: data.traffic.map(d => d.day),
-        datasets: [{
-            label: 'Besucher',
-            data: data.traffic.map(d => d.visitors),
-            borderColor: colors.blue,
-            backgroundColor: 'rgba(0, 191, 255, 0.1)',
-            fill: true,
-            tension: 0.4
-        }, {
-            label: 'Seitenaufrufe',
-            data: data.traffic.map(d => d.page_views),
-            borderColor: colors.green,
-            borderDash: [5, 5],
-            fill: false
-        }]
+        labels: labels,
+        datasets: [
+            {
+                label: 'Landing',
+                data: getSourceData('landing'),
+                borderColor: '#ffffff',
+                borderDash: [5,5],
+                tension: 0.4
+            },
+            {
+                label: 'Shop',
+                data: getSourceData('shop'),
+                borderColor: colors.green,
+                tension: 0.4
+            },
+            {
+                label: 'App (User)',
+                data: getSourceData('app'),
+                borderColor: colors.blue,
+                backgroundColor: 'rgba(0, 191, 255, 0.1)',
+                fill: true,
+                tension: 0.4
+            },
+            {
+               label: 'Total PageViews',
+               // Aggregate page views irrespective of source
+               data: labels.map(l => {
+                   return data.traffic.filter(d => d.label === l).reduce((a,c) => a + parseInt(c.page_views), 0);
+               }),
+               borderColor: '#555',
+               borderWidth: 1,
+               pointRadius: 0
+            }
+        ]
     });
 
+    // PRODUCTS (Doughnut)
     const productLabels = Object.keys(data.products);
     const productValues = Object.values(data.products);
-    renderChart('chartProducts', 'bar', {
+    renderChart('chartProducts', 'doughnut', {
         labels: productLabels,
         datasets: [{
-            label: 'Verkäufe',
             data: productValues,
-            backgroundColor: [colors.blue, colors.green, colors.orange, '#888']
+            backgroundColor: [colors.blue, colors.green, colors.orange, '#888', '#fff'],
+            borderWidth: 0
         }]
-    });
+    }, { cutout: '60%' });
 
-    renderChart('chartFinance', 'line', {
-        labels: data.finance.map(d => d.day),
+    // FINANCE
+    renderChart('chartFinance', 'bar', {
+        labels: data.finance.map(d => d.label),
         datasets: [{
-            type: 'bar',
             label: 'Umsatz (€)',
             data: data.finance.map(d => d.revenue / 100),
             backgroundColor: colors.orange
         }]
     });
-
-    renderChart('chartSupport', 'doughnut', {
-        labels: ['Tickets', 'FAQ Aufrufe'],
-        datasets: [{
-            data: [data.support.tickets, data.support.faq_views],
-            backgroundColor: [colors.blue, '#444'],
-            borderWidth: 0
-        }]
-    }, { cutout: '70%', maintainAspectRatio: false });
 }
 
 function renderChart(canvasId, type, data, extraOptions = {}) {
