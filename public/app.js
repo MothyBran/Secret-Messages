@@ -1369,14 +1369,17 @@ function startQRAnimation(data) {
     container.innerHTML = "";
     if(statusDiv) statusDiv.style.display = 'none';
 
-    // Threshold reduced to 150 to ensure QR codes remain simple (Version 6-7)
-    // 300 chars results in Version 10+ which is often too dense for mobile screens.
-    const THRESHOLD = 150;
+    // Threshold increased to 250 as per user request (Balanced complexity)
+    const THRESHOLD = 250;
+    const saveBtn = document.getElementById('saveQrBtn');
 
     if (data.length <= THRESHOLD) {
+        if(saveBtn) saveBtn.style.display = 'block'; // Ensure visible for single QR
         try { new QRCode(container, { text: data, width: 190, height: 190, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.L }); } catch (e) { container.textContent = "QR Lib Error"; }
     } else {
+        if(saveBtn) saveBtn.style.display = 'none'; // Hide Save Button for Animation
         if(statusDiv) statusDiv.style.display = 'block';
+
         const chunkSize = THRESHOLD;
         const chunks = [];
         for (let i = 0; i < data.length; i += chunkSize) {
@@ -1403,7 +1406,7 @@ function startQRAnimation(data) {
         };
 
         renderFrame();
-        qrAnimInterval = setInterval(renderFrame, 500);
+        qrAnimInterval = setInterval(renderFrame, 600); // 600ms Interval
     }
 }
 
