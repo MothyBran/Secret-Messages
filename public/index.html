@@ -1048,6 +1048,7 @@
         <div class="modal-box" style="text-align: center; background: var(--bg-panel); border: 1px solid var(--accent-blue);">
             <h3 style="margin-bottom:15px; color: var(--accent-blue);">QR CODE</h3>
             <div id="qrDisplay"></div>
+            <div id="qrAnimStatus" style="margin-bottom:15px; font-weight:bold; color:var(--accent-blue); display:none;"></div>
             <div style="display: flex; gap: 10px;">
                 <button class="btn" id="closeQrBtn" style="flex: 1; border-color: #555; color: #ccc;">Schließen</button>
                 <button class="btn btn-primary" id="saveQrBtn" style="flex: 1;">💾 Speichern</button>
@@ -1290,6 +1291,7 @@
                 <button id="closeScannerBtn" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor:pointer;">✕</button>
             </div>
             <div id="qr-reader"></div>
+            <div id="scannerProgress" style="padding:10px; background:#111; text-align:center; color:var(--accent-blue); font-weight:bold; display:none; border-bottom: 1px solid #333;"></div>
             <div style="padding: 15px; text-align: center; color: #ccc; font-size: 0.9rem;">
                 Bitte Kamera freigeben und Code scannen.<br>
                 <small style="color: #777;">(Funktioniert über sichere HTTPS!)</small>
