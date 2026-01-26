@@ -315,7 +315,7 @@ function setupUIEvents() {
     document.getElementById('qrGenBtn')?.addEventListener('click', () => {
         const text = document.getElementById('messageOutput').value; if(!text) return showAppStatus("Bitte erst Text verschlüsseln!", 'error'); showQRModal(text);
     });
-    document.getElementById('closeQrBtn')?.addEventListener('click', () => document.getElementById('qrModal').classList.remove('active'));
+    document.getElementById('closeQrBtn')?.addEventListener('click', () => { document.getElementById('qrModal').classList.remove('active'); stopQRAnimation(); });
     document.getElementById('saveQrBtn')?.addEventListener('click', downloadQR);
     document.getElementById('qrScanBtn')?.addEventListener('click', startMessageScanner);
     document.getElementById('closeScannerBtn')?.addEventListener('click', stopQRScanner);
@@ -1003,12 +1003,12 @@ function enterResultState(resultData, type) {
         copyBtn.style.display = 'block'; // Copy always available for text
 
         if (currentMode === 'encrypt') {
-            // ENCRYPT: Show QR (Standard) or Save (Large)
+            // ENCRYPT: Show QR (Always) & Save (Large)
+            qrBtn.style.display = 'block';
+
             if (resultData.length > 9999) {
                 saveTxtBtn.style.display = 'block';
                 saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
-            } else {
-                qrBtn.style.display = 'block';
             }
         } else {
             // DECRYPT: Show Save (.txt) instead of QR
@@ -1355,7 +1355,63 @@ function handleTxtImport(e) {
     reader.readAsText(file);
 }
 
-function showQRModal(text) { document.getElementById('qrModal').classList.add('active'); const c=document.getElementById('qrDisplay'); c.innerHTML=""; try { new QRCode(c, { text:text, width:190, height:190, colorDark:"#000", colorLight:"#fff", correctLevel:QRCode.CorrectLevel.L }); } catch(e){c.textContent="QR Lib Error";} }
+let qrAnimInterval = null;
+
+function showQRModal(text) {
+    document.getElementById('qrModal').classList.add('active');
+    startQRAnimation(text);
+}
+
+function startQRAnimation(data) {
+    stopQRAnimation();
+    const container = document.getElementById('qrDisplay');
+    const statusDiv = document.getElementById('qrAnimStatus');
+    container.innerHTML = "";
+    if(statusDiv) statusDiv.style.display = 'none';
+
+    if (data.length <= 300) {
+        try { new QRCode(container, { text: data, width: 190, height: 190, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.L }); } catch (e) { container.textContent = "QR Lib Error"; }
+    } else {
+        if(statusDiv) statusDiv.style.display = 'block';
+        const chunkSize = 300;
+        const chunks = [];
+        for (let i = 0; i < data.length; i += chunkSize) {
+            chunks.push(data.substring(i, i + chunkSize));
+        }
+
+        const total = chunks.length;
+        let currentIdx = 0;
+
+        const renderFrame = () => {
+            container.innerHTML = "";
+            const index = currentIdx + 1;
+            const chunkData = chunks[currentIdx];
+            const payload = `${index}/${total}|${chunkData}`;
+
+            try {
+                new QRCode(container, { text: payload, width: 190, height: 190, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.L });
+                if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet...`;
+            } catch (e) {
+                console.error(e);
+            }
+
+            currentIdx = (currentIdx + 1) % total;
+        };
+
+        renderFrame();
+        qrAnimInterval = setInterval(renderFrame, 500);
+    }
+}
+
+function stopQRAnimation() {
+    if (qrAnimInterval) {
+        clearInterval(qrAnimInterval);
+        qrAnimInterval = null;
+    }
+    const statusDiv = document.getElementById('qrAnimStatus');
+    if(statusDiv) statusDiv.style.display = 'none';
+}
+
 function downloadQR() { const img=document.querySelector('#qrDisplay img'); if(img){ const a=document.createElement('a'); a.href=img.src; a.download=`qr-${Date.now()}.png`; a.click(); } }
 let qrScan=null;
 
@@ -1371,6 +1427,15 @@ function startTransferScanner() {
 
 function startScannerInternal() {
     if(location.protocol!=='https:' && location.hostname!=='localhost') return alert("Kamera benötigt HTTPS.");
+
+    // Reset Receiver State
+    let receivedChunks = {};
+    let expectedTotal = 0;
+    const progressDiv = document.getElementById('scannerProgress');
+    if(progressDiv) {
+        progressDiv.textContent = "";
+        progressDiv.style.display = 'none';
+    }
 
     // UI Setup for Transfer vs Normal
     const manualBtn = document.getElementById('btnOpenManualTransfer');
@@ -1396,17 +1461,51 @@ function startScannerInternal() {
             // Logik für Nachrichten
             const inputField = document.getElementById('messageInput');
             if (inputField) {
-                // 1. Sanitization
                 let cleanedText = decodedText.trim();
 
-                // Optional: Remove common prefixes if present (User Request)
+                // Animated QR Detection (index/total|data)
+                const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|(.*)$/);
+
+                if (animMatch) {
+                    const idx = parseInt(animMatch[1]);
+                    const tot = parseInt(animMatch[2]);
+                    const chunk = animMatch[3];
+
+                    if (expectedTotal !== 0 && expectedTotal !== tot) {
+                        receivedChunks = {}; // Reset on mismatch
+                        expectedTotal = tot;
+                    }
+                    expectedTotal = tot;
+
+                    if (!receivedChunks[idx]) {
+                        receivedChunks[idx] = chunk;
+                        if(navigator.vibrate) navigator.vibrate(50);
+
+                        const count = Object.keys(receivedChunks).length;
+                        if(progressDiv) {
+                            progressDiv.style.display = 'block';
+                            progressDiv.textContent = `Empfangen: ${count} / ${tot}`;
+                        }
+
+                        if (count === tot) {
+                            const fullData = [];
+                            for(let i=1; i<=tot; i++) fullData.push(receivedChunks[i]);
+
+                            inputField.value = fullData.join('');
+                            inputField.dispatchEvent(new Event('input', { bubbles: true }));
+                            showToast("Nachricht vollständig empfangen!", "success");
+                            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                            stopQRScanner();
+                        }
+                    }
+                    return; // Keep scanning
+                }
+
+                // Normal QR Logic
                 if (cleanedText.startsWith('SECURE-MSG:')) {
                     cleanedText = cleanedText.replace('SECURE-MSG:', '').trim();
                 }
 
-                // 2. Format Check (Simple Heuristic)
-                // A valid "System Message" is usually Base64 or JSON-like.
-                // We check if it looks reasonably "safe" to insert directly.
                 const isSystemMessage = /^[A-Za-z0-9+/=]+$/.test(cleanedText) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
 
                 const processInsert = () => {
@@ -1419,7 +1518,7 @@ function startScannerInternal() {
                 if (isSystemMessage || cleanedText.length > 5) {
                     processInsert();
                 } else {
-                    // Fallback Mode
+                    stopQRScanner(); // Prevent spam
                     window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
                          processInsert();
                     }, { confirm: "Einfügen", cancel: "Abbrechen" });
