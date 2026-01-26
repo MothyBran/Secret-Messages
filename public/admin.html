@@ -627,60 +627,84 @@
         <div id="tab-stats" class="tab-content">
             <h2 class="section-title">
                 System Statistik
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="date" id="statsStart" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
-                    <span style="color:#888;">-</span>
-                    <input type="date" id="statsEnd" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
-                    <button class="btn-action" onclick="loadStatistics()">Laden</button>
-                    <button class="btn-outline" onclick="exportStatisticsCSV()" title="CSV Export">⬇ Export</button>
+                <div class="control-bar" style="margin-bottom:0; display:flex; gap:5px; align-items:center;">
+                    <button class="btn-outline stats-granularity active" data-val="day" onclick="setStatsGranularity('day')">Tag</button>
+                    <button class="btn-outline stats-granularity" data-val="week" onclick="setStatsGranularity('week')">Woche</button>
+                    <button class="btn-outline stats-granularity" data-val="month" onclick="setStatsGranularity('month')">Monat</button>
+                    <button class="btn-outline stats-granularity" data-val="year" onclick="setStatsGranularity('year')">Jahr</button>
+                    <button class="btn-outline stats-granularity" data-val="manual" onclick="setStatsGranularity('manual')">Manuell</button>
+
+                    <div id="statsManualControls" style="display:none; gap:5px; margin-left:10px; align-items:center;">
+                        <input type="date" id="statsStart" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
+                        <span style="color:#888;">-</span>
+                        <input type="date" id="statsEnd" style="background:#000; border:1px solid #333; color:#fff; padding:5px;">
+                        <button class="btn-action" onclick="loadStatistics()">Laden</button>
+                    </div>
+                    <button class="btn-outline" onclick="exportStatisticsCSV()" title="CSV Export" style="margin-left:10px;">⬇ Export</button>
                 </div>
             </h2>
+
+            <!-- LIVE TRAFFIC PANEL -->
+            <div style="background: rgba(0, 191, 255, 0.05); border: 1px solid var(--accent-blue); padding: 15px 20px; border-radius: 8px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: var(--accent-blue); margin-bottom: 5px;">LIVE TRAFFIC <span class="security-pulse" style="display:inline-block; width:10px; height:10px; background:var(--success-green); border-radius:50%; margin-left:10px;"></span></h3>
+                    <small style="color: var(--text-muted);">Aktive Nutzer der letzten 10 Minuten</small>
+                </div>
+                <div style="display: flex; gap: 30px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: bold; color: #fff;" id="liveVisitorsVal">0</div>
+                        <div style="font-size: 0.8rem; color: #888;">Besucher (IPs)</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--success-green);" id="liveUsersVal">0</div>
+                        <div style="font-size: 0.8rem; color: #888;">Eingeloggt</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.5rem; font-weight: bold; color: orange;" id="liveGuestsVal">0</div>
+                        <div style="font-size: 0.8rem; color: #888;">Gäste (Est.)</div>
+                    </div>
+                </div>
+                <div style="text-align: right; font-size: 0.9rem; color: #ccc;">
+                    <div>Landing: <span id="liveLandingVal" style="color: #fff;">0</span></div>
+                    <div>Shop: <span id="liveShopVal" style="color: #fff;">0</span></div>
+                    <div>App: <span id="liveAppVal" style="color: var(--accent-blue);">0</span></div>
+                </div>
+            </div>
 
             <!-- KPI TILES -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-val" id="kpiVisitors">-</div>
-                    <div class="stat-label">Besucher (Heute)</div>
+                    <div class="stat-label">Besucher (Zeitraum)</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-val" id="kpiRevenue" style="color:gold;">-</div>
-                    <div class="stat-label">Umsatz (MTD)</div>
+                    <div class="stat-label">Umsatz (Zeitraum)</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-val" id="kpiLicenses">-</div>
-                    <div class="stat-label">Neue Lizenzen (7 Tage)</div>
+                    <div class="stat-val" id="kpiSales">-</div>
+                    <div class="stat-label">Verkäufe (Zeitraum)</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-val" id="kpiSupport" style="color:var(--accent-blue);">-</div>
-                    <div class="stat-label">Aktive Tickets</div>
+                    <div class="stat-val" id="kpiRetention" style="color:var(--success-green);">-</div>
+                    <div class="stat-label">Aktive Kunden (Total)</div>
                 </div>
             </div>
 
             <!-- CHARTS GRID -->
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap:30px; margin-bottom:40px;">
-                <!-- TRAFFIC -->
-                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                <!-- TRAFFIC (Multi-Line) -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px; grid-column: span 2;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <h3 style="color:#fff;">Traffic Entwicklung</h3>
                         <button class="btn-icon info-trigger" data-info-key="traffic" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
                     </div>
-                    <div style="height:300px; position:relative;">
+                    <div style="height:350px; position:relative;">
                         <canvas id="chartTraffic"></canvas>
                     </div>
                 </div>
 
-                <!-- SALES & PRODUCTS -->
-                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                        <h3 style="color:#fff;">Produkt Verkäufe</h3>
-                        <button class="btn-icon info-trigger" data-info-key="sales" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
-                    </div>
-                    <div style="height:300px; position:relative;">
-                        <canvas id="chartProducts"></canvas>
-                    </div>
-                </div>
-
-                <!-- FINANCE -->
+                <!-- FINANCE (Revenue) -->
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
                     <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                         <h3 style="color:#fff;">Umsatz Verlauf</h3>
@@ -691,31 +715,65 @@
                     </div>
                 </div>
 
-                <!-- SYSTEM & SUPPORT -->
+                 <!-- PRODUCTS & RETENTION -->
+                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <h3 style="color:#fff;">Produktverteilung</h3>
+                        <button class="btn-icon info-trigger" data-info-key="sales" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
+                    </div>
+                    <div style="height:300px; position:relative;">
+                        <canvas id="chartProducts"></canvas>
+                    </div>
+                </div>
+
+                <!-- SUPPORT EFFICIENCY (Top List) -->
+                <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <h3 style="color:#fff;">Support Effizienz (Top Themen)</h3>
+                        <button class="btn-icon info-trigger" data-info-key="support" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
+                    </div>
+                    <div class="table-container" style="max-height:300px; overflow-y:auto; background:transparent; border:none;">
+                        <table style="font-size:0.9rem;">
+                            <thead>
+                                <tr>
+                                    <th>Thema / Betreff</th>
+                                    <th style="text-align:right;">Anzahl</th>
+                                </tr>
+                            </thead>
+                            <tbody id="supportTopTableBody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- USER RETENTION & SECURITY DETAILS -->
                 <div style="background:var(--bg-panel); border:1px solid #333; padding:20px; border-radius:8px; display:flex; flex-direction:column; gap:20px;">
                     <div>
-                        <div style="display:flex; justify-content:space-between;">
-                            <h4 style="color:#ccc;">Support Effizienz (Quote)</h4>
-                            <button class="btn-icon info-trigger" data-info-key="support" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
+                        <h4 style="color:#ccc; margin-bottom:10px;">User Retention</h4>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #333; padding-bottom:5px;">
+                            <span>Aktive Lizenzen:</span>
+                            <span id="retActive" style="color:var(--success-green); font-weight:bold;">-</span>
                         </div>
-                        <div style="height:120px; position:relative;">
-                            <canvas id="chartSupport"></canvas>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px; border-bottom:1px solid #333; padding-bottom:5px;">
+                            <span>Verlängerte User:</span>
+                            <span id="retRenewed" style="color:var(--accent-blue);">-</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span>Abgelaufene Keys:</span>
+                            <span id="retExpired" style="color:var(--error-red);">-</span>
                         </div>
                     </div>
                     <hr style="border-color:#333;">
                     <div>
-                        <div style="display:flex; justify-content:space-between;">
-                            <h4 style="color:#ccc;">System Status (PIK Migration)</h4>
-                            <button class="btn-icon info-trigger" data-info-key="system" style="background:none; border:none; color:#888; cursor:pointer;">ℹ️</button>
+                         <h4 style="color:#ccc; margin-bottom:10px;">Sicherheits-Warnungen</h4>
+                         <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span>Login Fehlgeschlagen:</span>
+                            <span id="secFailed" style="color:orange;">0</span>
                         </div>
-                        <div id="pikProgressContainer" style="margin-top:10px;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9rem;">
-                                <span id="pikLabel">Fortschritt</span>
-                                <span id="pikPercent">0%</span>
-                            </div>
-                            <div style="width:100%; height:10px; background:#222; border-radius:5px; overflow:hidden;">
-                                <div id="pikBar" style="width:0%; height:100%; background:var(--success-green); transition: width 1s;"></div>
-                            </div>
+                         <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span>Falsches Gerät:</span>
+                            <span id="secMismatch" style="color:var(--error-red); font-weight:bold;">0</span>
                         </div>
                     </div>
                 </div>
