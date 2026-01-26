@@ -812,6 +812,10 @@ function updateWizardState() {
     }
 
     if (isReady) {
+        // Trigger scroll if button just appeared (Mobile Optimization)
+        if (actionWrapper.classList.contains('hidden')) {
+             setTimeout(() => window.scrollTo(0,0), 100);
+        }
         actionWrapper.classList.remove('hidden');
     } else {
         actionWrapper.classList.add('hidden');
