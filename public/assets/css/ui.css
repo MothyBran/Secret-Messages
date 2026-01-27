@@ -369,6 +369,7 @@
     border-left: 3px solid #333;
     color: #fff;
     padding: 15px;
+    padding-right: 45px; /* Prevent text overlap with absolute icons/buttons */
     font-size: 1rem;
     border-radius: 4px;
     resize: none; /* Controlled by CSS */
@@ -479,6 +480,33 @@
     display: flex;
     gap: 10px;
     transition: all 0.3s ease;
+    z-index: 5;
+}
+
+/* Reset Button inside Input (X) */
+.input-reset-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 8px; /* Larger hit area */
+    z-index: 10;
+    display: none; /* Hidden by default */
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.input-reset-btn:hover {
+    background: rgba(255, 50, 50, 0.1);
+    color: var(--error-red);
 }
 
 .input-icons-wrapper.hide-icons {

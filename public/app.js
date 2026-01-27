@@ -249,7 +249,7 @@ function setupUIEvents() {
     // New Logic for Wizard
     document.getElementById('messageInput')?.addEventListener('input', updateWizardState);
     document.getElementById('sk_fld_2')?.addEventListener('input', updateWizardState);
-    document.getElementById('wizardResetLink')?.addEventListener('click', resetWizard);
+    document.getElementById('wizardResetLink')?.addEventListener('click', clearMessageInput);
     document.getElementById('btnNewMessage')?.addEventListener('click', resetWizard);
     document.getElementById('embeddedQrScanBtn')?.addEventListener('click', startMessageScanner);
 
@@ -804,6 +804,12 @@ function updateWizardState() {
         }
     }
 
+    // Toggle "X" Reset Button (New Logic)
+    const resetBtn = document.getElementById('wizardResetLink');
+    if (resetBtn) {
+        resetBtn.style.display = (textVal.length > 0) ? 'flex' : 'none';
+    }
+
     const metaWrapper = document.getElementById('wizardMetaWrapper');
     const actionWrapper = document.getElementById('wizardActionWrapper');
 
@@ -826,6 +832,19 @@ function updateWizardState() {
 
     // Toggle Compression State (Fix mobile overlap)
     document.getElementById('wizardInputStep').classList.toggle('compressed', isReady);
+}
+
+function clearMessageInput(e) {
+    if(e) e.preventDefault();
+    if(window.clearAttachment) window.clearAttachment();
+
+    const el = document.getElementById('messageInput');
+    if(el) {
+        el.value = '';
+        el.disabled = false;
+        el.focus();
+    }
+    updateWizardState();
 }
 
 function resetApplicationState() {

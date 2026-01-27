@@ -705,7 +705,6 @@
                         <h3 id="modeTitle" style="color:var(--accent-blue); font-size: 1.6rem; letter-spacing: 2px; line-height: 1;">VERSCHLÜSSELUNG</h3>
                         <div style="display:flex; align-items:center; gap: 10px;">
                             <span id="statusIndicator" style="font-size:0.8rem; color:var(--success-green);">● SICHER</span>
-                            <button id="wizardResetLink" style="background:none; border:none; color:var(--text-muted); font-size:0.8rem; cursor:pointer; padding:0 5px;" title="Reset">✕</button>
                         </div>
                     </div>
                 </div>
@@ -717,6 +716,9 @@
                     </div>
                     <div class="input-group-wrapper" style="position: relative; width: 100%; margin-bottom: 10px; flex: 1; display: flex; flex-direction: column;">
                         <textarea id="messageInput" class="input-field wizard-textarea" rows="20" placeholder="Nachricht schreiben..."></textarea>
+
+                        <!-- Reset Button inside Input -->
+                        <button id="wizardResetLink" class="input-reset-btn" title="Eingabe löschen">✕</button>
 
                         <!-- Icons inside Textarea -->
                         <div class="input-icons-wrapper">
