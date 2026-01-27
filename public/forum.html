@@ -105,6 +105,13 @@
         .timeline-title { font-size: 1.1rem; color: #fff; font-weight: bold; margin-bottom: 5px; word-wrap: break-word; overflow-wrap: break-word; }
         .timeline-date { font-size: 0.8rem; color: #666; }
 
+        /* DETAIL VIEW WRAPPER */
+        .forum-detail-container {
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
         /* DETAIL VIEW */
         #detailView { display: none; animation: fadeIn 0.4s ease; }
         .detail-header-img { width: 100%; height: 350px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-color); }
@@ -206,28 +213,30 @@
 
         <!-- DETAIL VIEW -->
         <div id="detailView">
-            <button onclick="showHub()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; margin-bottom:20px; font-size:1rem; display:flex; align-items:center; gap:5px;">
-                ← Zurück zur Übersicht
-            </button>
+            <div class="forum-detail-container">
+                <button onclick="showHub()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; margin-bottom:20px; font-size:1rem; display:flex; align-items:center; gap:5px;">
+                    ← Zurück zur Übersicht
+                </button>
 
-            <div id="postDetailContent">
-                <!-- Content injected here -->
-            </div>
-
-            <div class="interaction-bar">
-                <button class="vote-btn" onclick="vote('like')">👍🏻 <span id="countLike">0</span></button>
-                <button class="vote-btn" onclick="vote('dislike')">👎🏻 <span id="countDislike">0</span></button>
-                <button class="vote-btn" onclick="vote('question')">❓ <span id="countQuestion">0</span></button>
-            </div>
-
-            <div class="comments-section">
-                <h3 style="color:#fff; margin-bottom:20px;">Diskussion</h3>
-                <div id="commentsList">
-                    <!-- Comments injected here -->
+                <div id="postDetailContent">
+                    <!-- Content injected here -->
                 </div>
 
-                <div id="commentFormContainer">
-                    <!-- Form or Login Hint -->
+                <div class="interaction-bar">
+                    <button class="vote-btn" onclick="vote('like')">👍🏻 <span id="countLike">0</span></button>
+                    <button class="vote-btn" onclick="vote('dislike')">👎🏻 <span id="countDislike">0</span></button>
+                    <button class="vote-btn" onclick="vote('question')">❓ <span id="countQuestion">0</span></button>
+                </div>
+
+                <div class="comments-section">
+                    <h3 style="color:#fff; margin-bottom:20px;">Diskussion</h3>
+                    <div id="commentsList">
+                        <!-- Comments injected here -->
+                    </div>
+
+                    <div id="commentFormContainer">
+                        <!-- Form or Login Hint -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -265,19 +274,29 @@
         } catch(e){}
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadPosts();
+            // URL Param Check
+            const params = new URLSearchParams(window.location.search);
+            const postIdParam = params.get('post');
+
+            loadPosts().then(() => {
+                if(postIdParam) {
+                    openPost(postIdParam);
+                }
+            });
+
             document.getElementById('searchInput').addEventListener('input', (e) => filterPosts(e.target.value));
         });
 
         async function loadPosts() {
             try {
+                // Ensure NO auth header for public fetch
                 const res = await fetch(`${API_BASE}/posts`);
-                if(!res.ok) throw new Error("HTTP Error");
+                if(!res.ok) throw new Error(`HTTP Error ${res.status}`);
                 const data = await res.json();
                 allPosts = data;
                 renderHub();
             } catch(e) {
-                console.error("Load failed", e);
+                console.error("List Load failed", e);
                 document.getElementById('featuredContainer').innerHTML = '<div style="color:red; text-align:center;">Fehler beim Laden der Beiträge.</div>';
             }
         }
@@ -303,7 +322,7 @@
                 return `<span class="post-tag ${cls}">${p}</span>`;
             };
 
-            const imgUrl = featured.image_url || '/assets/images/placeholder.jpg'; // Fallback? Or hide?
+            const imgUrl = featured.image_url || '/assets/images/placeholder.jpg';
             const featHtml = `
                 <div class="featured-card" onclick="openPost(${featured.id})">
                     ${featured.image_url ? `<img src="${featured.image_url}" class="featured-image">` : ''}
@@ -385,6 +404,12 @@
 
         async function openPost(id) {
             currentPostId = id;
+
+            // Set URL Query Param (Deep Linking)
+            const url = new URL(window.location);
+            url.searchParams.set('post', id);
+            window.history.pushState({}, '', url);
+
             document.getElementById('hubView').style.display = 'none';
             document.getElementById('detailView').style.display = 'block';
             window.scrollTo(0,0);
@@ -393,7 +418,13 @@
             container.innerHTML = '<div style="text-align:center; padding:50px;">Lade...</div>';
 
             try {
+                // EXPLICITLY NO AUTH HEADER for public access
                 const res = await fetch(`${API_BASE}/posts/${id}`);
+
+                if(!res.ok) {
+                    throw new Error(`Fetch Error: ${res.status} ${res.statusText}`);
+                }
+
                 const post = await res.json();
 
                 const renderTag = (p) => {
@@ -428,7 +459,11 @@
                 setupCommentForm();
 
             } catch(e) {
-                container.innerHTML = '<div style="color:red;">Fehler beim Laden.</div>';
+                console.error("OpenPost Error:", e);
+                container.innerHTML = `<div style="color:var(--error-red); text-align:center; padding:20px; border:1px solid var(--error-red); border-radius:8px;">
+                    <strong>Fehler beim Laden</strong><br>
+                    ${e.message}
+                </div>`;
             }
         }
 
@@ -436,6 +471,12 @@
             document.getElementById('detailView').style.display = 'none';
             document.getElementById('hubView').style.display = 'block';
             currentPostId = null;
+
+            // Clear Query Param
+            const url = new URL(window.location);
+            url.searchParams.delete('post');
+            window.history.pushState({}, '', url);
+
             window.scrollTo(0,0);
         }
 
