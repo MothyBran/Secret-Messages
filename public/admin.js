@@ -48,13 +48,10 @@ window.switchTab = function(tabName) {
     });
 
     if(tabName === 'mail') {
-        window.loadSupportTickets();
+        window.showMailView('inbox'); // Default to inbox
     }
     if(tabName === 'stats') {
         window.loadStatistics();
-    }
-    if(tabName === 'infohub') { // NEW
-        window.loadPosts();
     }
 }
 
@@ -327,16 +324,20 @@ window.showMailView = function(viewName) {
     document.getElementById('btnMailInbox').classList.remove('active');
     document.getElementById('btnMailCompose').classList.remove('active');
     document.getElementById('btnMailSettings').classList.remove('active');
+    document.getElementById('btnMailHub').classList.remove('active');
 
     document.getElementById('view-mail-inbox').style.display = 'none';
     document.getElementById('view-mail-compose').style.display = 'none';
     document.getElementById('view-mail-settings').style.display = 'none';
+    document.getElementById('view-mail-hub').style.display = 'none';
 
     document.getElementById(`btnMail${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`).classList.add('active');
-    document.getElementById(`view-mail-${viewName}`).style.display = (viewName === 'inbox') ? 'flex' : 'block';
+    const viewEl = document.getElementById(`view-mail-${viewName}`);
+    viewEl.style.display = (viewName === 'inbox') ? 'flex' : 'block';
 
     if (viewName === 'inbox') window.loadSupportTickets();
     if (viewName === 'settings') window.loadMailTemplate();
+    if (viewName === 'hub') window.loadPosts();
 };
 
 function renderMailInbox(tickets) {

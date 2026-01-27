@@ -263,7 +263,6 @@
 
             <nav class="nav-tabs">
                 <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
-                <button class="nav-tab" onclick="switchTab('infohub')">Info Hub</button> <!-- NEW -->
                 <button class="nav-tab" onclick="switchTab('users')">Benutzer</button>
                 <button class="nav-tab" onclick="switchTab('purchases')">Käufe</button>
                 <button class="nav-tab" onclick="switchTab('licenses')">Lizenzen</button>
@@ -332,80 +331,6 @@
                  <div class="stat-card">
                     <div class="stat-val" id="sysUptime" style="font-size:1.5rem;">-</div>
                     <div class="stat-label">Uptime</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- NEW TAB: INFO HUB -->
-        <div id="tab-infohub" class="tab-content">
-            <h2 class="section-title">
-                Security Info Hub (CMS)
-                <button id="btnCreatePost" class="btn-action">Neuer Beitrag</button>
-            </h2>
-
-            <!-- LIST VIEW -->
-            <div id="postsListContainer">
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Titel</th>
-                                <th>Datum</th>
-                                <th>Priorität</th>
-                                <th>Status</th>
-                                <th>Stats (L/D/Q)</th>
-                                <th>Aktionen</th>
-                            </tr>
-                        </thead>
-                        <tbody id="postsTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- EDITOR VIEW (Hidden) -->
-            <div id="postEditorContainer" style="display:none; background:var(--bg-panel); padding:20px; border:1px solid #333; border-radius:8px; margin-top:20px;">
-                <h3 id="editorTitle" style="color:var(--accent-blue); margin-bottom:20px;">Beitrag bearbeiten</h3>
-                <input type="hidden" id="editPostId">
-
-                <div class="control-bar" style="align-items: flex-start; flex-direction: column;">
-                    <label style="color:#888;">Titel</label>
-                    <input type="text" id="postTitle" style="width:100%; font-size:1.2rem; font-weight:bold;">
-
-                    <label style="color:#888; margin-top:10px;">Untertitel</label>
-                    <input type="text" id="postSubtitle" style="width:100%;">
-
-                    <div style="display:flex; gap:20px; width:100%; margin-top:15px;">
-                        <div style="flex:1;">
-                            <label style="color:#888;">Priorität</label><br>
-                            <select id="postPriority" style="width:100%;">
-                                <option value="Info">Info (Blau)</option>
-                                <option value="Wichtig">Wichtig (Orange)</option>
-                                <option value="Kritisch">Kritisch (Rot)</option>
-                            </select>
-                        </div>
-                        <div style="flex:1;">
-                            <label style="color:#888;">Status</label><br>
-                            <select id="postStatus" style="width:100%;">
-                                <option value="draft">Entwurf (Versteckt)</option>
-                                <option value="published">Veröffentlicht</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <label style="color:#888; margin-top:15px;">Titelbild (Upload)</label>
-                    <div style="display:flex; gap:10px; width:100%;">
-                        <input type="file" id="postImageInput" accept="image/*" style="flex:1;">
-                        <input type="hidden" id="postImageUrl">
-                    </div>
-                    <img id="postImagePreview" src="" style="max-height:150px; margin-top:10px; display:none; border:1px solid #333;">
-
-                    <label style="color:#888; margin-top:15px;">Inhalt (Markdown)</label>
-                    <textarea id="postContent" rows="15" style="width:100%; background:#000; color:#fff; border:1px solid #333; padding:10px; font-family:'Roboto Mono';"></textarea>
-
-                    <div style="display:flex; gap:10px; margin-top:20px; width:100%; justify-content:flex-end;">
-                        <button id="btnCancelPost" class="btn-outline">Abbrechen</button>
-                        <button id="btnSavePost" class="btn-action">Speichern</button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -617,11 +542,12 @@
 
         <!-- TAB 5: MAIL SERVICE (REVISED) -->
         <div id="tab-mail" class="tab-content">
-            <h2 class="section-title">Support & Postfach</h2>
+            <h2 class="section-title">Support & Postfach & Info Hub</h2>
 
-            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
                 <button class="nav-tab active" id="btnMailInbox" onclick="showMailView('inbox')">Posteingang (Tickets)</button>
                 <button class="nav-tab" id="btnMailCompose" onclick="showMailView('compose')">Nachricht verfassen</button>
+                <button class="nav-tab" id="btnMailHub" onclick="showMailView('hub')">Info Hub (CMS)</button>
                 <button class="nav-tab" id="btnMailSettings" onclick="showMailView('settings')">Vorlagen</button>
             </div>
 
@@ -641,6 +567,80 @@
                 <!-- Right: Detail -->
                 <div class="mail-detail-view" id="ticketDetailContainer">
                     <div class="empty-state">Wählen Sie eine Nachricht aus.</div>
+                </div>
+            </div>
+
+            <!-- VIEW: INFO HUB (CMS) -->
+            <div id="view-mail-hub" style="display:none; width: 100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="color:var(--accent-blue); margin:0;">Beiträge verwalten</h3>
+                    <button id="btnCreatePost" class="btn-action">Neuer Beitrag</button>
+                </div>
+
+                <!-- LIST VIEW -->
+                <div id="postsListContainer">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Titel</th>
+                                    <th>Datum</th>
+                                    <th>Priorität</th>
+                                    <th>Status</th>
+                                    <th>Stats (L/D/Q)</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="postsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- EDITOR VIEW (Hidden) -->
+                <div id="postEditorContainer" style="display:none; background:var(--bg-panel); padding:20px; border:1px solid #333; border-radius:8px; margin-top:20px;">
+                    <h3 id="editorTitle" style="color:var(--accent-blue); margin-bottom:20px;">Beitrag bearbeiten</h3>
+                    <input type="hidden" id="editPostId">
+
+                    <div class="control-bar" style="align-items: flex-start; flex-direction: column;">
+                        <label style="color:#888;">Titel</label>
+                        <input type="text" id="postTitle" style="width:100%; font-size:1.2rem; font-weight:bold;">
+
+                        <label style="color:#888; margin-top:10px;">Untertitel</label>
+                        <input type="text" id="postSubtitle" style="width:100%;">
+
+                        <div style="display:flex; gap:20px; width:100%; margin-top:15px;">
+                            <div style="flex:1;">
+                                <label style="color:#888;">Priorität</label><br>
+                                <select id="postPriority" style="width:100%;">
+                                    <option value="Info">Info (Blau)</option>
+                                    <option value="Wichtig">Wichtig (Orange)</option>
+                                    <option value="Kritisch">Kritisch (Rot)</option>
+                                </select>
+                            </div>
+                            <div style="flex:1;">
+                                <label style="color:#888;">Status</label><br>
+                                <select id="postStatus" style="width:100%;">
+                                    <option value="draft">Entwurf (Versteckt)</option>
+                                    <option value="published">Veröffentlicht</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label style="color:#888; margin-top:15px;">Titelbild (Upload)</label>
+                        <div style="display:flex; gap:10px; width:100%;">
+                            <input type="file" id="postImageInput" accept="image/*" style="flex:1;">
+                            <input type="hidden" id="postImageUrl">
+                        </div>
+                        <img id="postImagePreview" src="" style="max-height:150px; margin-top:10px; display:none; border:1px solid #333;">
+
+                        <label style="color:#888; margin-top:15px;">Inhalt (Markdown)</label>
+                        <textarea id="postContent" rows="15" style="width:100%; background:#000; color:#fff; border:1px solid #333; padding:10px; font-family:'Roboto Mono';"></textarea>
+
+                        <div style="display:flex; gap:10px; margin-top:20px; width:100%; justify-content:flex-end;">
+                            <button id="btnCancelPost" class="btn-outline">Abbrechen</button>
+                            <button id="btnSavePost" class="btn-action">Speichern</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
