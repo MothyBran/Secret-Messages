@@ -167,7 +167,7 @@ function setupUIEvents() {
     document.getElementById('navContacts')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); openContactSidebar('manage'); });
     document.getElementById('navPost')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); loadAndShowInbox(); });
     document.getElementById('navGuide')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); showSection('guideSection'); });
-    document.getElementById('navInfo')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); showSection('infoSection'); });
+    document.getElementById('navInfo')?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/forum'; });
 
     document.getElementById('faqBtn')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('faqModal').classList.add('active'); });
     document.getElementById('closeFaqBtn')?.addEventListener('click', () => { document.getElementById('faqModal').classList.remove('active'); });

@@ -8,6 +8,8 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const multer = require('multer'); // Added Multer
+const fs = require('fs'); // Added fs
 const { encryptServerSide } = require('./utils/serverCrypto');
 const { initializeDatabase, dbQuery, isPostgreSQL } = require('./database/db');
 let Resend;
@@ -109,8 +111,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"],
       frameSrc: ["'self'", "https://js.stripe.com"],
       connectSrc: ["'self'", "https://secure-msg.app", "https://www.secure-msg.app", "https://api.stripe.com", "https://js.stripe.com"],
@@ -137,6 +139,30 @@ const rateLimiter = rateLimit({
 });
 
 app.use(express.static('public', { index: false }));
+
+// Multer Config
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, 'public/uploads/security');
+        if (!fs.existsSync(dir)){
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'post-' + uniqueSuffix + ext);
+    }
+});
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if(file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Nur Bilder erlaubt!'), false);
+    }
+});
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_fallback_key';
@@ -1589,17 +1615,6 @@ app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/admin/send-message', requireAdmin, async (req, res) => {
-    try {
-        const { recipientId, subject, body, type, expiresAt } = req.body;
-        await dbQuery(
-            `INSERT INTO messages (recipient_id, subject, body, type, expires_at, created_at, is_read) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [recipientId || null, subject, body, type || 'general', expiresAt || null, new Date().toISOString(), (isPostgreSQL() ? false : 0)]
-        );
-        res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 const checkLicenseExpiries = async () => {
     try {
         if (!dbQuery) return;
@@ -1623,6 +1638,140 @@ const checkLicenseExpiries = async () => {
 };
 setInterval(checkLicenseExpiries, 12 * 60 * 60 * 1000);
 setTimeout(checkLicenseExpiries, 10000);
+
+// ==================================================================
+// 4. SECURITY NEWS HUB API
+// ==================================================================
+
+// Serve Forum Page
+app.get('/forum', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'forum.html'));
+});
+
+// --- PUBLIC API ---
+
+app.get('/api/posts', async (req, res) => {
+    try {
+        // Fetch published posts
+        const result = await dbQuery(`
+            SELECT id, title, subtitle, image_url, priority, created_at,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions,
+            (SELECT COUNT(*) FROM security_comments WHERE post_id = p.id) as comments_count
+            FROM security_posts p
+            WHERE status = 'published'
+            ORDER BY created_at DESC
+        `);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/posts/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const result = await dbQuery(`
+            SELECT id, title, subtitle, content, image_url, priority, created_at,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions
+            FROM security_posts p
+            WHERE id = $1 AND status = 'published'
+        `, [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Post not found" });
+        res.json(result.rows[0]);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/posts/:id/comments', async (req, res) => {
+    try {
+        const result = await dbQuery(`SELECT * FROM security_comments WHERE post_id = $1 ORDER BY created_at DESC`, [req.params.id]);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/posts/:id/comments', authenticateUser, async (req, res) => {
+    try {
+        const { comment } = req.body;
+        if (!comment) return res.status(400).json({ error: "Kommentar fehlt." });
+        await dbQuery(`INSERT INTO security_comments (post_id, user_id, username, comment, created_at) VALUES ($1, $2, $3, $4, $5)`,
+            [req.params.id, req.user.id, req.user.username, comment, new Date().toISOString()]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/posts/:id/vote', authenticateUser, async (req, res) => {
+    try {
+        const { type } = req.body; // 'like', 'dislike', 'question'
+        if (!['like', 'dislike', 'question'].includes(type)) return res.status(400).json({ error: "Invalid type" });
+
+        // Upsert Vote (One vote per user per post)
+        // SQLite supports INSERT OR REPLACE, Postgres supports ON CONFLICT
+        if (isPostgreSQL()) {
+            await dbQuery(`
+                INSERT INTO security_interactions (post_id, user_id, interaction_type, created_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (post_id, user_id) DO UPDATE SET interaction_type = $3, created_at = $4
+            `, [req.params.id, req.user.id, type, new Date().toISOString()]);
+        } else {
+            await dbQuery(`
+                INSERT OR REPLACE INTO security_interactions (id, post_id, user_id, interaction_type, created_at)
+                VALUES (
+                    (SELECT id FROM security_interactions WHERE post_id = $1 AND user_id = $2),
+                    $1, $2, $3, $4
+                )
+            `, [req.params.id, req.user.id, type, new Date().toISOString()]);
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- ADMIN API ---
+
+app.get('/api/admin/posts', requireAdmin, async (req, res) => {
+    try {
+        const result = await dbQuery(`SELECT * FROM security_posts ORDER BY created_at DESC`);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/posts', requireAdmin, async (req, res) => {
+    try {
+        const { title, subtitle, content, priority, status, image_url } = req.body;
+        await dbQuery(`
+            INSERT INTO security_posts (title, subtitle, content, image_url, priority, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [title, subtitle, content, image_url, priority || 'Info', status || 'draft', new Date().toISOString()]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/admin/posts/:id', requireAdmin, async (req, res) => {
+    try {
+        const { title, subtitle, content, priority, status, image_url } = req.body;
+        await dbQuery(`
+            UPDATE security_posts SET title = $1, subtitle = $2, content = $3, image_url = $4, priority = $5, status = $6
+            WHERE id = $7
+        `, [title, subtitle, content, image_url, priority, status, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/posts/:id', requireAdmin, async (req, res) => {
+    try {
+        await dbQuery(`DELETE FROM security_posts WHERE id = $1`, [req.params.id]);
+        // Also clean up interactions/comments? Yes cascade logically
+        await dbQuery(`DELETE FROM security_interactions WHERE post_id = $1`, [req.params.id]);
+        await dbQuery(`DELETE FROM security_comments WHERE post_id = $1`, [req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/posts/upload', requireAdmin, upload.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "Kein Bild." });
+    res.json({ success: true, url: `/uploads/security/${req.file.filename}` });
+});
+
 
 // ==================================================================
 // 5. START & ROUTING

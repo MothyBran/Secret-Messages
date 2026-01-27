@@ -15,6 +15,7 @@ let allPurchases = [];
 let allBundles = [];
 let allTickets = [];
 let allEnterpriseKeys = [];
+let allPosts = []; // NEW
 let currentBundleId = null;
 
 // New Data Store for Ticket Inbox
@@ -51,6 +52,9 @@ window.switchTab = function(tabName) {
     }
     if(tabName === 'stats') {
         window.loadStatistics();
+    }
+    if(tabName === 'infohub') { // NEW
+        window.loadPosts();
     }
 }
 
@@ -871,6 +875,7 @@ async function initDashboard() {
             window.globalRefreshLicenses(); // Loads Keys, Bundles, Enterprise
             window.loadPurchases();
             window.loadSupportTickets();
+            window.loadPosts(); // Load Posts initially
             loadSystemStatus();
             window.switchTab('dashboard');
             window.check2FAStatus();
@@ -998,7 +1003,207 @@ window.disable2FA = function() {
     });
 };
 
+// =========================================================
+// INFO HUB (BLOG/POSTS) LOGIC - NEW
+// =========================================================
+
+window.loadPosts = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/posts`, { headers: getHeaders() });
+        allPosts = await res.json();
+        renderPostsTable(allPosts);
+    } catch(e) { console.error("Load Posts Failed", e); }
+};
+
+function renderPostsTable(posts) {
+    const tbody = document.getElementById('postsTableBody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    posts.forEach(p => {
+        const tr = document.createElement('tr');
+        const statusColor = p.status === 'published' ? 'var(--success-green)' : 'orange';
+        const stats = `${p.likes || 0} 👍 / ${p.dislikes || 0} 👎 / ${p.questions || 0} ❓`;
+
+        tr.innerHTML = `
+            <td><strong style="color:var(--text-main);">${p.title}</strong></td>
+            <td>${new Date(p.created_at).toLocaleDateString('de-DE')}</td>
+            <td>${p.priority}</td>
+            <td style="color:${statusColor}; font-weight:bold;">${p.status.toUpperCase()}</td>
+            <td>${stats}</td>
+            <td>
+                <button class="btn-icon" onclick="editPost(${p.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem;">✏️</button>
+                <button class="btn-icon" onclick="deletePost(${p.id})" style="cursor:pointer; border:none; background:none; font-size:1.2rem; color:var(--error-red);">🗑️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+window.createPost = function() {
+    document.getElementById('postEditorContainer').style.display = 'block';
+    document.getElementById('editorTitle').textContent = "Neuer Beitrag";
+    document.getElementById('editPostId').value = '';
+    document.getElementById('postTitle').value = '';
+    document.getElementById('postSubtitle').value = '';
+    document.getElementById('postContent').value = '';
+    document.getElementById('postStatus').value = 'draft';
+    document.getElementById('postPriority').value = 'Info';
+    document.getElementById('postImageInput').value = '';
+    document.getElementById('postImageUrl').value = '';
+    document.getElementById('postImagePreview').style.display = 'none';
+
+    // Scroll to editor
+    document.getElementById('postEditorContainer').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.editPost = function(id) {
+    const post = allPosts.find(p => p.id === id);
+    if(!post) return;
+
+    document.getElementById('postEditorContainer').style.display = 'block';
+    document.getElementById('editorTitle').textContent = "Beitrag bearbeiten";
+    document.getElementById('editPostId').value = post.id;
+    document.getElementById('postTitle').value = post.title;
+    document.getElementById('postSubtitle').value = post.subtitle;
+    document.getElementById('postContent').value = post.content;
+    document.getElementById('postStatus').value = post.status;
+    document.getElementById('postPriority').value = post.priority;
+
+    const imgUrl = post.image_url;
+    document.getElementById('postImageUrl').value = imgUrl || '';
+    if(imgUrl) {
+        document.getElementById('postImagePreview').src = imgUrl;
+        document.getElementById('postImagePreview').style.display = 'block';
+    } else {
+        document.getElementById('postImagePreview').style.display = 'none';
+    }
+
+    document.getElementById('postEditorContainer').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.deletePost = function(id) {
+    window.showConfirm("Beitrag unwiderruflich löschen?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/posts/${id}`, { method: 'DELETE', headers: getHeaders() });
+            if(res.ok) {
+                window.showToast("Gelöscht.", "success");
+                window.loadPosts();
+                // Close editor if open with this post
+                const editId = document.getElementById('editPostId').value;
+                if(editId == id) {
+                    document.getElementById('postEditorContainer').style.display = 'none';
+                }
+            } else {
+                window.showToast("Fehler beim Löschen.", "error");
+            }
+        } catch(e) { window.showToast("Verbindungsfehler.", "error"); }
+    });
+};
+
+window.savePost = async function() {
+    const btn = document.getElementById('btnSavePost');
+    btn.disabled = true;
+    btn.textContent = "Speichere...";
+
+    try {
+        const id = document.getElementById('editPostId').value;
+        const title = document.getElementById('postTitle').value;
+        const subtitle = document.getElementById('postSubtitle').value;
+        const content = document.getElementById('postContent').value;
+        const priority = document.getElementById('postPriority').value;
+        const status = document.getElementById('postStatus').value;
+        let imageUrl = document.getElementById('postImageUrl').value;
+
+        if(!title || !content) {
+            window.showToast("Titel und Inhalt sind Pflicht.", "error");
+            throw new Error("Validation Failed");
+        }
+
+        // Handle Image Upload
+        const fileInput = document.getElementById('postImageInput');
+        if(fileInput.files.length > 0) {
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+
+            // Upload
+            // Need special handling for token auth with FormData (no content-type header manually)
+            const headers = {};
+            if(adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+            else headers['x-admin-password'] = adminPassword;
+
+            const uploadRes = await fetch(`${API_BASE}/posts/upload`, {
+                method: 'POST',
+                headers: headers,
+                body: formData
+            });
+            const uploadData = await uploadRes.json();
+            if(uploadData.success) {
+                imageUrl = uploadData.url;
+            } else {
+                window.showToast("Bild-Upload fehlgeschlagen: " + uploadData.error, "error");
+                throw new Error("Upload Failed");
+            }
+        }
+
+        const payload = { title, subtitle, content, priority, status, image_url: imageUrl };
+
+        let url = `${API_BASE}/posts`;
+        let method = 'POST';
+        if(id) {
+            url += `/${id}`;
+            method = 'PUT';
+        }
+
+        const res = await fetch(url, {
+            method: method,
+            headers: getHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if(res.ok) {
+            window.showToast("Beitrag gespeichert.", "success");
+            document.getElementById('postEditorContainer').style.display = 'none';
+            window.loadPosts();
+        } else {
+            window.showToast("Fehler beim Speichern.", "error");
+        }
+
+    } catch(e) {
+        console.error(e);
+        if(e.message !== "Validation Failed" && e.message !== "Upload Failed") window.showToast("Netzwerkfehler.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Speichern";
+    }
+};
+
+// Event Listener for Image Preview
 document.addEventListener('DOMContentLoaded', () => {
+    // ... Existing Listeners ...
+
+    // Post Buttons
+    document.getElementById('btnCreatePost')?.addEventListener('click', window.createPost);
+    document.getElementById('btnSavePost')?.addEventListener('click', window.savePost);
+    document.getElementById('btnCancelPost')?.addEventListener('click', () => {
+        document.getElementById('postEditorContainer').style.display = 'none';
+    });
+
+    const imgInput = document.getElementById('postImageInput');
+    if(imgInput) {
+        imgInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const img = document.getElementById('postImagePreview');
+                    img.src = evt.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
     const storedToken = sessionStorage.getItem('sm_admin_token');
     const storedPw = sessionStorage.getItem('sm_admin_pw');
 

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SECURE MESSAGES | Security Hub</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+
+    <link href="/assets/fonts/fonts.css" rel="stylesheet">
+    <link href="/assets/css/ui.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --bg-panel: #0f1215;
+            --accent-blue: #00BFFF;
+            --accent-glow: rgba(0, 191, 255, 0.3);
+            --text-main: #e0e0e0;
+            --text-muted: #8899a6;
+            --border-color: #333;
+            --success-green: #00ff88;
+            --error-red: #ff3333;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Rajdhani', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .bg-grid {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 191, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 191, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: -1; pointer-events: none;
+        }
+
+        /* HEADER */
+        header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 15px 20px; background: rgba(15, 18, 21, 0.9);
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;
+        }
+        .app-logo { font-weight: 700; font-size: 1.2rem; letter-spacing: 2px; display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; }
+        .shield-icon { width: 24px; height: 24px; fill: var(--accent-blue); }
+        .btn-back { border: 1px solid var(--accent-blue); color: var(--accent-blue); background: rgba(0, 191, 255, 0.1); padding: 8px 16px; text-decoration: none; font-size: 0.9rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .btn-back:hover { background: rgba(0, 191, 255, 0.2); box-shadow: 0 0 10px var(--accent-glow); }
+
+        /* MAIN CONTAINER */
+        .hub-container {
+            width: 100%; max-width: 800px; margin: 0 auto; padding: 20px; flex: 1;
+        }
+
+        /* SEARCH BAR */
+        .search-wrapper {
+            position: relative; margin-bottom: 30px;
+        }
+        .search-input {
+            width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--border-color); color: #fff;
+            padding: 15px; padding-left: 45px; font-size: 1.1rem; border-radius: 8px; font-family: 'Roboto Mono';
+            transition: 0.3s;
+        }
+        .search-input:focus { border-color: var(--accent-blue); box-shadow: 0 0 15px rgba(0, 191, 255, 0.1); }
+        .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #666; font-size: 1.2rem; }
+
+        /* FEATURED POST */
+        .featured-card {
+            background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; margin-bottom: 40px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .featured-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-color: var(--accent-blue); }
+        .featured-image {
+            width: 100%; height: 300px; object-fit: cover; border-bottom: 1px solid var(--border-color);
+        }
+        .featured-content { padding: 25px; }
+        .post-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+        .tag-info { background: rgba(0, 191, 255, 0.1); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+        .tag-wichtig { background: rgba(255, 165, 0, 0.1); color: orange; border: 1px solid orange; }
+        .tag-kritisch { background: rgba(255, 50, 50, 0.1); color: var(--error-red); border: 1px solid var(--error-red); }
+        .post-title { font-size: 2rem; margin-bottom: 10px; color: #fff; line-height: 1.2; }
+        .post-subtitle { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 15px; }
+        .post-meta { display: flex; gap: 15px; color: #666; font-size: 0.9rem; align-items: center; }
+
+        /* TIMELINE LIST */
+        .timeline-list { display: flex; flex-direction: column; gap: 15px; }
+        .timeline-item {
+            display: flex; gap: 15px; padding: 15px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: 0.2s; align-items: center;
+        }
+        .timeline-item:hover { background: rgba(255,255,255,0.05); border-color: #555; }
+        .timeline-thumb { width: 80px; height: 80px; border-radius: 6px; object-fit: cover; background: #111; flex-shrink: 0; }
+        .timeline-info { flex: 1; }
+        .timeline-title { font-size: 1.1rem; color: #fff; font-weight: bold; margin-bottom: 5px; }
+        .timeline-date { font-size: 0.8rem; color: #666; }
+
+        /* DETAIL VIEW */
+        #detailView { display: none; animation: fadeIn 0.4s ease; }
+        .detail-header-img { width: 100%; height: 350px; object-fit: cover; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-color); }
+        .detail-content { font-family: 'Roboto Mono', monospace; line-height: 1.6; color: #ccc; font-size: 1rem; margin-bottom: 40px; }
+        .detail-content h1, .detail-content h2, .detail-content h3 { color: #fff; margin-top: 20px; margin-bottom: 10px; font-family: 'Rajdhani', sans-serif; }
+        .detail-content a { color: var(--accent-blue); }
+        .detail-content img { max-width: 100%; border-radius: 6px; margin: 10px 0; }
+        .detail-content blockquote { border-left: 3px solid var(--accent-blue); padding-left: 15px; color: #888; margin: 15px 0; }
+
+        /* INTERACTION BAR */
+        .interaction-bar {
+            display: flex; gap: 20px; padding: 20px; background: rgba(0,0,0,0.5); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 40px; justify-content: center;
+        }
+        .vote-btn {
+            background: transparent; border: 1px solid #444; color: #888; padding: 10px 20px; border-radius: 30px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s; font-size: 1rem;
+        }
+        .vote-btn:hover { border-color: #666; color: #fff; }
+        .vote-btn.active.like { border-color: var(--success-green); color: var(--success-green); background: rgba(0, 255, 136, 0.1); }
+        .vote-btn.active.dislike { border-color: var(--error-red); color: var(--error-red); background: rgba(255, 50, 50, 0.1); }
+        .vote-btn.active.question { border-color: orange; color: orange; background: rgba(255, 165, 0, 0.1); }
+
+        /* COMMENTS */
+        .comments-section { border-top: 1px solid var(--border-color); padding-top: 30px; }
+        .comment-item { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #222; }
+        .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; }
+        .comment-date { color: #666; font-size: 0.8rem; margin-left: 10px; }
+        .comment-text { color: #ddd; font-size: 0.95rem; line-height: 1.4; }
+
+        .comment-form { margin-top: 30px; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        .comment-input { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; font-family: 'Roboto Mono'; margin-bottom: 10px; resize: vertical; }
+        .btn-comment { background: var(--accent-blue); color: #000; border: none; padding: 8px 16px; font-weight: bold; cursor: pointer; text-transform: uppercase; border-radius: 4px; }
+        .btn-comment:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .auth-overlay { text-align: center; padding: 20px; color: #888; border: 1px dashed #444; border-radius: 8px; margin-top: 20px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* MOBILE TWEAKS */
+        @media (max-width: 600px) {
+            .featured-image { height: 200px; }
+            .post-title { font-size: 1.5rem; }
+            .interaction-bar { gap: 10px; }
+            .vote-btn { padding: 8px 12px; font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+
+    <header>
+        <a href="/app" class="app-logo">
+            <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+            <span>SECURITY HUB</span>
+        </a>
+        <a href="/app" class="btn-back">← ZUR APP</a>
+    </header>
+
+    <div class="hub-container">
+
+        <!-- HUB VIEW -->
+        <div id="hubView">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Suche nach Security-Updates...">
+            </div>
+
+            <div id="featuredContainer">
+                <!-- Featured Post injected here -->
+            </div>
+
+            <h3 style="color:var(--text-muted); margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:5px;">ARCHIV & TIMELINE</h3>
+            <div id="timelineContainer" class="timeline-list">
+                <!-- List injected here -->
+            </div>
+        </div>
+
+        <!-- DETAIL VIEW -->
+        <div id="detailView">
+            <button onclick="showHub()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; margin-bottom:20px; font-size:1rem; display:flex; align-items:center; gap:5px;">
+                ← Zurück zur Übersicht
+            </button>
+
+            <div id="postDetailContent">
+                <!-- Content injected here -->
+            </div>
+
+            <div class="interaction-bar">
+                <button class="vote-btn" onclick="vote('like')">👍🏻 <span id="countLike">0</span></button>
+                <button class="vote-btn" onclick="vote('dislike')">👎🏻 <span id="countDislike">0</span></button>
+                <button class="vote-btn" onclick="vote('question')">❓ <span id="countQuestion">0</span></button>
+            </div>
+
+            <div class="comments-section">
+                <h3 style="color:#fff; margin-bottom:20px;">Diskussion</h3>
+                <div id="commentsList">
+                    <!-- Comments injected here -->
+                </div>
+
+                <div id="commentFormContainer">
+                    <!-- Form or Login Hint -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" style="position:fixed; top:20px; right:20px; z-index:9999;"></div>
+
+    <script src="/assets/js/ui.js"></script>
+    <script>
+        // FORUM LOGIC
+        const API_BASE = '/api';
+        let allPosts = [];
+        let currentPostId = null;
+        let authToken = localStorage.getItem('sm_token');
+        let currentUser = null;
+
+        try {
+            const userStr = localStorage.getItem('sm_user');
+            if(userStr) currentUser = JSON.parse(userStr);
+        } catch(e){}
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPosts();
+            document.getElementById('searchInput').addEventListener('input', (e) => filterPosts(e.target.value));
+        });
+
+        async function loadPosts() {
+            try {
+                const res = await fetch(`${API_BASE}/posts`);
+                const data = await res.json();
+                allPosts = data;
+                renderHub();
+            } catch(e) {
+                console.error("Load failed", e);
+            }
+        }
+
+        function renderHub() {
+            const featuredContainer = document.getElementById('featuredContainer');
+            const timelineContainer = document.getElementById('timelineContainer');
+
+            featuredContainer.innerHTML = '';
+            timelineContainer.innerHTML = '';
+
+            if(allPosts.length === 0) {
+                featuredContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Keine Beiträge vorhanden.</div>';
+                return;
+            }
+
+            // Featured is the first one
+            const featured = allPosts[0];
+            const renderTag = (p) => {
+                let cls = 'tag-info';
+                if(p === 'Wichtig') cls = 'tag-wichtig';
+                if(p === 'Kritisch') cls = 'tag-kritisch';
+                return `<span class="post-tag ${cls}">${p}</span>`;
+            };
+
+            const imgUrl = featured.image_url || '/assets/images/placeholder.jpg'; // Fallback? Or hide?
+            const featHtml = `
+                <div class="featured-card" onclick="openPost(${featured.id})">
+                    ${featured.image_url ? `<img src="${featured.image_url}" class="featured-image">` : ''}
+                    <div class="featured-content">
+                        ${renderTag(featured.priority)}
+                        <div class="post-title">${featured.title}</div>
+                        <div class="post-subtitle">${featured.subtitle || ''}</div>
+                        <div class="post-meta">
+                            <span>📅 ${new Date(featured.created_at).toLocaleDateString('de-DE')}</span>
+                            <span>🗨️ ${featured.comments_count || 0} Kommentare</span>
+                            <span>👍 ${featured.likes || 0}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            featuredContainer.innerHTML = featHtml;
+
+            // Timeline (Rest)
+            const others = allPosts.slice(1);
+            others.forEach(p => {
+                const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;color:#333;">IMG</div>`;
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.innerHTML = `
+                    ${thumb}
+                    <div class="timeline-info">
+                        <div style="display:flex; justify-content:space-between;">
+                            ${renderTag(p.priority)}
+                            <span style="font-size:0.7rem; color:#666;">${new Date(p.created_at).toLocaleDateString('de-DE')}</span>
+                        </div>
+                        <div class="timeline-title">${p.title}</div>
+                        <div style="font-size:0.8rem; color:#888;">${p.subtitle || ''}</div>
+                    </div>
+                `;
+                item.onclick = () => openPost(p.id);
+                timelineContainer.appendChild(item);
+            });
+        }
+
+        function filterPosts(term) {
+            const t = term.toLowerCase();
+            const filtered = allPosts.filter(p => p.title.toLowerCase().includes(t) || (p.subtitle && p.subtitle.toLowerCase().includes(t)));
+
+            // Re-render manually with filtered list logic (Featured is always first of result)
+            // Ideally we keep the view structure
+            // For simplicity: If search active, hide featured box style and show list style for all?
+            // Or just replace the lists.
+
+            if(!t) {
+                renderHub();
+                return;
+            }
+
+            const featuredContainer = document.getElementById('featuredContainer');
+            const timelineContainer = document.getElementById('timelineContainer');
+            featuredContainer.innerHTML = ''; // Hide featured block during search
+            timelineContainer.innerHTML = '';
+
+            filtered.forEach(p => {
+                const renderTag = (p) => {
+                    let cls = 'tag-info';
+                    if(p === 'Wichtig') cls = 'tag-wichtig';
+                    if(p === 'Kritisch') cls = 'tag-kritisch';
+                    return `<span class="post-tag ${cls}">${p}</span>`;
+                };
+                const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb"></div>`;
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.innerHTML = `
+                    ${thumb}
+                    <div class="timeline-info">
+                        <div style="display:flex; justify-content:space-between;">
+                            ${renderTag(p.priority)}
+                            <span style="font-size:0.7rem; color:#666;">${new Date(p.created_at).toLocaleDateString('de-DE')}</span>
+                        </div>
+                        <div class="timeline-title">${p.title}</div>
+                        <div style="font-size:0.8rem; color:#888;">${p.subtitle || ''}</div>
+                    </div>
+                `;
+                item.onclick = () => openPost(p.id);
+                timelineContainer.appendChild(item);
+            });
+        }
+
+        async function openPost(id) {
+            currentPostId = id;
+            document.getElementById('hubView').style.display = 'none';
+            document.getElementById('detailView').style.display = 'block';
+            window.scrollTo(0,0);
+
+            const container = document.getElementById('postDetailContent');
+            container.innerHTML = '<div style="text-align:center; padding:50px;">Lade...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/posts/${id}`);
+                const post = await res.json();
+
+                const renderTag = (p) => {
+                    let cls = 'tag-info';
+                    if(p === 'Wichtig') cls = 'tag-wichtig';
+                    if(p === 'Kritisch') cls = 'tag-kritisch';
+                    return `<span class="post-tag ${cls}">${p}</span>`;
+                };
+
+                // Render Content
+                container.innerHTML = `
+                    ${post.image_url ? `<img src="${post.image_url}" class="detail-header-img">` : ''}
+                    ${renderTag(post.priority)}
+                    <h1 class="post-title">${post.title}</h1>
+                    <div class="post-subtitle">${post.subtitle || ''}</div>
+                    <div class="post-meta" style="margin-bottom:30px; padding-bottom:20px; border-bottom:1px solid #333;">
+                        <span>📅 ${new Date(post.created_at).toLocaleString('de-DE')}</span>
+                    </div>
+                    <div class="detail-content">
+                        ${marked.parse(post.content)}
+                    </div>
+                `;
+
+                // Update Counts
+                document.getElementById('countLike').textContent = post.likes || 0;
+                document.getElementById('countDislike').textContent = post.dislikes || 0;
+                document.getElementById('countQuestion').textContent = post.questions || 0;
+
+                // Reset buttons state (cannot easily know MY vote without extra API or local state)
+                // For now just inactive
+                document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
+
+                loadComments(id);
+                setupCommentForm();
+
+            } catch(e) {
+                container.innerHTML = '<div style="color:red;">Fehler beim Laden.</div>';
+            }
+        }
+
+        function showHub() {
+            document.getElementById('detailView').style.display = 'none';
+            document.getElementById('hubView').style.display = 'block';
+            currentPostId = null;
+            window.scrollTo(0,0);
+        }
+
+        async function vote(type) {
+            if(!authToken) return window.showToast("Bitte erst in der App einloggen.", "error");
+            if(!currentPostId) return;
+
+            // Optimistic UI Update
+            const btn = document.querySelector(`.vote-btn[onclick="vote('${type}')"]`);
+            const allBtns = document.querySelectorAll('.vote-btn');
+
+            // Toggle logic visual only first (accurate counts come from server? No, server returns success)
+            // If mutually exclusive, we can't easily increment/decrement locally without knowing previous state.
+            // So we just send request and reload counts? Or just highlight?
+            // Simple: Highlight clicked, remove others.
+            allBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            try {
+                await fetch(`${API_BASE}/posts/${currentPostId}/vote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ type })
+                });
+                // Reload counts silently?
+                const res = await fetch(`${API_BASE}/posts/${currentPostId}`);
+                const post = await res.json();
+                document.getElementById('countLike').textContent = post.likes;
+                document.getElementById('countDislike').textContent = post.dislikes;
+                document.getElementById('countQuestion').textContent = post.questions;
+
+            } catch(e) {
+                window.showToast("Fehler beim Bewerten", "error");
+            }
+        }
+
+        async function loadComments(id) {
+            const list = document.getElementById('commentsList');
+            list.innerHTML = 'Lade Kommentare...';
+            try {
+                const res = await fetch(`${API_BASE}/posts/${id}/comments`);
+                const comments = await res.json();
+
+                if(comments.length === 0) {
+                    list.innerHTML = '<div style="color:#666; font-style:italic;">Keine Kommentare. Sei der Erste!</div>';
+                    return;
+                }
+
+                list.innerHTML = '';
+                comments.forEach(c => {
+                    const el = document.createElement('div');
+                    el.className = 'comment-item';
+                    el.innerHTML = `
+                        <div class="comment-user">
+                            ${c.username || 'User'}
+                            <span class="comment-date">${new Date(c.created_at).toLocaleString('de-DE')}</span>
+                        </div>
+                        <div class="comment-text">${escapeHtml(c.comment)}</div>
+                    `;
+                    list.appendChild(el);
+                });
+            } catch(e) { list.innerHTML = 'Fehler.'; }
+        }
+
+        function setupCommentForm() {
+            const container = document.getElementById('commentFormContainer');
+            if(authToken && currentUser) {
+                container.innerHTML = `
+                    <div class="comment-form">
+                        <h4 style="color:#fff; margin-bottom:10px;">Kommentar schreiben als <span style="color:var(--accent-blue);">${currentUser.name}</span></h4>
+                        <textarea id="commentInput" class="comment-input" rows="3" placeholder="Deine Meinung..."></textarea>
+                        <button onclick="postComment()" class="btn-comment">Senden</button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="auth-overlay">
+                        Um zu kommentieren oder abzustimmen, musst du eingeloggt sein.<br>
+                        <a href="/landing.html" style="color:var(--accent-blue); font-weight:bold;">Zum Login</a>
+                    </div>
+                `;
+            }
+        }
+
+        async function postComment() {
+            const txt = document.getElementById('commentInput').value.trim();
+            if(!txt) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/posts/${currentPostId}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ comment: txt })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('commentInput').value = '';
+                    loadComments(currentPostId);
+                    window.showToast("Kommentar gesendet.", "success");
+                } else {
+                    window.showToast(data.error || "Fehler", "error");
+                }
+            } catch(e) { window.showToast("Fehler", "error"); }
+        }
+
+        function escapeHtml(text) { if(!text) return ''; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+    </script>
+</body>
+</html>
