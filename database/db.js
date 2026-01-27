@@ -103,6 +103,32 @@ async function createTables() {
             anonymized_ip TEXT,
             metadata JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS security_posts (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            subtitle TEXT,
+            content TEXT,
+            image_url TEXT,
+            priority TEXT,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS security_interactions (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER,
+            user_id INTEGER,
+            interaction_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, user_id)
+        )`,
+        `CREATE TABLE IF NOT EXISTS security_comments (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER,
+            user_id INTEGER,
+            username TEXT,
+            comment TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`
     ];
 
@@ -113,7 +139,8 @@ async function createTables() {
                  .replace(/TIMESTAMP DEFAULT CURRENT_TIMESTAMP/g, 'DATETIME DEFAULT CURRENT_TIMESTAMP')
                  .replace(/TIMESTAMP/g, 'DATETIME')
                  .replace(/BOOLEAN DEFAULT FALSE/g, 'INTEGER DEFAULT 0')
-                 .replace(/JSONB/g, 'TEXT');
+                 .replace(/JSONB/g, 'TEXT')
+                 .replace(/UNIQUE\(post_id, user_id\)/g, 'UNIQUE(post_id, user_id) ON CONFLICT REPLACE');
         }
         try {
             await internalDbQuery(q, []);
