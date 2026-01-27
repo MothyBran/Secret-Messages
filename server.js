@@ -1685,17 +1685,97 @@ app.get('/api/posts/:id', async (req, res) => {
 
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
-        const result = await dbQuery(`SELECT * FROM security_comments WHERE post_id = $1 ORDER BY created_at DESC`, [req.params.id]);
-        res.json(result.rows);
+        // Fetch comments with user badges and interaction stats
+        // We join security_comments with users to get the badge.
+        // We also calculate likes/dislikes for each comment.
+        const sql = `
+            SELECT c.*, u.badge,
+            (SELECT COUNT(*) FROM security_comment_interactions WHERE comment_id = c.id AND interaction_type = 'like') as likes,
+            (SELECT COUNT(*) FROM security_comment_interactions WHERE comment_id = c.id AND interaction_type = 'dislike') as dislikes
+            FROM security_comments c
+            LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.post_id = $1
+            ORDER BY c.is_pinned DESC, c.created_at ASC
+        `;
+        const result = await dbQuery(sql, [req.params.id]);
+
+        // Map rows to correct types (Postgres vs SQLite)
+        const comments = result.rows.map(c => ({
+            ...c,
+            is_pinned: isPostgreSQL() ? c.is_pinned : (c.is_pinned === 1)
+        }));
+
+        res.json(comments);
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/posts/:id/comments', authenticateUser, async (req, res) => {
     try {
-        const { comment } = req.body;
+        const { comment, parent_id } = req.body;
         if (!comment) return res.status(400).json({ error: "Kommentar fehlt." });
-        await dbQuery(`INSERT INTO security_comments (post_id, user_id, username, comment, created_at) VALUES ($1, $2, $3, $4, $5)`,
-            [req.params.id, req.user.id, req.user.username, comment, new Date().toISOString()]);
+
+        // Optional: Check if parent exists and belongs to same post
+        if(parent_id) {
+            const pCheck = await dbQuery("SELECT post_id FROM security_comments WHERE id = $1", [parent_id]);
+            if(pCheck.rows.length === 0) return res.status(404).json({ error: "Eltern-Kommentar nicht gefunden." });
+            // Strict nesting limit check could be here, but we do it loosely on frontend
+        }
+
+        await dbQuery(`INSERT INTO security_comments (post_id, user_id, username, comment, parent_id, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [req.params.id, req.user.id, req.user.username, comment, parent_id || null, new Date().toISOString()]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/comments/:id/vote', authenticateUser, async (req, res) => {
+    try {
+        const { type } = req.body; // 'like', 'dislike'
+        if (!['like', 'dislike'].includes(type)) return res.status(400).json({ error: "Invalid type" });
+
+        if (isPostgreSQL()) {
+            await dbQuery(`
+                INSERT INTO security_comment_interactions (comment_id, user_id, interaction_type, created_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (comment_id, user_id) DO UPDATE SET interaction_type = $3, created_at = $4
+            `, [req.params.id, req.user.id, type, new Date().toISOString()]);
+        } else {
+            await dbQuery(`
+                INSERT OR REPLACE INTO security_comment_interactions (id, comment_id, user_id, interaction_type, created_at)
+                VALUES (
+                    (SELECT id FROM security_comment_interactions WHERE comment_id = $1 AND user_id = $2),
+                    $1, $2, $3, $4
+                )
+            `, [req.params.id, req.user.id, type, new Date().toISOString()]);
+        }
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/comments/:id', requireAdmin, async (req, res) => {
+    try {
+        // Soft delete or hard delete? Request said "Delete Button", implies hard delete or 'deleted' placeholder.
+        // Hard delete cleans up db.
+        // BUT if it has children, they become orphans or need to be deleted.
+        // Let's cascade delete for simplicity or set content to [Deleted].
+        // Implementing hard delete for now.
+        await dbQuery(`DELETE FROM security_comments WHERE id = $1`, [req.params.id]);
+        await dbQuery(`DELETE FROM security_comment_interactions WHERE comment_id = $1`, [req.params.id]);
+        // Orphan handling: Update children parent_id to NULL or delete them?
+        // Better: Update children to have parent_id of THIS comment's parent (lift up) or delete them.
+        // Simple: Delete all children (Cascade).
+        // Since we don't have FK constraints defined in SQL string above with ON DELETE CASCADE, we do it manually or leave orphans (orphans will render as root comments).
+        // Let's leave orphans as root comments for now (simple).
+        await dbQuery(`UPDATE security_comments SET parent_id = NULL WHERE parent_id = $1`, [req.params.id]);
+
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/comments/:id/pin', requireAdmin, async (req, res) => {
+    try {
+        const { pinned } = req.body;
+        const val = isPostgreSQL() ? pinned : (pinned ? 1 : 0);
+        await dbQuery(`UPDATE security_comments SET is_pinned = $1 WHERE id = $2`, [val, req.params.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });

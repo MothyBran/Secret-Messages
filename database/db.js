@@ -128,7 +128,17 @@ async function createTables() {
             user_id INTEGER,
             username TEXT,
             comment TEXT,
+            parent_id INTEGER,
+            is_pinned BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS security_comment_interactions (
+            id SERIAL PRIMARY KEY,
+            comment_id INTEGER,
+            user_id INTEGER,
+            interaction_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(comment_id, user_id)
         )`
     ];
 
@@ -213,6 +223,29 @@ async function createTables() {
         }
     } catch (e) {
         console.warn("Migration Warning (messages is_deleted):", e.message);
+    }
+
+    // --- MIGRATION: parent_id, is_pinned zu security_comments hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN IF NOT EXISTS parent_id INTEGER`);
+            await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(security_comments)`);
+            const hasParent = check.rows.some(c => c.name === 'parent_id');
+            const hasPinned = check.rows.some(c => c.name === 'is_pinned');
+
+            if (!hasParent) {
+                await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN parent_id INTEGER`);
+                console.log('✅ Migrated: Added parent_id to security_comments');
+            }
+            if (!hasPinned) {
+                await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN is_pinned INTEGER DEFAULT 0`);
+                console.log('✅ Migrated: Added is_pinned to security_comments');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (security_comments):", e.message);
     }
 }
 

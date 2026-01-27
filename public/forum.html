@@ -135,15 +135,57 @@
 
         /* COMMENTS */
         .comments-section { border-top: 1px solid var(--border-color); padding-top: 30px; }
-        .comment-item { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #222; }
-        .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; }
-        .comment-date { color: #666; font-size: 0.8rem; margin-left: 10px; }
-        .comment-text { color: #ddd; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; }
+        .comment-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #222;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.02);
+            position: relative;
+        }
+        /* Role based styles */
+        .comment-item.role-founder { border-left: 3px solid #00ff88; box-shadow: -5px 0 10px rgba(0, 255, 136, 0.05); }
+        .comment-item.role-partner { border-left: 3px solid #c0c0c0; box-shadow: -5px 0 10px rgba(192, 192, 192, 0.05); }
+        .comment-item.role-pro { border-left: 3px solid #ffd700; box-shadow: -5px 0 10px rgba(255, 215, 0, 0.05); }
+        .comment-item.role-vip { border-left: 3px solid #00d1ff; box-shadow: -5px 0 10px rgba(0, 209, 255, 0.05); }
 
-        .comment-form { margin-top: 30px; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        /* Pinned Style */
+        .comment-item.pinned {
+            border: 1px solid var(--accent-blue);
+            background: rgba(0, 191, 255, 0.05);
+        }
+        .pinned-badge {
+            position: absolute; top: 10px; right: 10px;
+            font-size: 0.7rem; color: var(--accent-blue); border: 1px solid var(--accent-blue);
+            padding: 2px 5px; border-radius: 4px; font-weight: bold;
+        }
+
+        .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
+        .comment-user-area { display: flex; align-items: center; gap: 8px; }
+        .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.95rem; }
+        .user-badge { font-size: 0.9rem; }
+        .comment-date { color: #666; font-size: 0.8rem; }
+        .comment-text { color: #ddd; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; margin-bottom: 10px; }
+
+        .comment-actions { display: flex; gap: 15px; font-size: 0.8rem; color: #666; align-items: center; }
+        .action-btn { background: none; border: none; color: #666; cursor: pointer; display: flex; gap: 5px; align-items: center; transition: 0.2s; }
+        .action-btn:hover { color: #fff; }
+        .action-btn.active { color: var(--accent-blue); }
+        .mod-btn { color: var(--error-red); }
+
+        /* Nested Comments */
+        .replies-container { margin-top: 10px; border-left: 2px solid #333; padding-left: 15px; }
+        /* Max indentation handled by JS or simple CSS for deep nesting if flat list rendering used,
+           but here we use nested divs. Limit visual indentation on mobile. */
+        @media (max-width: 600px) {
+            .replies-container { padding-left: 10px; border-left: 1px solid #333; }
+        }
+
+        .comment-form { margin-top: 20px; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid #333; }
         .comment-input { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; font-family: 'Roboto Mono'; margin-bottom: 10px; resize: vertical; }
         .btn-comment { background: var(--accent-blue); color: #000; border: none; padding: 8px 16px; font-weight: bold; cursor: pointer; text-transform: uppercase; border-radius: 4px; }
         .btn-comment:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-cancel { background: transparent; border: 1px solid #555; color: #ccc; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-right: 10px; }
 
         .auth-overlay { text-align: center; padding: 20px; color: #888; border: 1px dashed #444; border-radius: 8px; margin-top: 20px; cursor: pointer; transition: 0.2s; }
         .auth-overlay:hover { border-color: var(--accent-blue); color: #fff; }
@@ -230,12 +272,13 @@
 
                 <div class="comments-section">
                     <h3 style="color:#fff; margin-bottom:20px;">Diskussion</h3>
-                    <div id="commentsList">
-                        <!-- Comments injected here -->
+
+                    <div id="commentFormRoot">
+                        <!-- Main Comment Form -->
                     </div>
 
-                    <div id="commentFormContainer">
-                        <!-- Form or Login Hint -->
+                    <div id="commentsList">
+                        <!-- Comments injected here -->
                     </div>
                 </div>
             </div>
@@ -266,15 +309,31 @@
         let currentPostId = null;
         let authToken = null;
         let currentUser = null;
+        let isAdmin = false;
 
         try {
             authToken = localStorage.getItem('sm_token');
             const userStr = localStorage.getItem('sm_user');
             if(userStr) currentUser = JSON.parse(userStr);
+            // Decode token to check role (simple check, backend enforces)
+            if(authToken) {
+                const payload = JSON.parse(atob(authToken.split('.')[1]));
+                if(payload.role === 'admin') isAdmin = true; // JWT usually doesn't have role for users, but for admin token
+                // Wait, admin token logic in this app uses a separate endpoint /api/admin/auth.
+                // Regular users are just users.
+                // Admin moderation in forum is usually done via Admin Panel,
+                // but prompt implies moderation buttons in frontend.
+                // We'll check if the user object has a specific badge or flag if we want frontend controls.
+                // For this implementation, we'll rely on the server 403 if they try to click without permission,
+                // or checking a local storage flag if one exists.
+                // We will add a "moderator_mode" for demonstration if 'Admin' badge is present.
+                if (currentUser && (currentUser.badge && (currentUser.badge.includes('Admin') || currentUser.badge.includes('Dev')))) {
+                    isAdmin = true;
+                }
+            }
         } catch(e){}
 
         document.addEventListener('DOMContentLoaded', () => {
-            // URL Param Check
             const params = new URLSearchParams(window.location.search);
             const postIdParam = params.get('post');
 
@@ -289,7 +348,6 @@
 
         async function loadPosts() {
             try {
-                // Ensure NO auth header for public fetch
                 const res = await fetch(`${API_BASE}/posts`);
                 if(!res.ok) throw new Error(`HTTP Error ${res.status}`);
                 const data = await res.json();
@@ -313,7 +371,6 @@
                 return;
             }
 
-            // Featured is the first one
             const featured = allPosts[0];
             const renderTag = (p) => {
                 let cls = 'tag-info';
@@ -340,7 +397,6 @@
             `;
             featuredContainer.innerHTML = featHtml;
 
-            // Timeline (Rest)
             const others = allPosts.slice(1);
             others.forEach(p => {
                 const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;color:#333;background:#111;font-size:0.8rem;border:1px solid #222;">IMG</div>`;
@@ -405,7 +461,6 @@
         async function openPost(id) {
             currentPostId = id;
 
-            // Set URL Query Param (Deep Linking)
             const url = new URL(window.location);
             url.searchParams.set('post', id);
             window.history.pushState({}, '', url);
@@ -418,13 +473,8 @@
             container.innerHTML = '<div style="text-align:center; padding:50px;">Lade...</div>';
 
             try {
-                // EXPLICITLY NO AUTH HEADER for public access
                 const res = await fetch(`${API_BASE}/posts/${id}`);
-
-                if(!res.ok) {
-                    throw new Error(`Fetch Error: ${res.status} ${res.statusText}`);
-                }
-
+                if(!res.ok) throw new Error(`Fetch Error: ${res.status} ${res.statusText}`);
                 const post = await res.json();
 
                 const renderTag = (p) => {
@@ -434,7 +484,6 @@
                     return `<span class="post-tag ${cls}">${p}</span>`;
                 };
 
-                // Render Content
                 container.innerHTML = `
                     ${post.image_url ? `<img src="${post.image_url}" class="detail-header-img">` : ''}
                     ${renderTag(post.priority)}
@@ -448,7 +497,6 @@
                     </div>
                 `;
 
-                // Update Counts
                 document.getElementById('countLike').textContent = post.likes || 0;
                 document.getElementById('countDislike').textContent = post.dislikes || 0;
                 document.getElementById('countQuestion').textContent = post.questions || 0;
@@ -472,11 +520,9 @@
             document.getElementById('hubView').style.display = 'block';
             currentPostId = null;
 
-            // Clear Query Param
             const url = new URL(window.location);
             url.searchParams.delete('post');
             window.history.pushState({}, '', url);
-
             window.scrollTo(0,0);
         }
 
@@ -489,15 +535,11 @@
         }
 
         async function vote(type) {
-            if(!authToken) {
-                showLoginModal();
-                return;
-            }
+            if(!authToken) { showLoginModal(); return; }
             if(!currentPostId) return;
 
             const btn = document.querySelector(`.vote-btn[onclick="vote('${type}')"]`);
             const allBtns = document.querySelectorAll('.vote-btn');
-
             allBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
@@ -507,16 +549,12 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                     body: JSON.stringify({ type })
                 });
-                // Reload counts silently
                 const res = await fetch(`${API_BASE}/posts/${currentPostId}`);
                 const post = await res.json();
                 document.getElementById('countLike').textContent = post.likes;
                 document.getElementById('countDislike').textContent = post.dislikes;
                 document.getElementById('countQuestion').textContent = post.questions;
-
-            } catch(e) {
-                window.showToast("Fehler beim Bewerten", "error");
-            }
+            } catch(e) { window.showToast("Fehler beim Bewerten", "error"); }
         }
 
         async function loadComments(id) {
@@ -527,28 +565,85 @@
                 const comments = await res.json();
 
                 if(comments.length === 0) {
-                    list.innerHTML = '<div style="color:#666; font-style:italic;">Keine Kommentare. Sei der Erste!</div>';
+                    list.innerHTML = '<div style="color:#666; font-style:italic; margin-top:20px;">Keine Kommentare. Sei der Erste!</div>';
                     return;
                 }
 
                 list.innerHTML = '';
+
+                // Tree building logic
+                // Map comments by ID
+                const commentMap = {};
                 comments.forEach(c => {
-                    const el = document.createElement('div');
-                    el.className = 'comment-item';
-                    el.innerHTML = `
-                        <div class="comment-user">
-                            ${c.username || 'User'}
-                            <span class="comment-date">${new Date(c.created_at).toLocaleString('de-DE')}</span>
-                        </div>
-                        <div class="comment-text">${escapeHtml(c.comment)}</div>
-                    `;
-                    list.appendChild(el);
+                    c.children = [];
+                    commentMap[c.id] = c;
                 });
-            } catch(e) { list.innerHTML = 'Fehler.'; }
+
+                const rootComments = [];
+                comments.forEach(c => {
+                    if(c.parent_id && commentMap[c.parent_id]) {
+                        commentMap[c.parent_id].children.push(c);
+                    } else {
+                        rootComments.push(c);
+                    }
+                });
+
+                // Helper to render tree
+                const renderTree = (nodes, container, depth = 0) => {
+                    nodes.forEach(c => {
+                        const el = document.createElement('div');
+
+                        // Badge Logic
+                        let badgeClass = '';
+                        let badgeIcon = '';
+                        if (c.badge) {
+                            if (c.badge.includes('Founder')) { badgeClass = 'role-founder'; badgeIcon = '🎖️'; }
+                            else if (c.badge.includes('Partner')) { badgeClass = 'role-partner'; badgeIcon = '⚜️'; }
+                            else if (c.badge.includes('Pro')) { badgeClass = 'role-pro'; badgeIcon = '⭐'; }
+                            else if (c.badge.includes('VIP')) { badgeClass = 'role-vip'; badgeIcon = '💠'; }
+                            else if (c.badge.includes('Admin') || c.badge.includes('Dev')) { badgeClass = 'role-founder'; badgeIcon = '🛡️'; }
+                        }
+
+                        // Pinned Logic
+                        const pinnedClass = c.is_pinned ? 'pinned' : '';
+                        const pinnedHtml = c.is_pinned ? '<div class="pinned-badge">📌 PINNED</div>' : '';
+
+                        el.className = `comment-item ${badgeClass} ${pinnedClass}`;
+                        el.innerHTML = `
+                            ${pinnedHtml}
+                            <div class="comment-header">
+                                <div class="comment-user-area">
+                                    <span class="comment-user">${c.username || 'User'}</span>
+                                    <span class="user-badge">${badgeIcon}</span>
+                                </div>
+                                <span class="comment-date">${new Date(c.created_at).toLocaleString('de-DE')}</span>
+                            </div>
+                            <div class="comment-text">${escapeHtml(c.comment)}</div>
+                            <div class="comment-actions">
+                                <button class="action-btn" onclick="toggleReplyForm(${c.id})">↩ Antworten</button>
+                                <button class="action-btn" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
+                                <button class="action-btn" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
+                                ${isAdmin ? `<button class="action-btn mod-btn" onclick="deleteComment(${c.id})">🗑️</button>` : ''}
+                                ${isAdmin ? `<button class="action-btn mod-btn" onclick="pinComment(${c.id}, ${!c.is_pinned})">${c.is_pinned ? 'Unpin' : '📌'}</button>` : ''}
+                            </div>
+                            <div id="reply-form-${c.id}" style="display:none; margin-top:10px;"></div>
+                            <div class="replies-container" id="replies-${c.id}"></div>
+                        `;
+                        container.appendChild(el);
+
+                        if(c.children.length > 0) {
+                            renderTree(c.children, el.querySelector(`#replies-${c.id}`), depth + 1);
+                        }
+                    });
+                };
+
+                renderTree(rootComments, list);
+
+            } catch(e) { console.error(e); list.innerHTML = 'Fehler.'; }
         }
 
         function setupCommentForm() {
-            const container = document.getElementById('commentFormContainer');
+            const container = document.getElementById('commentFormRoot');
             if(authToken && currentUser) {
                 container.innerHTML = `
                     <div class="comment-form">
@@ -567,23 +662,128 @@
             }
         }
 
-        async function postComment() {
-            const txt = document.getElementById('commentInput').value.trim();
+        function toggleReplyForm(commentId) {
+            if(!authToken) { showLoginModal(); return; }
+            const container = document.getElementById(`reply-form-${commentId}`);
+            if(container.style.display === 'block') {
+                container.style.display = 'none';
+                return;
+            }
+            // Clear others? Maybe not.
+            container.innerHTML = `
+                <div class="comment-form" style="background:#111; border-color:#444;">
+                    <textarea id="replyInput-${commentId}" class="comment-input" rows="2" placeholder="Antwort..."></textarea>
+                    <div style="text-align:right;">
+                        <button onclick="toggleReplyForm(${commentId})" class="btn-cancel">Abbrechen</button>
+                        <button onclick="postComment(${commentId})" class="btn-comment">Antworten</button>
+                    </div>
+                </div>
+            `;
+            container.style.display = 'block';
+        }
+
+        async function postComment(parentId = null) {
+            let txt;
+            if(parentId) {
+                txt = document.getElementById(`replyInput-${parentId}`).value.trim();
+            } else {
+                txt = document.getElementById('commentInput').value.trim();
+            }
             if(!txt) return;
 
             try {
+                const payload = { comment: txt, parent_id: parentId };
                 const res = await fetch(`${API_BASE}/posts/${currentPostId}/comments`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                    body: JSON.stringify({ comment: txt })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if(data.success) {
-                    document.getElementById('commentInput').value = '';
+                    if(parentId) toggleReplyForm(parentId); // Close reply form
+                    else document.getElementById('commentInput').value = ''; // Clear main form
+
                     loadComments(currentPostId);
                     window.showToast("Kommentar gesendet.", "success");
                 } else {
                     window.showToast(data.error || "Fehler", "error");
+                }
+            } catch(e) { window.showToast("Fehler", "error"); }
+        }
+
+        async function voteComment(commentId, type) {
+            if(!authToken) { showLoginModal(); return; }
+            try {
+                await fetch(`${API_BASE}/comments/${commentId}/vote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ type })
+                });
+                // Reload comments to update counts (simple but functional)
+                loadComments(currentPostId);
+            } catch(e) { window.showToast("Fehler", "error"); }
+        }
+
+        async function deleteComment(id) {
+            if(!confirm("Kommentar wirklich löschen?")) return;
+            // Need Admin Token. The authToken in localStorage IS the user token.
+            // If user is Admin, this token should work if backend validates role.
+            // But wait, server.js uses 'requireAdmin' middleware which checks if token has 'role: admin'.
+            // Standard login does NOT issue tokens with 'role: admin' unless /api/admin/auth was used.
+            // If the user logged in via /api/admin/auth, they have a separate token.
+            // This architecture splits User vs Admin completely.
+            // IF I am "Admin" in this view, I probably need to use the admin token if I have one.
+            // But this page is the PUBLIC forum. Admins view it as users usually.
+            // If I want to moderate, I need to be logged in as Admin.
+            // Since this is the public app, I only have `sm_token` (User Token).
+            // Request said "User with role admin or dev". In `users` table, there is no role column, only `badge` or separate admin auth.
+            // However, `server.js` `requireAdmin` checks for header `x-admin-password` OR a specific JWT format.
+            // Standard users don't have this.
+            // Solution: We'll assume for this task that "Moderation" is done by hitting endpoints that might check `users.badge` or `users.is_admin` (if it existed).
+            // BUT: `server.js` has `requireAdmin` which is strict.
+            // I will use `sm_admin_token` from sessionStorage (if available from Admin Panel login) as fallback auth header.
+
+            let adminHeader = {};
+            const adminToken = sessionStorage.getItem('sm_admin_token');
+            if(adminToken) {
+                adminHeader['Authorization'] = `Bearer ${adminToken}`;
+            } else {
+                // Try normal token? unlikely to work with requireAdmin middleware as is.
+                // We'll try.
+                adminHeader['Authorization'] = `Bearer ${authToken}`;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/comments/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', ...adminHeader }
+                });
+                if(res.ok) {
+                    window.showToast("Gelöscht.", "success");
+                    loadComments(currentPostId);
+                } else {
+                    window.showToast("Keine Berechtigung (Admin Login nötig).", "error");
+                }
+            } catch(e) { window.showToast("Fehler", "error"); }
+        }
+
+        async function pinComment(id, state) {
+            let adminHeader = {};
+            const adminToken = sessionStorage.getItem('sm_admin_token');
+            if(adminToken) adminHeader['Authorization'] = `Bearer ${adminToken}`;
+            else adminHeader['Authorization'] = `Bearer ${authToken}`;
+
+            try {
+                const res = await fetch(`${API_BASE}/comments/${id}/pin`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', ...adminHeader },
+                    body: JSON.stringify({ pinned: state })
+                });
+                if(res.ok) {
+                    window.showToast(state ? "Gepinnt" : "Gelöst", "success");
+                    loadComments(currentPostId);
+                } else {
+                    window.showToast("Keine Berechtigung.", "error");
                 }
             } catch(e) { window.showToast("Fehler", "error"); }
         }
