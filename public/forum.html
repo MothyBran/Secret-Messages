@@ -138,10 +138,17 @@
 
         /* MOBILE TWEAKS */
         @media (max-width: 600px) {
+            .hub-container { padding: 15px; }
             .featured-image { height: 200px; }
             .post-title { font-size: 1.5rem; }
-            .interaction-bar { gap: 10px; }
-            .vote-btn { padding: 8px 12px; font-size: 0.9rem; }
+
+            .timeline-item { flex-direction: column; align-items: flex-start; }
+            .timeline-thumb { width: 100%; height: 180px; margin-bottom: 10px; }
+
+            .interaction-bar { gap: 10px; flex-wrap: wrap; }
+            .vote-btn { padding: 8px 12px; font-size: 0.9rem; flex: 1; justify-content: center; }
+
+            .detail-header-img { height: 200px; }
         }
     </style>
 </head>
