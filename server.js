@@ -347,14 +347,27 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
                 }
             } catch (migErr) { }
         }
+        if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
+            await trackEvent(req, 'login_device_mismatch', 'auth', { username });
+
+            // Insert Security Warning
+            const subject = "⚠️ Sicherheitswarnung: Login Versuch";
+            const body = "ACHTUNG: Ein Versuch, sich von einem unberechtigten Gerät auf ihr Profil einzuloggen, wurde blockiert. Wenn der Versuch nicht von Ihnen stammt, ändern Sie ggf. Ihren Zugangscode!";
+            const now = new Date().toISOString();
+
+            await dbQuery(
+                `INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                 VALUES ($1, $2, $3, 'automated', ${isPostgreSQL() ? 'false' : '0'}, $4)`,
+                [user.id, subject, body, now]
+            );
+
+            return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
+        }
+
         const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (isBlocked) {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'account_blocked' });
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
-        }
-        if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            await trackEvent(req, 'login_device_mismatch', 'auth', { username });
-            return res.status(403).json({ success: false, error: "DEVICE_NOT_AUTHORIZED" });
         }
         if (!user.allowed_device_id) {
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
