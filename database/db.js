@@ -19,11 +19,16 @@ async function createTables() {
         `CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE,
-            password_hash TEXT,
+            access_code_hash TEXT,
             registration_key_hash TEXT,
             license_key_id INTEGER,
             badge TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            allowed_device_id TEXT,
+            pik_encrypted TEXT,
+            is_blocked BOOLEAN DEFAULT FALSE,
+            is_online BOOLEAN DEFAULT FALSE,
+            last_login TIMESTAMP,
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS license_keys (
             id SERIAL PRIMARY KEY,
@@ -31,8 +36,14 @@ async function createTables() {
             key_hash TEXT,
             product_code TEXT,
             is_active BOOLEAN DEFAULT FALSE,
+            is_blocked BOOLEAN DEFAULT FALSE,
             origin TEXT,
             assigned_user_id INTEGER,
+            bundle_id INTEGER,
+            client_name TEXT,
+            max_users INTEGER,
+            activated_at TIMESTAMP,
+            expires_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS payments (
@@ -75,6 +86,11 @@ async function createTables() {
             extended_until TIMESTAMP,
             used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             key_code_hash TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS user_sessions (
+            user_id INTEGER,
+            token TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS settings (
             key TEXT UNIQUE,
