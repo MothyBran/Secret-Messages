@@ -1506,9 +1506,10 @@ window.openUserProfile = async function(userId) {
             data.history.forEach(h => {
                 const row = document.createElement('tr');
 
-                let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">UNKNOWN</span>`;
-                if(h.origin === 'shop') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">SHOP</span>`;
+                let originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:#444; color:#aaa;">${h.origin || '?'}</span>`;
+                if(h.origin === 'shop' || h.origin === 'Kauf') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 255, 136, 0.2); color:var(--success-green); border:1px solid var(--success-green);">KAUF</span>`;
                 if(h.origin === 'admin') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(255, 165, 0, 0.2); color:orange; border:1px solid orange;">ADMIN</span>`;
+                if(h.origin === 'Stripe') originBadge = `<span style="padding:2px 6px; border-radius:4px; font-size:0.7rem; background:rgba(0, 191, 255, 0.2); color:var(--accent-blue); border:1px solid var(--accent-blue);">STRIPE</span>`;
 
                 row.innerHTML = `
                     <td style="font-family:'Roboto Mono';">${h.key_code}</td>
