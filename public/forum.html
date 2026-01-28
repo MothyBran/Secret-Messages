@@ -278,7 +278,7 @@
             <div class="sidebar-section">
                 <h4>Aktivität</h4>
                 <div id="activityFeed" class="activity-feed">
-                    <div style="padding:10px; color:#666; font-size:0.8rem;">Lade Aktivitäten...</div>
+                    <!-- JS fills this -->
                 </div>
             </div>
         </div>
@@ -400,7 +400,24 @@
             });
 
             document.getElementById('searchInput').addEventListener('input', (e) => filterPosts(e.target.value));
+
+            if(authToken) {
+                loadActivity();
+            } else {
+                renderActivityPlaceholder();
+            }
         });
+
+        function renderActivityPlaceholder() {
+            const container = document.getElementById('activityFeed');
+            if(container) {
+                container.innerHTML = `
+                    <div style="padding:10px; color:#888; font-size:0.8rem; cursor:pointer; border:1px dashed #333; border-radius:6px; text-align:center;" onclick="showLoginModal()">
+                        🔒 Anmelden für Aktivitäten
+                    </div>
+                `;
+            }
+        }
 
         async function loadPosts(endpoint = '/posts') {
             try {
