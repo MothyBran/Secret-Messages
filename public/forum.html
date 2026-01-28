@@ -232,6 +232,11 @@
         }
         .sidebar-btn:hover { border-color: var(--accent-blue); color: #fff; background: rgba(0, 191, 255, 0.05); }
 
+        .sidebar-item {
+            padding: 15px 25px; border-bottom: 1px solid #222; color: var(--text-main); text-decoration: none; display: flex; align-items: center; gap: 10px; transition: 0.2s; cursor: pointer;
+        }
+        .sidebar-item:hover { background: rgba(0, 191, 255, 0.05); padding-left: 30px; color: var(--accent-blue); }
+
         .activity-feed { display: flex; flex-direction: column; gap: 10px; max-height: 40vh; overflow-y: auto; padding-right: 5px; }
         .activity-item { font-size: 0.85rem; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 2px solid #333; }
         .activity-item.reply { border-left-color: var(--accent-blue); }
@@ -281,9 +286,9 @@
         <!-- SIDEBAR -->
         <div id="forumSidebar" class="forum-sidebar">
             <!-- User Header (App Style) -->
-            <div style="padding: 20px; background: linear-gradient(180deg, rgba(0,191,255,0.1), transparent); border-bottom: 1px solid var(--accent-blue); margin-bottom: 20px;">
-                <h3 style="color:white; margin-bottom:5px;" id="sidebarUsername">👤Gast</h3>
-                <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarBadge">Nicht verbunden</p>
+            <div style="padding: 20px; background: linear-gradient(180deg, rgba(0,191,255,0.1), transparent); border-bottom: 1px solid var(--accent-blue); margin-bottom: 10px;">
+                <h3 style="color:white; margin-bottom:5px;" id="sidebarUser">👤Gast</h3>
+                <p style="font-size:0.8rem; color:var(--accent-blue);" id="sidebarLicense">Nicht verbunden</p>
             </div>
 
             <div style="flex: 1; overflow-y: auto; padding-bottom: 20px;">
@@ -304,9 +309,9 @@
                 </div>
             </div>
 
-            <div style="margin-top:auto; padding: 20px; border-top:1px solid #333; background: var(--bg-panel);">
-                <button class="sidebar-btn" onclick="logout()" style="color:var(--error-red); border-color:var(--error-red); width: 100%; justify-content: center;">◀️ Abmelden</button>
-            </div>
+            <div style="margin-top:auto;"></div>
+
+            <a href="#" class="sidebar-item" id="logoutBtnSide" onclick="logout()">◀️ Abmelden</a>
         </div>
 
         <div class="hub-container">
@@ -396,8 +401,8 @@
 
             // Populate Sidebar User
             if(currentUser) {
-                const un = document.getElementById('sidebarUsername');
-                const bg = document.getElementById('sidebarBadge');
+                const un = document.getElementById('sidebarUser');
+                const lic = document.getElementById('sidebarLicense');
                 if(un) un.textContent = currentUser.username;
 
                 // Construct Badge / License Info similar to App
@@ -413,7 +418,7 @@
                     badgeText = 'Nicht verbunden';
                 }
 
-                if(bg) bg.textContent = badgeText;
+                if(lic) lic.textContent = badgeText;
             }
 
             if(authToken) {
