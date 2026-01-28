@@ -209,16 +209,23 @@
         /* SIDEBAR */
         .forum-sidebar {
             width: 280px; background: rgba(15, 18, 21, 0.95); border-right: 1px solid var(--border-color);
-            padding: 20px; display: none; flex-direction: column; gap: 30px;
+            padding: 20px; display: none; flex-direction: column; gap: 20px;
             height: calc(100vh - 70px); position: sticky; top: 70px; overflow-y: auto; flex-shrink: 0;
         }
         .forum-sidebar.active { display: flex; }
         .sidebar-section h4 { color: var(--accent-blue); margin-bottom: 15px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
         .sidebar-btn {
             background: transparent; border: 1px solid #333; color: #ccc; width: 100%; padding: 10px; text-align: left;
-            margin-bottom: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; gap: 10px;
+            margin-bottom: 8px; cursor: pointer; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.95rem;
         }
         .sidebar-btn:hover { border-color: var(--accent-blue); color: #fff; background: rgba(0, 191, 255, 0.05); }
+
+        .sidebar-user-header {
+            display: flex; align-items: center; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid #333; margin-bottom: 10px;
+        }
+        .sidebar-avatar {
+            width: 40px; height: 40px; border-radius: 50%; background: #222; display: flex; justify-content: center; align-items: center; border: 1px solid var(--accent-blue); color: var(--accent-blue); font-weight: bold;
+        }
 
         .activity-feed { display: flex; flex-direction: column; gap: 10px; }
         .activity-item { font-size: 0.85rem; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 2px solid #333; }
@@ -269,17 +276,33 @@
     <div class="main-wrapper" style="display:flex; min-height: calc(100vh - 70px);">
         <!-- SIDEBAR -->
         <div id="forumSidebar" class="forum-sidebar">
+            <!-- User Header (Injected JS) -->
+            <div id="sidebarUserHeader" class="sidebar-user-header" style="display:none;">
+                <div class="sidebar-avatar" id="sidebarAvatar">U</div>
+                <div>
+                    <div id="sidebarUsername" style="color:#fff; font-weight:bold;">User</div>
+                    <div id="sidebarBadge" style="font-size:0.8rem; color:#888;">Badge</div>
+                </div>
+            </div>
+
             <div class="sidebar-section">
-                <h4>Meine Inhalte</h4>
+                <h4>Übersicht</h4>
+                <button class="sidebar-btn" onclick="showSection('all')">🏠 Alle Beiträge</button>
+                <button class="sidebar-btn" onclick="showSection('infos')">ℹ️ Infos</button>
+                <button class="sidebar-btn" onclick="showSection('updates')">🟢 Updates</button>
+                <button class="sidebar-btn" onclick="showSection('warnings')">⚠️ Warnhinweise</button>
                 <button class="sidebar-btn" onclick="showSection('bookmarks')">🔖 Gespeicherte Beiträge</button>
                 <button class="sidebar-btn" onclick="showSection('my-comments')">💬 Meine Kommentare</button>
-                <button class="sidebar-btn" onclick="showSection('all')">🏠 Alle Beiträge</button>
             </div>
-            <div class="sidebar-section">
+            <div class="sidebar-section" style="flex:1;">
                 <h4>Aktivität</h4>
                 <div id="activityFeed" class="activity-feed">
                     <!-- JS fills this -->
                 </div>
+            </div>
+
+            <div style="margin-top:auto; padding-top:20px; border-top:1px solid #333;">
+                <button class="sidebar-btn" onclick="logout()" style="color:var(--error-red); border-color:var(--error-red);">🚪 Abmelden</button>
             </div>
         </div>
 
@@ -296,7 +319,7 @@
                 <!-- Featured Post injected here -->
             </div>
 
-            <h3 style="color:var(--text-muted); margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:5px;">ARCHIV & TIMELINE</h3>
+            <h3 id="timelineHeader" style="color:var(--text-muted); margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:5px;">ARCHIV & TIMELINE</h3>
             <div id="timelineContainer" class="timeline-list">
                 <!-- List injected here -->
             </div>
@@ -367,6 +390,21 @@
             authToken = localStorage.getItem('sm_token');
             const userStr = localStorage.getItem('sm_user');
             if(userStr) currentUser = JSON.parse(userStr);
+
+            // Populate Sidebar User
+            if(currentUser) {
+                const header = document.getElementById('sidebarUserHeader');
+                if(header) {
+                    header.style.display = 'flex';
+                    const av = document.getElementById('sidebarAvatar');
+                    const un = document.getElementById('sidebarUsername');
+                    const bg = document.getElementById('sidebarBadge');
+                    if(av) av.textContent = (currentUser.username || 'U').charAt(0).toUpperCase();
+                    if(un) un.textContent = currentUser.username;
+                    if(bg) bg.textContent = currentUser.badge || 'User';
+                }
+            }
+
             if(authToken) {
                 try {
                     const payload = JSON.parse(atob(authToken.split('.')[1]));
@@ -385,8 +423,16 @@
             if(sb) sb.classList.toggle('active');
         };
 
+        // Helper to update header text
+        function updateTimelineHeader(text) {
+            const h = document.getElementById('timelineHeader');
+            if(h) h.textContent = text.toUpperCase();
+        }
+
         window.showSection = function(section) {
-            if (section !== 'all' && !authToken) return showLoginModal();
+            // Allow public access to filters, require auth for bookmarks/my-comments
+            const publicSections = ['all', 'infos', 'updates', 'warnings'];
+            if (!publicSections.includes(section) && !authToken) return showLoginModal();
 
             // Close sidebar on mobile after selection
             if(window.innerWidth < 768) {
@@ -401,15 +447,29 @@
             const activeBtn = document.querySelector(`button[onclick="showSection('${section}')"]`);
             if(activeBtn) activeBtn.style.color = 'var(--accent-blue)';
 
+            // Hide featured container unless 'all'
+            const featuredContainer = document.getElementById('featuredContainer');
+
             if(section === 'all') {
-                document.getElementById('featuredContainer').style.display = 'block';
+                featuredContainer.style.display = 'block';
+                updateTimelineHeader('Archiv & Timeline');
                 loadPosts('/posts');
             } else if(section === 'bookmarks') {
-                document.getElementById('featuredContainer').style.display = 'none'; // No featured in bookmarks
+                featuredContainer.style.display = 'none';
+                updateTimelineHeader('Gespeicherte Beiträge');
                 loadPosts('/bookmarks');
             } else if(section === 'my-comments') {
-                document.getElementById('featuredContainer').style.display = 'none';
+                featuredContainer.style.display = 'none';
+                updateTimelineHeader('Meine Kommentare');
                 loadPosts('/user/comments');
+            } else if(['infos', 'updates', 'warnings'].includes(section)) {
+                featuredContainer.style.display = 'none';
+                let title = 'Infos';
+                if(section === 'updates') title = 'Updates';
+                if(section === 'warnings') title = 'Warnhinweise';
+                updateTimelineHeader(title);
+                // We use client-side filtering for simplicity since API returns all published posts
+                loadPosts('/posts', section);
             }
         };
 
@@ -465,7 +525,15 @@
                 activities.forEach(act => {
                     const item = document.createElement('div');
                     item.className = `activity-item ${act.type}`;
-                    item.onclick = () => openPost(act.post_id || act.id); // Fallback
+                    // Pass comment_id if available (it is usually joined as id in the query, but let's check structure)
+                    // Server returns: c.id (comment id), post_id, type...
+                    // So act.id IS the comment_id
+                    const targetId = act.type === 'reply' ? act.id : (act.comment_id || act.id);
+
+                    item.onclick = () => {
+                        if(window.innerWidth < 768) toggleSidebar(); // Close sidebar on mobile
+                        openPost(act.post_id, targetId);
+                    };
                     item.style.cursor = 'pointer';
 
                     let icon = '💬';
@@ -488,7 +556,7 @@
             }
         }
 
-        async function loadPosts(endpoint = '/posts') {
+        async function loadPosts(endpoint = '/posts', filterType = null) {
             try {
                 const headers = {};
                 if(authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -510,6 +578,13 @@
                 if(endpoint.includes('comments')) {
                     renderMyComments(data);
                     return;
+                }
+
+                // Apply Filter if present
+                if(filterType) {
+                    if(filterType === 'infos') data = data.filter(p => p.priority === 'Info');
+                    else if(filterType === 'updates') data = data.filter(p => p.priority === 'Update');
+                    else if(filterType === 'warnings') data = data.filter(p => p.priority === 'Warnhinweis' || p.priority === 'Kritisch' || p.priority === 'Wichtig');
                 }
 
                 allPosts = data;
@@ -570,8 +645,9 @@
 
             const renderTag = (p) => {
                 let cls = 'tag-info';
-                if(p === 'Wichtig') cls = 'tag-wichtig';
-                if(p === 'Kritisch') cls = 'tag-kritisch';
+                if(p === 'Update') cls = 'tag-update';
+                if(p === 'Warnhinweis' || p === 'Kritisch') cls = 'tag-warn'; // Legacy support for Kritisch
+                if(p === 'Wichtig') cls = 'tag-warn'; // Legacy support
                 return `<span class="post-tag ${cls}">${p}</span>`;
             };
 
@@ -679,7 +755,7 @@
             });
         }
 
-        async function openPost(id) {
+        async function openPost(id, highlightCommentId = null) {
             currentPostId = id;
 
             const url = new URL(window.location);
@@ -733,8 +809,19 @@
 
                 document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
 
-                loadComments(id);
+                await loadComments(id);
                 setupCommentForm();
+
+                if(highlightCommentId) {
+                    setTimeout(() => {
+                        const el = document.getElementById(`comment-${highlightCommentId}`);
+                        if(el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.style.border = '1px solid var(--accent-blue)';
+                            el.style.animation = 'fadeIn 1s';
+                        }
+                    }, 500);
+                }
 
             } catch(e) {
                 console.error("OpenPost Error:", e);
@@ -878,6 +965,7 @@
                         const pinnedHtml = c.is_pinned ? '<div class="pinned-badge">📌 PINNED</div>' : '';
 
                         el.className = `comment-item ${borderClass} ${pinnedClass}`;
+                        el.id = `comment-${c.id}`; // For deep linking
                         el.innerHTML = `
                             ${pinnedHtml}
                             <div class="comment-header">
@@ -1067,6 +1155,12 @@
         }
 
         function escapeHtml(text) { if(!text) return ''; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+        window.logout = function() {
+            localStorage.removeItem('sm_token');
+            localStorage.removeItem('sm_user');
+            location.reload();
+        };
     </script>
 </body>
 </html>
