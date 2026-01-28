@@ -593,28 +593,33 @@
                     nodes.forEach(c => {
                         const el = document.createElement('div');
 
-                        // Badge Logic
-                        let badgeClass = '';
-                        let badgeIcon = '';
+                        // Badge Logic (Matched to Sidebar)
+                        let badgeHtml = '';
+                        let borderClass = '';
+
                         if (c.badge) {
-                            if (c.badge.includes('Founder')) { badgeClass = 'role-founder'; badgeIcon = '🎖️'; }
-                            else if (c.badge.includes('Partner')) { badgeClass = 'role-partner'; badgeIcon = '⚜️'; }
-                            else if (c.badge.includes('Pro')) { badgeClass = 'role-pro'; badgeIcon = '⭐'; }
-                            else if (c.badge.includes('VIP')) { badgeClass = 'role-vip'; badgeIcon = '💠'; }
-                            else if (c.badge.includes('Admin') || c.badge.includes('Dev')) { badgeClass = 'role-founder'; badgeIcon = '🛡️'; }
+                            const badgeName = c.badge.split(' ')[0].toLowerCase(); // e.g. "Dev 👾" -> "dev"
+                            const badgeCssClass = `user-badge badge-${badgeName}`;
+                            badgeHtml = `<span class="${badgeCssClass}">${c.badge}</span>`;
+
+                            // Map badge to border styling (Role)
+                            if (['founder', 'admin', 'dev'].includes(badgeName)) borderClass = 'role-founder';
+                            else if (badgeName === 'partner') borderClass = 'role-partner';
+                            else if (badgeName === 'pro') borderClass = 'role-pro';
+                            else if (badgeName === 'vip') borderClass = 'role-vip';
                         }
 
                         // Pinned Logic
                         const pinnedClass = c.is_pinned ? 'pinned' : '';
                         const pinnedHtml = c.is_pinned ? '<div class="pinned-badge">📌 PINNED</div>' : '';
 
-                        el.className = `comment-item ${badgeClass} ${pinnedClass}`;
+                        el.className = `comment-item ${borderClass} ${pinnedClass}`;
                         el.innerHTML = `
                             ${pinnedHtml}
                             <div class="comment-header">
                                 <div class="comment-user-area">
                                     <span class="comment-user">${c.username || 'User'}</span>
-                                    <span class="user-badge">${badgeIcon}</span>
+                                    ${badgeHtml}
                                 </div>
                                 <span class="comment-date">${new Date(c.created_at).toLocaleString('de-DE')}</span>
                             </div>
