@@ -186,6 +186,15 @@ function parseDbDate(dateStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+function getMonthsFromProductCode(productCode) {
+    const pc = (productCode || '').toLowerCase();
+    if (pc === '1m' || pc === 'bundle_1m_2') return 1;
+    if (pc === '3m' || pc === 'bundle_3m_5' || pc === 'bundle_3m_2') return 3;
+    if (pc === '6m') return 6;
+    if (pc === '1j' || pc === '12m' || pc === 'bundle_1y_10') return 12;
+    return 0;
+}
+
 function calculateNewExpiration(currentExpirationStr, extensionMonths) {
     if (!extensionMonths || extensionMonths <= 0) return null;
     let baseDate = new Date();
@@ -430,12 +439,8 @@ app.post('/api/auth/activate', async (req, res) => {
         if (userRes.rows.length > 0) return res.status(409).json({ error: 'Username vergeben' });
 
         const pc = (key.product_code || '').toLowerCase();
-        let extensionMonths = 0;
+        const extensionMonths = getMonthsFromProductCode(pc);
         let expiresAt = null;
-        if (pc === '1m') extensionMonths = 1;
-        else if (pc === '3m') extensionMonths = 3;
-        else if (pc === '6m') extensionMonths = 6;
-        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
 
         if (pc === 'unl' || pc === 'unlimited') expiresAt = null;
         else if (extensionMonths > 0) expiresAt = calculateNewExpiration(null, extensionMonths);
@@ -484,11 +489,8 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
         const oldKeyId = userData.license_key_id;
 
         const pc = (key.product_code || '').toLowerCase();
-        let extensionMonths = 1;
-        if (pc === '3m') extensionMonths = 3;
-        else if (pc === '1m') extensionMonths = 1;
-        else if (pc === '6m') extensionMonths = 6;
-        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+        let extensionMonths = getMonthsFromProductCode(pc);
+        if (extensionMonths === 0 && pc !== 'unl' && pc !== 'unlimited') extensionMonths = 1;
 
         let newExpiresAt = null;
         if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
@@ -547,7 +549,8 @@ app.post('/api/auth/check-license', async (req, res) => {
             if (userRes.rows.length > 0) {
                 const currentExpiryStr = userRes.rows[0].expires_at;
                 const pc = (key.product_code || '').toLowerCase();
-                const extensionMonths = (pc === '3m') ? 3 : (pc === '1m' ? 1 : (pc === '6m' ? 6 : 12));
+                let extensionMonths = getMonthsFromProductCode(pc);
+                if (extensionMonths === 0) extensionMonths = 1;
                 const dbDate = parseDbDate(currentExpiryStr);
                 const startDate = (dbDate && dbDate > new Date()) ? dbDate : new Date();
                 if (pc === 'unl' || pc === 'unlimited') predictedExpiry = 'Unlimited';
@@ -1228,10 +1231,8 @@ app.post('/api/admin/users/:id/link-key', requireAdmin, async (req, res) => {
         if (isActive) return res.status(403).json({ error: "Key already active" });
 
         const pc = (key.product_code || '').toLowerCase();
-        let extensionMonths = 1;
-        if (pc === '3m') extensionMonths = 3;
-        else if (pc === '6m') extensionMonths = 6;
-        else if (pc === '1j' || pc === '12m') extensionMonths = 12;
+        let extensionMonths = getMonthsFromProductCode(pc);
+        if (extensionMonths === 0 && pc !== 'unl' && pc !== 'unlimited') extensionMonths = 1;
 
         let newExpiresAt = null;
         if (pc === 'unl' || pc === 'unlimited') newExpiresAt = null;
