@@ -260,7 +260,7 @@
             <button id="sidebarToggle" onclick="toggleSidebar()" class="btn-icon" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">☰</button>
             <a href="/app" class="app-logo">
                 <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-                <span>SECURITY HUB</span>
+                <span>SECURE MSG FORUM</span>
             </a>
         </div>
         <a href="/app" class="btn-back">← ZUR APP</a>
@@ -383,6 +383,11 @@
                 }
             }
         } catch(e){}
+
+        window.toggleSidebar = function() {
+            const sb = document.getElementById('forumSidebar');
+            if(sb) sb.classList.toggle('active');
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
