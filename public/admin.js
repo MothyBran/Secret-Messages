@@ -337,7 +337,24 @@ window.showMailView = function(viewName) {
 
     if (viewName === 'inbox') window.loadSupportTickets();
     if (viewName === 'settings') window.loadMailTemplate();
-    if (viewName === 'hub') window.loadPosts();
+    if (viewName === 'hub') {
+        window.loadPosts();
+        window.loadForumStats();
+    }
+};
+
+window.loadForumStats = async function() {
+    try {
+        const res = await fetch(`${API_BASE}/forum/stats`, { headers: getHeaders() });
+        const data = await res.json();
+        if(data.success && data.stats) {
+            const s = data.stats;
+            document.getElementById('fStatPosts').textContent = s.posts;
+            document.getElementById('fStatComments').textContent = s.comments;
+            document.getElementById('fStatInteractions').textContent = parseInt(s.likes) + parseInt(s.questions);
+            document.getElementById('fStatBookmarks').textContent = s.bookmarks;
+        }
+    } catch(e) { console.error("Forum stats failed", e); }
 };
 
 function renderMailInbox(tickets) {

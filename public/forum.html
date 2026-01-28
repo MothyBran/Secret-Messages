@@ -206,8 +206,37 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* SIDEBAR */
+        .forum-sidebar {
+            width: 280px; background: rgba(15, 18, 21, 0.95); border-right: 1px solid var(--border-color);
+            padding: 20px; display: none; flex-direction: column; gap: 30px;
+            height: calc(100vh - 70px); position: sticky; top: 70px; overflow-y: auto; flex-shrink: 0;
+        }
+        .forum-sidebar.active { display: flex; }
+        .sidebar-section h4 { color: var(--accent-blue); margin-bottom: 15px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        .sidebar-btn {
+            background: transparent; border: 1px solid #333; color: #ccc; width: 100%; padding: 10px; text-align: left;
+            margin-bottom: 10px; cursor: pointer; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; gap: 10px;
+        }
+        .sidebar-btn:hover { border-color: var(--accent-blue); color: #fff; background: rgba(0, 191, 255, 0.05); }
+
+        .activity-feed { display: flex; flex-direction: column; gap: 10px; }
+        .activity-item { font-size: 0.85rem; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 2px solid #333; }
+        .activity-item.reply { border-left-color: var(--accent-blue); }
+        .activity-item.like { border-left-color: var(--success-green); }
+        .activity-time { font-size: 0.7rem; color: #666; display: block; margin-top: 5px; }
+
+        /* Bookmark Icon in Card */
+        .card-actions { display: flex; justify-content: flex-end; padding: 0 25px 15px; position: relative; z-index: 2; }
+        .btn-bookmark { background: none; border: none; color: #666; cursor: pointer; font-size: 1.2rem; transition: 0.2s; padding: 5px; }
+        .btn-bookmark:hover { color: gold; }
+        .btn-bookmark.active { color: gold; }
+
         /* MOBILE TWEAKS */
         @media (max-width: 768px) {
+            .forum-sidebar {
+                position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); z-index: 90;
+            }
             .hub-container { padding: 15px; max-width: 100%; }
             .featured-image { height: 200px; }
             .post-title { font-size: 1.5rem; }
@@ -227,14 +256,34 @@
     <div class="bg-grid"></div>
 
     <header>
-        <a href="/app" class="app-logo">
-            <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-            <span>SECURITY HUB</span>
-        </a>
+        <div style="display:flex; align-items:center; gap:15px;">
+            <button id="sidebarToggle" onclick="toggleSidebar()" class="btn-icon" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer;">☰</button>
+            <a href="/app" class="app-logo">
+                <svg class="shield-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                <span>SECURITY HUB</span>
+            </a>
+        </div>
         <a href="/app" class="btn-back">← ZUR APP</a>
     </header>
 
-    <div class="hub-container">
+    <div class="main-wrapper" style="display:flex; min-height: calc(100vh - 70px);">
+        <!-- SIDEBAR -->
+        <div id="forumSidebar" class="forum-sidebar">
+            <div class="sidebar-section">
+                <h4>Meine Inhalte</h4>
+                <button class="sidebar-btn" onclick="showSection('bookmarks')">🔖 Gespeicherte Beiträge</button>
+                <button class="sidebar-btn" onclick="showSection('my-comments')">💬 Meine Kommentare</button>
+                <button class="sidebar-btn" onclick="showSection('all')">🏠 Alle Beiträge</button>
+            </div>
+            <div class="sidebar-section">
+                <h4>Aktivität</h4>
+                <div id="activityFeed" class="activity-feed">
+                    <div style="padding:10px; color:#666; font-size:0.8rem;">Lade Aktivitäten...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hub-container">
 
         <!-- HUB VIEW -->
         <div id="hubView">
@@ -284,6 +333,7 @@
             </div>
         </div>
 
+        </div>
     </div>
 
     <!-- AUTH MODAL -->
@@ -310,6 +360,7 @@
         let authToken = null;
         let currentUser = null;
         let isAdmin = false;
+        let userBookmarks = new Set();
 
         try {
             authToken = localStorage.getItem('sm_token');
@@ -346,16 +397,35 @@
             document.getElementById('searchInput').addEventListener('input', (e) => filterPosts(e.target.value));
         });
 
-        async function loadPosts() {
+        async function loadPosts(endpoint = '/posts') {
             try {
-                const res = await fetch(`${API_BASE}/posts`);
+                const headers = {};
+                if(authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+                // Load bookmarks first if logged in
+                if(authToken && endpoint === '/posts') {
+                    try {
+                        const bmRes = await fetch(`${API_BASE}/bookmarks`, { headers });
+                        const bmData = await bmRes.json();
+                        userBookmarks = new Set(bmData.map(b => b.id));
+                    } catch(e) {}
+                }
+
+                const res = await fetch(`${API_BASE}${endpoint}`, { headers });
                 if(!res.ok) throw new Error(`HTTP Error ${res.status}`);
-                const data = await res.json();
+                let data = await res.json();
+
+                // If My Comments, data structure is different (comments, not posts)
+                if(endpoint.includes('comments')) {
+                    renderMyComments(data);
+                    return;
+                }
+
                 allPosts = data;
                 renderHub();
             } catch(e) {
                 console.error("List Load failed", e);
-                document.getElementById('featuredContainer').innerHTML = '<div style="color:red; text-align:center;">Fehler beim Laden der Beiträge.</div>';
+                document.getElementById('featuredContainer').innerHTML = '<div style="color:red; text-align:center;">Fehler beim Laden.</div>';
             }
         }
 
@@ -379,12 +449,17 @@
                 return `<span class="post-tag ${cls}">${p}</span>`;
             };
 
-            const imgUrl = featured.image_url || '/assets/images/placeholder.jpg';
+            const isBm = userBookmarks.has(featured.id);
+            const bmClass = isBm ? 'active' : '';
+
             const featHtml = `
                 <div class="featured-card" onclick="openPost(${featured.id})">
                     ${featured.image_url ? `<img src="${featured.image_url}" class="featured-image">` : ''}
                     <div class="featured-content">
-                        ${renderTag(featured.priority)}
+                        <div style="display:flex; justify-content:space-between; align-items: flex-start;">
+                            ${renderTag(featured.priority)}
+                            <button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${featured.id})">🔖</button>
+                        </div>
                         <div class="post-title">${featured.title}</div>
                         <div class="post-subtitle">${featured.subtitle || ''}</div>
                         <div class="post-meta">
@@ -400,11 +475,19 @@
             const others = allPosts.slice(1);
             others.forEach(p => {
                 const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;color:#333;background:#111;font-size:0.8rem;border:1px solid #222;">IMG</div>`;
+                const isBm = userBookmarks.has(p.id);
+                const bmClass = isBm ? 'active' : '';
+
                 const item = document.createElement('div');
                 item.className = 'timeline-item';
+                item.style.position = 'relative';
+
+                // Add absolute bookmark button for list items
+                const bmBtn = `<button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${p.id})" style="position:absolute; top:10px; right:10px;">🔖</button>`;
+
                 item.innerHTML = `
                     ${thumb}
-                    <div class="timeline-info">
+                    <div class="timeline-info" style="padding-right:30px;">
                         <div style="display:flex; justify-content:space-between;">
                             ${renderTag(p.priority)}
                             <span style="font-size:0.7rem; color:#666;">${new Date(p.created_at).toLocaleDateString('de-DE')}</span>
@@ -412,6 +495,7 @@
                         <div class="timeline-title">${p.title}</div>
                         <div style="font-size:0.8rem; color:#888;">${p.subtitle || ''}</div>
                     </div>
+                    ${bmBtn}
                 `;
                 item.onclick = () => openPost(p.id);
                 timelineContainer.appendChild(item);
@@ -484,9 +568,18 @@
                     return `<span class="post-tag ${cls}">${p}</span>`;
                 };
 
+                const isBm = userBookmarks.has(post.id);
+                const bmText = isBm ? 'Gespeichert' : 'Beitrag speichern';
+                const bmClass = isBm ? 'active' : '';
+
                 container.innerHTML = `
                     ${post.image_url ? `<img src="${post.image_url}" class="detail-header-img">` : ''}
-                    ${renderTag(post.priority)}
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        ${renderTag(post.priority)}
+                        <button class="btn-bookmark ${bmClass}" onclick="toggleBookmark(${post.id})" style="font-size:1rem; display:flex; align-items:center; gap:5px;">
+                            <span>🔖</span> <span id="bmText-${post.id}">${bmText}</span>
+                        </button>
+                    </div>
                     <h1 class="post-title">${post.title}</h1>
                     <div class="post-subtitle">${post.subtitle || ''}</div>
                     <div class="post-meta" style="margin-bottom:30px; padding-bottom:20px; border-bottom:1px solid #333;">
@@ -532,6 +625,40 @@
         }
         function closeAuthModal() {
             document.getElementById('authModal').style.display = 'none';
+        }
+
+        async function toggleBookmark(id) {
+            if(!authToken) return showLoginModal();
+            const isBm = userBookmarks.has(id);
+            const method = isBm ? 'DELETE' : 'POST';
+
+            try {
+                const res = await fetch(`${API_BASE}/posts/${id}/bookmark`, {
+                    method: method,
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if(res.ok) {
+                    if(isBm) userBookmarks.delete(id);
+                    else userBookmarks.add(id);
+
+                    window.showToast(isBm ? "Entfernt" : "Gespeichert", "success");
+
+                    // Update UI if detail view
+                    if(currentPostId == id) {
+                        const txtEl = document.getElementById(`bmText-${id}`);
+                        if(txtEl) txtEl.textContent = !isBm ? 'Gespeichert' : 'Beitrag speichern';
+                        const btn = document.querySelector('.btn-bookmark');
+                        if(btn) {
+                            if(!isBm) btn.classList.add('active');
+                            else btn.classList.remove('active');
+                        }
+                    } else {
+                        // Refresh list to update icons
+                        renderHub();
+                    }
+                }
+            } catch(e) { window.showToast("Fehler", "error"); }
         }
 
         async function vote(type) {

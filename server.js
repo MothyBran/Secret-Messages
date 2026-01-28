@@ -139,11 +139,14 @@ const rateLimiter = rateLimit({
 });
 
 app.use(express.static('public', { index: false }));
+// Mount persistent uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
 
 // Multer Config
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, 'public/uploads/security');
+        // Use persistent directory
+        const dir = path.join(__dirname, 'data/uploads/security');
         if (!fs.existsSync(dir)){
             fs.mkdirSync(dir, { recursive: true });
         }
@@ -408,10 +411,16 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
             await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
         }
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+
+        // Determine Role from Badge
+        let role = 'user';
+        if (user.badge && (user.badge.toLowerCase().includes('admin') || user.badge.includes('🛡️'))) role = 'admin';
+        else if (user.badge && (user.badge.toLowerCase().includes('dev') || user.badge.includes('👾'))) role = 'dev';
+
+        const token = jwt.sign({ id: user.id, username: user.username, role }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
         await trackEvent(req, 'login_success', 'auth', { username });
-        res.json({ success: true, token, username: user.username, badge: user.badge, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id });
+        res.json({ success: true, token, username: user.username, badge: user.badge, expiresAt: user.expires_at || 'lifetime', hasLicense: !!user.license_key_id, role });
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
@@ -784,6 +793,20 @@ const requireAdmin = async (req, res, next) => {
         return next();
     }
     return res.status(403).json({ success: false, error: 'Admin Auth Failed' });
+};
+
+const requireModerator = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'admin' || decoded.role === 'dev') return next();
+        } catch (e) { }
+    }
+    const sentPassword = req.headers['x-admin-password'] || req.body.password;
+    if (sentPassword === ADMIN_PASSWORD) return next();
+    return res.status(403).json({ success: false, error: 'Keine Berechtigung' });
 };
 
 app.post('/api/admin/auth', async (req, res) => {
@@ -1752,7 +1775,7 @@ app.post('/api/comments/:id/vote', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/comments/:id', requireAdmin, async (req, res) => {
+app.delete('/api/comments/:id', requireModerator, async (req, res) => {
     try {
         // Soft delete or hard delete? Request said "Delete Button", implies hard delete or 'deleted' placeholder.
         // Hard delete cleans up db.
@@ -1772,7 +1795,7 @@ app.delete('/api/comments/:id', requireAdmin, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/comments/:id/pin', requireAdmin, async (req, res) => {
+app.patch('/api/comments/:id/pin', requireModerator, async (req, res) => {
     try {
         const { pinned } = req.body;
         const val = isPostgreSQL() ? pinned : (pinned ? 1 : 0);
@@ -1804,6 +1827,119 @@ app.post('/api/posts/:id/vote', authenticateUser, async (req, res) => {
             `, [req.params.id, req.user.id, type, new Date().toISOString()]);
         }
         res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// BOOKMARKS
+app.get('/api/bookmarks', authenticateUser, async (req, res) => {
+    try {
+        const sql = `
+            SELECT p.*,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
+            (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions,
+            (SELECT COUNT(*) FROM security_comments WHERE post_id = p.id) as comments_count
+            FROM security_posts p
+            JOIN user_bookmarks b ON p.id = b.post_id
+            WHERE b.user_id = $1
+            ORDER BY b.created_at DESC
+        `;
+        const result = await dbQuery(sql, [req.user.id]);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/posts/:id/bookmark', authenticateUser, async (req, res) => {
+    try {
+        const postId = req.params.id;
+        if (isPostgreSQL()) {
+            await dbQuery(`INSERT INTO user_bookmarks (user_id, post_id, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [req.user.id, postId, new Date().toISOString()]);
+        } else {
+            await dbQuery(`INSERT OR IGNORE INTO user_bookmarks (user_id, post_id, created_at) VALUES ($1, $2, $3)`, [req.user.id, postId, new Date().toISOString()]);
+        }
+        res.json({ success: true, bookmarked: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/posts/:id/bookmark', authenticateUser, async (req, res) => {
+    try {
+        await dbQuery(`DELETE FROM user_bookmarks WHERE user_id = $1 AND post_id = $2`, [req.user.id, req.params.id]);
+        res.json({ success: true, bookmarked: false });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ACTIVITY FEED
+app.get('/api/forum/activity', authenticateUser, async (req, res) => {
+    try {
+        // Replies to my comments
+        const repliesSql = `
+            SELECT c.id, c.post_id, c.username as actor, c.created_at, 'reply' as type, p.title as post_title
+            FROM security_comments c
+            JOIN security_comments parent ON c.parent_id = parent.id
+            JOIN security_posts p ON c.post_id = p.id
+            WHERE parent.user_id = $1 AND c.user_id != $1
+            ORDER BY c.created_at DESC LIMIT 20
+        `;
+        // Likes on my comments
+        const likesSql = `
+            SELECT i.created_at, 'like' as type, c.comment as content_preview, u.username as actor
+            FROM security_comment_interactions i
+            JOIN security_comments c ON i.comment_id = c.id
+            LEFT JOIN users u ON i.user_id = u.id
+            WHERE c.user_id = $1 AND i.interaction_type = 'like' AND i.user_id != $1
+            ORDER BY i.created_at DESC LIMIT 20
+        `;
+
+        const [replies, likes] = await Promise.all([
+            dbQuery(repliesSql, [req.user.id]),
+            dbQuery(likesSql, [req.user.id])
+        ]);
+
+        const combined = [
+            ...replies.rows.map(r => ({ ...r, text: `hat auf deinen Kommentar in "${r.post_title}" geantwortet.` })),
+            ...likes.rows.map(r => ({ ...r, text: `gefällt dein Kommentar: "${r.content_preview ? r.content_preview.substring(0, 30) + '...' : ''}"` }))
+        ];
+
+        // Sort combined
+        combined.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        res.json(combined.slice(0, 50));
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// MY COMMENTS
+app.get('/api/user/comments', authenticateUser, async (req, res) => {
+    try {
+        const sql = `
+            SELECT c.*, p.title as post_title
+            FROM security_comments c
+            JOIN security_posts p ON c.post_id = p.id
+            WHERE c.user_id = $1
+            ORDER BY c.created_at DESC
+        `;
+        const result = await dbQuery(sql, [req.user.id]);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ADMIN STATS
+app.get('/api/admin/forum/stats', requireAdmin, async (req, res) => {
+    try {
+        const posts = await dbQuery(`SELECT COUNT(*) as c FROM security_posts`);
+        const comments = await dbQuery(`SELECT COUNT(*) as c FROM security_comments`);
+        const likes = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'like'`);
+        const questions = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'question'`);
+        const bookmarks = await dbQuery(`SELECT COUNT(*) as c FROM user_bookmarks`);
+
+        res.json({
+            success: true,
+            stats: {
+                posts: posts.rows[0].c,
+                comments: comments.rows[0].c,
+                likes: likes.rows[0].c,
+                questions: questions.rows[0].c,
+                bookmarks: bookmarks.rows[0].c
+            }
+        });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

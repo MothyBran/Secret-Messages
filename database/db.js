@@ -139,6 +139,13 @@ async function createTables() {
             interaction_type TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(comment_id, user_id)
+        )`,
+        `CREATE TABLE IF NOT EXISTS user_bookmarks (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            post_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, post_id)
         )`
     ];
 
