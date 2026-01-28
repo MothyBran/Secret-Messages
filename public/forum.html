@@ -361,24 +361,20 @@
         let currentUser = null;
         let isAdmin = false;
         let userBookmarks = new Set();
+        let currentSection = 'all';
 
         try {
             authToken = localStorage.getItem('sm_token');
             const userStr = localStorage.getItem('sm_user');
             if(userStr) currentUser = JSON.parse(userStr);
-            // Decode token to check role (simple check, backend enforces)
             if(authToken) {
-                const payload = JSON.parse(atob(authToken.split('.')[1]));
-                if(payload.role === 'admin') isAdmin = true; // JWT usually doesn't have role for users, but for admin token
-                // Wait, admin token logic in this app uses a separate endpoint /api/admin/auth.
-                // Regular users are just users.
-                // Admin moderation in forum is usually done via Admin Panel,
-                // but prompt implies moderation buttons in frontend.
-                // We'll check if the user object has a specific badge or flag if we want frontend controls.
-                // For this implementation, we'll rely on the server 403 if they try to click without permission,
-                // or checking a local storage flag if one exists.
-                // We will add a "moderator_mode" for demonstration if 'Admin' badge is present.
-                if (currentUser && (currentUser.badge && (currentUser.badge.includes('Admin') || currentUser.badge.includes('Dev')))) {
+                try {
+                    const payload = JSON.parse(atob(authToken.split('.')[1]));
+                    if(payload.role === 'admin' || payload.role === 'dev') isAdmin = true;
+                } catch(e) {}
+
+                // Fallback check for UI elements if token doesn't have role yet but badge says so
+                if (!isAdmin && currentUser && (currentUser.badge && (currentUser.badge.includes('Admin') || currentUser.badge.includes('Dev')))) {
                     isAdmin = true;
                 }
             }
@@ -389,10 +385,39 @@
             if(sb) sb.classList.toggle('active');
         };
 
+        window.showSection = function(section) {
+            if (section !== 'all' && !authToken) return showLoginModal();
+
+            // Close sidebar on mobile after selection
+            if(window.innerWidth < 768) {
+                document.getElementById('forumSidebar').classList.remove('active');
+            }
+
+            currentSection = section;
+            showHub(); // Ensure we are in Hub View
+
+            // Highlight active button
+            document.querySelectorAll('.sidebar-btn').forEach(b => b.style.color = '');
+            const activeBtn = document.querySelector(`button[onclick="showSection('${section}')"]`);
+            if(activeBtn) activeBtn.style.color = 'var(--accent-blue)';
+
+            if(section === 'all') {
+                document.getElementById('featuredContainer').style.display = 'block';
+                loadPosts('/posts');
+            } else if(section === 'bookmarks') {
+                document.getElementById('featuredContainer').style.display = 'none'; // No featured in bookmarks
+                loadPosts('/bookmarks');
+            } else if(section === 'my-comments') {
+                document.getElementById('featuredContainer').style.display = 'none';
+                loadPosts('/user/comments');
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             const postIdParam = params.get('post');
 
+            // Default load
             loadPosts().then(() => {
                 if(postIdParam) {
                     openPost(postIdParam);
@@ -419,13 +444,57 @@
             }
         }
 
+        async function loadActivity() {
+            const container = document.getElementById('activityFeed');
+            if(!container) return;
+            container.innerHTML = '<div style="color:#666; font-size:0.8rem; padding:10px;">Lade...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/forum/activity`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if(!res.ok) throw new Error();
+                const activities = await res.json();
+
+                if(activities.length === 0) {
+                    container.innerHTML = '<div style="color:#666; font-size:0.8rem; padding:10px;">Keine Aktivitäten.</div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                activities.forEach(act => {
+                    const item = document.createElement('div');
+                    item.className = `activity-item ${act.type}`;
+                    item.onclick = () => openPost(act.post_id || act.id); // Fallback
+                    item.style.cursor = 'pointer';
+
+                    let icon = '💬';
+                    if(act.type === 'like') icon = '❤️';
+
+                    item.innerHTML = `
+                        <div style="font-weight:bold; color:#fff; display:flex; justify-content:space-between;">
+                        <span>${icon} ${escapeHtml(act.actor || 'Jemand')}</span>
+                        </div>
+                        <div style="color:#bbb; margin-top:2px; line-height:1.2;">
+                        ${escapeHtml(act.text)}
+                        </div>
+                        <span class="activity-time">${new Date(act.created_at).toLocaleDateString()}</span>
+                    `;
+                    container.appendChild(item);
+                });
+
+            } catch(e) {
+                container.innerHTML = '<div style="color:#666; font-size:0.8rem; padding:10px;">Fehler beim Laden.</div>';
+            }
+        }
+
         async function loadPosts(endpoint = '/posts') {
             try {
                 const headers = {};
                 if(authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
                 // Load bookmarks first if logged in
-                if(authToken && endpoint === '/posts') {
+                if(authToken && !endpoint.includes('comments')) {
                     try {
                         const bmRes = await fetch(`${API_BASE}/bookmarks`, { headers });
                         const bmData = await bmRes.json();
@@ -447,8 +516,44 @@
                 renderHub();
             } catch(e) {
                 console.error("List Load failed", e);
-                document.getElementById('featuredContainer').innerHTML = '<div style="color:red; text-align:center;">Fehler beim Laden.</div>';
+                const container = document.getElementById('timelineContainer');
+                if(container) container.innerHTML = '<div style="color:var(--error-red); text-align:center; padding:20px;">Fehler beim Laden der Beiträge.</div>';
             }
+        }
+
+        function renderMyComments(comments) {
+            const timelineContainer = document.getElementById('timelineContainer');
+            const featuredContainer = document.getElementById('featuredContainer');
+
+            // Hide featured section for this view
+            if(featuredContainer) featuredContainer.innerHTML = '';
+
+            timelineContainer.innerHTML = '';
+
+            if(!comments || comments.length === 0) {
+                timelineContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Keine Kommentare gefunden.</div>';
+                return;
+            }
+
+            comments.forEach(c => {
+               const item = document.createElement('div');
+               item.className = 'timeline-item';
+               item.style.display = 'block'; // Override flex row
+               item.onclick = () => openPost(c.post_id);
+
+               item.innerHTML = `
+                    <div style="font-size:0.8rem; color:var(--accent-blue); margin-bottom:5px;">
+                        In: ${escapeHtml(c.post_title || 'Unbekannter Beitrag')}
+                    </div>
+                    <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:4px; border-left:2px solid #555; font-style:italic; color:#ccc; margin-bottom:5px;">
+                        "${escapeHtml(c.comment.substring(0, 100))}${c.comment.length > 100 ? '...' : ''}"
+                    </div>
+                    <div style="font-size:0.7rem; color:#666;">
+                        ${new Date(c.created_at).toLocaleString()}
+                    </div>
+               `;
+               timelineContainer.appendChild(item);
+            });
         }
 
         function renderHub() {
@@ -459,11 +564,10 @@
             timelineContainer.innerHTML = '';
 
             if(allPosts.length === 0) {
-                featuredContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Keine Beiträge vorhanden.</div>';
+                timelineContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">Keine Beiträge vorhanden.</div>';
                 return;
             }
 
-            const featured = allPosts[0];
             const renderTag = (p) => {
                 let cls = 'tag-info';
                 if(p === 'Wichtig') cls = 'tag-wichtig';
@@ -471,42 +575,16 @@
                 return `<span class="post-tag ${cls}">${p}</span>`;
             };
 
-            const isBm = userBookmarks.has(featured.id);
-            const bmClass = isBm ? 'active' : '';
-
-            const featHtml = `
-                <div class="featured-card" onclick="openPost(${featured.id})">
-                    ${featured.image_url ? `<img src="${featured.image_url}" class="featured-image">` : ''}
-                    <div class="featured-content">
-                        <div style="display:flex; justify-content:space-between; align-items: flex-start;">
-                            ${renderTag(featured.priority)}
-                            <button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${featured.id})">🔖</button>
-                        </div>
-                        <div class="post-title">${featured.title}</div>
-                        <div class="post-subtitle">${featured.subtitle || ''}</div>
-                        <div class="post-meta">
-                            <span>📅 ${new Date(featured.created_at).toLocaleDateString('de-DE')}</span>
-                            <span>🗨️ ${featured.comments_count || 0} Kommentare</span>
-                            <span>👍 ${featured.likes || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            featuredContainer.innerHTML = featHtml;
-
-            const others = allPosts.slice(1);
-            others.forEach(p => {
+            // Helpers
+            const renderListItem = (p) => {
                 const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;color:#333;background:#111;font-size:0.8rem;border:1px solid #222;">IMG</div>`;
                 const isBm = userBookmarks.has(p.id);
                 const bmClass = isBm ? 'active' : '';
+                const bmBtn = `<button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${p.id})" style="position:absolute; top:10px; right:10px;">🔖</button>`;
 
                 const item = document.createElement('div');
                 item.className = 'timeline-item';
                 item.style.position = 'relative';
-
-                // Add absolute bookmark button for list items
-                const bmBtn = `<button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${p.id})" style="position:absolute; top:10px; right:10px;">🔖</button>`;
-
                 item.innerHTML = `
                     ${thumb}
                     <div class="timeline-info" style="padding-right:30px;">
@@ -521,7 +599,44 @@
                 `;
                 item.onclick = () => openPost(p.id);
                 timelineContainer.appendChild(item);
-            });
+            };
+
+            // If we are in 'bookmarks' or 'all' but searching (filter), we might want list only.
+            // Current Logic: If 'bookmarks', Render ALL as list.
+
+            let listPosts = allPosts;
+
+            if (currentSection === 'all') {
+                // Extract Featured
+                const featured = allPosts[0];
+                listPosts = allPosts.slice(1);
+
+                const isBm = userBookmarks.has(featured.id);
+                const bmClass = isBm ? 'active' : '';
+
+                const featHtml = `
+                    <div class="featured-card" onclick="openPost(${featured.id})">
+                        ${featured.image_url ? `<img src="${featured.image_url}" class="featured-image">` : ''}
+                        <div class="featured-content">
+                            <div style="display:flex; justify-content:space-between; align-items: flex-start;">
+                                ${renderTag(featured.priority)}
+                                <button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${featured.id})">🔖</button>
+                            </div>
+                            <div class="post-title">${featured.title}</div>
+                            <div class="post-subtitle">${featured.subtitle || ''}</div>
+                            <div class="post-meta">
+                                <span>📅 ${new Date(featured.created_at).toLocaleDateString('de-DE')}</span>
+                                <span>🗨️ ${featured.comments_count || 0} Kommentare</span>
+                                <span>👍 ${featured.likes || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                featuredContainer.innerHTML = featHtml;
+            }
+
+            // Render List
+            listPosts.forEach(p => renderListItem(p));
         }
 
         function filterPosts(term) {
@@ -916,9 +1031,13 @@
                     window.showToast("Gelöscht.", "success");
                     loadComments(currentPostId);
                 } else {
-                    window.showToast("Keine Berechtigung (Admin Login nötig).", "error");
+                    if(res.status === 403) {
+                         window.showToast("Berechtigung fehlt. Bitte neu einloggen.", "error");
+                    } else {
+                         window.showToast("Fehler beim Löschen.", "error");
+                    }
                 }
-            } catch(e) { window.showToast("Fehler", "error"); }
+            } catch(e) { window.showToast("Netzwerkfehler", "error"); }
         }
 
         async function pinComment(id, state) {
@@ -937,9 +1056,14 @@
                     window.showToast(state ? "Gepinnt" : "Gelöst", "success");
                     loadComments(currentPostId);
                 } else {
-                    window.showToast("Keine Berechtigung.", "error");
+                    const err = await res.json();
+                    if(res.status === 403) {
+                         window.showToast("Berechtigung fehlt. Bitte neu einloggen.", "error");
+                    } else {
+                         window.showToast("Fehler: " + (err.error || "Unbekannt"), "error");
+                    }
                 }
-            } catch(e) { window.showToast("Fehler", "error"); }
+            } catch(e) { window.showToast("Netzwerkfehler", "error"); }
         }
 
         function escapeHtml(text) { if(!text) return ''; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
