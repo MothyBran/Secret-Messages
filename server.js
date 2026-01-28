@@ -1887,7 +1887,7 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
             JOIN security_comments c ON i.comment_id = c.id
             LEFT JOIN users u ON i.user_id = u.id
             WHERE c.user_id = $1 AND i.interaction_type = 'like' AND i.user_id != $1
-            ORDER BY i.created_at DESC LIMIT 20
+            ORDER BY i.created_at DESC LIMIT 30
         `;
 
         const [replies, likes] = await Promise.all([
@@ -1902,7 +1902,7 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
 
         // Sort combined
         combined.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-        res.json(combined.slice(0, 50));
+        res.json(combined.slice(0, 30));
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
