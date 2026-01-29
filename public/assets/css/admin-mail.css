@@ -134,3 +134,25 @@
     color: #555;
     margin-top: 50px;
 }
+
+/* === MOBILE OPTIMIZATION === */
+@media (max-width: 1024px) {
+    .mail-service-container {
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+    }
+
+    .mail-inbox-list {
+        height: 300px; /* Fixed height for list on mobile */
+        flex: none;
+        width: 100%;
+    }
+
+    .mail-detail-view {
+        height: auto;
+        min-height: 400px;
+        flex: none;
+        width: 100%;
+    }
+}

@@ -68,16 +68,28 @@
             border-bottom: 1px solid var(--border-color);
             padding: 15px 30px;
             display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; /* Allow wrapping on mobile */
+            gap: 10px;
         }
-        .brand { font-size: 1.5rem; font-weight: 700; color: #fff; letter-spacing: 1px; }
+        .brand { font-size: 1.5rem; font-weight: 700; color: #fff; letter-spacing: 1px; flex-shrink: 0; }
+
         .nav-tabs {
             display: flex; gap: 5px;
+            overflow-x: auto; /* Scroll on mobile if needed */
+            white-space: nowrap;
+            padding-bottom: 5px; /* Space for scrollbar */
+            flex-grow: 1;
+            justify-content: center;
         }
+        /* Custom Scrollbar for Nav */
+        .nav-tabs::-webkit-scrollbar { height: 4px; }
+        .nav-tabs::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
         .nav-tab {
             background: transparent;
             border: none;
             color: var(--text-muted);
-            padding: 10px 20px;
+            padding: 10px 15px; /* Slightly reduced padding */
             cursor: pointer;
             font-family: 'Rajdhani', sans-serif;
             font-size: 1.1rem;
@@ -85,6 +97,7 @@
             text-transform: uppercase;
             border-bottom: 2px solid transparent;
             transition: all 0.2s;
+            flex-shrink: 0;
         }
         .nav-tab:hover { color: #fff; }
         .nav-tab.active {
@@ -95,6 +108,23 @@
         .logout-btn {
             background: #222; border: 1px solid #444; color: #fff;
             padding: 5px 15px; cursor: pointer; font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        /* Mobile Header Adjustments */
+        @media (max-width: 768px) {
+            header {
+                padding: 10px 15px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .brand { text-align: center; margin-bottom: 10px; }
+            .nav-tabs { justify-content: flex-start; }
+            .logout-btn { display: none; } /* Hide Logout in header on mobile, maybe move to menu? Or keep as block at bottom */
+            /* Re-add logout as block if hidden? Or just keep it. Let's keep it visible but maybe smaller */
+            header { flex-direction: row; flex-wrap: wrap; }
+            .nav-tabs { order: 3; width: 100%; margin-top: 10px; }
+            .brand { flex-grow: 1; text-align: left; }
         }
 
         /* MAIN CONTENT AREA */
