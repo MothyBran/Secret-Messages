@@ -298,7 +298,7 @@
                     <button class="sidebar-btn" onclick="showSection('infos')">ℹ️ Infos</button>
                     <button class="sidebar-btn" onclick="showSection('updates')">🟢 Updates</button>
                     <button class="sidebar-btn" onclick="showSection('warnings')">⚠️ Warnhinweise</button>
-                    <button class="sidebar-btn" onclick="showSection('bookmarks')">🔖 Gespeicherte Beiträge</button>
+                    <button class="sidebar-btn" onclick="showSection('bookmarks')">⭐ Gespeicherte Beiträge</button>
                     <button class="sidebar-btn" onclick="showSection('my-comments')">💬 Meine Kommentare</button>
                 </div>
                 <div class="sidebar-section">
@@ -833,7 +833,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         ${renderTag(post.priority)}
                         <button class="btn-bookmark ${bmClass}" onclick="toggleBookmark(${post.id})" style="font-size:1rem; display:flex; align-items:center; gap:5px;">
-                            <span>🔖</span> <span id="bmText-${post.id}">${bmText}</span>
+                            <span>⭐</span> <span id="bmText-${post.id}">${bmText}</span>
                         </button>
                     </div>
                     <h1 class="post-title">${post.title}</h1>
