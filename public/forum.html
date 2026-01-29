@@ -311,7 +311,7 @@
 
             <div style="margin-top:auto;"></div>
 
-            <a href="#" class="sidebar-item" id="logoutBtnSide" onclick="logout()">◀️ Abmelden</a>
+            <a href="#" class="sidebar-item" id="logoutBtnSide" onclick="logout()" style="display:none;">◀️ Abmelden</a>
         </div>
 
         <div class="hub-container">
@@ -375,7 +375,7 @@
             <p style="color:#ccc; margin-bottom:25px; line-height:1.5;">
                 Um an der Diskussion teilzunehmen oder abzustimmen, loggen Sie sich bitte in der Secure App ein.
             </p>
-            <a href="/landing.html" class="btn-comment" style="display:inline-block; text-decoration:none;">Zum Login</a>
+            <a href="/app" class="btn-comment" style="display:inline-block; text-decoration:none;">Zum Login</a>
         </div>
     </div>
 
@@ -401,24 +401,49 @@
 
             // Populate Sidebar User
             if(currentUser) {
+                // Show Logout Button
+                const loBtn = document.getElementById('logoutBtnSide');
+                if(loBtn) loBtn.style.display = 'flex';
+
                 const un = document.getElementById('sidebarUser');
                 const lic = document.getElementById('sidebarLicense');
-                if(un) un.textContent = currentUser.username;
 
-                // Construct Badge / License Info similar to App
-                let badgeText = currentUser.badge || 'User';
-                if(currentUser.expiresAt) {
-                    const d = new Date(currentUser.expiresAt);
-                    if(!isNaN(d.getTime())) {
-                        badgeText = `LIZENZ: gültig bis ${d.toLocaleDateString()}`;
-                    } else if (currentUser.expiresAt === 'lifetime' || currentUser.expiresAt === 'Unlimited') {
-                        badgeText = 'LIFETIME ACCESS';
+                // USERNAME & BADGE
+                // Use 'name' as primary, fallback to 'username'
+                const displayName = currentUser.name || currentUser.username || 'User';
+
+                if(un) {
+                    if (currentUser.badge) {
+                        const badgeName = currentUser.badge.split(' ')[0].toLowerCase();
+                        const badgeClass = `user-badge badge-${badgeName}`;
+                        un.innerHTML = `👤 ${displayName} <span class="${badgeClass}">${currentUser.badge}</span>`;
+                    } else {
+                        un.textContent = `👤 ${displayName}`;
                     }
-                } else {
-                    badgeText = 'Nicht verbunden';
                 }
 
-                if(lic) lic.textContent = badgeText;
+                // LICENSE INFO
+                let licText = 'Nicht verbunden';
+                let licColor = '#888';
+
+                if(currentUser.expiresAt) {
+                    const exp = String(currentUser.expiresAt).toLowerCase();
+                    if (exp === 'lifetime' || exp.includes('unlimited')) {
+                        licText = 'LIZENZ: UNLIMITED';
+                        licColor = '#00ff41';
+                    } else {
+                        const d = new Date(currentUser.expiresAt);
+                        if(!isNaN(d.getTime())) {
+                            licText = `LIZENZ: gültig bis ${d.toLocaleDateString()}`;
+                            licColor = 'var(--accent-blue)';
+                        }
+                    }
+                }
+
+                if(lic) {
+                    lic.textContent = licText;
+                    lic.style.color = licColor;
+                }
             }
 
             if(authToken) {
