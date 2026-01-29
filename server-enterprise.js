@@ -29,10 +29,35 @@ app.use(express.static(publicPath, {
 }));
 
 // DETERMINE DATA DIRECTORY (Persistent Storage)
-// Priority: USER_DATA_PATH (Electron) > DATA_PATH (Env) > Local 'data' folder
-const DATA_DIR = process.env.USER_DATA_PATH
-    ? path.join(process.env.USER_DATA_PATH, 'data')
-    : (process.env.DATA_PATH || path.join(__dirname, 'data'));
+// Priority: USER_DATA_PATH (Electron) > DATA_PATH (Env) > Sibling 'secure-msg-data' > Local 'data' folder
+let DATA_DIR;
+
+if (process.env.USER_DATA_PATH) {
+    DATA_DIR = path.join(process.env.USER_DATA_PATH, 'data');
+} else if (process.env.DATA_PATH) {
+    DATA_DIR = process.env.DATA_PATH;
+} else {
+    // Try Sibling Directory (Survives Code Updates/Overwrites)
+    const siblingPath = path.join(__dirname, '../secure-msg-data');
+    try {
+        if (!fs.existsSync(siblingPath)) {
+            // Try to create it to test permissions
+            fs.mkdirSync(siblingPath);
+        }
+        // Check write permission
+        const testFile = path.join(siblingPath, '.perm-test');
+        fs.writeFileSync(testFile, 'ok');
+        fs.unlinkSync(testFile);
+
+        DATA_DIR = siblingPath;
+        console.log("📂 Using Sibling Data Directory (Persistent):", DATA_DIR);
+    } catch (e) {
+        console.warn("⚠️ Sibling directory not writable (" + e.message + "). Falling back to local 'data' folder.");
+        DATA_DIR = path.join(__dirname, 'data');
+    }
+}
+
+console.log("📂 FINAL DATA_DIR:", DATA_DIR);
 
 // Ensure Data & Uploads Directories Exist
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
