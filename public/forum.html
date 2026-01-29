@@ -703,7 +703,7 @@
                 const thumb = p.image_url ? `<img src="${p.image_url}" class="timeline-thumb">` : `<div class="timeline-thumb" style="display:flex;align-items:center;justify-content:center;color:#333;background:#111;font-size:0.8rem;border:1px solid #222;">IMG</div>`;
                 const isBm = userBookmarks.has(p.id);
                 const bmClass = isBm ? 'active' : '';
-                const bmBtn = `<button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${p.id})" style="position:absolute; top:10px; right:10px;">🔖</button>`;
+                const bmBtn = `<button class="btn-bookmark ${bmClass}" onclick="event.stopPropagation(); toggleBookmark(${p.id})" style="position:absolute; top:10px; right:10px;">⭐</button>`;
 
                 const item = document.createElement('div');
                 item.className = 'timeline-item';
