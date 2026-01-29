@@ -139,18 +139,37 @@ const rateLimiter = rateLimit({
 });
 
 app.use(express.static('public', { index: false }));
+
+// DETERMINE DATA DIRECTORY (Persistent Storage)
+// Priority: USER_DATA_PATH (Electron) > DATA_PATH (Env) > Local 'data' folder
+const DATA_DIR = process.env.USER_DATA_PATH
+    ? path.join(process.env.USER_DATA_PATH, 'data')
+    : (process.env.DATA_PATH || path.join(__dirname, 'data'));
+
+// Ensure Data & Uploads Directories Exist
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const SECURITY_UPLOADS_DIR = path.join(UPLOADS_DIR, 'security');
+
+if (!fs.existsSync(SECURITY_UPLOADS_DIR)) {
+    try {
+        fs.mkdirSync(SECURITY_UPLOADS_DIR, { recursive: true });
+        console.log(`📂 Created Upload Directory: ${SECURITY_UPLOADS_DIR}`);
+    } catch (e) {
+        console.error("Failed to create upload directory:", e);
+    }
+}
+
 // Mount persistent uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'data/uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Multer Config
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Use persistent directory
-        const dir = path.join(__dirname, 'data/uploads/security');
-        if (!fs.existsSync(dir)){
-            fs.mkdirSync(dir, { recursive: true });
+        // Use persistent directory determined above
+        if (!fs.existsSync(SECURITY_UPLOADS_DIR)){
+            fs.mkdirSync(SECURITY_UPLOADS_DIR, { recursive: true });
         }
-        cb(null, dir);
+        cb(null, SECURITY_UPLOADS_DIR);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
