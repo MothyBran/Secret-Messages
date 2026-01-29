@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
 const cors = require('cors');
+const multer = require('multer'); // Added Multer
 require('dotenv').config();
 
 // 1. Minimal Express Setup
@@ -26,6 +27,52 @@ app.use(express.static(publicPath, {
         }
     }
 }));
+
+// DETERMINE DATA DIRECTORY (Persistent Storage)
+// Priority: USER_DATA_PATH (Electron) > DATA_PATH (Env) > Local 'data' folder
+const DATA_DIR = process.env.USER_DATA_PATH
+    ? path.join(process.env.USER_DATA_PATH, 'data')
+    : (process.env.DATA_PATH || path.join(__dirname, 'data'));
+
+// Ensure Data & Uploads Directories Exist
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const SECURITY_UPLOADS_DIR = path.join(UPLOADS_DIR, 'security');
+
+if (!fs.existsSync(SECURITY_UPLOADS_DIR)) {
+    try {
+        fs.mkdirSync(SECURITY_UPLOADS_DIR, { recursive: true });
+        console.log(`📂 Created Upload Directory: ${SECURITY_UPLOADS_DIR}`);
+    } catch (e) {
+        console.error("Failed to create upload directory:", e);
+    }
+}
+
+// Mount persistent uploads directory
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Multer Config
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // Use persistent directory determined above
+        if (!fs.existsSync(SECURITY_UPLOADS_DIR)){
+            fs.mkdirSync(SECURITY_UPLOADS_DIR, { recursive: true });
+        }
+        cb(null, SECURITY_UPLOADS_DIR);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, 'post-' + uniqueSuffix + ext);
+    }
+});
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if(file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Nur Bilder erlaubt!'), false);
+    }
+});
 
 // Middleware (After Static, ensuring static is handled first)
 app.use(helmet({
@@ -87,7 +134,7 @@ const initializeDatabase = async () => {
         await createTables();
 
         // 3. Mount Enterprise Router (Now that DB is ready)
-        const enterpriseRouter = require('./enterprise/router')(dbQuery);
+        const enterpriseRouter = require('./enterprise/router')(dbQuery, upload);
         app.use('/', enterpriseRouter); // Mounts at root
 
         // 4. Debug 404 Middleware (Last Resort)
@@ -168,6 +215,55 @@ const createTables = async () => {
         details TEXT,
         ip_address VARCHAR(45),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // FORUM / SECURITY HUB TABLES
+    await dbQuery(`CREATE TABLE IF NOT EXISTS security_posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        subtitle TEXT,
+        content TEXT,
+        image_url TEXT,
+        priority TEXT,
+        status TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await dbQuery(`CREATE TABLE IF NOT EXISTS security_interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER,
+        user_id INTEGER,
+        interaction_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, user_id) ON CONFLICT REPLACE
+    )`);
+
+    await dbQuery(`CREATE TABLE IF NOT EXISTS security_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER,
+        user_id INTEGER,
+        username TEXT,
+        comment TEXT,
+        parent_id INTEGER,
+        is_pinned INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await dbQuery(`CREATE TABLE IF NOT EXISTS security_comment_interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        comment_id INTEGER,
+        user_id INTEGER,
+        interaction_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(comment_id, user_id) ON CONFLICT REPLACE
+    )`);
+
+    await dbQuery(`CREATE TABLE IF NOT EXISTS user_bookmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        post_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, post_id) ON CONFLICT IGNORE
     )`);
 
     // Schema Migration: Ensure columns exist (Idempotent)

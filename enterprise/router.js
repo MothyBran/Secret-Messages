@@ -69,7 +69,7 @@ const verifySession = (req, res, next) => {
     }
 };
 
-module.exports = (dbQuery) => {
+module.exports = (dbQuery, upload) => {
 
     // Helper: Log Audit Action
     const logAction = async (action, details, req) => {
@@ -703,6 +703,103 @@ module.exports = (dbQuery) => {
             await dbQuery("UPDATE messages SET is_read=1 WHERE id=$1", [req.params.id]);
             res.json({ success: true });
         } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // ==================================================================
+    // FORUM / SECURITY HUB API (Enterprise Local)
+    // ==================================================================
+
+    // 1. STATS
+    router.get('/api/admin/forum/stats', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const posts = await dbQuery(`SELECT COUNT(*) as c FROM security_posts`);
+            const comments = await dbQuery(`SELECT COUNT(*) as c FROM security_comments`);
+            const likes = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'like'`);
+            const questions = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'question'`);
+            const bookmarks = await dbQuery(`SELECT COUNT(*) as c FROM user_bookmarks`);
+
+            res.json({
+                success: true,
+                stats: {
+                    posts: posts.rows[0].c,
+                    comments: comments.rows[0].c,
+                    likes: likes.rows[0].c,
+                    questions: questions.rows[0].c,
+                    bookmarks: bookmarks.rows[0].c
+                }
+            });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 2. LIST POSTS (ADMIN)
+    router.get('/api/admin/posts', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const result = await dbQuery(`SELECT * FROM security_posts ORDER BY created_at DESC`);
+            res.json(result.rows);
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 2b. LIST POSTS (PUBLIC/USER for Preview in Hub)
+    router.get('/api/posts', verifySession, async (req, res) => {
+        try {
+            const result = await dbQuery(`
+                SELECT id, title, subtitle, image_url, priority, created_at,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions,
+                (SELECT COUNT(*) FROM security_comments WHERE post_id = p.id) as comments_count
+                FROM security_posts p
+                WHERE status = 'published'
+                ORDER BY created_at DESC
+            `);
+            res.json(result.rows);
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 3. CREATE POST
+    router.post('/api/admin/posts', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const { title, subtitle, content, priority, status, image_url } = req.body;
+            await dbQuery(`
+                INSERT INTO security_posts (title, subtitle, content, image_url, priority, status, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, datetime('now'))
+            `, [title, subtitle, content, image_url, priority || 'Info', status || 'draft']);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 4. UPDATE POST
+    router.put('/api/admin/posts/:id', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            const { title, subtitle, content, priority, status, image_url } = req.body;
+            await dbQuery(`
+                UPDATE security_posts SET title = $1, subtitle = $2, content = $3, image_url = $4, priority = $5, status = $6
+                WHERE id = $7
+            `, [title, subtitle, content, image_url, priority, status, req.params.id]);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 5. DELETE POST
+    router.delete('/api/admin/posts/:id', verifySession, async (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        try {
+            await dbQuery(`DELETE FROM security_posts WHERE id = $1`, [req.params.id]);
+            await dbQuery(`DELETE FROM security_interactions WHERE post_id = $1`, [req.params.id]);
+            await dbQuery(`DELETE FROM security_comments WHERE post_id = $1`, [req.params.id]);
+            res.json({ success: true });
+        } catch(e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // 6. UPLOAD IMAGE
+    router.post('/api/admin/posts/upload', verifySession, upload.single('image'), (req, res) => {
+        if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
+        if (!req.file) return res.status(400).json({ error: "Kein Bild." });
+        res.json({ success: true, url: `/uploads/security/${req.file.filename}` });
     });
 
     // Root Logic
