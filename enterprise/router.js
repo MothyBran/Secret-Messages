@@ -736,7 +736,15 @@ module.exports = (dbQuery, upload) => {
     router.get('/api/admin/posts', verifySession, async (req, res) => {
         if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin Only' });
         try {
-            const result = await dbQuery(`SELECT * FROM security_posts ORDER BY created_at DESC`);
+            const result = await dbQuery(`
+                SELECT p.*,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
+                (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions,
+                (SELECT COUNT(*) FROM security_comments WHERE post_id = p.id) as comments_count
+                FROM security_posts p
+                ORDER BY created_at DESC
+            `);
             res.json(result.rows);
         } catch(e) { res.status(500).json({ error: e.message }); }
     });
