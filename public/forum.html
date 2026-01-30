@@ -144,10 +144,10 @@
             position: relative;
         }
         /* Role based styles */
-        .comment-item.role-founder { border-left: 3px solid #00ff88; box-shadow: -5px 0 10px rgba(0, 255, 136, 0.05); }
-        .comment-item.role-partner { border-left: 3px solid #c0c0c0; box-shadow: -5px 0 10px rgba(192, 192, 192, 0.05); }
-        .comment-item.role-pro { border-left: 3px solid #ffd700; box-shadow: -5px 0 10px rgba(255, 215, 0, 0.05); }
-        .comment-item.role-vip { border-left: 3px solid #00d1ff; box-shadow: -5px 0 10px rgba(0, 209, 255, 0.05); }
+        .comment-item.role-founder { border-left: 3px solid #00ff88; box-shadow: -5px 0 15px rgba(0, 255, 136, 0.2); }
+        .comment-item.role-partner { border-left: 3px solid #c0c0c0; box-shadow: -5px 0 10px rgba(192, 192, 192, 0.1); }
+        .comment-item.role-pro { border-left: 3px solid #ffd700; box-shadow: -5px 0 10px rgba(255, 215, 0, 0.1); }
+        .comment-item.role-vip { border-left: 3px solid #00d1ff; box-shadow: -5px 0 15px rgba(0, 209, 255, 0.2); }
 
         /* Pinned Style */
         .comment-item.pinned {
@@ -466,8 +466,15 @@
         window.toggleSidebar = function() {
             const sb = document.getElementById('forumSidebar');
             const overlay = document.getElementById('sidebarOverlay');
+            const isActive = sb && sb.classList.contains('active');
+
             if(sb) sb.classList.toggle('active');
             if(overlay) overlay.classList.toggle('active');
+
+            // Reload activity feed if opening sidebar and logged in
+            if(!isActive && authToken) {
+                loadActivity();
+            }
         };
 
         // Helper to update header text
@@ -921,6 +928,28 @@
             const isBm = userBookmarks.has(id);
             const method = isBm ? 'DELETE' : 'POST';
 
+            // Optimistic UI
+            if(isBm) userBookmarks.delete(id);
+            else userBookmarks.add(id);
+
+            // Update UI immediately
+            if(currentPostId == id) {
+                 const txtEl = document.getElementById(`bmText-${id}`);
+                 if(txtEl) txtEl.textContent = !isBm ? 'Gespeichert' : 'Beitrag speichern';
+                 const btn = document.querySelector('.btn-bookmark');
+                 if(btn) {
+                     if(!isBm) btn.classList.add('active');
+                     else btn.classList.remove('active');
+                 }
+            } else {
+                 renderHub();
+            }
+
+            // If viewing bookmarks, remove/add immediately from view
+            if(currentSection === 'bookmarks') {
+                 loadPosts('/bookmarks');
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/posts/${id}/bookmark`, {
                     method: method,
@@ -928,26 +957,18 @@
                 });
 
                 if(res.ok) {
-                    if(isBm) userBookmarks.delete(id);
-                    else userBookmarks.add(id);
-
                     window.showToast(isBm ? "Entfernt" : "Gespeichert", "success");
-
-                    // Update UI if detail view
-                    if(currentPostId == id) {
-                        const txtEl = document.getElementById(`bmText-${id}`);
-                        if(txtEl) txtEl.textContent = !isBm ? 'Gespeichert' : 'Beitrag speichern';
-                        const btn = document.querySelector('.btn-bookmark');
-                        if(btn) {
-                            if(!isBm) btn.classList.add('active');
-                            else btn.classList.remove('active');
-                        }
-                    } else {
-                        // Refresh list to update icons
-                        renderHub();
-                    }
+                } else {
+                    // Revert on failure
+                    if(isBm) userBookmarks.add(id); else userBookmarks.delete(id);
+                    renderHub();
+                    window.showToast("Fehler beim Speichern", "error");
                 }
-            } catch(e) { window.showToast("Fehler", "error"); }
+            } catch(e) {
+                if(isBm) userBookmarks.add(id); else userBookmarks.delete(id);
+                renderHub();
+                window.showToast("Fehler", "error");
+            }
         }
 
         async function vote(type) {

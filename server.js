@@ -457,9 +457,13 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
         }
 
         // Determine Role from Badge
+        // Enhanced Role Detection for Moderation
         let role = 'user';
-        if (user.badge && (user.badge.toLowerCase().includes('admin') || user.badge.includes('🛡️'))) role = 'admin';
-        else if (user.badge && (user.badge.toLowerCase().includes('dev') || user.badge.includes('👾'))) role = 'dev';
+        if (user.badge) {
+             const b = user.badge.toLowerCase();
+             if (b.includes('admin') || b.includes('founder') || user.badge.includes('🛡️')) role = 'admin';
+             else if (b.includes('dev') || user.badge.includes('👾')) role = 'dev';
+        }
 
         const token = jwt.sign({ id: user.id, username: user.username, role }, JWT_SECRET, { expiresIn: '24h' });
         await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
@@ -1987,18 +1991,35 @@ app.get('/api/admin/forum/stats', requireAdmin, async (req, res) => {
     try {
         const posts = await dbQuery(`SELECT COUNT(*) as c FROM security_posts`);
         const comments = await dbQuery(`SELECT COUNT(*) as c FROM security_comments`);
-        const likes = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'like'`);
-        const questions = await dbQuery(`SELECT COUNT(*) as c FROM security_interactions WHERE interaction_type = 'question'`);
+
+        // Detailed Interactions Breakdown
+        const interactions = await dbQuery(`
+            SELECT interaction_type, COUNT(*) as c
+            FROM security_interactions
+            GROUP BY interaction_type
+        `);
+
+        let likes = 0;
+        let dislikes = 0;
+        let questions = 0;
+
+        interactions.rows.forEach(row => {
+            if(row.interaction_type === 'like') likes = parseInt(row.c);
+            else if(row.interaction_type === 'dislike') dislikes = parseInt(row.c);
+            else if(row.interaction_type === 'question') questions = parseInt(row.c);
+        });
+
         const bookmarks = await dbQuery(`SELECT COUNT(*) as c FROM user_bookmarks`);
 
         res.json({
             success: true,
             stats: {
-                posts: posts.rows[0].c,
-                comments: comments.rows[0].c,
-                likes: likes.rows[0].c,
-                questions: questions.rows[0].c,
-                bookmarks: bookmarks.rows[0].c
+                posts: parseInt(posts.rows[0].c),
+                comments: parseInt(comments.rows[0].c),
+                likes: likes,
+                dislikes: dislikes,
+                questions: questions,
+                bookmarks: parseInt(bookmarks.rows[0].c)
             }
         });
     } catch(e) { res.status(500).json({ error: e.message }); }
