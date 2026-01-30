@@ -803,6 +803,18 @@
         }
 
         async function openPost(id, highlightCommentId = null) {
+            // ID Validation
+            if (!/^\d+$/.test(id)) {
+                document.getElementById('hubView').style.display = 'none';
+                document.getElementById('detailView').style.display = 'block';
+                const container = document.getElementById('postDetailContent');
+                container.innerHTML = `<div style="color:var(--error-red); text-align:center; padding:20px; border:1px solid var(--error-red); border-radius:8px;">
+                    <strong>Fehler</strong><br>
+                    Ungültige Post-ID
+                </div>`;
+                return;
+            }
+
             currentPostId = id;
 
             const url = new URL(window.location);
@@ -818,7 +830,13 @@
 
             try {
                 const res = await fetch(`${API_BASE}/posts/${id}`);
-                if(!res.ok) throw new Error(`Fetch Error: ${res.status} ${res.statusText}`);
+                if(!res.ok) {
+                     const status = res.status;
+                     let msg = 'Unbekannter Fehler';
+                     if(status === 404) msg = 'Beitrag nicht gefunden';
+                     else if(status === 500) msg = 'Serverfehler';
+                     throw new Error(`${msg} (${status})`);
+                }
                 const post = await res.json();
 
                 const renderTag = (p) => {
@@ -873,7 +891,7 @@
             } catch(e) {
                 console.error("OpenPost Error:", e);
                 container.innerHTML = `<div style="color:var(--error-red); text-align:center; padding:20px; border:1px solid var(--error-red); border-radius:8px;">
-                    <strong>Fehler beim Laden</strong><br>
+                    <strong>Fehler</strong><br>
                     ${e.message}
                 </div>`;
             }
