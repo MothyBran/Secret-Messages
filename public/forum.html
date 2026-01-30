@@ -460,6 +460,38 @@
                 if (!isAdmin && currentUser && (currentUser.badge && (currentUser.badge.includes('Admin') || currentUser.badge.includes('Dev')))) {
                     isAdmin = true;
                 }
+
+                // Refresh User Data (License Validity)
+                fetch('/api/auth/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: authToken })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if(data.valid) {
+                        // Update LocalStorage
+                        const newUser = { ...currentUser, ...data };
+                        localStorage.setItem('sm_user', JSON.stringify(newUser));
+                        currentUser = newUser;
+
+                        // Update UI
+                        const lic = document.getElementById('sidebarLicense');
+                        if(lic && data.expiresAt) {
+                            const exp = String(data.expiresAt).toLowerCase();
+                            if (exp === 'lifetime' || exp.includes('unlimited')) {
+                                lic.textContent = 'LIZENZ: UNLIMITED';
+                                lic.style.color = '#00ff41';
+                            } else {
+                                const d = new Date(data.expiresAt);
+                                if(!isNaN(d.getTime())) {
+                                    lic.textContent = `LIZENZ: gültig bis ${d.toLocaleDateString('de-DE')}`;
+                                    lic.style.color = 'var(--accent-blue)';
+                                }
+                            }
+                        }
+                    }
+                }).catch(e => console.warn("Session validate failed", e));
             }
         } catch(e){}
 
