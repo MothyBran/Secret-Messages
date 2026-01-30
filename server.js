@@ -1737,15 +1737,32 @@ app.get('/api/posts', async (req, res) => {
 
 app.get('/api/posts/:id', async (req, res) => {
     try {
-        const id = req.params.id;
-        const result = await dbQuery(`
-            SELECT id, title, subtitle, content, image_url, priority, created_at,
+        const id = parseInt(req.params.id);
+        if (isNaN(id) || id < 1) return res.status(400).json({ error: "Invalid ID" });
+
+        // Optional Auth Check for Draft Visibility
+        let showDrafts = false;
+        const authHeader = req.headers['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                if (decoded.role === 'admin' || decoded.role === 'dev') {
+                    showDrafts = true;
+                }
+            } catch (e) { /* Ignore invalid token, treat as public */ }
+        }
+
+        const sql = `
+            SELECT id, title, subtitle, content, image_url, priority, created_at, status,
             (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'like') as likes,
             (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'dislike') as dislikes,
             (SELECT COUNT(*) FROM security_interactions WHERE post_id = p.id AND interaction_type = 'question') as questions
             FROM security_posts p
-            WHERE id = $1 AND status = 'published'
-        `, [id]);
+            WHERE id = $1 ${showDrafts ? '' : "AND status = 'published'"}
+        `;
+
+        const result = await dbQuery(sql, [id]);
         if (result.rows.length === 0) return res.status(404).json({ error: "Post not found" });
         res.json(result.rows[0]);
     } catch(e) { res.status(500).json({ error: e.message }); }
