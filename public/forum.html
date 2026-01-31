@@ -1026,11 +1026,20 @@
             } catch(e) { window.showToast("Fehler beim Bewerten", "error"); }
         }
 
+        function canPostAnonymously() {
+            if(!currentUser || !currentUser.badge) return false;
+            const b = currentUser.badge.toLowerCase();
+            return b.includes('vip') || b.includes('pro') || b.includes('admin') || b.includes('dev') || b.includes('founder') || b.includes('partner');
+        }
+
         async function loadComments(id) {
             const list = document.getElementById('commentsList');
             list.innerHTML = 'Lade Kommentare...';
             try {
-                const res = await fetch(`${API_BASE}/posts/${id}/comments`);
+                const headers = {};
+                if(authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+                const res = await fetch(`${API_BASE}/posts/${id}/comments`, { headers });
                 const comments = await res.json();
 
                 if(comments.length === 0) {
@@ -1120,11 +1129,19 @@
         function setupCommentForm() {
             const container = document.getElementById('commentFormRoot');
             if(authToken && currentUser) {
+                let anonCheckbox = '';
+                if (canPostAnonymously()) {
+                    anonCheckbox = `<label style="margin-right:15px; cursor:pointer; font-size:0.9rem; color:#ccc; display:flex; align-items:center; gap:5px;"><input type="checkbox" id="anonCheck-main"> Anonym</label>`;
+                }
+
                 container.innerHTML = `
                     <div class="comment-form">
                         <h4 style="color:#fff; margin-bottom:10px;">Kommentar schreiben als <span style="color:var(--accent-blue);">${currentUser.name || currentUser.username}</span></h4>
                         <textarea id="commentInput" class="comment-input" rows="3" placeholder="Deine Meinung..."></textarea>
-                        <button onclick="postComment()" class="btn-comment">Senden</button>
+                        <div style="display:flex; justify-content:flex-end; align-items:center;">
+                            ${anonCheckbox}
+                            <button onclick="postComment()" class="btn-comment">Senden</button>
+                        </div>
                     </div>
                 `;
             } else {
@@ -1144,11 +1161,18 @@
                 container.style.display = 'none';
                 return;
             }
+
+            let anonCheckbox = '';
+            if (canPostAnonymously()) {
+                anonCheckbox = `<label style="margin-right:10px; cursor:pointer; font-size:0.8rem; color:#ccc; display:flex; align-items:center; gap:5px;"><input type="checkbox" id="anonCheck-${commentId}"> Anonym</label>`;
+            }
+
             // Clear others? Maybe not.
             container.innerHTML = `
                 <div class="comment-form" style="background:#111; border-color:#444;">
                     <textarea id="replyInput-${commentId}" class="comment-input" rows="2" placeholder="Antwort..."></textarea>
-                    <div style="text-align:right;">
+                    <div style="display:flex; justify-content:flex-end; align-items:center; margin-top:10px;">
+                        ${anonCheckbox}
                         <button onclick="toggleReplyForm(${commentId})" class="btn-cancel">Abbrechen</button>
                         <button onclick="postComment(${commentId})" class="btn-comment">Antworten</button>
                     </div>
@@ -1159,15 +1183,21 @@
 
         async function postComment(parentId = null) {
             let txt;
+            let isAnon = false;
+
             if(parentId) {
                 txt = document.getElementById(`replyInput-${parentId}`).value.trim();
+                const cb = document.getElementById(`anonCheck-${parentId}`);
+                if(cb) isAnon = cb.checked;
             } else {
                 txt = document.getElementById('commentInput').value.trim();
+                const cb = document.getElementById('anonCheck-main');
+                if(cb) isAnon = cb.checked;
             }
             if(!txt) return;
 
             try {
-                const payload = { comment: txt, parent_id: parentId };
+                const payload = { comment: txt, parent_id: parentId, is_anonymous: isAnon };
                 const res = await fetch(`${API_BASE}/posts/${currentPostId}/comments`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },

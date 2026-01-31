@@ -1774,6 +1774,17 @@ app.get('/api/posts/:id', async (req, res) => {
 
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
+        // Determine Viewer Role
+        let isAdminOrDev = false;
+        const authHeader = req.headers['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                if (decoded.role === 'admin' || decoded.role === 'dev') isAdminOrDev = true;
+            } catch (e) {}
+        }
+
         // Fetch comments with user badges and interaction stats
         // We join security_comments with users to get the badge.
         // We also calculate likes/dislikes for each comment.
@@ -1789,10 +1800,31 @@ app.get('/api/posts/:id/comments', async (req, res) => {
         const result = await dbQuery(sql, [req.params.id]);
 
         // Map rows to correct types (Postgres vs SQLite)
-        const comments = result.rows.map(c => ({
-            ...c,
-            is_pinned: isPostgreSQL() ? c.is_pinned : (c.is_pinned === 1)
-        }));
+        const comments = result.rows.map(c => {
+            let isAnon = isPostgreSQL() ? c.is_anonymous : (c.is_anonymous === 1);
+            let pinned = isPostgreSQL() ? c.is_pinned : (c.is_pinned === 1);
+
+            // Masking Logic
+            let displayUsername = c.username;
+            let displayUserId = c.user_id;
+
+            if (isAnon) {
+                if (isAdminOrDev) {
+                    displayUsername = `${c.username} (Anonym)`;
+                } else {
+                    displayUsername = 'Anonym';
+                    displayUserId = null; // Hide Identity
+                }
+            }
+
+            return {
+                ...c,
+                is_pinned: pinned,
+                is_anonymous: isAnon,
+                username: displayUsername,
+                user_id: displayUserId
+            };
+        });
 
         res.json(comments);
     } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1800,8 +1832,23 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 
 app.post('/api/posts/:id/comments', authenticateUser, async (req, res) => {
     try {
-        const { comment, parent_id } = req.body;
+        const { comment, parent_id, is_anonymous } = req.body;
         if (!comment) return res.status(400).json({ error: "Kommentar fehlt." });
+
+        // Check Eligibility for Anonymity
+        let finalIsAnonymous = false;
+        if (is_anonymous) {
+            const userRes = await dbQuery('SELECT badge FROM users WHERE id = $1', [req.user.id]);
+            if (userRes.rows.length > 0) {
+                const b = (userRes.rows[0].badge || '').toLowerCase();
+                // Allow VIP, PRO, and Administrative roles
+                if (b.includes('vip') || b.includes('pro') || b.includes('admin') || b.includes('dev') || b.includes('founder') || b.includes('partner')) {
+                    finalIsAnonymous = true;
+                }
+            }
+        }
+
+        const anonymousVal = isPostgreSQL() ? finalIsAnonymous : (finalIsAnonymous ? 1 : 0);
 
         // Optional: Check if parent exists and belongs to same post
         if(parent_id) {
@@ -1810,8 +1857,8 @@ app.post('/api/posts/:id/comments', authenticateUser, async (req, res) => {
             // Strict nesting limit check could be here, but we do it loosely on frontend
         }
 
-        await dbQuery(`INSERT INTO security_comments (post_id, user_id, username, comment, parent_id, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-            [req.params.id, req.user.id, req.user.username, comment, parent_id || null, new Date().toISOString()]);
+        await dbQuery(`INSERT INTO security_comments (post_id, user_id, username, comment, parent_id, is_anonymous, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [req.params.id, req.user.id, req.user.username, comment, parent_id || null, anonymousVal, new Date().toISOString()]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1938,7 +1985,7 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
     try {
         // Replies to my comments
         const repliesSql = `
-            SELECT c.id, c.post_id, c.username as actor, c.created_at, 'reply' as type, p.title as post_title
+            SELECT c.id, c.post_id, c.username as actor, c.is_anonymous, c.created_at, 'reply' as type, p.title as post_title
             FROM security_comments c
             JOIN security_comments parent ON c.parent_id = parent.id
             JOIN security_posts p ON c.post_id = p.id
@@ -1961,7 +2008,11 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
         ]);
 
         const combined = [
-            ...replies.rows.map(r => ({ ...r, text: `hat auf deinen Kommentar in "${r.post_title}" geantwortet.` })),
+            ...replies.rows.map(r => {
+                const isAnon = isPostgreSQL() ? r.is_anonymous : (r.is_anonymous === 1);
+                const actorName = isAnon ? 'Anonym' : r.actor;
+                return { ...r, actor: actorName, text: `hat auf deinen Kommentar in "${r.post_title}" geantwortet.` };
+            }),
             ...likes.rows.map(r => ({ ...r, text: `gefällt dein Kommentar: "${r.content_preview ? r.content_preview.substring(0, 30) + '...' : ''}"` }))
         ];
 
