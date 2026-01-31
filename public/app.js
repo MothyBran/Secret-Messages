@@ -1164,7 +1164,7 @@ async function validateSessionStrict() {
 }
 
 function validateActivationInputs() {
-    const code1 = document.getElementById('newAccessCode').value; const code2 = document.getElementById('newAccessCodeRepeat').value; const agbChecked = document.getElementById('agbCheck').checked; const btn = document.getElementById('activateBtn'); const warning = document.getElementById('codeMismatchWarning');
+    const code1 = document.getElementById('sk_fld_3').value; const code2 = document.getElementById('sk_fld_4').value; const agbChecked = document.getElementById('agbCheck').checked; const btn = document.getElementById('activateBtn'); const warning = document.getElementById('codeMismatchWarning');
     if (code2.length > 0 && code1 !== code2) warning.style.display = 'block'; else warning.style.display = 'none';
     if (agbChecked && (code1 === code2) && (code1.length === 5)) btn.disabled = false; else btn.disabled = true;
 }
