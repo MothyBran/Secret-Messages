@@ -130,6 +130,7 @@ async function createTables() {
             comment TEXT,
             parent_id INTEGER,
             is_pinned BOOLEAN DEFAULT FALSE,
+            is_anonymous BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
         `CREATE TABLE IF NOT EXISTS security_comment_interactions (
@@ -253,6 +254,22 @@ async function createTables() {
         }
     } catch (e) {
         console.warn("Migration Warning (security_comments):", e.message);
+    }
+
+    // --- MIGRATION: is_anonymous zu security_comments hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(security_comments)`);
+            const hasCol = check.rows.some(c => c.name === 'is_anonymous');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE security_comments ADD COLUMN is_anonymous INTEGER DEFAULT 0`);
+                console.log('✅ Migrated: Added is_anonymous to security_comments');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (security_comments is_anonymous):", e.message);
     }
 }
 
