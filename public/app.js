@@ -1271,7 +1271,11 @@ async function checkExistingSession() {
                 if(finalExpiry && finalExpiry !== 'lifetime') { const expDate = new Date(String(finalExpiry).replace(' ', 'T')); if(expDate < new Date()) { updateSidebarInfo(currentUser.name, finalExpiry); showRenewalScreen(); return; } }
                 updateSidebarInfo(currentUser.name, finalExpiry); showSection('mainSection'); return;
             } else {
-                if (data.reason === 'no_license') { alert("Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key."); authToken = token; const decoded = parseJwt(token); currentUser = { name: userName, sm_id: decoded.id }; showRenewalScreen(); }
+                if (data.reason === 'no_license') {
+                    authToken = token; const decoded = parseJwt(token); currentUser = { name: userName, sm_id: decoded.id };
+                    showRenewalScreen();
+                    window.showMessage("Lizenz fehlt", "Keine aktive Lizenz gefunden. Bitte verknüpfen Sie einen neuen Key.");
+                }
                 else handleLogout();
             }
         } catch(e) { showSection('loginSection'); }
@@ -1316,9 +1320,9 @@ async function handleSupportSubmit(e) {
         if (data.success) {
             showAppStatus(`Danke! Ihre Nachricht wurde gesendet. Ticket: ${data.ticketId}`, 'success');
             setTimeout(() => { document.getElementById('supportModal').classList.remove('active'); e.target.reset(); allFields.forEach(f => f.disabled = false); btn.textContent = "Nachricht Senden"; }, 3000);
-        } else { alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app."); allFields.forEach(f => f.disabled = false); btn.textContent = oldText; }
+        } else { window.showMessage("Fehler", "Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app."); allFields.forEach(f => f.disabled = false); btn.textContent = oldText; }
     } catch (err) {
-        if (err.name === 'AbortError') alert("Server antwortet nicht. Bitte schreiben Sie direkt an support@secure-msg.app"); else alert("Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
+        window.showMessage("Fehler", "Der Mail-Server ist aktuell nicht erreichbar. Bitte senden Sie Ihre Anfrage direkt an support@secure-msg.app.");
         allFields.forEach(f => f.disabled = false); btn.textContent = oldText;
     }
 }
@@ -1365,7 +1369,7 @@ function downloadTxtFile(content) {
 
 function handleTxtImport(e) {
     const file = e.target.files[0]; if (!file) return;
-    if (file.type !== "text/plain" && !file.name.endsWith('.txt')) { alert("Bitte nur .txt Dateien verwenden."); return; }
+    if (file.type !== "text/plain" && !file.name.endsWith('.txt')) { showToast("Bitte nur .txt Dateien verwenden.", 'error'); return; }
     const reader = new FileReader();
     reader.onload = function(evt) {
         const content = evt.target.result;
@@ -1460,7 +1464,7 @@ function startTransferScanner() {
 }
 
 function startScannerInternal() {
-    if(location.protocol!=='https:' && location.hostname!=='localhost') return alert("Kamera benötigt HTTPS.");
+    if(location.protocol!=='https:' && location.hostname!=='localhost') return window.showMessage("Fehler", "Kamera benötigt HTTPS.");
 
     // Reset Receiver State
     let receivedChunks = {};
@@ -1794,7 +1798,7 @@ async function handleTransferImportDecrypt() {
             showSection('mainSection');
 
             showAppStatus(`Willkommen auf dem neuen Gerät, ${currentUser.name}!`, 'success');
-            setTimeout(() => alert("Hinweis: Ihre Identität wurde erfolgreich übertragen. Da Kontakte nur lokal gespeichert werden, müssen Sie diese ggf. neu importieren."), 1000);
+            setTimeout(() => window.showMessage("Info", "Ihre Identität wurde erfolgreich übertragen. Da Kontakte nur lokal gespeichert werden, müssen Sie diese ggf. neu importieren."), 1000);
 
         } else {
             throw new Error(data.error || "Transfer fehlgeschlagen");
@@ -2023,5 +2027,18 @@ async function loadAndShowInbox() {
 }
 
 async function markMessageRead(id) { try { await fetch(`${API_BASE}/messages/${id}/read`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` } }); } catch(e) { console.error("Mark Read Failed", e); } }
-async function deleteMessage(id, element) { if(!confirm("Nachricht wirklich löschen?")) return; try { const res = await fetch(`${API_BASE}/messages/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } }); if (res.ok) { element.remove(); showToast("Nachricht gelöscht.", "success"); checkUnreadMessages(); } else { showToast("Fehler beim Löschen.", "error"); } } catch(e) { showToast("Verbindungsfehler", "error"); } }
+function deleteMessage(id, element) {
+    window.showAppConfirm("Nachricht wirklich löschen?", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/messages/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (res.ok) {
+                element.remove();
+                showToast("Nachricht gelöscht.", "success");
+                checkUnreadMessages();
+            } else {
+                showToast("Fehler beim Löschen.", "error");
+            }
+        } catch(e) { showToast("Verbindungsfehler", "error"); }
+    }, { confirm: "Löschen", cancel: "Abbrechen" });
+}
 function escapeHtml(text) { if(!text) return ''; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
