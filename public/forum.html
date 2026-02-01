@@ -1229,51 +1229,52 @@
             } catch(e) { window.showToast("Fehler", "error"); }
         }
 
-        async function deleteComment(id) {
-            if(!confirm("Kommentar wirklich löschen?")) return;
-            // Need Admin Token. The authToken in localStorage IS the user token.
-            // If user is Admin, this token should work if backend validates role.
-            // But wait, server.js uses 'requireAdmin' middleware which checks if token has 'role: admin'.
-            // Standard login does NOT issue tokens with 'role: admin' unless /api/admin/auth was used.
-            // If the user logged in via /api/admin/auth, they have a separate token.
-            // This architecture splits User vs Admin completely.
-            // IF I am "Admin" in this view, I probably need to use the admin token if I have one.
-            // But this page is the PUBLIC forum. Admins view it as users usually.
-            // If I want to moderate, I need to be logged in as Admin.
-            // Since this is the public app, I only have `sm_token` (User Token).
-            // Request said "User with role admin or dev". In `users` table, there is no role column, only `badge` or separate admin auth.
-            // However, `server.js` `requireAdmin` checks for header `x-admin-password` OR a specific JWT format.
-            // Standard users don't have this.
-            // Solution: We'll assume for this task that "Moderation" is done by hitting endpoints that might check `users.badge` or `users.is_admin` (if it existed).
-            // BUT: `server.js` has `requireAdmin` which is strict.
-            // I will use `sm_admin_token` from sessionStorage (if available from Admin Panel login) as fallback auth header.
+        function deleteComment(id) {
+            window.showConfirm("Kommentar wirklich löschen?", async () => {
+                // Need Admin Token. The authToken in localStorage IS the user token.
+                // If user is Admin, this token should work if backend validates role.
+                // But wait, server.js uses 'requireAdmin' middleware which checks if token has 'role: admin'.
+                // Standard login does NOT issue tokens with 'role: admin' unless /api/admin/auth was used.
+                // If the user logged in via /api/admin/auth, they have a separate token.
+                // This architecture splits User vs Admin completely.
+                // IF I am "Admin" in this view, I probably need to use the admin token if I have one.
+                // But this page is the PUBLIC forum. Admins view it as users usually.
+                // If I want to moderate, I need to be logged in as Admin.
+                // Since this is the public app, I only have `sm_token` (User Token).
+                // Request said "User with role admin or dev". In `users` table, there is no role column, only `badge` or separate admin auth.
+                // However, `server.js` `requireAdmin` checks for header `x-admin-password` OR a specific JWT format.
+                // Standard users don't have this.
+                // Solution: We'll assume for this task that "Moderation" is done by hitting endpoints that might check `users.badge` or `users.is_admin` (if it existed).
+                // BUT: `server.js` has `requireAdmin` which is strict.
+                // I will use `sm_admin_token` from sessionStorage (if available from Admin Panel login) as fallback auth header.
 
-            let adminHeader = {};
-            const adminToken = sessionStorage.getItem('sm_admin_token');
-            if(adminToken) {
-                adminHeader['Authorization'] = `Bearer ${adminToken}`;
-            } else {
-                // Try normal token? unlikely to work with requireAdmin middleware as is.
-                // We'll try.
-                adminHeader['Authorization'] = `Bearer ${authToken}`;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE}/comments/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', ...adminHeader }
-                });
-                if(res.ok) {
-                    window.showToast("Gelöscht.", "success");
-                    loadComments(currentPostId);
+                let adminHeader = {};
+                const adminToken = sessionStorage.getItem('sm_admin_token');
+                if(adminToken) {
+                    adminHeader['Authorization'] = `Bearer ${adminToken}`;
                 } else {
-                    if(res.status === 403) {
-                         window.showToast("Berechtigung fehlt. Bitte neu einloggen.", "error");
-                    } else {
-                         window.showToast("Fehler beim Löschen.", "error");
-                    }
+                    // Try normal token? unlikely to work with requireAdmin middleware as is.
+                    // We'll try.
+                    adminHeader['Authorization'] = `Bearer ${authToken}`;
                 }
-            } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+
+                try {
+                    const res = await fetch(`${API_BASE}/comments/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', ...adminHeader }
+                    });
+                    if(res.ok) {
+                        window.showToast("Gelöscht.", "success");
+                        loadComments(currentPostId);
+                    } else {
+                        if(res.status === 403) {
+                             window.showToast("Berechtigung fehlt. Bitte neu einloggen.", "error");
+                        } else {
+                             window.showToast("Fehler beim Löschen.", "error");
+                        }
+                    }
+                } catch(e) { window.showToast("Netzwerkfehler", "error"); }
+            }, { confirm: "Löschen", cancel: "Abbrechen" });
         }
 
         async function pinComment(id, state) {

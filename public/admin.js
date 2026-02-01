@@ -607,7 +607,7 @@ window.openBundleDetails = async function(id) {
 window.massExtendBundle = async function() {
     if(!currentBundleId) return;
     const dateStr = document.getElementById('massExtendParams').value;
-    if(!dateStr) return alert("Bitte Datum wählen.");
+    if(!dateStr) return window.showToast("Bitte Datum wählen.", "error");
     const newDate = new Date(dateStr);
     newDate.setHours(23, 59, 59);
 
