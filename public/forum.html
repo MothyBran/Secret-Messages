@@ -1100,13 +1100,13 @@
                                     <span class="comment-user">${c.username || 'User'}</span>
                                     ${badgeHtml}
                                 </div>
-                                <span class="comment-date">${new Date(c.created_at).toLocaleString('de-DE')}</span>
                             </div>
                             <div class="comment-text">${escapeHtml(c.comment)}</div>
                             <div class="comment-actions">
                                 <button class="action-btn" onclick="toggleReplyForm(${c.id})">↩ Antworten</button>
                                 <button class="action-btn" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
                                 <button class="action-btn" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
+                                <span style="margin-left:auto;">${new Date(c.created_at).toLocaleString('de-DE')}</span>
                                 ${isAdmin ? `<button class="action-btn mod-btn" onclick="deleteComment(${c.id})">🗑️</button>` : ''}
                                 ${isAdmin ? `<button class="action-btn mod-btn" onclick="pinComment(${c.id}, ${!c.is_pinned})">${c.is_pinned ? 'Unpin' : '📌'}</button>` : ''}
                             </div>
