@@ -138,6 +138,12 @@ const rateLimiter = rateLimit({
     message: { error: "Zu viele Anfragen, bitte versuchen Sie es später erneut." }
 });
 
+const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // 20 attempts
+    message: { error: "Zu viele Login-Versuche. Bitte warten Sie 15 Minuten." }
+});
+
 app.use(express.static('public', { index: false }));
 
 // DETERMINE DATA DIRECTORY (Persistent Storage)
@@ -319,17 +325,29 @@ app.get('/api/shop-status', async (req, res) => {
 });
 
 // SUPPORT ENDPOINT
+const sanitizeInput = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+};
+
 app.post('/api/support', rateLimiter, async (req, res) => {
     const { username, subject, email, message } = req.body;
     if ((!email && !username) || !message || !subject) {
         return res.status(400).json({ success: false, error: 'Bitte Pflichtfelder ausfüllen.' });
     }
+
+    // Sanitize Inputs
+    const cleanSubject = sanitizeInput(subject);
+    const cleanMessage = sanitizeInput(message);
+    const cleanUsername = sanitizeInput(username);
+    const cleanEmail = sanitizeInput(email);
+
     const ticketId = 'TIC-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const createdAt = new Date().toISOString();
     try {
         await dbQuery(
             `INSERT INTO support_tickets (ticket_id, username, email, subject, message, created_at, status) VALUES ($1, $2, $3, $4, $5, $6, 'open')`,
-            [ticketId, username || null, email || null, subject, message, createdAt]
+            [ticketId, cleanUsername || null, cleanEmail || null, cleanSubject, cleanMessage, createdAt]
         );
         if (username) {
             try {
@@ -347,14 +365,14 @@ app.post('/api/support', rateLimiter, async (req, res) => {
 
         const receiver = process.env.EMAIL_RECEIVER || 'support@secure-msg.app';
         const sender = 'support@secure-msg.app';
-        const replyTo = email || 'no-reply@secure-msg.app';
+        const replyTo = cleanEmail || 'no-reply@secure-msg.app';
         const { error: errorTeam } = await resend.emails.send({
             from: sender,
             to: receiver,
             reply_to: replyTo,
-            subject: `[SUPPORT] ${subject} [${ticketId}]`,
-            text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${username || 'Gast'}\nEmail: ${email || 'Keine (Interner Support)'}\nBetreff: ${subject}\n\nNachricht:\n${message}`,
-            html: `<h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3><p><strong>Von:</strong> ${username || 'Gast'}</p><p><strong>Email:</strong> ${email || 'Keine (Interner Support)'}</p><p><strong>Betreff:</strong> ${subject}</p><hr><p style="white-space: pre-wrap;">${message}</p>`
+            subject: `[SUPPORT] ${cleanSubject} [${ticketId}]`,
+            text: `Neue Support-Anfrage [${ticketId}]\n\nVon: ${cleanUsername || 'Gast'}\nEmail: ${cleanEmail || 'Keine (Interner Support)'}\nBetreff: ${cleanSubject}\n\nNachricht:\n${cleanMessage}`,
+            html: `<h3>Neue Support-Anfrage <span style="color:#00BFFF;">${ticketId}</span></h3><p><strong>Von:</strong> ${cleanUsername || 'Gast'}</p><p><strong>Email:</strong> ${cleanEmail || 'Keine (Interner Support)'}</p><p><strong>Betreff:</strong> ${cleanSubject}</p><hr><p style="white-space: pre-wrap;">${cleanMessage}</p>`
         });
         if (errorTeam) console.error('>> Resend API Error (Team):', errorTeam);
 
@@ -390,7 +408,7 @@ async function authenticateUser(req, res, next) {
     });
 }
 
-app.post('/api/auth/login', rateLimiter, async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;
         // Updated to use LEFT JOIN on license_keys to fetch the correct expires_at
@@ -429,7 +447,12 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
                 }
             } catch (migErr) { }
         }
-        if (user.allowed_device_id && user.allowed_device_id !== deviceId) {
+        // STRICT DEVICE BINDING
+        // Normalize comparison (trim)
+        const storedDevice = user.allowed_device_id ? user.allowed_device_id.trim() : null;
+        const incomingDevice = deviceId ? deviceId.trim() : '';
+
+        if (storedDevice && storedDevice !== incomingDevice) {
             await trackEvent(req, 'login_device_mismatch', 'auth', { username });
 
             // Insert Security Warning
@@ -451,9 +474,15 @@ app.post('/api/auth/login', rateLimiter, async (req, res) => {
             await trackEvent(req, 'login_blocked', 'auth', { username, reason: 'account_blocked' });
             return res.status(403).json({ success: false, error: "ACCOUNT_BLOCKED" });
         }
-        if (!user.allowed_device_id) {
-            const sanitizedDeviceId = deviceId.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
-            await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [deviceId, user.id]);
+
+        // AUTO-BINDING ON FIRST LOGIN
+        if (!storedDevice) {
+            const sanitizedDeviceId = incomingDevice.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
+            if (sanitizedDeviceId.length > 5) {
+                await dbQuery("UPDATE users SET allowed_device_id = $1 WHERE id = $2", [sanitizedDeviceId, user.id]);
+            } else {
+                console.warn(">> Device ID too short, skipping bind:", sanitizedDeviceId);
+            }
         }
 
         // Determine Role from Badge
@@ -479,7 +508,7 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: 'Logout Fehler' }); }
 });
 
-app.post('/api/auth/activate', async (req, res) => {
+app.post('/api/auth/activate', authRateLimiter, async (req, res) => {
     const { licenseKey, username, accessCode, deviceId } = req.body;
     if (!deviceId) return res.status(400).json({ error: 'Geräte-ID fehlt.' });
     try {
@@ -519,7 +548,7 @@ app.post('/api/auth/activate', async (req, res) => {
     }
 });
 
-app.post('/api/renew-license', authenticateUser, async (req, res) => {
+app.post('/api/renew-license', authenticateUser, authRateLimiter, async (req, res) => {
     const { licenseKey } = req.body;
     if (!licenseKey) return res.status(400).json({ error: "Kein Key angegeben" });
     try {
@@ -581,7 +610,7 @@ app.post('/api/renew-license', authenticateUser, async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Fehler: " + e.message }); }
 });
 
-app.post('/api/auth/check-license', async (req, res) => {
+app.post('/api/auth/check-license', authRateLimiter, async (req, res) => {
     try {
         const { licenseKey, username } = req.body;
         if (!licenseKey) return res.status(400).json({ error: "Kein Key" });
