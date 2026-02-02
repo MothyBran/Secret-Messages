@@ -164,15 +164,15 @@
         /* 3-Section Layout */
         .comment-header {
             padding: 10px 15px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid #333; /* Increased visibility */
             display: flex;
             align-items: center;
             justify-content: flex-start;
             gap: 10px;
         }
-        .comment-user-area { display: flex; align-items: center; gap: 8px; flex: 1; }
-        .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.95rem; }
-        .user-badge { font-size: 0.9rem; }
+        .comment-user-area { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+        .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-badge { font-size: 0.9rem; white-space: nowrap; }
 
         .comment-body {
             padding: 12px 15px;
@@ -185,14 +185,18 @@
 
         .comment-footer {
             padding: 8px 15px;
-            border-top: 1px solid rgba(255,255,255,0.05);
+            border-top: 1px solid #333; /* Increased visibility */
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 10px;
             flex-wrap: nowrap; /* Single line forced */
             background: rgba(0,0,0,0.1);
+            overflow-x: auto; /* Allow scroll on overflow */
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; /* Firefox */
         }
+        .comment-footer::-webkit-scrollbar { display: none; /* Chrome/Safari */ }
         .footer-left { display: flex; gap: 15px; align-items: center; flex-wrap: nowrap; }
         .footer-right { display: flex; gap: 10px; align-items: center; white-space: nowrap; font-size: 0.8rem; color: #666; flex-shrink: 0; }
 
