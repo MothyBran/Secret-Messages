@@ -137,11 +137,13 @@
         .comments-section { border-top: 1px solid var(--border-color); padding-top: 30px; }
         .comment-item {
             margin-bottom: 15px;
-            padding: 15px;
+            padding: 0; /* Removing padding to allow full-width borders */
             border: 1px solid #222;
             border-radius: 8px;
             background: rgba(255,255,255,0.02);
             position: relative;
+            display: flex;
+            flex-direction: column;
         }
         /* Role based styles */
         .comment-item.role-founder { border-left: 3px solid #00ff88; box-shadow: -5px 0 15px rgba(0, 255, 136, 0.2); }
@@ -155,19 +157,46 @@
             background: rgba(0, 191, 255, 0.05);
         }
         .pinned-badge {
-            position: absolute; top: 10px; right: 10px;
             font-size: 0.7rem; color: var(--accent-blue); border: 1px solid var(--accent-blue);
-            padding: 2px 5px; border-radius: 4px; font-weight: bold;
+            padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: auto;
         }
 
-        .comment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
-        .comment-user-area { display: flex; align-items: center; gap: 8px; }
+        /* 3-Section Layout */
+        .comment-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+        }
+        .comment-user-area { display: flex; align-items: center; gap: 8px; flex: 1; }
         .comment-user { color: var(--accent-blue); font-weight: bold; font-size: 0.95rem; }
         .user-badge { font-size: 0.9rem; }
-        .comment-date { color: #666; font-size: 0.8rem; }
-        .comment-text { color: #ddd; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word; margin-bottom: 10px; }
 
-        .comment-actions { display: flex; gap: 15px; font-size: 0.8rem; color: #666; align-items: center; }
+        .comment-body {
+            padding: 12px 15px;
+            color: #ddd;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .comment-footer {
+            padding: 8px 15px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: nowrap; /* Single line forced */
+            background: rgba(0,0,0,0.1);
+        }
+        .footer-left { display: flex; gap: 15px; align-items: center; flex-wrap: nowrap; }
+        .footer-right { display: flex; gap: 10px; align-items: center; white-space: nowrap; font-size: 0.8rem; color: #666; flex-shrink: 0; }
+
+        .comment-actions { display: none; } /* Deprecated */
         .action-btn { background: none; border: none; color: #666; cursor: pointer; display: flex; gap: 5px; align-items: center; transition: 0.2s; }
         .action-btn:hover { color: #fff; }
         .action-btn.active { color: var(--accent-blue); }
@@ -1089,28 +1118,32 @@
 
                         // Pinned Logic
                         const pinnedClass = c.is_pinned ? 'pinned' : '';
-                        const pinnedHtml = c.is_pinned ? '<div class="pinned-badge">📌 PINNED</div>' : '';
+                        const pinnedHtml = c.is_pinned ? '<span class="pinned-badge">📌 PINNED</span>' : '';
 
                         el.className = `comment-item ${borderClass} ${pinnedClass}`;
                         el.id = `comment-${c.id}`; // For deep linking
                         el.innerHTML = `
-                            ${pinnedHtml}
                             <div class="comment-header">
                                 <div class="comment-user-area">
                                     <span class="comment-user">${c.username || 'User'}</span>
                                     ${badgeHtml}
                                 </div>
+                                ${pinnedHtml}
                             </div>
-                            <div class="comment-text">${escapeHtml(c.comment)}</div>
-                            <div class="comment-actions">
-                                <button class="action-btn" onclick="toggleReplyForm(${c.id})">↩ Antworten</button>
-                                <button class="action-btn" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
-                                <button class="action-btn" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
-                                <span style="margin-left:auto;">${new Date(c.created_at).toLocaleString('de-DE')}</span>
-                                ${isAdmin ? `<button class="action-btn mod-btn" onclick="deleteComment(${c.id})">🗑️</button>` : ''}
-                                ${isAdmin ? `<button class="action-btn mod-btn" onclick="pinComment(${c.id}, ${!c.is_pinned})">${c.is_pinned ? 'Unpin' : '📌'}</button>` : ''}
+                            <div class="comment-body">${escapeHtml(c.comment)}</div>
+                            <div class="comment-footer">
+                                <div class="footer-left">
+                                    <button class="action-btn" onclick="toggleReplyForm(${c.id})">↩ Antworten</button>
+                                    <button class="action-btn" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
+                                    <button class="action-btn" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
+                                </div>
+                                <div class="footer-right">
+                                    <span>${new Date(c.created_at).toLocaleString('de-DE')}</span>
+                                    ${isAdmin ? `<button class="action-btn mod-btn" onclick="deleteComment(${c.id})">🗑️</button>` : ''}
+                                    ${isAdmin ? `<button class="action-btn mod-btn" onclick="pinComment(${c.id}, ${!c.is_pinned})">${c.is_pinned ? 'Unpin' : '📌'}</button>` : ''}
+                                </div>
                             </div>
-                            <div id="reply-form-${c.id}" style="display:none; margin-top:10px;"></div>
+                            <div id="reply-form-${c.id}" style="display:none; padding:15px; border-top:1px solid rgba(255,255,255,0.05);"></div>
                             <div class="replies-container" id="replies-${c.id}"></div>
                         `;
                         container.appendChild(el);
@@ -1230,6 +1263,7 @@
         }
 
         function deleteComment(id) {
+            // Use showConfirm from ui.js (not showAppConfirm from app.js as app.js is not loaded here)
             window.showConfirm("Kommentar wirklich löschen?", async () => {
                 // Need Admin Token. The authToken in localStorage IS the user token.
                 // If user is Admin, this token should work if backend validates role.
