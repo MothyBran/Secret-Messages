@@ -1256,13 +1256,27 @@
         async function voteComment(commentId, type) {
             if(!authToken) { showLoginModal(); return; }
             try {
-                await fetch(`${API_BASE}/comments/${commentId}/vote`, {
+                const res = await fetch(`${API_BASE}/comments/${commentId}/vote`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                     body: JSON.stringify({ type })
                 });
-                // Reload comments to update counts (simple but functional)
-                loadComments(currentPostId);
+                const data = await res.json();
+
+                if (data.success && data.likes !== undefined && data.dislikes !== undefined) {
+                    // Update only this comment's buttons to avoid scroll jump
+                    const commentEl = document.getElementById(`comment-${commentId}`);
+                    if (commentEl) {
+                        const likeBtn = commentEl.querySelector(`.action-btn[onclick="voteComment(${commentId}, 'like')"]`);
+                        const dislikeBtn = commentEl.querySelector(`.action-btn[onclick="voteComment(${commentId}, 'dislike')"]`);
+
+                        if (likeBtn) likeBtn.innerHTML = `👍 ${data.likes}`;
+                        if (dislikeBtn) dislikeBtn.innerHTML = `👎 ${data.dislikes}`;
+                    }
+                } else {
+                    // Fallback if data missing (should not happen normally)
+                    // loadComments(currentPostId); // Disable reload to prevent jump
+                }
             } catch(e) { window.showToast("Fehler", "error"); }
         }
 
