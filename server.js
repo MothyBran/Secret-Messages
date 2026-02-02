@@ -1930,18 +1930,27 @@ app.post('/api/comments/:id/vote', authenticateUser, async (req, res) => {
 
 app.delete('/api/comments/:id', requireModerator, async (req, res) => {
     try {
-        // Soft delete or hard delete? Request said "Delete Button", implies hard delete or 'deleted' placeholder.
+        // Notification for Deletion
+        const commentRes = await dbQuery(`
+            SELECT c.user_id, c.comment, p.title
+            FROM security_comments c
+            JOIN security_posts p ON c.post_id = p.id
+            WHERE c.id = $1
+        `, [req.params.id]);
+
+        if (commentRes.rows.length > 0) {
+            const { user_id, comment, title } = commentRes.rows[0];
+            const snippet = comment.substring(0, 50) + (comment.length > 50 ? '...' : '');
+            await dbQuery(`
+                INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                VALUES ($1, 'Kommentar gelöscht', $2, 'forum_notification', ${isPostgreSQL() ? 'false' : '0'}, $3)
+            `, [user_id, `Dein Kommentar in "${title}" wurde gelöscht: "${snippet}"`, new Date().toISOString()]);
+        }
+
         // Hard delete cleans up db.
-        // BUT if it has children, they become orphans or need to be deleted.
-        // Let's cascade delete for simplicity or set content to [Deleted].
-        // Implementing hard delete for now.
         await dbQuery(`DELETE FROM security_comments WHERE id = $1`, [req.params.id]);
         await dbQuery(`DELETE FROM security_comment_interactions WHERE comment_id = $1`, [req.params.id]);
-        // Orphan handling: Update children parent_id to NULL or delete them?
-        // Better: Update children to have parent_id of THIS comment's parent (lift up) or delete them.
-        // Simple: Delete all children (Cascade).
-        // Since we don't have FK constraints defined in SQL string above with ON DELETE CASCADE, we do it manually or leave orphans (orphans will render as root comments).
-        // Let's leave orphans as root comments for now (simple).
+        // Orphan handling: Update children parent_id to NULL (render as root)
         await dbQuery(`UPDATE security_comments SET parent_id = NULL WHERE parent_id = $1`, [req.params.id]);
 
         res.json({ success: true });
@@ -1953,6 +1962,24 @@ app.patch('/api/comments/:id/pin', requireModerator, async (req, res) => {
         const { pinned } = req.body;
         const val = isPostgreSQL() ? pinned : (pinned ? 1 : 0);
         await dbQuery(`UPDATE security_comments SET is_pinned = $1 WHERE id = $2`, [val, req.params.id]);
+
+        if (pinned) {
+            const commentRes = await dbQuery(`
+                SELECT c.user_id, c.comment, p.title
+                FROM security_comments c
+                JOIN security_posts p ON c.post_id = p.id
+                WHERE c.id = $1
+            `, [req.params.id]);
+
+            if (commentRes.rows.length > 0) {
+                const { user_id, title } = commentRes.rows[0];
+                await dbQuery(`
+                    INSERT INTO messages (recipient_id, subject, body, type, is_read, created_at)
+                    VALUES ($1, 'Kommentar angepinnt', $2, 'forum_notification', ${isPostgreSQL() ? 'false' : '0'}, $3)
+                `, [user_id, `Dein Kommentar in "${title}" wurde angepinnt.`, new Date().toISOString()]);
+            }
+        }
+
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2043,9 +2070,29 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
             ORDER BY i.created_at DESC LIMIT 30
         `;
 
-        const [replies, likes] = await Promise.all([
+        // Dislikes on my comments
+        const dislikesSql = `
+            SELECT i.created_at, 'dislike' as type, c.comment as content_preview, u.username as actor
+            FROM security_comment_interactions i
+            JOIN security_comments c ON i.comment_id = c.id
+            LEFT JOIN users u ON i.user_id = u.id
+            WHERE c.user_id = $1 AND i.interaction_type = 'dislike' AND i.user_id != $1
+            ORDER BY i.created_at DESC LIMIT 30
+        `;
+
+        // System Notifications (Deleted/Pinned)
+        const notificationsSql = `
+            SELECT created_at, 'notification' as type, body as text, subject
+            FROM messages
+            WHERE recipient_id = $1 AND type = 'forum_notification'
+            ORDER BY created_at DESC LIMIT 20
+        `;
+
+        const [replies, likes, dislikes, notifications] = await Promise.all([
             dbQuery(repliesSql, [req.user.id]),
-            dbQuery(likesSql, [req.user.id])
+            dbQuery(likesSql, [req.user.id]),
+            dbQuery(dislikesSql, [req.user.id]),
+            dbQuery(notificationsSql, [req.user.id])
         ]);
 
         const combined = [
@@ -2054,7 +2101,9 @@ app.get('/api/forum/activity', authenticateUser, async (req, res) => {
                 const actorName = isAnon ? 'Anonym' : r.actor;
                 return { ...r, actor: actorName, text: `hat auf deinen Kommentar in "${r.post_title}" geantwortet.` };
             }),
-            ...likes.rows.map(r => ({ ...r, text: `gefällt dein Kommentar: "${r.content_preview ? r.content_preview.substring(0, 30) + '...' : ''}"` }))
+            ...likes.rows.map(r => ({ ...r, text: `gefällt dein Kommentar: "${r.content_preview ? r.content_preview.substring(0, 30) + '...' : ''}"` })),
+            ...dislikes.rows.map(r => ({ ...r, text: `gefällt dein Kommentar nicht: "${r.content_preview ? r.content_preview.substring(0, 30) + '...' : ''}"` })),
+            ...notifications.rows.map(r => ({ ...r, text: r.text, actor: 'System' }))
         ];
 
         // Sort combined
