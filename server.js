@@ -1912,7 +1912,19 @@ app.post('/api/comments/:id/vote', authenticateUser, async (req, res) => {
                 )
             `, [req.params.id, req.user.id, type, new Date().toISOString()]);
         }
-        res.json({ success: true });
+
+        // Return updated counts
+        const countRes = await dbQuery(`
+            SELECT
+            (SELECT COUNT(*) FROM security_comment_interactions WHERE comment_id = $1 AND interaction_type = 'like') as likes,
+            (SELECT COUNT(*) FROM security_comment_interactions WHERE comment_id = $1 AND interaction_type = 'dislike') as dislikes
+        `, [req.params.id]);
+
+        res.json({
+            success: true,
+            likes: countRes.rows[0].likes,
+            dislikes: countRes.rows[0].dislikes
+        });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -1138,8 +1138,8 @@
                             <div class="comment-footer">
                                 <div class="footer-left">
                                     <button class="action-btn" onclick="toggleReplyForm(${c.id})">↩ Antworten</button>
-                                    <button class="action-btn" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
-                                    <button class="action-btn" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
+                                    <button class="action-btn" id="like-btn-${c.id}" onclick="voteComment(${c.id}, 'like')">👍 ${c.likes || 0}</button>
+                                    <button class="action-btn" id="dislike-btn-${c.id}" onclick="voteComment(${c.id}, 'dislike')">👎 ${c.dislikes || 0}</button>
                                 </div>
                                 <div class="footer-right">
                                     <span>${new Date(c.created_at).toLocaleString('de-DE')}</span>
@@ -1265,14 +1265,11 @@
 
                 if (data.success && data.likes !== undefined && data.dislikes !== undefined) {
                     // Update only this comment's buttons to avoid scroll jump
-                    const commentEl = document.getElementById(`comment-${commentId}`);
-                    if (commentEl) {
-                        const likeBtn = commentEl.querySelector(`.action-btn[onclick="voteComment(${commentId}, 'like')"]`);
-                        const dislikeBtn = commentEl.querySelector(`.action-btn[onclick="voteComment(${commentId}, 'dislike')"]`);
+                    const likeBtn = document.getElementById(`like-btn-${commentId}`);
+                    const dislikeBtn = document.getElementById(`dislike-btn-${commentId}`);
 
-                        if (likeBtn) likeBtn.innerHTML = `👍 ${data.likes}`;
-                        if (dislikeBtn) dislikeBtn.innerHTML = `👎 ${data.dislikes}`;
-                    }
+                    if (likeBtn) likeBtn.innerHTML = `👍 ${data.likes}`;
+                    if (dislikeBtn) dislikeBtn.innerHTML = `👎 ${data.dislikes}`;
                 } else {
                     // Fallback if data missing (should not happen normally)
                     // loadComments(currentPostId); // Disable reload to prevent jump
