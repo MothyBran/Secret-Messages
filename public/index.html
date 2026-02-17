@@ -510,6 +510,7 @@
                 <span>⚙️ Einstellungen</span> <span class="arrow">▼</span>
             </button>
             <div class="accordion-content">
+                 <a href="#" class="sidebar-subitem" id="navTorAccess" onclick="openModal('torAccessModal')">🧅 Tor-Zugang</a>
                  <a href="#" class="sidebar-subitem" id="navEnterpriseKeys" onclick="openModal('enterpriseKeysModal')">🏢 Enterprise-Schlüssel</a>
                  <a href="#" class="sidebar-subitem" id="navRenewal">🔄 Lizenz verlängern</a>
                  <a href="#" class="sidebar-subitem" id="navProfileTransfer">📲 Profil übertragen</a>
@@ -577,15 +578,52 @@
             <h3 style="color: var(--accent-blue); letter-spacing: 2px;">POSTFACH</h3>
             <div style="width: 24px;"></div>
         </div>
-        <div class="cs-content">
-            <div id="inboxList">
-                <!-- Messages Injected Here -->
-            </div>
 
-            <div id="inboxEmpty" style="text-align:center; color:#666; padding:30px; display:none;">
+        <div style="display:flex; border-bottom:1px solid #333;">
+            <button id="tabInboxSystem" class="btn" style="flex:1; border:none; border-bottom:2px solid var(--accent-blue); background:rgba(0,191,255,0.1); color:white;">📢 System</button>
+            <button id="tabInboxPrivate" class="btn" style="flex:1; border:none; border-bottom:2px solid transparent; background:transparent; color:#888;">🔒 Privat</button>
+        </div>
+
+        <div class="cs-content" id="inboxContentSystem">
+            <div id="inboxListSystem"></div>
+            <div id="inboxEmptySystem" style="text-align:center; color:#666; padding:30px; display:none;">
                 <div style="font-size:3rem; margin-bottom:10px;">📭</div>
-                Keine Nachrichten vorhanden.
+                Keine System-Nachrichten.
             </div>
+        </div>
+
+        <div class="cs-content" id="inboxContentPrivate" style="display:none;">
+            <button id="btnComposeMessage" class="btn btn-primary" style="width:100%; margin-bottom:15px;">✍️ Neue Nachricht</button>
+            <div id="inboxListPrivate"></div>
+            <div id="inboxEmptyPrivate" style="text-align:center; color:#666; padding:30px; display:none;">
+                <div style="font-size:3rem; margin-bottom:10px;">📭</div>
+                Keine privaten Nachrichten.
+            </div>
+        </div>
+    </div>
+
+    <!-- COMPOSE MESSAGE MODAL -->
+    <div id="composeModal" class="modal">
+        <div class="modal-box" style="max-width: 500px;">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">NEUE NACHRICHT</h3>
+            <form id="composeForm">
+                <div class="input-group">
+                    <label class="input-label">Empfänger (Benutzername)</label>
+                    <input type="text" id="composeRecipient" class="input-field" placeholder="Exakter Benutzername" required>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Betreff</label>
+                    <input type="text" id="composeSubject" class="input-field" placeholder="Betreff" required>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Nachricht</label>
+                    <textarea id="composeBody" class="input-field" rows="6" placeholder="Nachricht..." required></textarea>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button type="button" onclick="document.getElementById('composeModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary" style="flex:1;">Senden</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -619,6 +657,14 @@
             <div style="text-align:center; margin-top:20px; display: flex; flex-direction: column; gap: 10px;">
                 <a href="#" id="showActivationLink" style="color:var(--text-muted); font-size:0.8rem;">Lizenzschlüssel aktivieren</a>
             </div>
+
+            <div id="torLinkContainer" style="display:none; margin-top:20px; text-align:center;">
+                <p style="color:var(--error-red); font-size:0.8rem; margin-bottom:10px;">Unbekanntes Gerät (Tor-Browser?)</p>
+                <button onclick="openModal('torLinkModal')" class="btn" style="border-color:var(--accent-blue); color:#fff; font-size:0.8rem; width:100%;">
+                    🧅 Dieses Gerät koppeln
+                </button>
+            </div>
+
             <div id="loginStatus" class="app-status-msg"></div>
         </div>
 
@@ -1640,6 +1686,55 @@
             <div style="display:flex; gap:10px;">
                 <button onclick="document.getElementById('transferImportModal').classList.remove('active')" class="btn" style="flex:1;">Abbrechen</button>
                 <button class="btn btn-primary" id="btnConfirmTransferImport" style="flex:1;">Installieren</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOR ACCESS MODAL (Generate Code) -->
+    <div id="torAccessModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">TOR-ZUGANG</h3>
+
+            <div style="margin-bottom:20px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid #333; border-radius:4px;">
+                <label style="display:block; font-size:0.7rem; color:#888; margin-bottom:5px;">ONION ADRESSE (HIDDEN SERVICE)</label>
+                <div id="onionAddressDisplay" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#fff; word-break:break-all;">Lade...</div>
+            </div>
+
+            <p style="color:#ccc; font-size:0.9rem; margin-bottom:15px; text-align:center;">
+                Um Ihren Account im Tor-Browser zu nutzen, generieren Sie hier einen Kopplungs-Code.
+            </p>
+
+            <div id="torCodeDisplayArea" style="display:none; text-align:center; margin-bottom:20px;">
+                <div id="generatedTorCode" style="font-size:2rem; font-weight:bold; letter-spacing:5px; color:var(--success-green); margin-bottom:5px;"></div>
+                <div style="font-size:0.8rem; color:#888;">Gültig für 10 Minuten</div>
+            </div>
+
+            <button id="btnGenerateTorCode" class="btn btn-primary" style="width:100%;">Code Generieren</button>
+            <button onclick="document.getElementById('torAccessModal').classList.remove('active')" class="btn" style="width:100%; margin-top:10px; border-color:#555; color:#fff;">Schließen</button>
+        </div>
+    </div>
+
+    <!-- TOR LINK MODAL (Enter Code) -->
+    <div id="torLinkModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">GERÄT KOPPELN</h3>
+            <p style="color:#ccc; font-size:0.9rem; margin-bottom:15px; text-align:center;">
+                Geben Sie den 6-stelligen Code ein, den Sie auf Ihrem Hauptgerät generiert haben.
+            </p>
+
+            <div class="input-group">
+                <label class="input-label">Benutzername</label>
+                <input type="text" id="torLinkUsername" class="input-field">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">Kopplungs-Code</label>
+                <input type="text" id="torLinkCode" class="input-field" placeholder="XXXXXX" maxlength="6" style="text-align:center; letter-spacing:3px; text-transform:uppercase;">
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="document.getElementById('torLinkModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnConfirmTorLink" style="flex:1;">Koppeln</button>
             </div>
         </div>
     </div>

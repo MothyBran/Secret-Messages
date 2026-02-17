@@ -147,6 +147,13 @@ async function createTables() {
             post_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, post_id)
+        )`,
+        `CREATE TABLE IF NOT EXISTS pairing_codes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            code TEXT,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`
     ];
 
@@ -270,6 +277,38 @@ async function createTables() {
         }
     } catch (e) {
         console.warn("Migration Warning (security_comments is_anonymous):", e.message);
+    }
+
+    // --- MIGRATION: allowed_tor_device_id zu users hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_tor_device_id TEXT`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(users)`);
+            const hasCol = check.rows.some(c => c.name === 'allowed_tor_device_id');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE users ADD COLUMN allowed_tor_device_id TEXT`);
+                console.log('✅ Migrated: Added allowed_tor_device_id to users');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (users allowed_tor_device_id):", e.message);
+    }
+
+    // --- MIGRATION: sender_id zu messages hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_id INTEGER`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(messages)`);
+            const hasCol = check.rows.some(c => c.name === 'sender_id');
+            if (!hasCol) {
+                await internalDbQuery(`ALTER TABLE messages ADD COLUMN sender_id INTEGER`);
+                console.log('✅ Migrated: Added sender_id to messages');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (messages sender_id):", e.message);
     }
 }
 
