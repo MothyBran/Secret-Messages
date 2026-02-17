@@ -26,12 +26,15 @@ const ensureDirectoryExists = (dir) => {
 const prepareTor = () => {
     console.log("🧅 Preparing Tor Configuration...");
 
-    // Check if Tor is installed (only check, don't fail if just preparing config)
+    let torAvailable = false;
+    // Check if Tor is installed
     try {
         const check = execSync('tor --version', { stdio: 'pipe' }).toString();
         console.log(`   Tor version detected: ${check.trim().split('\n')[0]}`);
+        torAvailable = true;
     } catch (e) {
         console.warn("⚠️ Tor is not installed or not in PATH. Please ensure it is installed.");
+        torAvailable = false;
     }
 
     ensureDirectoryExists(TOR_DIR);
@@ -47,6 +50,8 @@ const prepareTor = () => {
     } catch (e) {
         console.error("❌ Failed to write torrc:", e.message);
     }
+
+    return torAvailable;
 };
 
 const pollHostname = () => {
@@ -81,25 +86,29 @@ const pollHostname = () => {
 const init = async (spawnProcess = true) => {
     console.log("🧅 Initializing Tor Manager...");
 
-    // Always ensure config exists
-    prepareTor();
+    // Always ensure config exists and check availability
+    const torAvailable = prepareTor();
 
     if (spawnProcess) {
-        console.log("   Starting Tor process internally...");
-        try {
-            const torProcess = spawn('tor', ['-f', TORRC_FILE], {
-                detached: true,
-                stdio: 'ignore'
-            });
+        if (torAvailable) {
+            console.log("   Starting Tor process internally...");
+            try {
+                const torProcess = spawn('tor', ['-f', TORRC_FILE], {
+                    detached: true,
+                    stdio: 'ignore'
+                });
 
-            // Critical: Handle spawn errors (e.g. ENOENT if tor is missing) to prevent crash
-            torProcess.on('error', (err) => {
-                console.error("❌ Tor Process Error:", err.message);
-            });
+                // Critical: Handle spawn errors to prevent crash
+                torProcess.on('error', (err) => {
+                    console.error("❌ Tor Process Error:", err.message);
+                });
 
-            torProcess.unref();
-        } catch (e) {
-            console.error("❌ Failed to spawn Tor process:", e.message);
+                torProcess.unref();
+            } catch (e) {
+                console.error("❌ Failed to spawn Tor process:", e.message);
+            }
+        } else {
+            console.warn("⚠️ Tor executable not found. Skipping internal start.");
         }
     } else {
         console.log("   Tor process managed externally. Watching for hostname...");
