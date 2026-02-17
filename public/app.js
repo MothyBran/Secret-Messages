@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(API_BASE + '/ping').catch(err => {});
     }
 
-    // ENTERPRISE CHECK
+    // ENTERPRISE CHECK & TOR DETECTION
     fetch(API_BASE + '/config').then(r=>r.json()).then(conf => {
         if(conf.mode === 'ENTERPRISE') {
             document.body.classList.add('mode-enterprise');
@@ -116,6 +116,20 @@ document.addEventListener('DOMContentLoaded', function() {
             script.src = '/js/enterprise-client.js';
             script.onload = () => { if(window.initEnterpriseClient) window.initEnterpriseClient(); };
             document.body.appendChild(script);
+        }
+
+        // Tor Logic
+        if(conf.onionAddress) {
+            const el = document.getElementById('onionAddressDisplay');
+            if(el) el.textContent = conf.onionAddress;
+        }
+
+        if(window.location.hostname.endsWith('.onion')) {
+            const statusContainer = document.getElementById('globalStatusContainer');
+            const banner = document.createElement('div');
+            banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#4b0082; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
+            banner.textContent = "🛡️ TOR-NETZWERK AKTIV";
+            document.body.appendChild(banner);
         }
     }).catch(e=>{});
 
@@ -356,6 +370,14 @@ function setupUIEvents() {
 
     document.getElementById('btnCancelContactCode')?.addEventListener('click', () => { document.getElementById('contactCodeModal').classList.remove('active'); pendingContactAction = null; });
     document.getElementById('btnConfirmContactCode')?.addEventListener('click', handleContactCodeSubmit);
+
+    document.getElementById('btnGenerateTorCode')?.addEventListener('click', generateTorCode);
+    document.getElementById('btnConfirmTorLink')?.addEventListener('click', handleTorLink);
+
+    document.getElementById('tabInboxSystem')?.addEventListener('click', () => switchInboxTab('system'));
+    document.getElementById('tabInboxPrivate')?.addEventListener('click', () => switchInboxTab('private'));
+    document.getElementById('btnComposeMessage')?.addEventListener('click', () => openComposeModal());
+    document.getElementById('composeForm')?.addEventListener('submit', handleSendMessage);
 
     // --- ENTERPRISE KEY ADD LISTENER (Moved to UI setup) ---
     document.getElementById('btnAddEntKey')?.addEventListener('click', () => {
@@ -735,10 +757,60 @@ async function handleLogin(e) {
             updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
             if (data.error === "ACCOUNT_BLOCKED") { localStorage.removeItem('sm_token'); showSection('blockedSection'); }
-            else if (data.error === "DEVICE_NOT_AUTHORIZED") { localStorage.removeItem('sm_token'); window.showToast("Dieses Gerät ist für diesen Account nicht autorisiert. Bitte nutzen Sie Ihr registriertes Endgerät oder kontaktieren Sie den Support für einen Gerätewechsel.", 'error'); }
+            else if (data.error === "DEVICE_NOT_AUTHORIZED") {
+                localStorage.removeItem('sm_token');
+                const torContainer = document.getElementById('torLinkContainer');
+                if(torContainer) {
+                    torContainer.style.display = 'block';
+                    document.getElementById('torLinkUsername').value = u;
+                }
+                window.showToast("Gerät nicht autorisiert. Ist dies Ihr Zweit-Gerät?", 'error');
+            }
             else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
         }
     } catch(err) { showAppStatus("Serverfehler", 'error'); } 
+}
+
+async function generateTorCode() {
+    const btn = document.getElementById('btnGenerateTorCode');
+    btn.disabled = true; btn.textContent = "...";
+    try {
+        const res = await fetch(`${API_BASE}/auth/generate-link-code`, { headers: { 'Authorization': `Bearer ${authToken}` }, method: 'POST' });
+        const data = await res.json();
+        if(data.success) {
+            document.getElementById('torCodeDisplayArea').style.display = 'block';
+            document.getElementById('generatedTorCode').textContent = data.code;
+            btn.textContent = "Neuen Code generieren";
+        } else {
+            showToast("Fehler beim Generieren", 'error');
+        }
+    } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.disabled = false; }
+}
+
+async function handleTorLink() {
+    const username = document.getElementById('torLinkUsername').value.trim();
+    const code = document.getElementById('torLinkCode').value.trim();
+    if(!username || !code) return showToast("Daten fehlen", 'error');
+
+    const btn = document.getElementById('btnConfirmTorLink');
+    btn.textContent = "..."; btn.disabled = true;
+
+    try {
+        const devId = await generateDeviceFingerprint();
+        const res = await fetch(`${API_BASE}/auth/link-device`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username, code, newDeviceId: devId })
+        });
+        const data = await res.json();
+        if(data.success) {
+            document.getElementById('torLinkModal').classList.remove('active');
+            document.getElementById('torLinkContainer').style.display = 'none';
+            window.showAppConfirm("Kopplung erfolgreich! Bitte jetzt einloggen.", () => {}, { confirm: "OK", cancel: null });
+        } else {
+            showToast(data.error || "Kopplung fehlgeschlagen", 'error');
+        }
+    } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.textContent = "Koppeln"; btn.disabled = false; }
 }
 
 async function handleActivation(e) {
@@ -1962,68 +2034,232 @@ window.removeEntKey = function(key) {
     initEnterpriseKeys();
 };
 
+let currentInboxTab = 'system';
+
+function switchInboxTab(tab) {
+    currentInboxTab = tab;
+    const btnSystem = document.getElementById('tabInboxSystem');
+    const btnPrivate = document.getElementById('tabInboxPrivate');
+    const contentSystem = document.getElementById('inboxContentSystem');
+    const contentPrivate = document.getElementById('inboxContentPrivate');
+
+    if(tab === 'system') {
+        btnSystem.style.borderBottomColor = 'var(--accent-blue)';
+        btnSystem.style.background = 'rgba(0,191,255,0.1)';
+        btnSystem.style.color = 'white';
+
+        btnPrivate.style.borderBottomColor = 'transparent';
+        btnPrivate.style.background = 'transparent';
+        btnPrivate.style.color = '#888';
+
+        contentSystem.style.display = 'block';
+        contentPrivate.style.display = 'none';
+    } else {
+        btnPrivate.style.borderBottomColor = 'var(--accent-blue)';
+        btnPrivate.style.background = 'rgba(0,191,255,0.1)';
+        btnPrivate.style.color = 'white';
+
+        btnSystem.style.borderBottomColor = 'transparent';
+        btnSystem.style.background = 'transparent';
+        btnSystem.style.color = '#888';
+
+        contentPrivate.style.display = 'block';
+        contentSystem.style.display = 'none';
+    }
+}
+
 async function loadAndShowInbox() {
-    // showSection('inboxSection'); -> Replaced by Sidebar
     document.getElementById('inboxSidebar').classList.add('active');
     document.getElementById('sidebarOverlay').classList.add('active');
+    switchInboxTab(currentInboxTab); // Restore active tab
 
-    const container = document.getElementById('inboxList'); const emptyMsg = document.getElementById('inboxEmpty');
-    container.innerHTML = '<div style="text-align:center; padding:20px;">Lade...</div>'; emptyMsg.style.display = 'none';
+    const listSystem = document.getElementById('inboxListSystem');
+    const listPrivate = document.getElementById('inboxListPrivate');
+    const emptySystem = document.getElementById('inboxEmptySystem');
+    const emptyPrivate = document.getElementById('inboxEmptyPrivate');
+
+    listSystem.innerHTML = '<div style="text-align:center; padding:10px;">Lade...</div>';
+    listPrivate.innerHTML = '<div style="text-align:center; padding:10px;">Lade...</div>';
 
     try {
         const res = await fetch(`${API_BASE}/messages`, { headers: { 'Authorization': `Bearer ${authToken}` } });
         const msgs = await res.json();
+
         const readBroadcasts = getReadBroadcasts();
         const unreadPersonal = msgs.filter(m => m.recipient_id == currentUser.sm_id && !m.is_read).length;
         const unreadBroadcasts = msgs.filter(m => m.recipient_id === null && !readBroadcasts.includes(m.id)).length;
         updatePostboxUI(unreadPersonal + unreadBroadcasts);
 
-        container.innerHTML = '';
-        if(msgs.length === 0) { emptyMsg.style.display = 'block'; return; }
+        listSystem.innerHTML = '';
+        listPrivate.innerHTML = '';
 
-        msgs.forEach(m => {
-            const el = document.createElement('div');
-            const isPersonal = !!m.recipient_id; const isBroadcast = !isPersonal; const isUnread = (isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id));
-            const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
+        const systemMsgs = msgs.filter(m => m.type !== 'user_msg');
+        const privateMsgs = msgs.filter(m => m.type === 'user_msg');
 
-            let classes = 'msg-card'; if(isUnread) classes += ' unread'; else classes += ' read-message'; if(m.type === 'automated') classes += ' type-automated'; if(m.type === 'support') classes += ' type-support'; if(isTicket) classes += ' type-ticket';
-            let icon = '📩'; if(m.type === 'automated') icon = '⚠️'; else if(m.type === 'support') icon = '💬'; else if(isTicket) icon = '🎫'; else if(!isPersonal) icon = '📢';
+        if(systemMsgs.length === 0) emptySystem.style.display = 'block'; else emptySystem.style.display = 'none';
+        if(privateMsgs.length === 0) emptyPrivate.style.display = 'block'; else emptyPrivate.style.display = 'none';
 
-            let badgeHtml = '';
-            if (m.type === 'ticket' && m.status) {
-                let statusClass = 'msg-status-open'; let statusText = 'OFFEN'; if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; } if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
-                badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
-            }
-
-            el.className = classes;
-            el.innerHTML = `<div class="msg-header"><span>${new Date(m.created_at).toLocaleString('de-DE')}</span><span>${isPersonal ? 'Persönlich' : 'Allgemein'}</span></div>`;
-            const divSubject = document.createElement('div'); divSubject.className = 'msg-subject'; divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`;
-            const divBody = document.createElement('div'); divBody.className = 'msg-body'; divBody.textContent = m.body;
-            el.appendChild(divSubject); el.appendChild(divBody);
-
-            if (isPersonal) {
-                const btnDel = document.createElement('button'); btnDel.textContent = 'Löschen'; btnDel.className = 'btn-outline'; btnDel.style.fontSize = '0.7rem'; btnDel.style.marginTop = '10px'; btnDel.style.padding = '4px 8px';
-                if (m.type === 'ticket' && m.status !== 'closed') { btnDel.classList.add('delete-btn-locked'); btnDel.title = "Ticket ist noch offen."; btnDel.style.display = 'none'; btnDel.disabled = true; btnDel.onclick = (e) => { e.stopPropagation(); }; }
-                else { btnDel.onclick = (e) => { e.stopPropagation(); deleteMessage(m.id, el); }; }
-                el.appendChild(btnDel);
-            }
-
-            el.addEventListener('click', () => {
-                const wasExpanded = el.classList.contains('expanded'); document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
-                if(!wasExpanded) {
-                    el.classList.add('expanded');
-                    if(isUnread) {
-                        if(el.classList.contains('unread')) {
-                            el.classList.remove('unread');
-                            if(isPersonal) markMessageRead(m.id); else if(isBroadcast) markBroadcastRead(m.id);
-                            const navLink = document.getElementById('navPost'); const match = navLink.innerText.match(/\((\d+)\)/); if(match) { let cur = parseInt(match[1]); if(cur > 0) updatePostboxUI(cur - 1); }
-                        }
-                    }
-                }
-            });
-            container.appendChild(el);
+        // Render System Messages
+        systemMsgs.forEach(m => {
+            const el = createMessageCard(m, readBroadcasts, false);
+            listSystem.appendChild(el);
         });
-    } catch(e) { container.innerHTML = '<div style="color:red; text-align:center;">Laden fehlgeschlagen.</div>'; }
+
+        // Render Private Messages
+        privateMsgs.forEach(m => {
+            const el = createMessageCard(m, readBroadcasts, true);
+            listPrivate.appendChild(el);
+        });
+
+    } catch(e) {
+        console.error(e);
+        listSystem.innerHTML = '<div style="color:red; text-align:center;">Laden fehlgeschlagen.</div>';
+        listPrivate.innerHTML = '<div style="color:red; text-align:center;">Laden fehlgeschlagen.</div>';
+    }
+}
+
+function createMessageCard(m, readBroadcasts, isPrivateTab) {
+    const el = document.createElement('div');
+    const isPersonal = !!m.recipient_id;
+    const isBroadcast = !isPersonal;
+    const isUnread = (isPersonal && !m.is_read) || (isBroadcast && !readBroadcasts.includes(m.id));
+    const isTicket = (m.type === 'ticket' || m.type === 'ticket_reply');
+
+    let classes = 'msg-card';
+    if(isUnread) classes += ' unread'; else classes += ' read-message';
+    if(m.type === 'automated') classes += ' type-automated';
+    if(m.type === 'support') classes += ' type-support';
+    if(isTicket) classes += ' type-ticket';
+    if(isPrivateTab) classes += ' type-private';
+
+    let icon = '📩';
+    if(m.type === 'automated') icon = '⚠️';
+    else if(m.type === 'support') icon = '💬';
+    else if(isTicket) icon = '🎫';
+    else if(!isPersonal) icon = '📢';
+    else if(isPrivateTab) icon = '🔒';
+
+    let badgeHtml = '';
+    if (m.type === 'ticket' && m.status) {
+        let statusClass = 'msg-status-open';
+        let statusText = 'OFFEN';
+        if (m.status === 'in_progress') { statusClass = 'msg-status-progress'; statusText = 'IN BEARBEITUNG'; }
+        if (m.status === 'closed') { statusClass = 'msg-status-closed'; statusText = 'ABGESCHLOSSEN'; }
+        badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
+    }
+
+    let senderInfo = isPrivateTab ? `Von: ${m.sender_username || 'Unbekannt'}` : (isPersonal ? 'Persönlich' : 'Allgemein');
+
+    el.className = classes;
+    el.innerHTML = `<div class="msg-header"><span>${new Date(m.created_at).toLocaleString('de-DE')}</span><span>${senderInfo}</span></div>`;
+    const divSubject = document.createElement('div');
+    divSubject.className = 'msg-subject';
+    divSubject.innerHTML = `${icon} ${escapeHtml(m.subject)} ${badgeHtml}`;
+
+    const divBody = document.createElement('div');
+    divBody.className = 'msg-body';
+    divBody.textContent = m.body;
+
+    el.appendChild(divSubject);
+    el.appendChild(divBody);
+
+    // Actions Container
+    const actionsDiv = document.createElement('div');
+    actionsDiv.style.display = 'flex';
+    actionsDiv.style.gap = '10px';
+    actionsDiv.style.marginTop = '10px';
+
+    if (isPrivateTab && m.sender_username) {
+        const btnReply = document.createElement('button');
+        btnReply.textContent = '↩ Antworten';
+        btnReply.className = 'btn btn-primary';
+        btnReply.style.fontSize = '0.7rem';
+        btnReply.style.padding = '4px 8px';
+        btnReply.onclick = (e) => { e.stopPropagation(); openComposeModal(m.sender_username, "RE: " + m.subject); };
+        actionsDiv.appendChild(btnReply);
+    }
+
+    if (isPersonal) {
+        const btnDel = document.createElement('button');
+        btnDel.textContent = '🗑 Löschen';
+        btnDel.className = 'btn-outline';
+        btnDel.style.fontSize = '0.7rem';
+        btnDel.style.padding = '4px 8px';
+
+        if (m.type === 'ticket' && m.status !== 'closed') {
+            btnDel.classList.add('delete-btn-locked');
+            btnDel.title = "Ticket ist noch offen.";
+            btnDel.style.display = 'none';
+            btnDel.disabled = true;
+            btnDel.onclick = (e) => { e.stopPropagation(); };
+        } else {
+            btnDel.onclick = (e) => { e.stopPropagation(); deleteMessage(m.id, el); };
+        }
+        actionsDiv.appendChild(btnDel);
+    }
+
+    if(actionsDiv.childNodes.length > 0) el.appendChild(actionsDiv);
+
+    el.addEventListener('click', () => {
+        const wasExpanded = el.classList.contains('expanded');
+        document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
+        if(!wasExpanded) {
+            el.classList.add('expanded');
+            if(isUnread) {
+                if(el.classList.contains('unread')) {
+                    el.classList.remove('unread');
+                    if(isPersonal) markMessageRead(m.id); else if(isBroadcast) markBroadcastRead(m.id);
+                    const navLink = document.getElementById('navPost');
+                    const match = navLink.innerText.match(/\((\d+)\)/);
+                    if(match) { let cur = parseInt(match[1]); if(cur > 0) updatePostboxUI(cur - 1); }
+                }
+            }
+        }
+    });
+    return el;
+}
+
+function openComposeModal(recipient = '', subject = '') {
+    const modal = document.getElementById('composeModal');
+    document.getElementById('composeRecipient').value = recipient;
+    document.getElementById('composeSubject').value = subject;
+    document.getElementById('composeBody').value = '';
+    modal.classList.add('active');
+}
+
+async function handleSendMessage(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const oldTxt = btn.textContent;
+    btn.textContent = "Sende..."; btn.disabled = true;
+
+    const payload = {
+        recipientUsername: document.getElementById('composeRecipient').value.trim(),
+        subject: document.getElementById('composeSubject').value.trim(),
+        body: document.getElementById('composeBody').value.trim()
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/messages/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if(data.success) {
+            showToast("Nachricht gesendet.", 'success');
+            document.getElementById('composeModal').classList.remove('active');
+            switchInboxTab('private');
+            loadAndShowInbox();
+        } else {
+            showToast(data.error || "Versand fehlgeschlagen", 'error');
+        }
+    } catch(e) {
+        showToast("Verbindungsfehler", 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+    }
 }
 
 async function markMessageRead(id) { try { await fetch(`${API_BASE}/messages/${id}/read`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` } }); } catch(e) { console.error("Mark Read Failed", e); } }

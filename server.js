@@ -22,6 +22,7 @@ try {
 }
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
+const torManager = require('./utils/torManager');
 require('dotenv').config();
 
 // ENTERPRISE SWITCH
@@ -264,6 +265,7 @@ function calculateNewExpiration(currentExpirationStr, extensionMonths) {
 // 2. DATABASE SETUP
 // ==================================================================
 initializeDatabase();
+torManager.init();
 
 // ==================================================================
 // 2.1 ANALYTICS HELPERS
@@ -450,9 +452,15 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
         // STRICT DEVICE BINDING
         // Normalize comparison (trim)
         const storedDevice = user.allowed_device_id ? user.allowed_device_id.trim() : null;
+        const storedTorDevice = user.allowed_tor_device_id ? user.allowed_tor_device_id.trim() : null;
         const incomingDevice = deviceId ? deviceId.trim() : '';
 
-        if (storedDevice && storedDevice !== incomingDevice) {
+        let deviceMatch = false;
+        if (storedDevice && storedDevice === incomingDevice) deviceMatch = true;
+        if (storedTorDevice && storedTorDevice === incomingDevice) deviceMatch = true;
+
+        // If at least one device is registered, check against incoming
+        if ((storedDevice || storedTorDevice) && !deviceMatch) {
             await trackEvent(req, 'login_device_mismatch', 'auth', { username });
 
             // Insert Security Warning
@@ -506,6 +514,44 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
         await dbQuery('UPDATE users SET is_online = $1 WHERE id = $2', [(isPostgreSQL() ? false : 0), req.user.id]);
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: 'Logout Fehler' }); }
+});
+
+app.post('/api/auth/generate-link-code', authenticateUser, async (req, res) => {
+    try {
+        const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+        const expiresAt = new Date(Date.now() + 10 * 60000).toISOString(); // 10 mins
+        await dbQuery('INSERT INTO pairing_codes (user_id, code, expires_at) VALUES ($1, $2, $3)', [req.user.id, code, expiresAt]);
+        res.json({ success: true, code, expiresAt });
+    } catch (e) {
+        res.status(500).json({ error: "Fehler beim Generieren des Codes" });
+    }
+});
+
+app.post('/api/auth/link-device', rateLimiter, async (req, res) => {
+    const { username, code, newDeviceId } = req.body;
+    if (!username || !code || !newDeviceId) return res.status(400).json({ error: "Daten fehlen" });
+
+    try {
+        const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "User nicht gefunden" });
+        const userId = userRes.rows[0].id;
+
+        const codeRes = await dbQuery('SELECT * FROM pairing_codes WHERE user_id = $1 AND code = $2', [userId, code.toUpperCase()]);
+        if (codeRes.rows.length === 0) return res.status(403).json({ error: "Code ungültig" });
+
+        const pairingEntry = codeRes.rows[0];
+        if (new Date(pairingEntry.expires_at) < new Date()) {
+             await dbQuery('DELETE FROM pairing_codes WHERE id = $1', [pairingEntry.id]);
+             return res.status(403).json({ error: "Code abgelaufen" });
+        }
+
+        await dbQuery('UPDATE users SET allowed_tor_device_id = $1 WHERE id = $2', [newDeviceId, userId]);
+        await dbQuery('DELETE FROM pairing_codes WHERE id = $1', [pairingEntry.id]);
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Fehler bei der Verknüpfung: " + e.message });
+    }
 });
 
 app.post('/api/auth/activate', authRateLimiter, async (req, res) => {
@@ -1674,18 +1720,49 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
 // MESSAGING SYSTEM
 // ==================================================================
 
+app.post('/api/messages/send', authenticateUser, async (req, res) => {
+    const { recipientUsername, subject, body } = req.body;
+    if (!recipientUsername || !subject || !body) return res.status(400).json({ error: "Fehlende Daten" });
+
+    try {
+        // Resolve Recipient
+        const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [recipientUsername]);
+        if (userRes.rows.length === 0) return res.status(404).json({ error: "Benutzer nicht gefunden" });
+        const recipientId = userRes.rows[0].id;
+
+        if (recipientId === req.user.id) return res.status(400).json({ error: "Sie können sich nicht selbst schreiben." });
+
+        const now = new Date().toISOString();
+        const isReadVal = isPostgreSQL() ? 'false' : 0;
+
+        await dbQuery(
+            `INSERT INTO messages (sender_id, recipient_id, subject, body, type, is_read, created_at)
+             VALUES ($1, $2, $3, $4, 'user_msg', ${isReadVal}, $5)`,
+            [req.user.id, recipientId, subject, body, now]
+        );
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Versand fehlgeschlagen: " + e.message });
+    }
+});
+
 app.get('/api/messages', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
         const now = new Date().toISOString();
-        const isDeletedCheck = isPostgreSQL() ? 'is_deleted IS FALSE' : 'is_deleted = 0';
+        const isDeletedCheck = isPostgreSQL() ? 'm.is_deleted IS FALSE' : 'm.is_deleted = 0';
 
         // Fetch all non-deleted messages that are not expired
-        const sql = `SELECT * FROM messages WHERE
-            ((recipient_id = $1 AND (${isDeletedCheck} OR is_deleted IS NULL))
-            OR (recipient_id IS NULL))
-            AND (expires_at IS NULL OR expires_at > $2)
-            ORDER BY created_at DESC`;
+        const sql = `
+            SELECT m.*, u.username as sender_username
+            FROM messages m
+            LEFT JOIN users u ON m.sender_id = u.id
+            WHERE
+            ((m.recipient_id = $1 AND (${isDeletedCheck} OR m.is_deleted IS NULL))
+            OR (m.recipient_id IS NULL))
+            AND (m.expires_at IS NULL OR m.expires_at > $2)
+            ORDER BY m.created_at DESC`;
 
         const result = await dbQuery(sql, [userId, now]);
         const msgs = result.rows.map(r => ({ ...r, is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1) }));
@@ -2264,7 +2341,12 @@ if (IS_ENTERPRISE) {
         } catch(e) { res.status(500).json({ error: e.message }); }
     });
 } else {
-    app.get('/api/config', (req, res) => { res.json({ mode: 'CLOUD' }); });
+    app.get('/api/config', (req, res) => {
+        res.json({
+            mode: 'CLOUD',
+            onionAddress: torManager.getOnionAddress()
+        });
+    });
     app.post('/api/enterprise/activate', async (req, res) => {
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
