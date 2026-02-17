@@ -91,6 +91,12 @@ const init = async (spawnProcess = true) => {
                 detached: true,
                 stdio: 'ignore'
             });
+
+            // Critical: Handle spawn errors (e.g. ENOENT if tor is missing) to prevent crash
+            torProcess.on('error', (err) => {
+                console.error("❌ Tor Process Error:", err.message);
+            });
+
             torProcess.unref();
         } catch (e) {
             console.error("❌ Failed to spawn Tor process:", e.message);

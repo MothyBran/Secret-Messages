@@ -1,5 +1,6 @@
 [phases.setup]
-nixPkgs = ["nodejs", "tor"]
+aptPkgs = ["tor"]
+nixPkgs = ["nodejs"]
 
 [phases.install]
 cmds = ["npm ci"]
