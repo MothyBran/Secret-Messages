@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(window.location.hostname.endsWith('.onion')) {
             const statusContainer = document.getElementById('globalStatusContainer');
             const banner = document.createElement('div');
-            banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#4b0082; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
+            banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#006400; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
             banner.textContent = "🛡️ TOR-NETZWERK AKTIV";
             document.body.appendChild(banner);
         }
@@ -1374,6 +1374,9 @@ function updateSidebarInfo(user, expiryData) {
 
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
     guestElements.forEach(el => el.style.display = user ? 'none' : 'flex');
+
+    const footerOnion = document.getElementById('footerOnionIcon');
+    if(footerOnion) footerOnion.style.display = user ? 'block' : 'none';
 }
 
 async function checkExistingSession() {
