@@ -591,10 +591,10 @@ function openContactSidebar(mode, targetId = 'recipientName') {
     document.getElementById('contactSearch').value = ''; btnEdit.style.background = 'transparent'; btnEdit.innerHTML = '✎ Bearbeiten';
 
     if (mode === 'manage') { footerManage.style.display = 'flex'; footerSelect.style.display = 'none'; groupArea.style.display = 'none'; } else { footerManage.style.display = 'none'; footerSelect.style.display = 'flex'; groupArea.style.display = 'flex'; renderGroupTags(); }
-    renderContactList(); sidebar.classList.add('active'); overlay.classList.add('active');
+    renderContactList(); sidebar.classList.add('active'); overlay.classList.add('active', 'high-z');
 }
 
-function closeContactSidebar() { document.getElementById('contactSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active'); }
+function closeContactSidebar() { document.getElementById('contactSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active', 'high-z'); }
 
 function closeInboxSidebar() { document.getElementById('inboxSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active'); }
 
@@ -2311,6 +2311,12 @@ function handleComposeFileUpload(e) {
         };
         document.getElementById('composeFileName').textContent = "📎 " + file.name;
         document.getElementById('composeFileInfo').style.display = 'flex';
+
+        // Auto-fill body if empty (User Convenience)
+        const bodyInput = document.getElementById('composeBody');
+        if (bodyInput && !bodyInput.value.trim()) {
+            bodyInput.value = `[Anhang: ${file.name}]`;
+        }
     };
     reader.onerror = function() { showToast("Fehler beim Laden.", 'error'); };
     reader.readAsDataURL(file);
@@ -2333,7 +2339,7 @@ async function handleSendMessage(e) {
     const body = document.getElementById('composeBody').value.trim();
     const code = document.getElementById('composeCode').value.trim();
 
-    if(!recipientRaw || !subject || !body || !code) {
+    if(!recipientRaw || !subject || (!body && !composeAttachment) || !code) {
         showToast("Bitte alle Felder ausfüllen.", 'error');
         return;
     }
@@ -2454,8 +2460,14 @@ async function handleInboxDecrypt() {
                         // We'll attach a click listener to the button right after
                         window[`file_data_${btnId}`] = { data, name, type };
 
+                        let previewHtml = '';
+                        if (type && type.startsWith('image/')) {
+                            previewHtml = `<img src="${data}" style="max-width: 100%; border-radius: 4px; margin-bottom: 10px; display: block;">`;
+                        }
+
                         attachmentHtml = `
                             <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #333;">
+                                ${previewHtml}
                                 <button onclick="downloadPrivateFile('${btnId}')" class="btn" style="font-size: 0.8rem; padding: 5px 10px; border-color: var(--accent-blue); color: var(--accent-blue);">
                                     💾 Datei herunterladen: ${escapeHtml(name)}
                                 </button>
