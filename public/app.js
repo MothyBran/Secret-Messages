@@ -258,6 +258,9 @@ function setupUIEvents() {
     document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select', 'recipientName'));
     document.getElementById('btnComposeContacts')?.addEventListener('click', () => openContactSidebar('select', 'composeRecipient'));
     
+    document.getElementById('composeFileInput')?.addEventListener('change', handleComposeFileUpload);
+    document.getElementById('btnRemoveComposeFile')?.addEventListener('click', clearComposeFile);
+
     document.getElementById('modeSwitch')?.addEventListener('change', (e) => { updateAppMode(e.target.checked ? 'decrypt' : 'encrypt'); });
     document.getElementById('actionBtn')?.addEventListener('click', handleMainAction);
     document.getElementById('copyBtn')?.addEventListener('click', copyToClipboard);
@@ -2086,6 +2089,7 @@ window.removeEntKey = function(key) {
 
 let currentInboxTab = 'system';
 let pendingDecryptMsg = null; // { id, body, element, isUnread }
+let composeAttachment = null; // { name, type, data }
 
 function switchInboxTab(tab) {
     currentInboxTab = tab;
@@ -2286,7 +2290,34 @@ function openComposeModal(recipient = '', subject = '') {
     document.getElementById('composeSubject').value = subject;
     document.getElementById('composeBody').value = '';
     document.getElementById('composeCode').value = ''; // Reset code
+    clearComposeFile();
     modal.classList.add('active');
+}
+
+function handleComposeFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) { showToast("Datei ist zu groß! Maximum sind 25MB.", 'error'); this.value = ''; return; }
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        composeAttachment = {
+            name: file.name,
+            type: file.type,
+            data: evt.target.result
+        };
+        document.getElementById('composeFileName').textContent = "📎 " + file.name;
+        document.getElementById('composeFileInfo').style.display = 'flex';
+    };
+    reader.onerror = function() { showToast("Fehler beim Laden.", 'error'); };
+    reader.readAsDataURL(file);
+}
+
+function clearComposeFile() {
+    composeAttachment = null;
+    const input = document.getElementById('composeFileInput');
+    if(input) input.value = '';
+    document.getElementById('composeFileInfo').style.display = 'none';
 }
 
 async function handleSendMessage(e) {
@@ -2314,10 +2345,19 @@ async function handleSendMessage(e) {
         // Parse Recipients
         const recipients = recipientRaw.split(',').map(s => s.trim()).filter(s => s);
 
+        // Prepare Payload
+        let contentToEncrypt = body;
+        if (composeAttachment) {
+            contentToEncrypt = JSON.stringify({
+                text: body,
+                attachment: composeAttachment
+            });
+        }
+
         // Encrypt Body
         // Note: encryptFull expects array of IDs/Usernames. It adds current user automatically.
         // It returns a Base64 string.
-        const encryptedBody = await encryptFull(body, code, recipients, currentUser.name);
+        const encryptedBody = await encryptFull(contentToEncrypt, code, recipients, currentUser.name);
 
         btn.textContent = "Sende...";
 
@@ -2392,7 +2432,40 @@ async function handleInboxDecrypt() {
         // Update Message Body
         const el = pendingDecryptMsg.element;
         const bodyEl = el.querySelector('.msg-body');
-        if (bodyEl) bodyEl.textContent = decrypted;
+
+        if (bodyEl) {
+            let displayText = decrypted;
+            let attachmentHtml = '';
+
+            try {
+                // Try parsing as JSON (New format with attachment)
+                const parsed = JSON.parse(decrypted);
+                if (parsed && typeof parsed === 'object') {
+                    if (parsed.text) displayText = parsed.text;
+                    if (parsed.attachment) {
+                        const { name, data, type } = parsed.attachment;
+                        // Create download logic
+                        // We use a unique ID for the download button to attach listener or inline onclick
+                        const btnId = `dl-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+                        // Storing data in memory is safer than inline big base64 string
+                        // We'll attach a click listener to the button right after
+                        window[`file_data_${btnId}`] = { data, name, type };
+
+                        attachmentHtml = `
+                            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #333;">
+                                <button onclick="downloadPrivateFile('${btnId}')" class="btn" style="font-size: 0.8rem; padding: 5px 10px; border-color: var(--accent-blue); color: var(--accent-blue);">
+                                    💾 Datei herunterladen: ${escapeHtml(name)}
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (e) {
+                // Not JSON, assume plain text (Legacy)
+            }
+
+            bodyEl.innerHTML = escapeHtml(displayText).replace(/\n/g, '<br>') + attachmentHtml;
+        }
 
         el.dataset.decrypted = "true";
         el.classList.add('expanded');
@@ -2417,3 +2490,17 @@ async function handleInboxDecrypt() {
         btn.textContent = oldTxt; btn.disabled = false;
     }
 }
+
+window.downloadPrivateFile = function(btnId) {
+    const fileInfo = window[`file_data_${btnId}`];
+    if (fileInfo) {
+        const a = document.createElement('a');
+        a.href = fileInfo.data;
+        a.download = fileInfo.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } else {
+        showToast("Fehler: Datei nicht gefunden.", 'error');
+    }
+};
