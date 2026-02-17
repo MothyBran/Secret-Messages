@@ -1728,23 +1728,35 @@ app.post('/api/messages/send', authenticateUser, async (req, res) => {
     if (!recipientUsername || !subject || !body) return res.status(400).json({ error: "Fehlende Daten" });
 
     try {
-        // Resolve Recipient
-        const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [recipientUsername]);
-        if (userRes.rows.length === 0) return res.status(404).json({ error: "Benutzer nicht gefunden" });
-        const recipientId = userRes.rows[0].id;
+        const recipients = Array.isArray(recipientUsername)
+            ? recipientUsername
+            : recipientUsername.split(',').map(s => s.trim()).filter(s => s);
 
-        if (recipientId === req.user.id) return res.status(400).json({ error: "Sie können sich nicht selbst schreiben." });
+        if (recipients.length === 0) return res.status(400).json({ error: "Keine Empfänger angegeben" });
 
         const now = new Date().toISOString();
         const isReadVal = isPostgreSQL() ? 'false' : 0;
+        let sentCount = 0;
 
-        await dbQuery(
-            `INSERT INTO messages (sender_id, recipient_id, subject, body, type, is_read, created_at)
-             VALUES ($1, $2, $3, $4, 'user_msg', ${isReadVal}, $5)`,
-            [req.user.id, recipientId, subject, body, now]
-        );
+        for (const username of recipients) {
+            // Resolve Recipient
+            const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
+            if (userRes.rows.length === 0) continue; // Skip unknown users
 
-        res.json({ success: true });
+            const recipientId = userRes.rows[0].id;
+            if (recipientId === req.user.id) continue; // Skip self
+
+            await dbQuery(
+                `INSERT INTO messages (sender_id, recipient_id, subject, body, type, is_read, created_at)
+                 VALUES ($1, $2, $3, $4, 'user_msg', ${isReadVal}, $5)`,
+                [req.user.id, recipientId, subject, body, now]
+            );
+            sentCount++;
+        }
+
+        if (sentCount === 0) return res.status(404).json({ error: "Keine gültigen Empfänger gefunden." });
+
+        res.json({ success: true, count: sentCount });
     } catch (e) {
         res.status(500).json({ error: "Versand fehlgeschlagen: " + e.message });
     }
