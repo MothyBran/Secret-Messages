@@ -460,7 +460,10 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
         if (storedTorDevice && storedTorDevice === incomingDevice) deviceMatch = true;
 
         // If at least one device is registered, check against incoming
-        if ((storedDevice || storedTorDevice) && !deviceMatch) {
+        // RELAXED LOGIC: Only block if the STANDARD device slot is occupied and mismatching.
+        // This allows re-binding the standard slot (Auto-Bind below) if it was reset by Admin,
+        // even if a Tor device is still linked.
+        if (storedDevice && !deviceMatch) {
             await trackEvent(req, 'login_device_mismatch', 'auth', { username });
 
             // Insert Security Warning
@@ -1559,7 +1562,7 @@ app.post('/api/admin/unblock-user/:id', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/reset-device/:id', requireAdmin, async (req, res) => {
     try {
-        await dbQuery("UPDATE users SET allowed_device_id = NULL WHERE id = $1", [req.params.id]);
+        await dbQuery("UPDATE users SET allowed_device_id = NULL, allowed_tor_device_id = NULL WHERE id = $1", [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });

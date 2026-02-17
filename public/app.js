@@ -2165,7 +2165,7 @@ function createMessageCard(m, readBroadcasts, isPrivateTab) {
         badgeHtml = `<span class="msg-status-badge ${statusClass}">${statusText}</span>`;
     }
 
-    let senderInfo = isPrivateTab ? `Von: ${m.sender_username || 'Unbekannt'}` : (isPersonal ? 'Persönlich' : 'Allgemein');
+    let senderInfo = isPrivateTab ? `Von: ${escapeHtml(m.sender_username) || 'Unbekannt'}` : (isPersonal ? 'Persönlich' : 'Allgemein');
 
     el.className = classes;
     el.innerHTML = `<div class="msg-header"><span>${new Date(m.created_at).toLocaleString('de-DE')}</span><span>${senderInfo}</span></div>`;
