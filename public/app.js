@@ -1169,9 +1169,26 @@ async function installApp(e) {
 }
 
 async function generateDeviceFingerprint() {
+    // Priority: Stable LocalStorage ID (Works for Tor Session & Standard Browsers)
+    let id = localStorage.getItem('sm_device_id');
+    if (id) return id;
+
+    // Generate robust random ID
     try {
-        const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 200; canvas.height = 50; ctx.textBaseline = "top"; ctx.font = "14px 'Arial'"; ctx.textBaseline = "alphabetic"; ctx.fillStyle = "#f60"; ctx.fillRect(125,1,62,20); ctx.fillStyle = "#069"; ctx.fillText("SecureMsg_v1", 2, 15); ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("Fingerprint", 4, 17); const canvasData = canvas.toDataURL(); const baseString = canvasData + navigator.userAgent + screen.width + "x" + screen.height + new Date().getTimezoneOffset(); const msgBuffer = new TextEncoder().encode(baseString); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); const hashArray = Array.from(new Uint8Array(hashBuffer)); return "dev-" + hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
-    } catch(e) { let id = localStorage.getItem('sm_id_fb'); if(!id){id='dev-fb-'+Date.now();localStorage.setItem('sm_id_fb',id);} return id; }
+        if (crypto.randomUUID) {
+            id = 'dev-' + crypto.randomUUID();
+        } else {
+            const rnd = new Uint8Array(16);
+            crypto.getRandomValues(rnd);
+            id = 'dev-' + Array.from(rnd).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+    } catch (e) {
+        // Fallback
+        id = 'dev-fb-' + Date.now() + '-' + Math.random().toString(36).substring(2);
+    }
+
+    localStorage.setItem('sm_device_id', id);
+    return id;
 }
 
 let idleTimer; const IDLE_TIMEOUT = 15 * 60 * 1000;
