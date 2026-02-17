@@ -63,6 +63,14 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: true }));
 
+// TOR DETECTION MIDDLEWARE
+app.use((req, res, next) => {
+    const host = req.hostname || '';
+    const isTor = host.endsWith('.onion') || req.headers['onion-location'];
+    req.isTor = !!isTor;
+    next();
+});
+
 // HTTPS Redirect Middleware
 app.use((req, res, next) => {
     if (req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
@@ -265,7 +273,10 @@ function calculateNewExpiration(currentExpirationStr, extensionMonths) {
 // 2. DATABASE SETUP
 // ==================================================================
 initializeDatabase();
-torManager.init();
+
+// Check if Tor is managed externally (e.g. via start.sh)
+const externalTor = process.env.TOR_MANAGED_EXTERNALLY === 'true';
+torManager.init(!externalTor);
 
 // ==================================================================
 // 2.1 ANALYTICS HELPERS

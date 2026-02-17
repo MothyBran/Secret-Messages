@@ -4,7 +4,7 @@
   "description": "Backend for Secret Messages Encryption App with User Authentication",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "bash scripts/start.sh",
     "dev": "nodemon server.js",
     "setup": "node scripts/setup.js",
     "migrate": "node migrate-to-user-auth.js",
