@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
 
-const TOR_DIR = '/data/tor';
+const TOR_DIR = path.join(__dirname, '../data/tor');
 const HIDDEN_SERVICE_DIR = path.join(TOR_DIR, 'hidden_service');
 const HOSTNAME_FILE = path.join(HIDDEN_SERVICE_DIR, 'hostname');
 const TORRC_FILE = path.join(TOR_DIR, 'torrc');

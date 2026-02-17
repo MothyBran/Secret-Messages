@@ -638,7 +638,17 @@
                 </div>
                 <div class="input-group">
                     <label class="input-label">Nachricht</label>
-                    <textarea id="composeBody" class="input-field" rows="6" placeholder="Nachricht..." required></textarea>
+                    <div style="position: relative;">
+                        <textarea id="composeBody" class="input-field" rows="6" placeholder="Nachricht..." required></textarea>
+                        <div style="position: absolute; bottom: 10px; right: 10px;">
+                            <label for="composeFileInput" class="icon-btn" title="Datei anhängen" style="cursor: pointer; font-size: 1.2rem;">📎</label>
+                        </div>
+                    </div>
+                    <input type="file" id="composeFileInput" accept="image/*,application/pdf" style="display: none;">
+                    <div id="composeFileInfo" style="display: none; align-items: center; gap: 10px; margin-top: 5px; font-size: 0.8rem; color: var(--accent-blue);">
+                        <span id="composeFileName"></span>
+                        <button type="button" id="btnRemoveComposeFile" style="background: none; border: none; color: var(--error-red); cursor: pointer;">✕</button>
+                    </div>
                 </div>
                 <div class="input-group">
                     <label class="input-label">5-Stelliger Code (für Empfänger)</label>
