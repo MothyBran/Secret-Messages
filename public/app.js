@@ -22,6 +22,7 @@ let currentScannerMode = 'message'; // 'message' or 'transfer'
 // Kontakt State
 let contacts = [];
 let contactMode = 'manage'; 
+let contactTargetInput = 'recipientName'; // Default target
 let isEditMode = false;     
 let selectedContactIds = new Set(); 
 let sortKey = 'name';       
@@ -254,7 +255,8 @@ function setupUIEvents() {
     document.getElementById('btnSubmitManualTransfer')?.addEventListener('click', submitManualTransfer);
     document.getElementById('btnUnlockProfile')?.addEventListener('click', handleUnlockProfile);
 
-    document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select'));
+    document.getElementById('contactsBtn')?.addEventListener('click', () => openContactSidebar('select', 'recipientName'));
+    document.getElementById('btnComposeContacts')?.addEventListener('click', () => openContactSidebar('select', 'composeRecipient'));
     
     document.getElementById('modeSwitch')?.addEventListener('change', (e) => { updateAppMode(e.target.checked ? 'decrypt' : 'encrypt'); });
     document.getElementById('actionBtn')?.addEventListener('click', handleMainAction);
@@ -378,6 +380,7 @@ function setupUIEvents() {
     document.getElementById('tabInboxPrivate')?.addEventListener('click', () => switchInboxTab('private'));
     document.getElementById('btnComposeMessage')?.addEventListener('click', () => openComposeModal());
     document.getElementById('composeForm')?.addEventListener('submit', handleSendMessage);
+    document.getElementById('btnInboxDecryptConfirm')?.addEventListener('click', handleInboxDecrypt);
 
     // --- ENTERPRISE KEY ADD LISTENER (Moved to UI setup) ---
     document.getElementById('btnAddEntKey')?.addEventListener('click', () => {
@@ -576,8 +579,10 @@ async function handleManualRenewal() {
     }
 }
 
-function openContactSidebar(mode) {
-    contactMode = mode; isEditMode = false; selectedContactIds.clear();
+function openContactSidebar(mode, targetId = 'recipientName') {
+    contactMode = mode;
+    contactTargetInput = targetId;
+    isEditMode = false; selectedContactIds.clear();
     const sidebar = document.getElementById('contactSidebar'); const overlay = document.getElementById('sidebarOverlay'); const footerManage = document.getElementById('csFooterManage'); const footerSelect = document.getElementById('csFooterSelect'); const groupArea = document.getElementById('groupSelectionArea'); const btnEdit = document.getElementById('btnEditToggle');
 
     document.getElementById('contactSearch').value = ''; btnEdit.style.background = 'transparent'; btnEdit.innerHTML = '✎ Bearbeiten';
@@ -730,7 +735,35 @@ function processImportedData(importedData) {
 }
 
 function confirmSelection() {
-    const input = document.getElementById('recipientName'); const arr = Array.from(selectedContactIds); if (arr.length > 0) input.value = arr.join(', '); closeContactSidebar();
+    const input = document.getElementById(contactTargetInput);
+    const arr = Array.from(selectedContactIds);
+    if (arr.length > 0 && input) {
+        // If there's already text, append or replace?
+        // User requested "der Wert soll ergänzt werden".
+        // Let's verify existing value.
+        const currentVal = input.value.trim();
+        const newIds = arr.join(', ');
+
+        if(currentVal) {
+            // Avoid duplicates in simplistic way if possible, or just append
+            // Simple append for now as "replace" was main tool behavior?
+            // Main tool usually replaces. User said "der Wert soll ergänzt werden".
+            // Let's append with comma.
+
+            // Check if we are in main tool or compose. Main tool might expect replacement or single?
+            // Main tool (encryptFull) supports multiple.
+            // Let's append for both to be safe/feature-rich, but check for dupes.
+
+            const existing = currentVal.split(',').map(s=>s.trim());
+            const toAdd = arr.filter(id => !existing.includes(id));
+            if(toAdd.length > 0) {
+                input.value = currentVal + ', ' + toAdd.join(', ');
+            }
+        } else {
+            input.value = newIds;
+        }
+    }
+    closeContactSidebar();
 }
 
 async function handleLogin(e) {
@@ -2052,6 +2085,7 @@ window.removeEntKey = function(key) {
 };
 
 let currentInboxTab = 'system';
+let pendingDecryptMsg = null; // { id, body, element, isUnread }
 
 function switchInboxTab(tab) {
     currentInboxTab = tab;
@@ -2220,7 +2254,17 @@ function createMessageCard(m, readBroadcasts, isPrivateTab) {
     el.addEventListener('click', () => {
         const wasExpanded = el.classList.contains('expanded');
         document.querySelectorAll('.msg-card.expanded').forEach(c => c.classList.remove('expanded'));
+
         if(!wasExpanded) {
+            // Private Message Decryption Check
+            if (m.type === 'user_msg' && !el.dataset.decrypted) {
+                pendingDecryptMsg = { id: m.id, body: m.body, element: el, isUnread: isUnread, msgData: m };
+                document.getElementById('inboxDecryptModal').classList.add('active');
+                document.getElementById('inboxDecryptCode').value = '';
+                document.getElementById('inboxDecryptCode').focus();
+                return; // Stop expansion until decrypted
+            }
+
             el.classList.add('expanded');
             if(isUnread) {
                 if(el.classList.contains('unread')) {
@@ -2241,6 +2285,7 @@ function openComposeModal(recipient = '', subject = '') {
     document.getElementById('composeRecipient').value = recipient;
     document.getElementById('composeSubject').value = subject;
     document.getElementById('composeBody').value = '';
+    document.getElementById('composeCode').value = ''; // Reset code
     modal.classList.add('active');
 }
 
@@ -2248,15 +2293,40 @@ async function handleSendMessage(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
     const oldTxt = btn.textContent;
-    btn.textContent = "Sende..."; btn.disabled = true;
 
-    const payload = {
-        recipientUsername: document.getElementById('composeRecipient').value.trim(),
-        subject: document.getElementById('composeSubject').value.trim(),
-        body: document.getElementById('composeBody').value.trim()
-    };
+    const recipientRaw = document.getElementById('composeRecipient').value.trim();
+    const subject = document.getElementById('composeSubject').value.trim();
+    const body = document.getElementById('composeBody').value.trim();
+    const code = document.getElementById('composeCode').value.trim();
+
+    if(!recipientRaw || !subject || !body || !code) {
+        showToast("Bitte alle Felder ausfüllen.", 'error');
+        return;
+    }
+    if(code.length !== 5) {
+        showToast("Code muss 5-stellig sein.", 'error');
+        return;
+    }
+
+    btn.textContent = "Verschlüssle..."; btn.disabled = true;
 
     try {
+        // Parse Recipients
+        const recipients = recipientRaw.split(',').map(s => s.trim()).filter(s => s);
+
+        // Encrypt Body
+        // Note: encryptFull expects array of IDs/Usernames. It adds current user automatically.
+        // It returns a Base64 string.
+        const encryptedBody = await encryptFull(body, code, recipients, currentUser.name);
+
+        btn.textContent = "Sende...";
+
+        const payload = {
+            recipientUsername: recipients, // Server now accepts array
+            subject: subject, // Plain text
+            body: encryptedBody // Encrypted
+        };
+
         const res = await fetch(`${API_BASE}/messages/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
@@ -2265,7 +2335,7 @@ async function handleSendMessage(e) {
         const data = await res.json();
 
         if(data.success) {
-            showToast("Nachricht gesendet.", 'success');
+            showToast(`Nachricht an ${data.count} Empfänger gesendet.`, 'success');
             document.getElementById('composeModal').classList.remove('active');
             switchInboxTab('private');
             loadAndShowInbox();
@@ -2273,7 +2343,8 @@ async function handleSendMessage(e) {
             showToast(data.error || "Versand fehlgeschlagen", 'error');
         }
     } catch(e) {
-        showToast("Verbindungsfehler", 'error');
+        console.error(e);
+        showToast("Fehler: " + e.message, 'error');
     } finally {
         btn.textContent = oldTxt; btn.disabled = false;
     }
@@ -2295,3 +2366,54 @@ function deleteMessage(id, element) {
     }, { confirm: "Löschen", cancel: "Abbrechen" });
 }
 function escapeHtml(text) { if(!text) return ''; return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+
+async function handleInboxDecrypt() {
+    const code = document.getElementById('inboxDecryptCode').value.trim();
+    if (!code || code.length !== 5) {
+        showToast("Bitte 5-stelligen Code eingeben.", 'error');
+        return;
+    }
+
+    if (!pendingDecryptMsg) return;
+
+    const btn = document.getElementById('btnInboxDecryptConfirm');
+    const oldTxt = btn.textContent;
+    btn.textContent = "..."; btn.disabled = true;
+
+    try {
+        // Attempt Decrypt
+        // We reuse decryptFull from cryptoLayers
+        // Note: m.body is the encrypted string
+        const decrypted = await decryptFull(pendingDecryptMsg.body, code, currentUser.name);
+
+        // Success
+        document.getElementById('inboxDecryptModal').classList.remove('active');
+
+        // Update Message Body
+        const el = pendingDecryptMsg.element;
+        const bodyEl = el.querySelector('.msg-body');
+        if (bodyEl) bodyEl.textContent = decrypted;
+
+        el.dataset.decrypted = "true";
+        el.classList.add('expanded');
+
+        // Handle Unread Logic (Mark as read ONLY after successful decrypt)
+        if (pendingDecryptMsg.isUnread && el.classList.contains('unread')) {
+            el.classList.remove('unread');
+            // m.id is available in pendingDecryptMsg.id
+            markMessageRead(pendingDecryptMsg.id);
+
+            const navLink = document.getElementById('navPost');
+            const match = navLink.innerText.match(/\((\d+)\)/);
+            if(match) { let cur = parseInt(match[1]); if(cur > 0) updatePostboxUI(cur - 1); }
+        }
+
+        showToast("Nachricht entschlüsselt.", 'success');
+
+    } catch (e) {
+        console.error(e);
+        showToast("Entschlüsselung fehlgeschlagen. Falscher Code?", 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
+    }
+}

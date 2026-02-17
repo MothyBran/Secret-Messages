@@ -602,6 +602,23 @@
         </div>
     </div>
 
+    <!-- INBOX DECRYPT MODAL -->
+    <div id="inboxDecryptModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">NACHRICHT ENTSCHLÜSSELN</h3>
+            <p style="color: #ccc; margin-bottom: 15px; font-size: 0.9rem; text-align: center;">
+                Diese Nachricht ist verschlüsselt. <br>Bitte geben Sie den 5-stelligen Code ein.
+            </p>
+            <div class="input-group">
+                <input type="tel" id="inboxDecryptCode" class="input-field code-input secret-field" placeholder="•••••" maxlength="5" inputmode="numeric" style="text-align: center;" autocomplete="off" required>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" onclick="document.getElementById('inboxDecryptModal').classList.remove('active')" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
+                <button class="btn btn-primary" id="btnInboxDecryptConfirm" style="flex:1;">Entschlüsseln</button>
+            </div>
+        </div>
+    </div>
+
     <!-- COMPOSE MESSAGE MODAL -->
     <div id="composeModal" class="modal">
         <div class="modal-box" style="max-width: 500px;">
@@ -609,15 +626,23 @@
             <form id="composeForm">
                 <div class="input-group">
                     <label class="input-label">Empfänger (Benutzername)</label>
-                    <input type="text" id="composeRecipient" class="input-field" placeholder="Exakter Benutzername" required>
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="composeRecipient" class="input-field" placeholder="z.B. UserA, UserB..." required>
+                        <button type="button" class="btn" id="btnComposeContacts" style="padding:0 15px;">📇</button>
+                    </div>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Betreff</label>
                     <input type="text" id="composeSubject" class="input-field" placeholder="Betreff" required>
+                    <small style="color: #888; font-size: 0.7rem; margin-top: 3px; display: block;">Hinweis: Der Betreff wird nicht verschlüsselt und ist ohne Code lesbar.</small>
                 </div>
                 <div class="input-group">
                     <label class="input-label">Nachricht</label>
                     <textarea id="composeBody" class="input-field" rows="6" placeholder="Nachricht..." required></textarea>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">5-Stelliger Code (für Empfänger)</label>
+                    <input type="tel" id="composeCode" class="input-field code-input secret-field" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="off" style="text-align:center;">
                 </div>
                 <div style="display:flex; gap:10px;">
                     <button type="button" onclick="document.getElementById('composeModal').classList.remove('active')" class="btn" style="flex:1; border-color:#555; color:#fff;">Abbrechen</button>
