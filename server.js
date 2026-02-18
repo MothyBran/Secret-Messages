@@ -65,8 +65,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // TOR DETECTION MIDDLEWARE
 app.use((req, res, next) => {
-    const host = req.hostname || '';
-    const isTor = host.endsWith('.onion') || req.headers['onion-location'];
+    const host = req.headers.host || req.hostname || '';
+    const isTor = host.includes('.onion') || req.headers['onion-location'];
     req.isTor = !!isTor;
     next();
 });
