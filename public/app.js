@@ -816,35 +816,57 @@ async function handleContactCodeSubmit() {
     const code = document.getElementById('sk_fld_8').value;
     if (code.length !== 5) return showToast("5 Stellen erforderlich", 'error');
 
-    // Verify against session key
-    const sessionKey = sessionStorage.getItem('sm_session_key');
-    if (!sessionKey || code !== sessionKey) {
-        return showToast("Falscher Code!", 'error');
+    const btn = document.getElementById('btnConfirmContactCode');
+    const oldTxt = btn.textContent;
+    btn.textContent = "..."; btn.disabled = true;
+
+    try {
+        // Verify against Server (Source of Truth)
+        // We use the login endpoint to verify the hash.
+        const devId = await generateDeviceFingerprint();
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ username: currentUser.name, accessCode: code, deviceId: devId })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // SYNC Session Key (Crucial fix if it was missing/stale)
+            sessionStorage.setItem('sm_session_key', code);
+            sidebarSessionCode = code; // Update memory cache
+
+            document.getElementById('contactCodeModal').classList.remove('active');
+
+            if (pendingContactAction) {
+                pendingContactAction();
+                pendingContactAction = null;
+                return;
+            }
+
+            const sidebar = document.getElementById('contactSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const footerManage = document.getElementById('csFooterManage');
+            const footerSelect = document.getElementById('csFooterSelect');
+            const groupArea = document.getElementById('groupSelectionArea');
+
+            if (contactMode === 'manage') {
+                footerManage.style.display = 'flex'; footerSelect.style.display = 'none'; groupArea.style.display = 'none';
+            } else {
+                footerManage.style.display = 'none'; footerSelect.style.display = 'flex'; groupArea.style.display = 'flex'; renderGroupTags();
+            }
+            renderContactList();
+            sidebar.classList.add('active');
+            overlay.classList.add('active', 'high-z');
+
+        } else {
+            showToast("Falscher Code!", 'error');
+        }
+    } catch (e) {
+        showToast("Verbindungsfehler", 'error');
+    } finally {
+        btn.textContent = oldTxt; btn.disabled = false;
     }
-
-    if (pendingContactAction) {
-        pendingContactAction();
-        pendingContactAction = null;
-        document.getElementById('contactCodeModal').classList.remove('active');
-        return;
-    }
-
-    document.getElementById('contactCodeModal').classList.remove('active');
-
-    const sidebar = document.getElementById('contactSidebar');
-    const overlay = document.getElementById('sidebarOverlay');
-    const footerManage = document.getElementById('csFooterManage');
-    const footerSelect = document.getElementById('csFooterSelect');
-    const groupArea = document.getElementById('groupSelectionArea');
-
-    if (contactMode === 'manage') {
-        footerManage.style.display = 'flex'; footerSelect.style.display = 'none'; groupArea.style.display = 'none';
-    } else {
-        footerManage.style.display = 'none'; footerSelect.style.display = 'flex'; groupArea.style.display = 'flex'; renderGroupTags();
-    }
-    renderContactList();
-    sidebar.classList.add('active');
-    overlay.classList.add('active', 'high-z');
 }
 
 function processImportedData(importedData) {
