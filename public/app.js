@@ -3,7 +3,7 @@
 const APP_VERSION = 'Beta v0.26.2';
 
 // Import encryption functions including backup helpers
-import { encryptFull, decryptFull, decryptBackup, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
+import { encryptFull, decryptFull, decryptBackup, encryptBackup, setEnterpriseKeys, exportProfilePackage, importProfilePackage, generateTransferProof } from './cryptoLayers.js';
 
 // ================================================================
 // KONFIGURATION & STATE
@@ -28,6 +28,7 @@ let selectedContactIds = new Set();
 let sortKey = 'name';       
 let sortDir = 'asc';
 let pendingContactAction = null;
+let sidebarSessionCode = null; // Temporarily stores access code while Contact Sidebar is open
 
 // ================================================================
 // INITIALISIERUNG
@@ -586,15 +587,43 @@ function openContactSidebar(mode, targetId = 'recipientName') {
     contactMode = mode;
     contactTargetInput = targetId;
     isEditMode = false; selectedContactIds.clear();
-    const sidebar = document.getElementById('contactSidebar'); const overlay = document.getElementById('sidebarOverlay'); const footerManage = document.getElementById('csFooterManage'); const footerSelect = document.getElementById('csFooterSelect'); const groupArea = document.getElementById('groupSelectionArea'); const btnEdit = document.getElementById('btnEditToggle');
 
-    document.getElementById('contactSearch').value = ''; btnEdit.style.background = 'transparent'; btnEdit.innerHTML = '✎ Bearbeiten';
+    document.getElementById('contactSearch').value = '';
+    const btnEdit = document.getElementById('btnEditToggle');
+    if(btnEdit) { btnEdit.style.background = 'transparent'; btnEdit.innerHTML = '✎ Bearbeiten'; }
 
-    if (mode === 'manage') { footerManage.style.display = 'flex'; footerSelect.style.display = 'none'; groupArea.style.display = 'none'; } else { footerManage.style.display = 'none'; footerSelect.style.display = 'flex'; groupArea.style.display = 'flex'; renderGroupTags(); }
-    renderContactList(); sidebar.classList.add('active'); overlay.classList.add('active', 'high-z');
+    if (mode === 'manage') {
+        // SECURITY GATE
+        document.getElementById('contactCodeModal').classList.add('active');
+        document.getElementById('sk_fld_8').value = '';
+        document.getElementById('sk_fld_8').focus();
+    } else {
+        // SELECT MODE (Composer) - Direct Access (using cached contacts)
+        const sidebar = document.getElementById('contactSidebar');
+        sidebar.classList.add('sidebar-on-top'); // Z-Index Boost
+
+        const footerManage = document.getElementById('csFooterManage');
+        const footerSelect = document.getElementById('csFooterSelect');
+        const groupArea = document.getElementById('groupSelectionArea');
+
+        footerManage.style.display = 'none';
+        footerSelect.style.display = 'flex';
+        groupArea.style.display = 'flex';
+        renderGroupTags();
+
+        renderContactList();
+        sidebar.classList.add('active');
+        document.getElementById('sidebarOverlay').classList.add('active', 'high-z');
+    }
 }
 
-function closeContactSidebar() { document.getElementById('contactSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active', 'high-z'); }
+function closeContactSidebar() {
+    const sidebar = document.getElementById('contactSidebar');
+    sidebar.classList.remove('active');
+    sidebar.classList.remove('sidebar-on-top');
+    document.getElementById('sidebarOverlay').classList.remove('active', 'high-z');
+    sidebarSessionCode = null; // Clear security cache
+}
 
 function closeInboxSidebar() { document.getElementById('inboxSidebar').classList.remove('active'); document.getElementById('sidebarOverlay').classList.remove('active'); }
 
@@ -676,22 +705,80 @@ async function saveContact(e) {
     e.preventDefault(); const btn = document.getElementById('btnSaveContact'); const oldTxt = btn.textContent;
     const nameVal = document.getElementById('inputName').value.trim(); const idVal = document.getElementById('inputID').value.trim(); const groupVal = document.getElementById('inputGroup').value.trim();
 
-    if (!idVal) return showToast("ID fehlt!", 'error'); btn.disabled = true; btn.textContent = "Prüfe...";
+    if (!idVal) return showToast("ID fehlt!", 'error');
+
+    // Code Check for Encryption
+    const sessionKey = sessionStorage.getItem('sm_session_key');
+    if (!sessionKey) {
+        pendingContactAction = () => document.getElementById('btnSaveContact').click();
+        document.getElementById('contactCodeModal').classList.add('active');
+        document.getElementById('sk_fld_8').value = '';
+        return;
+    }
+
+    btn.disabled = true; btn.textContent = "Prüfe...";
 
     try {
         const res = await fetch(`${API_BASE}/users/exists`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ targetUsername: idVal }) });
         const data = await res.json();
         if (!data.exists) { showToast(`ID "${idVal}" nicht gefunden.`, 'error'); btn.disabled = false; btn.textContent = oldTxt; return; }
 
-        contacts = contacts.filter(c => c.id !== idVal); contacts.push({ id: idVal, name: nameVal || idVal, group: groupVal }); contacts.sort((a, b) => a.name.localeCompare(b.name));
-        saveUserContacts();
-        document.getElementById('contactEditModal').classList.remove('active'); renderContactList(document.getElementById('contactSearch').value); if(contactMode === 'select') renderGroupTags(); showToast(`Kontakt gespeichert.`, 'success');
-    } catch (err) { showToast("Fehler beim Speichern", 'error'); } finally { btn.disabled = false; btn.textContent = oldTxt; }
+        const contactObj = { id: idVal, name: nameVal || idVal, group: groupVal };
+        const encrypted = await encryptBackup(JSON.stringify(contactObj), sessionKey);
+
+        // Check if updating existing
+        const existing = contacts.find(c => c.id === idVal);
+        let apiRes;
+
+        if (existing && existing.dbId) {
+             apiRes = await fetch(`${API_BASE}/contacts/${existing.dbId}`, {
+                 method: 'PUT',
+                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                 body: JSON.stringify({ encryptedData: encrypted })
+             });
+        } else {
+             apiRes = await fetch(`${API_BASE}/contacts`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                 body: JSON.stringify({ encryptedData: encrypted })
+             });
+        }
+
+        const apiData = await apiRes.json();
+        if (apiData.success) {
+             if (apiData.id) contactObj.dbId = apiData.id;
+             else if (existing) contactObj.dbId = existing.dbId;
+
+             contacts = contacts.filter(c => c.id !== idVal);
+             contacts.push(contactObj);
+             contacts.sort((a, b) => a.name.localeCompare(b.name));
+
+             document.getElementById('contactEditModal').classList.remove('active');
+             renderContactList(document.getElementById('contactSearch').value);
+             if(contactMode === 'select') renderGroupTags();
+             showToast(`Kontakt gespeichert.`, 'success');
+        } else {
+             showToast("Fehler API: " + apiData.error, 'error');
+        }
+
+    } catch (err) { showToast("Fehler beim Speichern", 'error'); console.error(err); }
+    finally { btn.disabled = false; btn.textContent = oldTxt; }
 }
 
 function deleteContact() {
     const id = document.getElementById('btnDeleteContact').dataset.id;
-    window.showAppConfirm("Kontakt wirklich löschen?", () => { contacts = contacts.filter(c => c.id !== id); saveUserContacts(); document.getElementById('contactEditModal').classList.remove('active'); renderContactList(); showToast("Kontakt gelöscht.", 'success'); });
+    const contact = contacts.find(c => c.id === id);
+    if (!contact || !contact.dbId) { showToast("Fehler: Kontakt ID nicht gefunden", 'error'); return; }
+
+    window.showAppConfirm("Kontakt wirklich löschen?", async () => {
+        try {
+            await fetch(`${API_BASE}/contacts/${contact.dbId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+            contacts = contacts.filter(c => c.id !== id);
+            document.getElementById('contactEditModal').classList.remove('active');
+            renderContactList();
+            showToast("Kontakt gelöscht.", 'success');
+        } catch(e) { showToast("Löschen fehlgeschlagen", 'error'); }
+    });
 }
 
 function exportContactsCsv() {
@@ -725,7 +812,40 @@ function handleCsvImport(file) {
     reader.readAsText(file);
 }
 
-function handleContactCodeSubmit() { /* Unused */ }
+async function handleContactCodeSubmit() {
+    const code = document.getElementById('sk_fld_8').value;
+    if (code.length !== 5) return showToast("5 Stellen erforderlich", 'error');
+
+    // Verify against session key
+    const sessionKey = sessionStorage.getItem('sm_session_key');
+    if (!sessionKey || code !== sessionKey) {
+        return showToast("Falscher Code!", 'error');
+    }
+
+    if (pendingContactAction) {
+        pendingContactAction();
+        pendingContactAction = null;
+        document.getElementById('contactCodeModal').classList.remove('active');
+        return;
+    }
+
+    document.getElementById('contactCodeModal').classList.remove('active');
+
+    const sidebar = document.getElementById('contactSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const footerManage = document.getElementById('csFooterManage');
+    const footerSelect = document.getElementById('csFooterSelect');
+    const groupArea = document.getElementById('groupSelectionArea');
+
+    if (contactMode === 'manage') {
+        footerManage.style.display = 'flex'; footerSelect.style.display = 'none'; groupArea.style.display = 'none';
+    } else {
+        footerManage.style.display = 'none'; footerSelect.style.display = 'flex'; groupArea.style.display = 'flex'; renderGroupTags();
+    }
+    renderContactList();
+    sidebar.classList.add('active');
+    overlay.classList.add('active', 'high-z');
+}
 
 function processImportedData(importedData) {
     try {
@@ -772,7 +892,9 @@ function confirmSelection() {
 async function handleLogin(e) {
     e.preventDefault(); const uInput = document.getElementById('u_ident_entry'); const cInput = document.getElementById('sk_fld_1'); const u = uInput.value; const c = cInput.value;
     if(document.body.classList.contains('mode-enterprise')) sessionStorage.setItem('sm_auth_code_temp', c);
-    uInput.value = ''; cInput.value = '';
+
+    // Do not clear inputs yet, we need 'c' for contact decryption
+    // uInput.value = ''; cInput.value = '';
 
     const devId = await generateDeviceFingerprint();
     try {
@@ -784,14 +906,18 @@ async function handleLogin(e) {
             currentUser = { name: data.username, sm_id: decoded.id, badge: data.badge };
             localStorage.setItem('sm_token', authToken); localStorage.setItem('sm_user', JSON.stringify(currentUser));
 
-            // ISOLATED LOAD
-            loadUserContacts();
+            // ISOLATED LOAD (With Access Code)
+            await loadUserContacts(c);
             initEnterpriseKeys();
+
+            // NOW clear inputs
+            uInput.value = ''; cInput.value = '';
 
             if (data.hasLicense === false) { updateSidebarInfo(currentUser.name, null); showRenewalModal(); return; }
             if(data.expiresAt && data.expiresAt !== 'lifetime') { const expDate = new Date(String(data.expiresAt).replace(' ', 'T')); if(expDate < new Date()) { updateSidebarInfo(currentUser.name, data.expiresAt); showRenewalModal(); return; } }
             updateSidebarInfo(currentUser.name, data.expiresAt); showSection('mainSection');
         } else {
+            uInput.value = ''; cInput.value = ''; // Clear on fail
             if (data.error === "ACCOUNT_BLOCKED") { localStorage.removeItem('sm_token'); showSection('blockedSection'); }
             else if (data.error === "DEVICE_NOT_AUTHORIZED") {
                 localStorage.removeItem('sm_token');
@@ -804,7 +930,10 @@ async function handleLogin(e) {
             }
             else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
         }
-    } catch(err) { showAppStatus("Serverfehler", 'error'); } 
+    } catch(err) {
+        uInput.value = ''; cInput.value = '';
+        showAppStatus("Serverfehler", 'error');
+    }
 }
 
 async function generateTorCode() {
@@ -2028,14 +2157,33 @@ function parseJwt (token) {
     try { var base64Url = token.split('.')[1]; var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) { return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }).join('')); return JSON.parse(jsonPayload); } catch (e) { return {}; }
 }
 
-function loadUserContacts() {
-    if (!currentUser || !currentUser.sm_id) { contacts = []; return; }
-    const key = `sm_contacts_${currentUser.sm_id}`; const globalKey = 'sm_contacts';
-    let stored = localStorage.getItem(key);
-    if (!stored && localStorage.getItem(globalKey)) { stored = localStorage.getItem(globalKey); localStorage.setItem(key, stored); localStorage.removeItem(globalKey); }
-    contacts = stored ? JSON.parse(stored) : [];
+async function loadUserContacts(accessCode) {
+    if (!currentUser || !currentUser.sm_id || !authToken) { contacts = []; return; }
+    try {
+        const res = await fetch(`${API_BASE}/contacts`, { headers: {'Authorization': `Bearer ${authToken}`} });
+        const data = await res.json();
+
+        const loaded = [];
+        for (const item of data) {
+            try {
+                // item.encrypted_data contains the Base64 string
+                const jsonStr = await decryptBackup(item.encrypted_data, accessCode);
+                const c = JSON.parse(jsonStr);
+                // Ensure ID is set
+                c.dbId = item.id;
+                loaded.push(c);
+            } catch(e) {
+                console.warn("Failed to decrypt contact", item.id, e);
+            }
+        }
+        contacts = loaded;
+        contacts.sort((a, b) => a.name.localeCompare(b.name));
+    } catch(e) {
+        console.error("Load Contacts Failed", e);
+        contacts = [];
+    }
 }
-function saveUserContacts() { if (!currentUser || !currentUser.sm_id) return; localStorage.setItem(`sm_contacts_${currentUser.sm_id}`, JSON.stringify(contacts)); }
+function saveUserContacts() { /* Unused - Replaced by API */ }
 
 function getReadBroadcasts() { if (!currentUser || !currentUser.sm_id) return []; const key = `sm_read_broadcasts_${currentUser.sm_id}`; const stored = localStorage.getItem(key); return stored ? JSON.parse(stored) : []; }
 function markBroadcastRead(id) { if (!currentUser || !currentUser.sm_id) return; const key = `sm_read_broadcasts_${currentUser.sm_id}`; const list = getReadBroadcasts(); if (!list.includes(id)) { list.push(id); localStorage.setItem(key, JSON.stringify(list)); } }
