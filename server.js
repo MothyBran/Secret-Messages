@@ -2496,7 +2496,7 @@ let httpServer;
 let activeSockets = new Set();
 function startServer(port = PORT) {
     if (httpServer) { console.warn("Server already running"); return httpServer; }
-    httpServer = app.listen(port, () => {
+    httpServer = app.listen(port, '0.0.0.0', () => {
         console.log(`🚀 Server running on Port ${port}`);
         if (IS_ENTERPRISE) {
             if(!isPostgreSQL && db) {
