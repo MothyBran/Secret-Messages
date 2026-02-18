@@ -57,11 +57,11 @@ app.use((req, res, next) => {
   if (req.originalUrl === '/api/webhook') {
     next();
   } else {
-    express.json()(req, res, next);
+    express.json({ limit: '50mb' })(req, res, next);
   }
 });
 
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // TOR DETECTION MIDDLEWARE
 app.use((req, res, next) => {
