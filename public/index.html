@@ -68,7 +68,9 @@
         });
 
         function openModal(id) {
-            document.getElementById(id).classList.add('active');
+            const el = document.getElementById(id);
+            if(window.WindowManager) window.WindowManager.bringToFront(el);
+            el.classList.add('active');
         }
 
         function toggleAccordion(element) {

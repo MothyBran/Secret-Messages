@@ -1,7 +1,46 @@
 // public/assets/js/ui.js
-// Unified UI Logic for Toasts, Modals, and Loaders
+// Unified UI Logic for Toasts, Modals, Loaders, and Window Management
 
 (function(window) {
+    // --- WINDOW MANAGER (Dynamic Z-Index) ---
+    const WindowManager = {
+        baseZIndex: 2000,
+        currentMaxZIndex: 2000,
+
+        bringToFront: function(elementOrId) {
+            let el = (typeof elementOrId === 'string') ? document.getElementById(elementOrId) : elementOrId;
+            if (!el) return;
+
+            this.currentMaxZIndex++;
+            el.style.zIndex = this.currentMaxZIndex;
+
+            // Ensure overlay (if exists) is just below the modal/sidebar
+            // Note: Our CSS uses shared overlays for sidebars, but modals have their own backdrop usually
+            // or the modal container itself is the backdrop.
+            // If the element has a class 'modal', it usually includes the backdrop.
+        }
+    };
+
+    window.WindowManager = WindowManager;
+
+    // Helper to attach click listeners to all potential windows
+    window.initWindowManager = function() {
+        // Attach to all existing .modal and .sidebar elements
+        const windows = document.querySelectorAll('.modal, .sidebar, #contactSidebar, #inboxSidebar');
+        windows.forEach(el => {
+            el.addEventListener('mousedown', () => WindowManager.bringToFront(el));
+            el.addEventListener('touchstart', () => WindowManager.bringToFront(el));
+        });
+    };
+
+    // Initialize on load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', window.initWindowManager);
+    } else {
+        window.initWindowManager();
+    }
+
+
     // --- TOAST NOTIFICATIONS ---
     window.showToast = function(message, type = 'info') {
         let container = document.getElementById('toast-container');
@@ -52,6 +91,9 @@
                 </div>
             `;
             document.body.appendChild(modal);
+            // Attach WindowManager
+            modal.addEventListener('mousedown', () => WindowManager.bringToFront(modal));
+            modal.addEventListener('touchstart', () => WindowManager.bringToFront(modal));
         }
 
         const titleEl = document.getElementById('msgModalTitle') || modal.querySelector('h3');
@@ -67,15 +109,13 @@
             modal.classList.remove('active');
             if(modal.style.display) modal.style.display = 'none'; // support old style
             if (callback) callback();
-            // Cleanup event listener to avoid stacking?
-            // Actually, we should probably clone/replace the button or use a one-time listener wrapper.
-            // Simple way: re-assign onclick
         };
 
         if(btn) btn.onclick = closeHandler;
 
+        WindowManager.bringToFront(modal);
         modal.classList.add('active');
-        if(modal.style.display === 'none') modal.style.display = 'flex'; // Ensure display flex if hidden by inline style
+        if(modal.style.display === 'none') modal.style.display = 'flex';
     };
 
     // --- CONFIRM MODAL ---
@@ -101,6 +141,9 @@
                 </div>
             `;
             document.body.appendChild(modal);
+            // Attach WindowManager
+            modal.addEventListener('mousedown', () => WindowManager.bringToFront(modal));
+            modal.addEventListener('touchstart', () => WindowManager.bringToFront(modal));
         }
 
         const titleEl = document.getElementById('confirmModalTitle') || document.getElementById('appConfirmTitle') || modal.querySelector('h3');
@@ -127,8 +170,8 @@
             }
         }
 
+        WindowManager.bringToFront(modal);
         modal.classList.add('active');
-        // Support legacy inline style toggles
         if(modal.style.display === 'none') modal.style.display = 'flex';
 
         // Event Handlers

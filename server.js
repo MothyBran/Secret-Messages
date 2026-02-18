@@ -2426,7 +2426,8 @@ if (IS_ENTERPRISE) {
     app.get('/api/config', (req, res) => {
         res.json({
             mode: 'CLOUD',
-            onionAddress: torManager.getOnionAddress()
+            onionAddress: torManager.getOnionAddress(),
+            isTor: req.isTor
         });
     });
     app.post('/api/enterprise/activate', async (req, res) => {

@@ -18,6 +18,7 @@ let currentResultData = null; // Store decrypted result for saving
 let currentResultType = null; // 'text', 'image', 'pdf'
 let currentMode = 'encrypt'; 
 let currentScannerMode = 'message'; // 'message' or 'transfer'
+let isTorSession = false;
 
 // Kontakt State
 let contacts = [];
@@ -112,6 +113,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ENTERPRISE CHECK & TOR DETECTION
     fetch(API_BASE + '/config').then(r=>r.json()).then(conf => {
+        isTorSession = !!conf.isTor;
+
         if(conf.mode === 'ENTERPRISE') {
             document.body.classList.add('mode-enterprise');
             const script = document.createElement('script');
@@ -126,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if(el) el.textContent = conf.onionAddress;
         }
 
-        if(window.location.hostname.endsWith('.onion')) {
+        if(window.location.hostname.endsWith('.onion') || isTorSession) {
             const statusContainer = document.getElementById('globalStatusContainer');
             const banner = document.createElement('div');
             banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#006400; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
@@ -173,7 +176,11 @@ function setupUIEvents() {
     
     function toggleMainMenu(forceClose = false) {
         if (forceClose) { sidebar.classList.remove('active'); overlay.classList.remove('active'); }
-        else { sidebar.classList.toggle('active'); overlay.classList.toggle('active'); }
+        else {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+            if(sidebar.classList.contains('active') && window.WindowManager) window.WindowManager.bringToFront(sidebar);
+        }
     }
 
     menuBtn?.addEventListener('click', () => toggleMainMenu());
@@ -185,7 +192,13 @@ function setupUIEvents() {
     document.getElementById('navGuide')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); showSection('guideSection'); });
     document.getElementById('navInfo')?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/forum'; });
 
-    document.getElementById('faqBtn')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('faqModal').classList.add('active'); });
+    document.getElementById('faqBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleMainMenu(true);
+        const modal = document.getElementById('faqModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
+    });
     document.getElementById('closeFaqBtn')?.addEventListener('click', () => { document.getElementById('faqModal').classList.remove('active'); });
     document.getElementById('faqModal')?.addEventListener('click', (e) => { if (e.target === document.getElementById('faqModal')) document.getElementById('faqModal').classList.remove('active'); });
 
@@ -197,7 +210,10 @@ function setupUIEvents() {
     document.getElementById('logoutBtnRenewal')?.addEventListener('click', handleLogout);
 
     document.getElementById('navChangeCode')?.addEventListener('click', (e) => {
-        e.preventDefault(); toggleMainMenu(true); document.getElementById('changeCodeModal').classList.add('active');
+        e.preventDefault(); toggleMainMenu(true);
+        const modal = document.getElementById('changeCodeModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
         document.getElementById('sk_fld_5').value = ''; document.getElementById('sk_fld_6').value = ''; document.getElementById('sk_fld_7').value = '';
     });
     document.getElementById('btnCancelChangeCode')?.addEventListener('click', () => { document.getElementById('changeCodeModal').classList.remove('active'); });
@@ -208,7 +224,9 @@ function setupUIEvents() {
         e.preventDefault();
         toggleMainMenu(true);
         updateRenewalModalStatus();
-        document.getElementById('manualRenewalModal').classList.add('active');
+        const modal = document.getElementById('manualRenewalModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
         document.getElementById('manualRenewalKey').value = '';
     });
     document.getElementById('btnConfirmManualRenewal')?.addEventListener('click', handleManualRenewal);
@@ -228,7 +246,12 @@ function setupUIEvents() {
     // Inbox Back Arrow replaced by Sidebar Close
     document.getElementById('closeInboxSidebar')?.addEventListener('click', closeInboxSidebar);
 
-    document.getElementById('navDelete')?.addEventListener('click', (e) => { e.preventDefault(); toggleMainMenu(true); document.getElementById('deleteAccountModal').classList.add('active'); });
+    document.getElementById('navDelete')?.addEventListener('click', (e) => {
+        e.preventDefault(); toggleMainMenu(true);
+        const modal = document.getElementById('deleteAccountModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
+    });
     document.getElementById('btnCancelDelete')?.addEventListener('click', () => { document.getElementById('deleteAccountModal').classList.remove('active'); });
     document.getElementById('btnConfirmDelete')?.addEventListener('click', performAccountDeletion);
 
@@ -236,7 +259,9 @@ function setupUIEvents() {
     document.getElementById('navProfileTransfer')?.addEventListener('click', (e) => {
         e.preventDefault(); toggleMainMenu(true);
         document.getElementById('sk_fld_10').value = '';
-        document.getElementById('transferSecurityModal').classList.add('active');
+        const modal = document.getElementById('transferSecurityModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
     });
     document.getElementById('btnConfirmTransferStart')?.addEventListener('click', handleTransferExportStart);
 
@@ -251,7 +276,9 @@ function setupUIEvents() {
     // Manual Transfer Modals
     document.getElementById('btnOpenManualTransfer')?.addEventListener('click', () => {
         stopQRScanner();
-        document.getElementById('manualTransferModal').classList.add('active');
+        const modal = document.getElementById('manualTransferModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
     });
     document.getElementById('btnSubmitManualTransfer')?.addEventListener('click', submitManualTransfer);
     document.getElementById('btnUnlockProfile')?.addEventListener('click', handleUnlockProfile);
@@ -594,7 +621,9 @@ function openContactSidebar(mode, targetId = 'recipientName') {
 
     if (mode === 'manage') {
         // SECURITY GATE
-        document.getElementById('contactCodeModal').classList.add('active');
+        const modal = document.getElementById('contactCodeModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
         document.getElementById('sk_fld_8').value = '';
         document.getElementById('sk_fld_8').focus();
     } else {
@@ -612,6 +641,7 @@ function openContactSidebar(mode, targetId = 'recipientName') {
         renderGroupTags();
 
         renderContactList();
+        if(window.WindowManager) window.WindowManager.bringToFront(sidebar);
         sidebar.classList.add('active');
         document.getElementById('sidebarOverlay').classList.add('active', 'high-z');
     }
@@ -698,6 +728,7 @@ function openEditModal(contact = null) {
         document.getElementById('modalTitle').textContent = 'Kontakt hinzufügen'; document.getElementById('inputID').readOnly = false; document.getElementById('inputID').style.opacity = '1';
         btnSave.textContent = 'Speichern'; btnDel.style.display = 'none';
     }
+    if(window.WindowManager) window.WindowManager.bringToFront(modal);
     modal.classList.add('active');
 }
 
@@ -711,7 +742,9 @@ async function saveContact(e) {
     const sessionKey = sessionStorage.getItem('sm_session_key');
     if (!sessionKey) {
         pendingContactAction = () => document.getElementById('btnSaveContact').click();
-        document.getElementById('contactCodeModal').classList.add('active');
+        const modal = document.getElementById('contactCodeModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
         document.getElementById('sk_fld_8').value = '';
         return;
     }
@@ -944,12 +977,16 @@ async function handleLogin(e) {
             if (data.error === "ACCOUNT_BLOCKED") { localStorage.removeItem('sm_token'); showSection('blockedSection'); }
             else if (data.error === "DEVICE_NOT_AUTHORIZED") {
                 localStorage.removeItem('sm_token');
-                const torContainer = document.getElementById('torLinkContainer');
-                if(torContainer) {
-                    torContainer.style.display = 'block';
-                    document.getElementById('torLinkUsername').value = u;
+                if (isTorSession) {
+                    const torContainer = document.getElementById('torLinkContainer');
+                    if(torContainer) {
+                        torContainer.style.display = 'block';
+                        document.getElementById('torLinkUsername').value = u;
+                    }
+                    window.showToast("Gerät nicht autorisiert. Ist dies Ihr Zweit-Gerät?", 'error');
+                } else {
+                    window.showMessage("Gerät nicht autorisiert", "Dieses Gerät ist nicht bekannt. Bitte nutzen Sie Ihr registriertes Gerät.");
                 }
-                window.showToast("Gerät nicht autorisiert. Ist dies Ihr Zweit-Gerät?", 'error');
             }
             else showAppStatus(data.error || "Login fehlgeschlagen", 'error');
         }
@@ -1580,6 +1617,7 @@ function openSupportModal() {
     const modal = document.getElementById('supportModal'); const userField = document.getElementById('supportUsername'); document.getElementById('supportForm').reset();
     if (currentUser) { userField.value = currentUser.name; userField.readOnly = true; userField.style.opacity = '0.7'; }
     else { userField.value = ''; userField.readOnly = false; userField.style.opacity = '1'; userField.placeholder = "Benutzername oder ID (falls bekannt)"; }
+    if(window.WindowManager) window.WindowManager.bringToFront(modal);
     modal.classList.add('active');
 }
 
@@ -1669,7 +1707,9 @@ function handleTxtImport(e) {
 let qrAnimInterval = null;
 
 function showQRModal(text) {
-    document.getElementById('qrModal').classList.add('active');
+    const modal = document.getElementById('qrModal');
+    if(window.WindowManager) window.WindowManager.bringToFront(modal);
+    modal.classList.add('active');
     startQRAnimation(text);
 }
 
@@ -1759,7 +1799,9 @@ function startScannerInternal() {
     const manualBtn = document.getElementById('btnOpenManualTransfer');
     if (manualBtn) manualBtn.style.display = (currentScannerMode === 'transfer') ? 'block' : 'none';
 
-    document.getElementById('qrScannerModal').classList.add('active');
+    const modal = document.getElementById('qrScannerModal');
+    if(window.WindowManager) window.WindowManager.bringToFront(modal);
+    modal.classList.add('active');
 
     if(!qrScan) qrScan = new Html5Qrcode("qr-reader");
 
@@ -1942,7 +1984,9 @@ async function handleTransferExportStart() {
         const manualCode = startData.transferCode; // e.g. "ABC123"
 
         document.getElementById('transferSecurityModal').classList.remove('active');
-        document.getElementById('transferExportModal').classList.add('active');
+        const modal = document.getElementById('transferExportModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
 
         // Display QR
         const qrContainer = document.getElementById('transferQrDisplay');
@@ -2007,7 +2051,9 @@ async function handleTransferScanSuccess(decodedText) {
 
         // 2. Open Decrypt Modal
         hideLoader();
-        document.getElementById('transferImportModal').classList.add('active');
+        const modal = document.getElementById('transferImportModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
         document.getElementById('sk_fld_11').value = '';
         document.getElementById('sk_fld_11').focus();
 
@@ -2130,7 +2176,9 @@ async function submitManualTransfer() {
         pendingTransferUser = { name: data.username, sm_id: parseJwt(authToken).id, expiresAt: data.expiresAt };
 
         document.getElementById('manualTransferModal').classList.remove('active');
-        document.getElementById('unlockProfileModal').classList.add('active');
+        const modal = document.getElementById('unlockProfileModal');
+        if(window.WindowManager) window.WindowManager.bringToFront(modal);
+        modal.classList.add('active');
 
     } catch(e) {
         showToast(e.message, 'error');
@@ -2298,7 +2346,9 @@ function switchInboxTab(tab) {
 }
 
 async function loadAndShowInbox() {
-    document.getElementById('inboxSidebar').classList.add('active');
+    const inboxSidebar = document.getElementById('inboxSidebar');
+    if(window.WindowManager) window.WindowManager.bringToFront(inboxSidebar);
+    inboxSidebar.classList.add('active');
     document.getElementById('sidebarOverlay').classList.add('active');
     switchInboxTab(currentInboxTab); // Restore active tab
 
@@ -2437,7 +2487,9 @@ function createMessageCard(m, readBroadcasts, isPrivateTab) {
             // Private Message Decryption Check
             if (m.type === 'user_msg' && !el.dataset.decrypted) {
                 pendingDecryptMsg = { id: m.id, body: m.body, element: el, isUnread: isUnread, msgData: m };
-                document.getElementById('inboxDecryptModal').classList.add('active');
+                const modal = document.getElementById('inboxDecryptModal');
+                if(window.WindowManager) window.WindowManager.bringToFront(modal);
+                modal.classList.add('active');
                 document.getElementById('inboxDecryptCode').value = '';
                 document.getElementById('inboxDecryptCode').focus();
                 return; // Stop expansion until decrypted
@@ -2460,6 +2512,7 @@ function createMessageCard(m, readBroadcasts, isPrivateTab) {
 
 function openComposeModal(recipient = '', subject = '') {
     const modal = document.getElementById('composeModal');
+    if(window.WindowManager) window.WindowManager.bringToFront(modal);
     document.getElementById('composeRecipient').value = recipient;
     document.getElementById('composeSubject').value = subject;
     document.getElementById('composeBody').value = '';
