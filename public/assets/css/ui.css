@@ -20,30 +20,20 @@
     width: 100%;
     height: 100%;
     background: rgba(0,0,0,0.85);
-    z-index: 1500;
+    /* Base z-index will be managed by WindowManager (starts at ~2000) */
+    z-index: 2000;
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(5px);
 }
 
 .sidebar-on-top {
-    z-index: 1800 !important; /* Increased to ensure it sits above high-z overlay (1600) */
+    /* Deprecated in favor of WindowManager, but kept for fallback */
+    z-index: 1800 !important;
 }
 
-/* FIX: Ensure Contact Modals are above the High-Z Sidebar */
-/* We use a higher value and ensure positioning context is correct */
-#contactEditModal,
-#contactCodeModal,
-#deleteAccountModal,
-#manualTransferModal,
-#unlockProfileModal,
-#appConfirmModal,
-#inboxDecryptModal,
-#composeModal,
-#messageModal {
-    z-index: 2100 !important;
-    position: fixed !important; /* Reinforce fixed positioning */
-}
+/* Remove rigid high z-indices for specific modals to allow dynamic sorting */
+/* Instead, WindowManager will apply inline z-index on open/click */
 
 .modal.active, .modal-overlay.active, .modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"] {
     display: flex !important;
@@ -144,7 +134,7 @@
     height: 36px;
     background-color: #ff0000; /* Signal Red */
     color: #ffffff;
-    z-index: 99999; /* Highest z-index */
+    z-index: 200000; /* Highest z-index */
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -186,7 +176,7 @@
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 20000; /* High z-index to stay on top */
+    z-index: 200000; /* Very High z-index to stay on top */
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -232,7 +222,7 @@
     height: 100%;
     background: rgba(0,0,0,0.8);
     backdrop-filter: blur(3px);
-    z-index: 15000;
+    z-index: 150000; /* Above regular content but below Toasts */
     display: none;
     justify-content: center;
     align-items: center;
