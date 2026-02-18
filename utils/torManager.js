@@ -10,6 +10,7 @@ const HOSTNAME_FILE = path.join(HIDDEN_SERVICE_DIR, 'hostname');
 const TORRC_FILE = path.join(TOR_DIR, 'torrc');
 
 let onionAddress = null;
+let torExecutable = 'tor'; // Default to PATH
 
 const ensureDirectoryExists = (dir) => {
     if (!fs.existsSync(dir)) {
@@ -23,16 +24,56 @@ const ensureDirectoryExists = (dir) => {
     }
 };
 
+const findTorPath = () => {
+    // 1. Try default PATH first
+    try {
+        const check = execSync('tor --version', { stdio: 'pipe' }).toString();
+        const version = check.trim().split('\n')[0];
+        console.log(`   Tor found in PATH: ${version}`);
+        return 'tor';
+    } catch (e) {
+        // Continue to explicit paths
+    }
+
+    // 2. Check common absolute paths
+    const commonPaths = [
+        '/usr/bin/tor',
+        '/usr/sbin/tor',
+        '/bin/tor',
+        '/usr/local/bin/tor',
+        '/opt/homebrew/bin/tor' // macOS
+    ];
+
+    for (const p of commonPaths) {
+        if (fs.existsSync(p)) {
+            try {
+                // Verify it's executable and get version
+                // accessSync checks permissions (R_OK | X_OK)
+                fs.accessSync(p, fs.constants.X_OK);
+                const check = execSync(`${p} --version`, { stdio: 'pipe' }).toString();
+                const version = check.trim().split('\n')[0];
+                console.log(`   Tor found at ${p}: ${version}`);
+                return p;
+            } catch (err) {
+                // Skip if not executable or fails
+            }
+        }
+    }
+
+    return null;
+};
+
 const prepareTor = () => {
     console.log("🧅 Preparing Tor Configuration...");
 
     let torAvailable = false;
-    // Check if Tor is installed
-    try {
-        const check = execSync('tor --version', { stdio: 'pipe' }).toString();
-        console.log(`   Tor version detected: ${check.trim().split('\n')[0]}`);
+
+    // Check if Tor is installed (PATH or Absolute)
+    const foundPath = findTorPath();
+    if (foundPath) {
+        torExecutable = foundPath;
         torAvailable = true;
-    } catch (e) {
+    } else {
         console.warn("⚠️ Tor is not installed or not in PATH. Please ensure it is installed.");
         torAvailable = false;
     }
@@ -91,9 +132,9 @@ const init = async (spawnProcess = true) => {
 
     if (spawnProcess) {
         if (torAvailable) {
-            console.log("   Starting Tor process internally...");
+            console.log(`   Starting Tor process internally (${torExecutable})...`);
             try {
-                const torProcess = spawn('tor', ['-f', TORRC_FILE], {
+                const torProcess = spawn(torExecutable, ['-f', TORRC_FILE], {
                     detached: true,
                     stdio: 'ignore'
                 });
