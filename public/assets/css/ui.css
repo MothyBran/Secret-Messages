@@ -36,7 +36,11 @@
 #contactCodeModal,
 #deleteAccountModal,
 #manualTransferModal,
-#unlockProfileModal {
+#unlockProfileModal,
+#appConfirmModal,
+#inboxDecryptModal,
+#composeModal,
+#messageModal {
     z-index: 2100 !important;
     position: fixed !important; /* Reinforce fixed positioning */
 }
