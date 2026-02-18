@@ -27,7 +27,16 @@
 }
 
 .sidebar-on-top {
-    z-index: 1650 !important;
+    z-index: 1800 !important; /* Increased to ensure it sits above high-z overlay (1600) */
+}
+
+/* FIX: Ensure Contact Modals are above the High-Z Sidebar */
+#contactEditModal,
+#contactCodeModal,
+#deleteAccountModal,
+#manualTransferModal,
+#unlockProfileModal {
+    z-index: 2000 !important;
 }
 
 .modal.active, .modal-overlay.active, .modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"] {
