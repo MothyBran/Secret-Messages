@@ -1565,7 +1565,7 @@ function updateSidebarInfo(user, expiryData) {
     guestElements.forEach(el => el.style.display = user ? 'none' : 'flex');
 
     const footerOnion = document.getElementById('footerOnionIcon');
-    if(footerOnion) footerOnion.style.display = user ? 'block' : 'none';
+    if(footerOnion) footerOnion.style.display = (user && !isTorSession) ? 'block' : 'none';
 }
 
 async function checkExistingSession() {
