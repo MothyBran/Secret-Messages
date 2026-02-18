@@ -857,6 +857,7 @@ async function handleContactCodeSubmit() {
             }
             renderContactList();
             sidebar.classList.add('active');
+            sidebar.classList.add('sidebar-on-top');
             overlay.classList.add('active', 'high-z');
 
         } else {
