@@ -98,7 +98,7 @@ const prepareTor = () => {
 
     // Dynamic torrc creation
     // Fix: Ensure proper newlines, valid config, and enable stdout logging
-    const torrcContent = `DataDirectory ${TOR_DIR}\nLog notice stdout\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:3000\n`;
+    const torrcContent = `DataDirectory ${TOR_DIR}\nLog notice stdout\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:${process.env.PORT || 3000}\n`;
 
     try {
         fs.writeFileSync(TORRC_FILE, torrcContent);

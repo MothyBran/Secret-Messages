@@ -22,8 +22,8 @@ try {
 }
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const torManager = require('./utils/torManager');
 require('dotenv').config();
+const torManager = require('./utils/torManager');
 
 // ENTERPRISE SWITCH
 const IS_ENTERPRISE = process.env.APP_MODE === 'ENTERPRISE';
@@ -2497,7 +2497,7 @@ let activeSockets = new Set();
 function startServer(port = PORT) {
     if (httpServer) { console.warn("Server already running"); return httpServer; }
     httpServer = app.listen(port, '0.0.0.0', () => {
-        console.log(`🚀 Server running on Port ${port}`);
+        console.log(`🚀 Server running on Port ${port} (Binding: 0.0.0.0)`);
         if (IS_ENTERPRISE) {
             if(!isPostgreSQL && db) {
                 // Enterprise Messages Table (Added is_deleted, expires_at)
