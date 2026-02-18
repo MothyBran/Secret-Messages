@@ -2,8 +2,18 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
 
-// Determine Data Directory (Consistent with server.js)
-const DATA_DIR = process.env.DATA_PATH || path.join(__dirname, '../data');
+// Determine Data Directory (Environment Detection)
+let DATA_DIR;
+if (fs.existsSync('/data')) {
+    // Production (Railway) - Enforce absolute path if volume exists
+    DATA_DIR = '/data';
+    console.log("   Detected /data volume. Using absolute path for Tor.");
+} else {
+    // Local Dev Fallback
+    DATA_DIR = process.env.DATA_PATH || path.join(__dirname, '../data');
+    console.log("   Using local data path for Tor:", DATA_DIR);
+}
+
 const TOR_DIR = path.join(DATA_DIR, 'tor');
 const HIDDEN_SERVICE_DIR = path.join(TOR_DIR, 'hidden_service');
 const HOSTNAME_FILE = path.join(HIDDEN_SERVICE_DIR, 'hostname');
@@ -19,7 +29,7 @@ const ensureDirectoryExists = (dir) => {
         try {
             fs.chmodSync(dir, 0o700);
         } catch (e) {
-            // Ignore permission errors on Windows or if not owner
+            console.log(`Chmod warning for ${dir}:`, e.message);
         }
     }
 };
@@ -79,11 +89,16 @@ const prepareTor = () => {
     }
 
     ensureDirectoryExists(TOR_DIR);
+    // Force permission check again just to be safe (Requested)
+    try {
+        fs.chmodSync(TOR_DIR, '700');
+    } catch (e) { console.log("Chmod warning:", e.message); }
+
     ensureDirectoryExists(HIDDEN_SERVICE_DIR);
 
     // Dynamic torrc creation
-    // Fix: Ensure proper newlines and valid config
-    const torrcContent = `DataDirectory ${TOR_DIR}\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:3000\n`;
+    // Fix: Ensure proper newlines, valid config, and enable stdout logging
+    const torrcContent = `DataDirectory ${TOR_DIR}\nLog notice stdout\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:3000\n`;
 
     try {
         fs.writeFileSync(TORRC_FILE, torrcContent);
