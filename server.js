@@ -421,6 +421,48 @@ async function authenticateUser(req, res, next) {
     });
 }
 
+// CONTACTS API
+app.get('/api/contacts', authenticateUser, async (req, res) => {
+    try {
+        const result = await dbQuery('SELECT id, encrypted_data, updated_at FROM contacts WHERE user_id = $1 ORDER BY updated_at DESC', [req.user.id]);
+        res.json(result.rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/contacts', authenticateUser, async (req, res) => {
+    const { encryptedData } = req.body;
+    if (!encryptedData) return res.status(400).json({ error: "Daten fehlen" });
+    try {
+        const now = new Date().toISOString();
+        const result = await dbQuery(
+            `INSERT INTO contacts (user_id, encrypted_data, created_at, updated_at) VALUES ($1, $2, $3, $3) ${isPostgreSQL() ? 'RETURNING id' : ''}`,
+            [req.user.id, encryptedData, now]
+        );
+        const newId = isPostgreSQL() ? result.rows[0].id : result.lastID;
+        res.json({ success: true, id: newId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/contacts/:id', authenticateUser, async (req, res) => {
+    const { encryptedData } = req.body;
+    if (!encryptedData) return res.status(400).json({ error: "Daten fehlen" });
+    try {
+        const now = new Date().toISOString();
+        await dbQuery(
+            `UPDATE contacts SET encrypted_data = $1, updated_at = $2 WHERE id = $3 AND user_id = $4`,
+            [encryptedData, now, req.params.id, req.user.id]
+        );
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/contacts/:id', authenticateUser, async (req, res) => {
+    try {
+        await dbQuery('DELETE FROM contacts WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     try {
         const { username, accessCode, deviceId } = req.body;

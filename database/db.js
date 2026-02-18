@@ -154,6 +154,13 @@ async function createTables() {
             code TEXT,
             expires_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS contacts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            encrypted_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`
     ];
 
