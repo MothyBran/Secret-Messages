@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["tor", "nodejs"]
-
-[phases.build]
-cmds = ["npm install"]
-
-[start]
-cmd = "node server.js"
