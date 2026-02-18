@@ -151,7 +151,28 @@ const init = async (spawnProcess = true) => {
             try {
                 const torProcess = spawn(torExecutable, ['-f', TORRC_FILE], {
                     detached: true,
-                    stdio: 'ignore'
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+
+                // Standard Output (Logs)
+                torProcess.stdout.on('data', (data) => {
+                    const lines = data.toString().split('\n');
+                    lines.forEach(line => {
+                        if (line.trim()) console.log(`[TOR] ${line.trim()}`);
+                    });
+                });
+
+                // Standard Error (Warnings/Errors)
+                torProcess.stderr.on('data', (data) => {
+                    const lines = data.toString().split('\n');
+                    lines.forEach(line => {
+                        if (line.trim()) console.error(`[TOR] [ERR] ${line.trim()}`);
+                    });
+                });
+
+                // Process Close
+                torProcess.on('close', (code) => {
+                    console.log(`[TOR] Process exited with code ${code}`);
                 });
 
                 // Critical: Handle spawn errors to prevent crash
