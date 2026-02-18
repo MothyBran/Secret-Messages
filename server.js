@@ -770,8 +770,22 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
         const blocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
         if (blocked) return res.json({ status: 'banned' });
 
-        if (deviceId && user.allowed_device_id && user.allowed_device_id !== deviceId) {
-            return res.json({ status: 'device_mismatch' });
+        if (deviceId) {
+            const matchMain = user.allowed_device_id && user.allowed_device_id === deviceId;
+            const matchTor = user.allowed_tor_device_id && user.allowed_tor_device_id === deviceId;
+
+            // If a device ID is registered in the slot we are checking against, it must match.
+            // But here we don't know which slot the user "intends" to use, we just know their current device ID.
+            // So: If the provided deviceId matches *either* known slot, it is valid.
+            // If it matches *neither*, it is invalid (provided that at least one slot is actually in use).
+
+            // Simplified: If the incoming deviceId is NOT one of the allowed IDs (and we have allowed IDs), it's a mismatch.
+            // We only enforce this if at least one device is registered.
+            const hasAnyDevice = user.allowed_device_id || user.allowed_tor_device_id;
+
+            if (hasAnyDevice && !matchMain && !matchTor) {
+                return res.json({ status: 'device_mismatch' });
+            }
         }
 
         if (user.expires_at) {

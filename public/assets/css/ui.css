@@ -31,12 +31,14 @@
 }
 
 /* FIX: Ensure Contact Modals are above the High-Z Sidebar */
+/* We use a higher value and ensure positioning context is correct */
 #contactEditModal,
 #contactCodeModal,
 #deleteAccountModal,
 #manualTransferModal,
 #unlockProfileModal {
-    z-index: 2000 !important;
+    z-index: 2100 !important;
+    position: fixed !important; /* Reinforce fixed positioning */
 }
 
 .modal.active, .modal-overlay.active, .modal-overlay[style*="display: flex"], .modal-overlay[style*="display: block"] {
