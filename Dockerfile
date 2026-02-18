@@ -1,21 +1,22 @@
-FROM node:18-bullseye-slim
+# Wir nutzen Bookworm (Debian 12) für stabilere Repos
+FROM node:18-bookworm-slim
 
-# WICHTIG: Installation von Tor und Python (für evtl. Build-Tools)
-RUN apt-get update && apt-get install -y \
+# Arbeitsverzeichnis setzen
+WORKDIR /app
+
+# Abhängigkeiten installieren (Mit --fix-missing gegen Netzwerkfehler)
+RUN apt-get update && apt-get install -y --fix-missing \
     tor \
     python3 \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Arbeitsverzeichnis setzen
-WORKDIR /app
-
-# Abhängigkeiten installieren
+# Node Dependencies
 COPY package*.json ./
 RUN npm install
 
-# Restlichen Code kopieren
+# App Code
 COPY . .
 
-# Start-Befehl (Node übernimmt die Steuerung von Tor via torManager)
+# Start
 CMD ["node", "server.js"]
