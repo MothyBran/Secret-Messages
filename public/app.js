@@ -103,7 +103,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
+    if (window.location.hostname.endsWith('.onion')) {
+        showToast("Sie befinden sich im Tor-Modus. Kontakte sind ggf. nicht verfügbar und müssen neu importiert werden.", 'info');
+    } else if (window.location.hostname !== 'localhost' && window.location.origin !== 'https://www.secure-msg.app') {
         showToast("Hinweis: Sie befinden sich nicht auf der Haupt-Domain. Kontakte sind ggf. nicht sichtbar.", 'error');
     }
 
@@ -132,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(window.location.hostname.endsWith('.onion') || isTorSession) {
             const statusContainer = document.getElementById('globalStatusContainer');
             const banner = document.createElement('div');
-            banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#006400; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
+            banner.style.cssText = "position:fixed; top:0; left:0; width:100%; background:#7D4698; color:#fff; text-align:center; padding:2px; font-size:0.7rem; z-index:9999; font-weight:bold;";
             banner.textContent = "🛡️ TOR-NETZWERK AKTIV";
             document.body.appendChild(banner);
         }
@@ -977,7 +979,7 @@ async function handleLogin(e) {
             if (data.error === "ACCOUNT_BLOCKED") { localStorage.removeItem('sm_token'); showSection('blockedSection'); }
             else if (data.error === "DEVICE_NOT_AUTHORIZED") {
                 localStorage.removeItem('sm_token');
-                if (isTorSession) {
+                if (isTorSession || window.location.hostname.endsWith('.onion')) {
                     const torContainer = document.getElementById('torLinkContainer');
                     if(torContainer) {
                         torContainer.style.display = 'block';
