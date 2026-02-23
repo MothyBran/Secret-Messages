@@ -406,8 +406,10 @@ function setupUIEvents() {
     document.getElementById('btnCancelContactCode')?.addEventListener('click', () => { document.getElementById('contactCodeModal').classList.remove('active'); pendingContactAction = null; });
     document.getElementById('btnConfirmContactCode')?.addEventListener('click', handleContactCodeSubmit);
 
-    document.getElementById('btnGenerateTorCode')?.addEventListener('click', generateTorCode);
-    document.getElementById('btnConfirmTorLink')?.addEventListener('click', handleTorLink);
+    document.getElementById('btnSetupTor')?.addEventListener('click', generateTorCredentials);
+    document.getElementById('btnRevokeTor')?.addEventListener('click', revokeTorAccess);
+    // Legacy elements removed from HTML but listeners can stay until cleanup or be removed
+    // document.getElementById('btnConfirmTorLink')?.addEventListener('click', handleTorLink);
 
     document.getElementById('tabInboxSystem')?.addEventListener('click', () => switchInboxTab('system'));
     document.getElementById('tabInboxPrivate')?.addEventListener('click', () => switchInboxTab('private'));
@@ -998,47 +1000,64 @@ async function handleLogin(e) {
     }
 }
 
-async function generateTorCode() {
-    const btn = document.getElementById('btnGenerateTorCode');
+async function generateTorCredentials() {
+    const btn = document.getElementById('btnSetupTor');
+    const oldTxt = btn.textContent;
+    btn.disabled = true; btn.textContent = "Generiere...";
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/tor-credentials`, { headers: { 'Authorization': `Bearer ${authToken}` }, method: 'POST' });
+        const data = await res.json();
+
+        if(data.success) {
+            document.getElementById('torCredentialsArea').style.display = 'block';
+            document.getElementById('torLoginUrl').value = data.loginUrl;
+            document.getElementById('torAccessCodeDisplay').textContent = data.accessCode;
+
+            document.getElementById('btnSetupTor').style.display = 'none'; // Hide setup button
+            document.getElementById('btnRevokeTor').style.display = 'block'; // Show revoke button
+
+            showToast("Zugangsdaten generiert! Bitte speichern.", 'success');
+        } else {
+            showToast(data.error || "Fehler", 'error');
+        }
+    } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.disabled = false; btn.textContent = oldTxt; }
+}
+
+async function revokeTorAccess() {
+    const btn = document.getElementById('btnRevokeTor');
     btn.disabled = true; btn.textContent = "...";
-    try {
-        const res = await fetch(`${API_BASE}/auth/generate-link-code`, { headers: { 'Authorization': `Bearer ${authToken}` }, method: 'POST' });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('torCodeDisplayArea').style.display = 'block';
-            document.getElementById('generatedTorCode').textContent = data.code;
-            btn.textContent = "Neuen Code generieren";
-        } else {
-            showToast("Fehler beim Generieren", 'error');
-        }
-    } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.disabled = false; }
+
+    window.showAppConfirm("Wollen Sie den Tor-Zugang wirklich widerrufen? Der aktuelle Link wird ungültig.", async () => {
+        try {
+            const res = await fetch(`${API_BASE}/auth/revoke-tor-access`, { headers: { 'Authorization': `Bearer ${authToken}` }, method: 'POST' });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('torCredentialsArea').style.display = 'none';
+                document.getElementById('torLoginUrl').value = '';
+                document.getElementById('torAccessCodeDisplay').textContent = '';
+
+                document.getElementById('btnRevokeTor').style.display = 'none';
+                document.getElementById('btnSetupTor').style.display = 'block';
+                document.getElementById('btnSetupTor').textContent = "Tor-Zugang einrichten";
+
+                showToast("Tor-Zugang widerrufen.", 'success');
+            } else {
+                showToast(data.error || "Fehler", 'error');
+            }
+        } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.disabled = false; btn.textContent = "Zugang widerrufen"; }
+    }, { confirm: "Widerrufen", cancel: "Abbrechen" });
+
+    // Reset button state if modal cancels (async flow requires manual reset or better handling, simplistic here)
+    setTimeout(() => { if(!document.getElementById('appConfirmModal').classList.contains('active')) { btn.disabled = false; btn.textContent = "Zugang widerrufen"; } }, 1000);
 }
 
-async function handleTorLink() {
-    const username = document.getElementById('torLinkUsername').value.trim();
-    const code = document.getElementById('torLinkCode').value.trim();
-    if(!username || !code) return showToast("Daten fehlen", 'error');
-
-    const btn = document.getElementById('btnConfirmTorLink');
-    btn.textContent = "..."; btn.disabled = true;
-
-    try {
-        const devId = await generateDeviceFingerprint();
-        const res = await fetch(`${API_BASE}/auth/link-device`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ username, code, newDeviceId: devId })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('torLinkModal').classList.remove('active');
-            document.getElementById('torLinkContainer').style.display = 'none';
-            window.showAppConfirm("Kopplung erfolgreich! Bitte jetzt einloggen.", () => {}, { confirm: "OK", cancel: null });
-        } else {
-            showToast(data.error || "Kopplung fehlgeschlagen", 'error');
-        }
-    } catch(e) { showToast("Verbindungsfehler", 'error'); } finally { btn.textContent = "Koppeln"; btn.disabled = false; }
-}
+window.copyTorUrl = function() {
+    const el = document.getElementById('torLoginUrl');
+    el.select();
+    navigator.clipboard.writeText(el.value);
+    showToast("Link kopiert!", 'success');
+};
 
 async function handleActivation(e) {
     e.preventDefault();
