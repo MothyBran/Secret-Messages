@@ -1733,26 +1733,46 @@
         </div>
     </div>
 
-    <!-- TOR ACCESS MODAL (Generate Code) -->
+    <!-- TOR ACCESS MODAL (Bookmark/Token 2FA) -->
     <div id="torAccessModal" class="modal">
-        <div class="modal-box">
-            <h3 style="color: var(--accent-blue); margin-bottom: 15px; text-align: center;">TOR-ZUGANG</h3>
+        <div class="modal-box" style="max-width: 500px;">
+            <h3 style="color: #7D4698; margin-bottom: 15px; text-align: center;">TOR-ZUGANG (2FA)</h3>
 
             <div style="margin-bottom:20px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid #333; border-radius:4px;">
-                <label style="display:block; font-size:0.7rem; color:#888; margin-bottom:5px;">ONION ADRESSE (HIDDEN SERVICE)</label>
+                <label style="display:block; font-size:0.7rem; color:#888; margin-bottom:5px;">ONION ADRESSE</label>
                 <div id="onionAddressDisplay" style="font-family:'Roboto Mono'; font-size:0.9rem; color:#fff; word-break:break-all;">Lade...</div>
             </div>
 
-            <p style="color:#ccc; font-size:0.9rem; margin-bottom:15px; text-align:center;">
-                Um Ihren Account im Tor-Browser zu nutzen, generieren Sie hier einen Kopplungs-Code.
+            <p style="color:#ccc; font-size:0.9rem; margin-bottom:15px; text-align:center; line-height: 1.5;">
+                Um sich sicher über Tor anzumelden, benötigen Sie einen <b>persönlichen Login-Link</b> (Ihr Token) und einen <b>Tor-Zugangscode</b>.
             </p>
 
-            <div id="torCodeDisplayArea" style="display:none; text-align:center; margin-bottom:20px;">
-                <div id="generatedTorCode" style="font-size:2rem; font-weight:bold; letter-spacing:5px; color:var(--success-green); margin-bottom:5px;"></div>
-                <div style="font-size:0.8rem; color:#888;">Gültig für 10 Minuten</div>
+            <!-- Credentials Display Area -->
+            <div id="torCredentialsArea" style="display:none; margin-bottom:20px; text-align:left;">
+                <div style="background:rgba(125, 70, 152, 0.1); border:1px solid #7D4698; padding:15px; border-radius:6px; margin-bottom:15px;">
+                    <label style="color:#7D4698; font-size:0.75rem; display:block; margin-bottom:5px;">1. PERSÖNLICHER LOGIN-LINK (BOOKMARK)</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="torLoginUrl" class="input-field" readonly style="font-size:0.8rem; color:#fff;">
+                        <button class="btn" style="padding:5px 10px; font-size:1.2rem;" onclick="copyTorUrl()">📋</button>
+                    </div>
+                    <small style="color:#aaa; display:block; margin-top:5px;">⚠️ Speichern Sie diesen Link als Lesezeichen im Tor-Browser!</small>
+                </div>
+
+                <div style="background:rgba(125, 70, 152, 0.1); border:1px solid #7D4698; padding:15px; border-radius:6px;">
+                    <label style="color:#7D4698; font-size:0.75rem; display:block; margin-bottom:5px;">2. TOR-ZUGANGSCODE</label>
+                    <div id="torAccessCodeDisplay" style="font-family:'Roboto Mono'; font-size:1.4rem; color:#fff; letter-spacing:2px; text-align:center; padding:5px; background:rgba(0,0,0,0.3); border-radius:4px; user-select:all;">
+                        LOADING
+                    </div>
+                    <small style="color:#aaa; display:block; margin-top:5px; text-align:center;">Speichern Sie diesen Code im Passwort-Manager.</small>
+                </div>
+
+                <div style="text-align:center; margin-top:15px; font-size:0.8rem; color:#ffaaaa;">
+                    Dieser Code wird nur <b>einmalig</b> angezeigt!
+                </div>
             </div>
 
-            <button id="btnGenerateTorCode" class="btn btn-primary" style="width:100%;">Code Generieren</button>
+            <button id="btnSetupTor" class="btn btn-primary" style="width:100%; border-color:#7D4698; color:#fff; background: #7D4698;">Tor-Zugang einrichten / Reset</button>
+            <button id="btnRevokeTor" class="btn btn-danger" style="width:100%; margin-top:10px; display:none;">Zugang widerrufen</button>
             <button onclick="document.getElementById('torAccessModal').classList.remove('active')" class="btn" style="width:100%; margin-top:10px; border-color:#555; color:#fff;">Schließen</button>
         </div>
     </div>

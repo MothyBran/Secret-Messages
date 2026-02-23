@@ -586,6 +586,92 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, error: "Serverfehler" }); }
 });
 
+// TOR LOGIN ROUTE
+app.post('/api/tor/login', authRateLimiter, async (req, res) => {
+    // 1. Strict Geofencing
+    if (!req.headers.host || !req.headers.host.endsWith('.onion')) {
+        return res.status(403).json({ error: "Access denied. Tor network required." });
+    }
+
+    const { username, tor_access_code, device_token } = req.body;
+    if (!username || !tor_access_code || !device_token) return res.status(400).json({ error: "Missing credentials" });
+
+    try {
+        // 2. Lookup User (Reuse JOIN logic for license info)
+        const userRes = await dbQuery(`
+            SELECT u.*, l.expires_at, l.is_blocked as key_blocked
+            FROM users u
+            LEFT JOIN license_keys l ON u.license_key_id = l.id
+            WHERE u.username = $1
+        `, [username]);
+
+        if (userRes.rows.length === 0) return res.status(401).json({ error: "Invalid credentials" });
+        const user = userRes.rows[0];
+
+        // 3. Verify Token
+        if (user.tor_device_token !== device_token) return res.status(401).json({ error: "Invalid Device Token" });
+
+        // 4. Verify Code
+        if (!user.tor_access_code_hash) return res.status(401).json({ error: "Tor access not configured" });
+        const match = await bcrypt.compare(tor_access_code, user.tor_access_code_hash);
+        if (!match) return res.status(401).json({ error: "Invalid Access Code" });
+
+        // Check Blocks
+        const isBlocked = isPostgreSQL() ? user.is_blocked : (user.is_blocked === 1);
+        if (isBlocked) return res.status(403).json({ error: "ACCOUNT_BLOCKED" });
+
+        const isKeyBlocked = isPostgreSQL() ? user.key_blocked : (user.key_blocked === 1);
+        if (isKeyBlocked) return res.status(403).json({ error: "LIZENZ GESPERRT" });
+
+        // 5. Success Logic
+        // Update Stats & Bind Session (Set allowed_tor_device_id to token so checkAccess passes)
+        await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP, allowed_tor_device_id = $1 WHERE id = $2", [device_token, user.id]);
+
+        // Issue JWT (Standard)
+        let role = 'user';
+        if (user.badge) {
+             const b = user.badge.toLowerCase();
+             if (b.includes('admin') || b.includes('founder') || user.badge.includes('🛡️')) role = 'admin';
+             else if (b.includes('dev') || user.badge.includes('👾')) role = 'dev';
+        }
+        const token = jwt.sign({ id: user.id, username: user.username, role }, JWT_SECRET, { expiresIn: '24h' });
+
+        await trackEvent(req, 'login_success_tor', 'auth', { username });
+
+        res.json({
+            success: true,
+            token,
+            username: user.username,
+            badge: user.badge,
+            expiresAt: user.expires_at || 'lifetime',
+            hasLicense: !!user.license_key_id,
+            role
+        });
+
+    } catch (e) {
+        res.status(500).json({ error: "Server Error: " + e.message });
+    }
+});
+
+// TOR LOGIN PAGE
+app.get('/tor-login', async (req, res) => {
+    if (!req.headers.host || !req.headers.host.endsWith('.onion')) {
+        return res.status(403).send("<h1>Access Denied</h1><p>This page is only accessible via the Tor Network (.onion).</p>");
+    }
+
+    const token = req.query.device_token;
+    if (!token) return res.status(400).send("<h1>Error</h1><p>Missing Device Token.</p>");
+
+    try {
+        const check = await dbQuery("SELECT id FROM users WHERE tor_device_token = $1", [token]);
+        if (check.rows.length === 0) return res.status(403).send("<h1>Unauthorized</h1><p>Unknown Device Token.</p>");
+
+        res.sendFile(path.join(__dirname, 'private', 'tor-login.html'));
+    } catch (e) {
+        res.status(500).send("Server Error");
+    }
+});
+
 app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     try {
         await dbQuery('UPDATE users SET is_online = $1 WHERE id = $2', [(isPostgreSQL() ? false : 0), req.user.id]);
@@ -593,41 +679,42 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: 'Logout Fehler' }); }
 });
 
-app.post('/api/auth/generate-link-code', authenticateUser, async (req, res) => {
+app.post('/api/auth/tor-credentials', authenticateUser, rateLimiter, async (req, res) => {
     try {
-        const code = crypto.randomBytes(3).toString('hex').toUpperCase();
-        const expiresAt = new Date(Date.now() + 10 * 60000).toISOString(); // 10 mins
-        await dbQuery('INSERT INTO pairing_codes (user_id, code, expires_at) VALUES ($1, $2, $3)', [req.user.id, code, expiresAt]);
-        res.json({ success: true, code, expiresAt });
+        // Generate Secure Tokens
+        const deviceToken = crypto.randomBytes(32).toString('hex'); // 64 chars
+        const accessCode = crypto.randomBytes(8).toString('hex');   // 16 chars
+        const accessCodeHash = await bcrypt.hash(accessCode, 10);
+
+        await dbQuery(
+            "UPDATE users SET tor_device_token = $1, tor_access_code_hash = $2 WHERE id = $3",
+            [deviceToken, accessCodeHash, req.user.id]
+        );
+
+        const onionAddress = torManager.getOnionAddress() || 'best-onion-address.onion';
+        // Construct the full login URL
+        const loginUrl = `http://${onionAddress}/tor-login?device_token=${deviceToken}`;
+
+        res.json({
+            success: true,
+            loginUrl,
+            deviceToken,
+            accessCode // Sent only once!
+        });
     } catch (e) {
-        res.status(500).json({ error: "Fehler beim Generieren des Codes" });
+        res.status(500).json({ error: "Fehler beim Generieren der Tor-Zugangsdaten: " + e.message });
     }
 });
 
-app.post('/api/auth/link-device', rateLimiter, async (req, res) => {
-    const { username, code, newDeviceId } = req.body;
-    if (!username || !code || !newDeviceId) return res.status(400).json({ error: "Daten fehlen" });
-
+app.post('/api/auth/revoke-tor-access', authenticateUser, async (req, res) => {
     try {
-        const userRes = await dbQuery('SELECT id FROM users WHERE username = $1', [username]);
-        if (userRes.rows.length === 0) return res.status(404).json({ error: "User nicht gefunden" });
-        const userId = userRes.rows[0].id;
-
-        const codeRes = await dbQuery('SELECT * FROM pairing_codes WHERE user_id = $1 AND code = $2', [userId, code.toUpperCase()]);
-        if (codeRes.rows.length === 0) return res.status(403).json({ error: "Code ungültig" });
-
-        const pairingEntry = codeRes.rows[0];
-        if (new Date(pairingEntry.expires_at) < new Date()) {
-             await dbQuery('DELETE FROM pairing_codes WHERE id = $1', [pairingEntry.id]);
-             return res.status(403).json({ error: "Code abgelaufen" });
-        }
-
-        await dbQuery('UPDATE users SET allowed_tor_device_id = $1 WHERE id = $2', [newDeviceId, userId]);
-        await dbQuery('DELETE FROM pairing_codes WHERE id = $1', [pairingEntry.id]);
-
+        await dbQuery(
+            "UPDATE users SET tor_device_token = NULL, tor_access_code_hash = NULL, allowed_tor_device_id = NULL WHERE id = $1",
+            [req.user.id]
+        );
         res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: "Fehler bei der Verknüpfung: " + e.message });
+        res.status(500).json({ error: "Fehler beim Widerrufen: " + e.message });
     }
 });
 

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECURE MESSAGES | Tor Access</title>
+    <link href="/assets/fonts/fonts.css" rel="stylesheet">
+    <link href="/assets/css/ui.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .bg-grid {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                linear-gradient(rgba(125, 70, 152, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 70, 152, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: -1; pointer-events: none;
+        }
+        .login-box {
+            background: #0f1215;
+            padding: 30px;
+            border-radius: 8px;
+            border: 1px solid #7D4698; /* Tor Purple */
+            box-shadow: 0 0 30px rgba(125, 70, 152, 0.2);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        .onion-icon { font-size: 2rem; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-label { display: block; font-size: 0.75rem; color: #7D4698; margin-bottom: 5px; text-transform: uppercase; }
+        .input-field {
+            width: 100%; background: rgba(0,0,0,0.3);
+            border: 1px solid #333; border-left: 3px solid #333;
+            color: #fff; padding: 12px; font-size: 1rem;
+            font-family: 'Roboto Mono', monospace;
+            transition: 0.3s;
+        }
+        .input-field:focus { border-color: #7D4698; border-left-color: #7D4698; outline: none; }
+
+        .btn {
+            background: rgba(125, 70, 152, 0.1);
+            border: 1px solid #7D4698;
+            color: #7D4698;
+            padding: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: rgba(125, 70, 152, 0.2); }
+        .btn:active { transform: scale(0.98); }
+
+        .error-msg {
+            color: #ff3333;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="login-box">
+        <div class="logo">
+            <span class="onion-icon">🧅</span>
+            SECURE ACCESS
+        </div>
+        <p style="color: #888; font-size: 0.9rem; margin-bottom: 25px;">
+            Tor-Netzwerk Autorisierung<br>
+            <span style="font-size:0.7rem; color:#555;">Device Token Validated</span>
+        </p>
+
+        <form id="torLoginForm">
+            <div class="input-group">
+                <label class="input-label">Benutzername</label>
+                <input type="text" id="username" class="input-field" placeholder="USER.ID" required autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Tor-Zugangscode</label>
+                <input type="password" id="accessCode" class="input-field" placeholder="••••••••••••••" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn" id="loginBtn">Verbinden</button>
+        </form>
+        <div id="errorDisplay" class="error-msg"></div>
+    </div>
+
+    <script>
+        document.getElementById('torLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const errDiv = document.getElementById('errorDisplay');
+
+            // Get Token from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('device_token');
+
+            if (!token) {
+                errDiv.textContent = "Fehler: Kein Device-Token in der URL.";
+                errDiv.style.display = 'block';
+                return;
+            }
+
+            const username = document.getElementById('username').value.trim();
+            const accessCode = document.getElementById('accessCode').value.trim();
+
+            btn.textContent = "Prüfe...";
+            btn.disabled = true;
+            errDiv.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/tor/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        tor_access_code: accessCode,
+                        device_token: token
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    // Store Token & User
+                    localStorage.setItem('sm_token', data.token);
+
+                    // Create User Object matching main app structure
+                    const userObj = {
+                        name: data.username,
+                        sm_id: parseJwt(data.token).id,
+                        badge: data.badge,
+                        expiresAt: data.expiresAt
+                    };
+                    localStorage.setItem('sm_user', JSON.stringify(userObj));
+                    if(data.expiresAt) localStorage.setItem('sm_exp', data.expiresAt);
+
+                    // Redirect to App
+                    window.location.href = '/app';
+                } else {
+                    errDiv.textContent = data.error || "Login fehlgeschlagen.";
+                    errDiv.style.display = 'block';
+                    btn.textContent = "Verbinden";
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                errDiv.textContent = "Verbindungsfehler.";
+                errDiv.style.display = 'block';
+                btn.textContent = "Verbinden";
+                btn.disabled = false;
+            }
+        });
+
+        function parseJwt (token) {
+            try { return JSON.parse(atob(token.split('.')[1])); } catch (e) { return {}; }
+        }
+    </script>
+</body>
+</html>

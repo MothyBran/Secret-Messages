@@ -317,6 +317,29 @@ async function createTables() {
     } catch (e) {
         console.warn("Migration Warning (messages sender_id):", e.message);
     }
+
+    // --- MIGRATION: tor_device_token & tor_access_code_hash zu users hinzufügen ---
+    try {
+        if (_isPostgreSQL) {
+            await internalDbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tor_device_token TEXT`);
+            await internalDbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tor_access_code_hash TEXT`);
+        } else {
+            const check = await internalDbQuery(`PRAGMA table_info(users)`);
+            const hasToken = check.rows.some(c => c.name === 'tor_device_token');
+            const hasHash = check.rows.some(c => c.name === 'tor_access_code_hash');
+
+            if (!hasToken) {
+                await internalDbQuery(`ALTER TABLE users ADD COLUMN tor_device_token TEXT`);
+                console.log('✅ Migrated: Added tor_device_token to users');
+            }
+            if (!hasHash) {
+                await internalDbQuery(`ALTER TABLE users ADD COLUMN tor_access_code_hash TEXT`);
+                console.log('✅ Migrated: Added tor_access_code_hash to users');
+            }
+        }
+    } catch (e) {
+        console.warn("Migration Warning (tor_device_token/hash):", e.message);
+    }
 }
 
 /**
