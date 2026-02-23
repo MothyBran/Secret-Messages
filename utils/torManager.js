@@ -73,8 +73,8 @@ const findTorPath = () => {
     return null;
 };
 
-const prepareTor = () => {
-    console.log("🧅 Preparing Tor Configuration...");
+const prepareTor = (appPort = 3000) => {
+    console.log(`🧅 Preparing Tor Configuration (Port: ${appPort})...`);
 
     let torAvailable = false;
 
@@ -98,7 +98,7 @@ const prepareTor = () => {
 
     // Dynamic torrc creation
     // Fix: Ensure proper newlines, valid config, and enable stdout logging
-    const torrcContent = `DataDirectory ${TOR_DIR}\nLog notice stdout\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:${process.env.PORT || 3000}\n`;
+    const torrcContent = `DataDirectory ${TOR_DIR}\nLog notice stdout\nHiddenServiceDir ${HIDDEN_SERVICE_DIR}\nHiddenServicePort 80 127.0.0.1:${appPort}\n`;
 
     try {
         fs.writeFileSync(TORRC_FILE, torrcContent);
@@ -139,11 +139,11 @@ const pollHostname = () => {
     check();
 };
 
-const init = async (spawnProcess = true) => {
-    console.log("🧅 Initializing Tor Manager...");
+const init = async (spawnProcess = true, appPort = 3000) => {
+    console.log(`🧅 Initializing Tor Manager (Port: ${appPort})...`);
 
     // Always ensure config exists and check availability
-    const torAvailable = prepareTor();
+    const torAvailable = prepareTor(appPort);
 
     if (spawnProcess) {
         if (torAvailable) {

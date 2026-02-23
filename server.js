@@ -42,6 +42,12 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 
 const app = express();
 
+// LOGGING MIDDLEWARE (Debug Tor Connectivity)
+app.use((req, res, next) => {
+    console.log(`[INCOMING REQUEST] ${req.method} ${req.url} | Host: ${req.headers.host} | IP: ${req.ip}`);
+    next();
+});
+
 // ==================================================================
 // 1. MIDDLEWARE
 // ==================================================================
@@ -276,7 +282,7 @@ initializeDatabase();
 
 // Check if Tor is managed externally (e.g. via start.sh)
 const externalTor = process.env.TOR_MANAGED_EXTERNALLY === 'true';
-torManager.init(!externalTor);
+torManager.init(!externalTor, PORT);
 
 // ==================================================================
 // 2.1 ANALYTICS HELPERS
