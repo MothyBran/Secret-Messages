@@ -79,7 +79,9 @@ app.use((req, res, next) => {
 
 // HTTPS Redirect Middleware
 app.use((req, res, next) => {
-    if (req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
+    // Bypass for Tor, Localhost, or internal IP
+    if (req.isTor || req.hostname === 'localhost' || req.hostname === '127.0.0.1') return next();
+
     const isHttps = req.headers['x-forwarded-proto'] === 'https';
     const isRoot = req.hostname === 'secure-msg.app';
     const isProduction = process.env.NODE_ENV === 'production';
@@ -120,29 +122,42 @@ app.use(async (req, res, next) => {
     next();
 });
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
-      scriptSrcAttr: ["'self'", "'unsafe-inline'"],
-      frameSrc: ["'self'", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://secure-msg.app", "https://www.secure-msg.app", "https://api.stripe.com", "https://js.stripe.com"],
-      imgSrc: ["'self'", "data:", "https:"]
-    }
-  },
-  strictTransportSecurity: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-  }
-}));
+// HELMET (Dynamic HSTS disable for Tor)
+app.use((req, res, next) => {
+    const isTor = req.isTor;
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+          scriptSrcElem: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+          scriptSrcAttr: ["'self'", "'unsafe-inline'"],
+          frameSrc: ["'self'", "https://js.stripe.com"],
+          connectSrc: ["'self'", "https://secure-msg.app", "https://www.secure-msg.app", "https://api.stripe.com", "https://js.stripe.com"],
+          imgSrc: ["'self'", "data:", "https:"]
+        }
+      },
+      strictTransportSecurity: isTor ? false : { // Disable HSTS for Tor to avoid HTTPS forcing
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true
+      }
+    })(req, res, next);
+});
 
+// CORS (Dynamic Origin for .onion)
 app.use(cors({
-    origin: ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000'],
+    origin: (origin, callback) => {
+        const allowedOrigins = ['https://secure-msg.app', 'https://www.secure-msg.app', 'http://localhost:3000'];
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('.onion')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
 }));
