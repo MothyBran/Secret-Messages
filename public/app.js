@@ -982,12 +982,7 @@ async function handleLogin(e) {
             else if (data.error === "DEVICE_NOT_AUTHORIZED") {
                 localStorage.removeItem('sm_token');
                 if (isTorSession || window.location.hostname.endsWith('.onion')) {
-                    const torContainer = document.getElementById('torLinkContainer');
-                    if(torContainer) {
-                        torContainer.style.display = 'block';
-                        document.getElementById('torLinkUsername').value = u;
-                    }
-                    window.showToast("Gerät nicht autorisiert. Ist dies Ihr Zweit-Gerät?", 'error');
+                    window.showToast("Gerät nicht autorisiert. Bitte nutzen Sie Ihren persönlichen Bookmark-Link!", 'error');
                 } else {
                     window.showMessage("Gerät nicht autorisiert", "Dieses Gerät ist nicht bekannt. Bitte nutzen Sie Ihr registriertes Gerät.");
                 }
@@ -1012,7 +1007,6 @@ async function generateTorCredentials() {
         if(data.success) {
             document.getElementById('torCredentialsArea').style.display = 'block';
             document.getElementById('torLoginUrl').value = data.loginUrl;
-            document.getElementById('torAccessCodeDisplay').textContent = data.accessCode;
 
             document.getElementById('btnSetupTor').style.display = 'none'; // Hide setup button
             document.getElementById('btnRevokeTor').style.display = 'block'; // Show revoke button
@@ -1035,7 +1029,6 @@ async function revokeTorAccess() {
             if(data.success) {
                 document.getElementById('torCredentialsArea').style.display = 'none';
                 document.getElementById('torLoginUrl').value = '';
-                document.getElementById('torAccessCodeDisplay').textContent = '';
 
                 document.getElementById('btnRevokeTor').style.display = 'none';
                 document.getElementById('btnSetupTor').style.display = 'block';

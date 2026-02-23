@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECURE MESSAGES | Tor Gatekeeper</title>
+    <link href="/assets/fonts/fonts.css" rel="stylesheet">
+    <link href="/assets/css/ui.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .bg-grid {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image:
+                linear-gradient(rgba(125, 70, 152, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 70, 152, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            z-index: -1; pointer-events: none;
+        }
+        .info-box {
+            background: #0f1215;
+            padding: 30px;
+            border-radius: 8px;
+            border: 1px solid #7D4698; /* Tor Purple */
+            box-shadow: 0 0 30px rgba(125, 70, 152, 0.2);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        .onion-icon { font-size: 2rem; }
+        .alert-icon { font-size: 3rem; margin-bottom: 15px; display: block; }
+
+        .message {
+            color: #ccc;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .sub-message {
+            color: #7D4698;
+            font-size: 0.9rem;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="info-box">
+        <div class="logo">
+            <span class="onion-icon">🧅</span>
+            SECURE ACCESS
+        </div>
+
+        <div style="padding: 20px;">
+            <span class="alert-icon">🔒</span>
+            <h3 style="color: #fff; margin-bottom: 15px;">Access Restricted</h3>
+
+            <p class="message">
+                Please use your personal <b>Tor Bookmark Link</b> to log in.
+            </p>
+
+            <p class="sub-message">
+                If you haven't set up Tor access, please generate your link in the clearweb settings (Settings > Tor Access).
+            </p>
+        </div>
+    </div>
+</body>
+</html>

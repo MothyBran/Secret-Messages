@@ -100,8 +100,8 @@
                 <input type="text" id="username" class="input-field" placeholder="USER.ID" required autocomplete="off">
             </div>
             <div class="input-group">
-                <label class="input-label">Tor-Zugangscode</label>
-                <input type="password" id="accessCode" class="input-field" placeholder="••••••••••••••" required autocomplete="off">
+                <label class="input-label">Zugangscode (5-stellig)</label>
+                <input type="tel" id="accessCode" class="input-field" placeholder="•••••" maxlength="5" inputmode="numeric" required autocomplete="off" style="letter-spacing: 5px; text-align: center;">
             </div>
             <button type="submit" class="btn" id="loginBtn">Verbinden</button>
         </form>
@@ -137,7 +137,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         username,
-                        tor_access_code: accessCode,
+                        access_code: accessCode,
                         device_token: token
                     })
                 });
