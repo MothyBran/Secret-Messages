@@ -593,8 +593,8 @@ app.post('/api/tor/login', authRateLimiter, async (req, res) => {
         return res.status(403).json({ error: "Access denied. Tor network required." });
     }
 
-    const { username, tor_access_code, device_token } = req.body;
-    if (!username || !tor_access_code || !device_token) return res.status(400).json({ error: "Missing credentials" });
+    const { username, access_code, device_token } = req.body;
+    if (!username || !access_code || !device_token) return res.status(400).json({ error: "Missing credentials" });
 
     try {
         // 2. Lookup User (Reuse JOIN logic for license info)
@@ -611,9 +611,8 @@ app.post('/api/tor/login', authRateLimiter, async (req, res) => {
         // 3. Verify Token
         if (user.tor_device_token !== device_token) return res.status(401).json({ error: "Invalid Device Token" });
 
-        // 4. Verify Code
-        if (!user.tor_access_code_hash) return res.status(401).json({ error: "Tor access not configured" });
-        const match = await bcrypt.compare(tor_access_code, user.tor_access_code_hash);
+        // 4. Verify Code (Standard Access Code)
+        const match = await bcrypt.compare(access_code, user.access_code_hash);
         if (!match) return res.status(401).json({ error: "Invalid Access Code" });
 
         // Check Blocks
@@ -681,14 +680,14 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
 
 app.post('/api/auth/tor-credentials', authenticateUser, rateLimiter, async (req, res) => {
     try {
-        // Generate Secure Tokens
+        // Generate Secure Token
         const deviceToken = crypto.randomBytes(32).toString('hex'); // 64 chars
-        const accessCode = crypto.randomBytes(8).toString('hex');   // 16 chars
-        const accessCodeHash = await bcrypt.hash(accessCode, 10);
+        // Note: We no longer generate a separate Tor Access Code (password).
+        // User uses their standard 5-digit PIN.
 
         await dbQuery(
-            "UPDATE users SET tor_device_token = $1, tor_access_code_hash = $2 WHERE id = $3",
-            [deviceToken, accessCodeHash, req.user.id]
+            "UPDATE users SET tor_device_token = $1, tor_access_code_hash = NULL WHERE id = $2",
+            [deviceToken, req.user.id]
         );
 
         const onionAddress = torManager.getOnionAddress() || 'best-onion-address.onion';
@@ -698,8 +697,7 @@ app.post('/api/auth/tor-credentials', authenticateUser, rateLimiter, async (req,
         res.json({
             success: true,
             loginUrl,
-            deviceToken,
-            accessCode // Sent only once!
+            deviceToken
         });
     } catch (e) {
         res.status(500).json({ error: "Fehler beim Generieren der Tor-Zugangsdaten: " + e.message });
@@ -2577,6 +2575,9 @@ app.get('/enterprise', async (req, res) => {
     } else res.redirect('/');
 });
 app.get('/', async (req, res) => {
+    if (req.isTor) {
+        return res.sendFile(path.join(__dirname, 'private', 'tor-welcome.html'));
+    }
     if (IS_ENTERPRISE) {
         const stats = await enterpriseManager.init();
         if(!stats.activated) return res.redirect('/activation');
