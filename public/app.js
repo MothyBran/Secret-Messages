@@ -1208,7 +1208,11 @@ function resetApplicationState() {
     console.log("App State Hard Reset Complete (Security Wipe)");
 }
 
+
 function resetWizard() {
+    const btnSendSecureMsg = document.getElementById('btnSendSecureMsg');
+    if (btnSendSecureMsg) btnSendSecureMsg.style.display = 'none';
+
     resetApplicationState();
     // Trigger UI update to ensure correct initial state
     updateWizardState();
@@ -1244,8 +1248,61 @@ async function handleMainAction() {
             const rIds = document.getElementById('recipientName').value.split(',').map(s=>s.trim()).filter(s=>s); if(!rIds.includes(currentUser.name)) rIds.push(currentUser.name);
             res = await encryptFull(payload, code, rIds, currentUser.name);
 
+
             // WIZARD: Show Result
             enterResultState(res, 'text');
+
+            // NEW LOGIC: SECURE-MSG
+            const secureMsgCheck = document.getElementById('secureMsgCheck');
+            const btnSendSecureMsg = document.getElementById('btnSendSecureMsg');
+            const _isTorContextAction = window.location.hostname.endsWith('.onion');
+            if (secureMsgCheck && secureMsgCheck.checked && _isTorContextAction && rIds.length > 0) {
+                // Determine recipients (exclude current user if they are the only one, or just send to all selected)
+                const sendRecipients = rIds.filter(id => id !== currentUser.name);
+                if (sendRecipients.length > 0) {
+                    btnSendSecureMsg.style.display = 'block';
+                    btnSendSecureMsg.onclick = async () => {
+                        const originalBtnText = btnSendSecureMsg.textContent;
+                        btnSendSecureMsg.textContent = 'WIRD GESENDET...';
+                        btnSendSecureMsg.disabled = true;
+                        try {
+                            const sendRes = await fetch(API_BASE + '/messages/send', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer ' + authToken
+                                },
+                                body: JSON.stringify({
+                                    recipientUsername: sendRecipients,
+                                    subject: 'Secure Message',
+                                    body: res
+                                })
+                            });
+                            const sendData = await sendRes.json();
+                            if (sendData.success) {
+                                if(window.showToast) window.showToast('Nachricht erfolgreich über SECURE-MSG gesendet!', 'success');
+                                else alert('Nachricht erfolgreich gesendet!');
+                                btnSendSecureMsg.style.display = 'none';
+                                document.getElementById('btnNewMessage').click(); // Optional: clear form
+                            } else {
+                                if(window.showToast) window.showToast('Fehler beim Senden: ' + (sendData.error || 'Unbekannter Fehler'), 'error');
+                                else alert('Fehler beim Senden: ' + sendData.error);
+                            }
+                        } catch (err) {
+                            if(window.showToast) window.showToast('Netzwerkfehler beim Senden.', 'error');
+                            else alert('Netzwerkfehler beim Senden.');
+                        } finally {
+                            btnSendSecureMsg.textContent = originalBtnText;
+                            btnSendSecureMsg.disabled = false;
+                        }
+                    };
+                } else {
+                    if(window.showToast) window.showToast('Bitte geben Sie mindestens einen Empfänger (außer sich selbst) an, um die Nachricht zu senden.', 'warning');
+                }
+            } else if (btnSendSecureMsg) {
+                btnSendSecureMsg.style.display = 'none';
+            }
+
 
             // SECURITY WIPE (Encryption): Clear Source Material
             // document.getElementById('messageInput').value = ''; // Persist input as requested
@@ -1576,6 +1633,20 @@ function updateSidebarInfo(user, expiryData) {
     }
 
     authElements.forEach(el => el.style.display = user ? 'flex' : 'none');
+
+    // TOR RESTRICTIONS
+    const _isTorContext = window.location.hostname.endsWith('.onion');
+    const navPost = document.getElementById('navPost');
+    if (navPost) {
+        if (!_isTorContext && user) {
+            navPost.style.display = 'none';
+        }
+    }
+    const secureMsgWrapper = document.getElementById('secureMsgWrapper');
+    if (secureMsgWrapper) {
+        secureMsgWrapper.style.display = (_isTorContext && user) ? 'block' : 'none';
+    }
+
     guestElements.forEach(el => el.style.display = user ? 'none' : 'flex');
 
     const footerOnion = document.getElementById('footerOnionIcon');
@@ -2359,7 +2430,16 @@ function switchInboxTab(tab) {
     }
 }
 
+
 async function loadAndShowInbox() {
+    const isTorContext = window.location.hostname.endsWith('.onion');
+    if (!isTorContext) {
+        if(window.showToast) window.showToast("Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar.", "error");
+        else alert("Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar.");
+        // Redirect to dashboard/index
+        window.location.hash = ''; // Clear hash if any
+        return;
+    }
     const inboxSidebar = document.getElementById('inboxSidebar');
     if(window.WindowManager) window.WindowManager.bringToFront(inboxSidebar);
     inboxSidebar.classList.add('active');

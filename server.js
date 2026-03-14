@@ -42,6 +42,14 @@ const resend = (!IS_ENTERPRISE && process.env.RESEND_API_KEY)
 
 const app = express();
 
+function requireTorConnection(req, res, next) {
+    if (!req.isTor) {
+        return res.status(403).json({ error: "Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar." });
+    }
+    next();
+}
+
+
 // LOGGING MIDDLEWARE (Debug Tor Connectivity)
 app.use((req, res, next) => {
     console.log(`[INCOMING REQUEST] ${req.method} ${req.url} | Host: ${req.headers.host} | IP: ${req.ip}`);
@@ -439,6 +447,8 @@ async function authenticateUser(req, res, next) {
             req.user = user;
             next();
         } catch (dbError) { return res.status(500).json({ error: 'Auth Error' }); }
+
+
     });
 }
 
@@ -1896,7 +1906,7 @@ app.get('/api/admin/system-status', requireAdmin, async (req, res) => {
 // MESSAGING SYSTEM
 // ==================================================================
 
-app.post('/api/messages/send', authenticateUser, async (req, res) => {
+app.post('/api/messages/send', authenticateUser, requireTorConnection, async (req, res) => {
     const { recipientUsername, subject, body } = req.body;
     if (!recipientUsername || !subject || !body) return res.status(400).json({ error: "Fehlende Daten" });
 
@@ -1935,7 +1945,7 @@ app.post('/api/messages/send', authenticateUser, async (req, res) => {
     }
 });
 
-app.get('/api/messages', authenticateUser, async (req, res) => {
+app.get('/api/messages', authenticateUser, requireTorConnection, async (req, res) => {
     try {
         const userId = req.user.id;
         const now = new Date().toISOString();
@@ -1958,7 +1968,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
+app.patch('/api/messages/:id/read', authenticateUser, requireTorConnection, async (req, res) => {
     try {
         const msgId = req.params.id;
         await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL() ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
@@ -1966,7 +1976,7 @@ app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
+app.delete('/api/messages/:id', authenticateUser, requireTorConnection, async (req, res) => {
     try {
         const msgId = req.params.id;
         const msgRes = await dbQuery("SELECT type, status FROM messages WHERE id = $1 AND recipient_id = $2", [msgId, req.user.id]);
