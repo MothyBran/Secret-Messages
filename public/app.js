@@ -1807,11 +1807,12 @@ function startQRAnimation(data) {
     container.innerHTML = "";
     if(statusDiv) statusDiv.style.display = 'none';
 
-    // Threshold increased due to 4-Color Matrix capacity
-    const THRESHOLD = 500;
+    // Dynamically calculate chunk size based on MAX_FRAMES and IDEAL_THRESHOLD
+    const MAX_FRAMES = 32;
+    const IDEAL_THRESHOLD = 200; // Smaller size for larger modules
     const saveBtn = document.getElementById('saveQrBtn');
 
-    if (data.length <= THRESHOLD) {
+    if (data.length <= IDEAL_THRESHOLD) {
         if(saveBtn) saveBtn.style.display = 'block'; // Ensure visible for single QR
         try {
             const canvas = document.createElement('canvas');
@@ -1823,15 +1824,32 @@ function startQRAnimation(data) {
         if(saveBtn) saveBtn.style.display = 'none'; // Hide Save Button for Animation
         if(statusDiv) statusDiv.style.display = 'block';
 
-        const chunkSize = THRESHOLD;
+        let chunkSize = IDEAL_THRESHOLD;
+        let numChunks = Math.ceil(data.length / chunkSize);
+
+        // If it exceeds MAX_FRAMES, increase chunk size evenly to fit within 32 frames
+        if (numChunks > MAX_FRAMES) {
+            numChunks = MAX_FRAMES;
+            chunkSize = Math.ceil(data.length / numChunks);
+        }
+
         const chunks = [];
         for (let i = 0; i < data.length; i += chunkSize) {
             chunks.push(data.substring(i, i + chunkSize));
         }
 
         const total = chunks.length;
-        let currentIdx = 0;
 
+        // Pre-compute the max grid size needed across all frames so it doesn't wobble
+        let maxGridSize = 21;
+        const dummyGenerator = new ColorMatrixGenerator(document.createElement('canvas'), { width: 190, height: 190 });
+        for (let i = 0; i < total; i++) {
+            const payload = `${i+1}/${total}|${chunks[i]}`;
+            const size = dummyGenerator.computeGridSize(payload);
+            if (size > maxGridSize) maxGridSize = size;
+        }
+
+        let currentIdx = 0;
         const renderFrame = () => {
             container.innerHTML = "";
             const index = currentIdx + 1;
@@ -1842,7 +1860,7 @@ function startQRAnimation(data) {
                 const canvas = document.createElement('canvas');
                 container.appendChild(canvas);
                 const generator = new ColorMatrixGenerator(canvas, { width: 190, height: 190 });
-                generator.generate(payload);
+                generator.generate(payload, { fixedGridSize: maxGridSize });
                 if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet...`;
             } catch (e) {
                 console.error(e);
