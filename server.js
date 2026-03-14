@@ -633,8 +633,8 @@ app.post('/api/tor/login', authRateLimiter, async (req, res) => {
         if (isKeyBlocked) return res.status(403).json({ error: "LIZENZ GESPERRT" });
 
         // 5. Success Logic
-        // Update Stats & Bind Session (Set allowed_tor_device_id to token so checkAccess passes)
-        await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP, allowed_tor_device_id = $1 WHERE id = $2", [device_token, user.id]);
+        // Update Stats & Bind Session (Tor binding disabled per request, only update last login)
+        await dbQuery("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
         // Issue JWT (Standard)
         let role = 'user';
@@ -899,8 +899,10 @@ app.get('/api/checkAccess', authenticateUser, async (req, res) => {
             // We only enforce this if at least one device is registered.
             const hasAnyDevice = user.allowed_device_id || user.allowed_tor_device_id;
 
+        if (!req.isTor) {
             if (hasAnyDevice && !matchMain && !matchTor) {
                 return res.json({ status: 'device_mismatch' });
+            }
             }
         }
 
@@ -1945,22 +1947,28 @@ app.post('/api/messages/send', authenticateUser, requireTorConnection, async (re
     }
 });
 
-app.get('/api/messages', authenticateUser, requireTorConnection, async (req, res) => {
+app.get('/api/messages', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
         const now = new Date().toISOString();
         const isDeletedCheck = isPostgreSQL() ? 'm.is_deleted IS FALSE' : 'm.is_deleted = 0';
 
         // Fetch all non-deleted messages that are not expired
-        const sql = `
+        let sql = `
             SELECT m.*, u.username as sender_username
             FROM messages m
             LEFT JOIN users u ON m.sender_id = u.id
             WHERE
             ((m.recipient_id = $1 AND (${isDeletedCheck} OR m.is_deleted IS NULL))
             OR (m.recipient_id IS NULL))
-            AND (m.expires_at IS NULL OR m.expires_at > $2)
-            ORDER BY m.created_at DESC`;
+            AND (m.expires_at IS NULL OR m.expires_at > $2)`;
+
+        // Strictly filter out private messages if not on Tor
+        if (!req.isTor) {
+            sql += ` AND m.type = 'automated'`;
+        }
+
+        sql += ` ORDER BY m.created_at DESC`;
 
         const result = await dbQuery(sql, [userId, now]);
         const msgs = result.rows.map(r => ({ ...r, is_read: isPostgreSQL() ? r.is_read : (r.is_read === 1) }));
@@ -1968,7 +1976,7 @@ app.get('/api/messages', authenticateUser, requireTorConnection, async (req, res
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/messages/:id/read', authenticateUser, requireTorConnection, async (req, res) => {
+app.patch('/api/messages/:id/read', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
         await dbQuery(`UPDATE messages SET is_read = ${isPostgreSQL() ? 'true' : '1'} WHERE id = $1 AND recipient_id = $2`, [msgId, req.user.id]);
@@ -1976,7 +1984,7 @@ app.patch('/api/messages/:id/read', authenticateUser, requireTorConnection, asyn
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/messages/:id', authenticateUser, requireTorConnection, async (req, res) => {
+app.delete('/api/messages/:id', authenticateUser, async (req, res) => {
     try {
         const msgId = req.params.id;
         const msgRes = await dbQuery("SELECT type, status FROM messages WHERE id = $1 AND recipient_id = $2", [msgId, req.user.id]);
