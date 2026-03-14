@@ -1273,8 +1273,8 @@ async function handleMainAction() {
                                     'Authorization': 'Bearer ' + authToken
                                 },
                                 body: JSON.stringify({
-                                    recipientUsername: sendRecipients,
-                                    subject: 'Secure Message',
+                                    recipientUsername: sendRecipients.join(', '),
+                                    subject: 'Betreff: Sichere Nachricht - "' + currentUser.name + '"',
                                     body: res
                                 })
                             });
@@ -1638,7 +1638,9 @@ function updateSidebarInfo(user, expiryData) {
     const _isTorContext = window.location.hostname.endsWith('.onion');
     const navPost = document.getElementById('navPost');
     if (navPost) {
-        if (!_isTorContext && user) {
+        if (user) {
+            navPost.style.display = 'flex'; // Visible for both, switchInboxTab handles content
+        } else {
             navPost.style.display = 'none';
         }
     }
@@ -2399,47 +2401,60 @@ let pendingDecryptMsg = null; // { id, body, element, isUnread }
 let composeAttachment = null; // { name, type, data }
 
 function switchInboxTab(tab) {
+    const isTorContext = window.location.hostname.endsWith('.onion');
+    if (!isTorContext && tab === 'private') {
+        tab = 'system';
+    }
+
     currentInboxTab = tab;
     const btnSystem = document.getElementById('tabInboxSystem');
     const btnPrivate = document.getElementById('tabInboxPrivate');
     const contentSystem = document.getElementById('inboxContentSystem');
     const contentPrivate = document.getElementById('inboxContentPrivate');
 
-    if(tab === 'system') {
-        btnSystem.style.borderBottomColor = 'var(--accent-blue)';
-        btnSystem.style.background = 'rgba(0,191,255,0.1)';
-        btnSystem.style.color = 'white';
-
-        btnPrivate.style.borderBottomColor = 'transparent';
-        btnPrivate.style.background = 'transparent';
-        btnPrivate.style.color = '#888';
-
-        contentSystem.style.display = 'block';
-        contentPrivate.style.display = 'none';
+    if (!isTorContext) {
+        if (btnPrivate) btnPrivate.style.display = 'none';
     } else {
-        btnPrivate.style.borderBottomColor = 'var(--accent-blue)';
-        btnPrivate.style.background = 'rgba(0,191,255,0.1)';
-        btnPrivate.style.color = 'white';
+        if (btnPrivate) btnPrivate.style.display = 'block';
+    }
 
-        btnSystem.style.borderBottomColor = 'transparent';
-        btnSystem.style.background = 'transparent';
-        btnSystem.style.color = '#888';
+    if(tab === 'system') {
+        if (btnSystem) {
+            btnSystem.style.borderBottomColor = 'var(--accent-blue)';
+            btnSystem.style.background = 'rgba(0,191,255,0.1)';
+            btnSystem.style.color = 'white';
+        }
 
-        contentPrivate.style.display = 'block';
-        contentSystem.style.display = 'none';
+        if (btnPrivate) {
+            btnPrivate.style.borderBottomColor = 'transparent';
+            btnPrivate.style.background = 'transparent';
+            btnPrivate.style.color = '#888';
+        }
+
+        if (contentSystem) contentSystem.style.display = 'block';
+        if (contentPrivate) contentPrivate.style.display = 'none';
+    } else {
+        if (btnPrivate) {
+            btnPrivate.style.borderBottomColor = 'var(--accent-blue)';
+            btnPrivate.style.background = 'rgba(0,191,255,0.1)';
+            btnPrivate.style.color = 'white';
+        }
+
+        if (btnSystem) {
+            btnSystem.style.borderBottomColor = 'transparent';
+            btnSystem.style.background = 'transparent';
+            btnSystem.style.color = '#888';
+        }
+
+        if (contentPrivate) contentPrivate.style.display = 'block';
+        if (contentSystem) contentSystem.style.display = 'none';
     }
 }
 
 
+
 async function loadAndShowInbox() {
     const isTorContext = window.location.hostname.endsWith('.onion');
-    if (!isTorContext) {
-        if(window.showToast) window.showToast("Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar.", "error");
-        else alert("Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar.");
-        // Redirect to dashboard/index
-        window.location.hash = ''; // Clear hash if any
-        return;
-    }
     const inboxSidebar = document.getElementById('inboxSidebar');
     if(window.WindowManager) window.WindowManager.bringToFront(inboxSidebar);
     inboxSidebar.classList.add('active');
