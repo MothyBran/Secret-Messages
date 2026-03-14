@@ -11,6 +11,14 @@ require('dotenv').config();
 
 // 1. Minimal Express Setup
 const app = express();
+
+function requireTorConnection(req, res, next) {
+    if (!req.isTor) {
+        return res.status(403).json({ error: "Das Postfach ist aus Sicherheitsgründen nur über den Tor-Browser erreichbar." });
+    }
+    next();
+}
+
 const PORT = process.env.PORT || 3000;
 
 // Priority 1: Serve Static Files (ABSOLUTE TOP as requested)
