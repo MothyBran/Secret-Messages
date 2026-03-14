@@ -120,7 +120,8 @@ class ColorMatrixScanner {
 
         const gridSize = Math.round((distTop / estimatedModuleSize) + 7);
 
-        if (gridSize < 21 || gridSize > 200) return null; // Invalid sizes
+        // Increase maximum grid size to support 500x500 super dense arrays
+        if (gridSize < 21 || gridSize > 600) return null; // Invalid sizes
 
         // 3. Sample grid points (with basic linear interpolation, no full homography warp)
         let binaryStr = '';
@@ -129,9 +130,10 @@ class ColorMatrixScanner {
         const dxLeft = (bl.x - tl.x) / (gridSize - 7);
         const dyLeft = (bl.y - tl.y) / (gridSize - 7);
 
-        // Adjust starting points to top-left of the actual matrix grid
-        const startX = tl.x - (3.5 * dxTop);
-        const startY = tl.y - (3.5 * dyLeft);
+        // Adjust starting points to top-left of the actual matrix grid.
+        // We add an extra 0.5 to offset the sampling point precisely into the *center* of the module.
+        const startX = tl.x - (3.5 * dxTop) - (3.5 * dxLeft) + (0.5 * dxTop) + (0.5 * dxLeft);
+        const startY = tl.y - (3.5 * dyTop) - (3.5 * dyLeft) + (0.5 * dyTop) + (0.5 * dyLeft);
 
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
@@ -140,10 +142,9 @@ class ColorMatrixScanner {
                     continue;
                 }
 
-                // Bilinear interpolation for sampling point
-                // Assuming parallelogram
-                const px = Math.round(tl.x + x * dxTop + y * dxLeft);
-                const py = Math.round(tl.y + x * dyTop + y * dyLeft);
+                // Bilinear interpolation for sampling point (centered in module)
+                const px = Math.round(startX + x * dxTop + y * dxLeft);
+                const py = Math.round(startY + x * dyTop + y * dyLeft);
 
                 if (px >= 0 && px < width && py >= 0 && py < height) {
                     const idx = (py * width + px) * 4;
