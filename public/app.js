@@ -1392,16 +1392,16 @@ function enterResultState(resultData, type) {
         if (currentMode === 'encrypt') {
             // ENCRYPT: Show Matrix Code & Save (Large)
 
-            // Check chunk count for Matrix feasibility (Limit 32 chunks of 62500 chars)
-            const chunkCount = Math.ceil(resultData.length / 62500);
-            if (chunkCount <= 32) {
+            // Check chunk count for Matrix feasibility
+            const chunkCount = Math.ceil(resultData.length / 200);
+            if (chunkCount <= 20000) {
                 qrBtn.style.display = 'block';
             } else {
                 qrBtn.style.display = 'none'; // Too many chunks for animation
             }
 
             // Always show save if large enough (e.g. > 9999) OR if QR is hidden due to chunk limit
-            if (resultData.length > 9999 || chunkCount > 32) {
+            if (resultData.length > 9999 || chunkCount > 20000) {
                 saveTxtBtn.style.display = 'block';
                 saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
             }
@@ -1809,9 +1809,9 @@ function startQRAnimation(data) {
 
     // Dynamically calculate chunk size based on MAX_FRAMES and IDEAL_THRESHOLD
     // A 4-color matrix can hold massive data, but screens have pixel limits.
-    // To keep modules (kästchen) 2x-3x larger, we enforce a small data chunk limit per frame.
-    const MAX_FRAMES = 32;
-    const IDEAL_THRESHOLD = 1500; // ~1.5KB per frame for very large, readable color modules
+    // To keep modules (kästchen) 3x larger, we enforce a tiny data chunk limit per frame.
+    const MAX_FRAMES = 20000; // Allow a practically unlimited number of frames to prevent dense scaling
+    const IDEAL_THRESHOLD = 200; // ~200 bytes per frame for massively large, readable color modules
     const saveBtn = document.getElementById('saveQrBtn');
 
     // Make canvas much larger to support dense data
@@ -1821,7 +1821,7 @@ function startQRAnimation(data) {
     let numChunks = Math.ceil(data.length / IDEAL_THRESHOLD);
     let chunkSize = IDEAL_THRESHOLD;
 
-    // If it exceeds max theoretical frames (32), increase chunk density (making modules smaller again, which is physics)
+    // If it exceeds max theoretical frames, increase chunk density (making modules smaller again, which is physics)
     if (numChunks > MAX_FRAMES) {
         numChunks = MAX_FRAMES;
         chunkSize = Math.ceil(data.length / numChunks);
