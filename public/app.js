@@ -1390,18 +1390,18 @@ function enterResultState(resultData, type) {
         copyBtn.style.display = 'block'; // Copy always available for text
 
         if (currentMode === 'encrypt') {
-            // ENCRYPT: Show QR & Save (Large)
+            // ENCRYPT: Show Matrix Code & Save (Large)
 
-            // Check chunk count for QR feasibility (Limit 60 chunks of 250 chars)
-            const chunkCount = Math.ceil(resultData.length / 250);
-            if (chunkCount <= 60) {
+            // Check chunk count for Matrix feasibility (Limit 32 chunks of 62500 chars)
+            const chunkCount = Math.ceil(resultData.length / 62500);
+            if (chunkCount <= 32) {
                 qrBtn.style.display = 'block';
             } else {
                 qrBtn.style.display = 'none'; // Too many chunks for animation
             }
 
             // Always show save if large enough (e.g. > 9999) OR if QR is hidden due to chunk limit
-            if (resultData.length > 9999 || chunkCount > 60) {
+            if (resultData.length > 9999 || chunkCount > 32) {
                 saveTxtBtn.style.display = 'block';
                 saveTxtBtn.textContent = "💾 ALS .TXT SPEICHERN";
             }
@@ -1809,15 +1809,25 @@ function startQRAnimation(data) {
 
     // Dynamically calculate chunk size based on MAX_FRAMES and IDEAL_THRESHOLD
     // A 4-color matrix can hold massive data, but screens have pixel limits.
-    // To support up to 2MB in 32 frames, we need chunks of ~62.5KB.
+    // To keep modules (kästchen) 2x-3x larger, we enforce a small data chunk limit per frame.
     const MAX_FRAMES = 32;
-    const IDEAL_THRESHOLD = 62500;
+    const IDEAL_THRESHOLD = 1500; // ~1.5KB per frame for very large, readable color modules
     const saveBtn = document.getElementById('saveQrBtn');
 
     // Make canvas much larger to support dense data
     const RENDER_SIZE = 360;
 
-    if (data.length <= IDEAL_THRESHOLD) {
+    // Calculate how many chunks we need
+    let numChunks = Math.ceil(data.length / IDEAL_THRESHOLD);
+    let chunkSize = IDEAL_THRESHOLD;
+
+    // If it exceeds max theoretical frames (32), increase chunk density (making modules smaller again, which is physics)
+    if (numChunks > MAX_FRAMES) {
+        numChunks = MAX_FRAMES;
+        chunkSize = Math.ceil(data.length / numChunks);
+    }
+
+    if (numChunks <= 1) {
         if(saveBtn) saveBtn.style.display = 'block'; // Ensure visible for single QR
         try {
             const canvas = document.createElement('canvas');
@@ -1828,15 +1838,6 @@ function startQRAnimation(data) {
     } else {
         if(saveBtn) saveBtn.style.display = 'none'; // Hide Save Button for Animation
         if(statusDiv) statusDiv.style.display = 'block';
-
-        let chunkSize = IDEAL_THRESHOLD;
-        let numChunks = Math.ceil(data.length / chunkSize);
-
-        // If it exceeds max theoretical frames, increase chunk density
-        if (numChunks > MAX_FRAMES) {
-            numChunks = MAX_FRAMES;
-            chunkSize = Math.ceil(data.length / numChunks);
-        }
 
         const chunks = [];
         for (let i = 0; i < data.length; i += chunkSize) {

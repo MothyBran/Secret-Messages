@@ -167,7 +167,7 @@ class ColorMatrixScanner {
         const lenBits = binaryStr.substring(0, 32);
         const byteLen = parseInt(lenBits, 2);
 
-        if (byteLen === 0 || byteLen > 50000) return null; // Sanity check
+        if (byteLen === 0 || byteLen > 2500000) return null; // Sanity check (up to 2.5MB payload per frame technically supported)
 
         const dataBits = binaryStr.substring(32, 32 + (byteLen * 8));
         if (dataBits.length < byteLen * 8) return null;
