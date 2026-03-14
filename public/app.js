@@ -1808,16 +1808,21 @@ function startQRAnimation(data) {
     if(statusDiv) statusDiv.style.display = 'none';
 
     // Dynamically calculate chunk size based on MAX_FRAMES and IDEAL_THRESHOLD
+    // A 4-color matrix can hold massive data, but screens have pixel limits.
+    // To support up to 2MB in 32 frames, we need chunks of ~62.5KB.
     const MAX_FRAMES = 32;
-    const IDEAL_THRESHOLD = 200; // Smaller size for larger modules
+    const IDEAL_THRESHOLD = 62500;
     const saveBtn = document.getElementById('saveQrBtn');
+
+    // Make canvas much larger to support dense data
+    const RENDER_SIZE = 360;
 
     if (data.length <= IDEAL_THRESHOLD) {
         if(saveBtn) saveBtn.style.display = 'block'; // Ensure visible for single QR
         try {
             const canvas = document.createElement('canvas');
             container.appendChild(canvas);
-            const generator = new ColorMatrixGenerator(canvas, { width: 190, height: 190 });
+            const generator = new ColorMatrixGenerator(canvas, { width: RENDER_SIZE, height: RENDER_SIZE });
             generator.generate(data);
         } catch (e) { container.textContent = "Matrix Gen Error"; }
     } else {
@@ -1827,7 +1832,7 @@ function startQRAnimation(data) {
         let chunkSize = IDEAL_THRESHOLD;
         let numChunks = Math.ceil(data.length / chunkSize);
 
-        // If it exceeds MAX_FRAMES, increase chunk size evenly to fit within 32 frames
+        // If it exceeds max theoretical frames, increase chunk density
         if (numChunks > MAX_FRAMES) {
             numChunks = MAX_FRAMES;
             chunkSize = Math.ceil(data.length / numChunks);
@@ -1842,7 +1847,7 @@ function startQRAnimation(data) {
 
         // Pre-compute the max grid size needed across all frames so it doesn't wobble
         let maxGridSize = 21;
-        const dummyGenerator = new ColorMatrixGenerator(document.createElement('canvas'), { width: 190, height: 190 });
+        const dummyGenerator = new ColorMatrixGenerator(document.createElement('canvas'), { width: RENDER_SIZE, height: RENDER_SIZE });
         for (let i = 0; i < total; i++) {
             const payload = `${i+1}/${total}|${chunks[i]}`;
             const size = dummyGenerator.computeGridSize(payload);
@@ -1859,9 +1864,9 @@ function startQRAnimation(data) {
             try {
                 const canvas = document.createElement('canvas');
                 container.appendChild(canvas);
-                const generator = new ColorMatrixGenerator(canvas, { width: 190, height: 190 });
+                const generator = new ColorMatrixGenerator(canvas, { width: RENDER_SIZE, height: RENDER_SIZE });
                 generator.generate(payload, { fixedGridSize: maxGridSize });
-                if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet...`;
+                if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet... (Größe: ${Math.round(payload.length/1024)} KB)`;
             } catch (e) {
                 console.error(e);
             }
@@ -2147,7 +2152,7 @@ async function handleTransferExportStart() {
         try {
             const canvas = document.createElement('canvas');
             qrContainer.appendChild(canvas);
-            const generator = new ColorMatrixGenerator(canvas, { width: 220, height: 220 });
+            const generator = new ColorMatrixGenerator(canvas, { width: 320, height: 320 });
             generator.generate(qrContent);
         } catch (e) {
             qrContainer.textContent = "Matrix Gen Error";

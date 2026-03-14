@@ -74,7 +74,22 @@ class ColorMatrixGenerator {
         // Define padding inside canvas
         const canvasPadding = 10;
         const availableWidth = this.width - (canvasPadding * 2);
-        const moduleSize = Math.floor(availableWidth / gridSize);
+        // Force moduleSize to be at least 1, even if it exceeds the desired canvas width.
+        // If the payload is too massive, the canvas must stretch to fit it.
+        const moduleSize = Math.max(1, Math.floor(availableWidth / gridSize));
+
+        // If the required width exceeds the canvas setting, resize the canvas dynamically
+        const requiredWidth = (moduleSize * gridSize) + (canvasPadding * 2);
+        if (requiredWidth > this.canvas.width) {
+            this.canvas.width = requiredWidth;
+            this.canvas.height = requiredWidth;
+            this.width = requiredWidth;
+            this.height = requiredWidth;
+
+            // Re-clear since we resized
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+        }
 
         // Center the matrix inside the canvas
         const matrixWidth = moduleSize * gridSize;
@@ -100,7 +115,8 @@ class ColorMatrixGenerator {
                 }
 
                 this.ctx.fillStyle = this.colors[colorCode];
-                this.ctx.fillRect(offsetX + x * moduleSize, offsetY + y * moduleSize, moduleSize, moduleSize);
+                // Overdraw slightly (0.5) to prevent anti-aliasing seams at tiny sizes
+                this.ctx.fillRect(offsetX + x * moduleSize, offsetY + y * moduleSize, moduleSize + 0.5, moduleSize + 0.5);
             }
         }
 
