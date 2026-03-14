@@ -27,11 +27,7 @@ class ColorMatrixGenerator {
         return binary;
     }
 
-    generate(text) {
-        // Clear canvas with white
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.width, this.height);
-
+    getPairs(text) {
         const binaryData = this.textToBinary(text);
 
         // Pad binary to ensure even length
@@ -49,8 +45,11 @@ class ColorMatrixGenerator {
         const allPairs = [];
         for (let i=0; i<32; i+=2) allPairs.push(byteLenBin.substring(i, i+2));
         allPairs.push(...dataPairs);
+        return allPairs;
+    }
 
-        // Determine grid size
+    computeGridSize(text) {
+        const allPairs = this.getPairs(text);
         let gridSize = 21;
         while(true) {
             const totalModules = gridSize * gridSize;
@@ -59,6 +58,18 @@ class ColorMatrixGenerator {
             if(availableModules >= allPairs.length) break;
             gridSize += 4; // Step by 4 to avoid overly dense scaling jumps
         }
+        return gridSize;
+    }
+
+    generate(text, options = {}) {
+        // Clear canvas with white
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        const allPairs = this.getPairs(text);
+
+        // Determine grid size
+        let gridSize = options.fixedGridSize || this.computeGridSize(text);
 
         // Define padding inside canvas
         const canvasPadding = 10;
