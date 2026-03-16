@@ -118,7 +118,10 @@ class ColorMatrixScanner {
 
         if (estimatedModuleSize <= 0) return null;
 
-        const gridSize = Math.round((distTop / estimatedModuleSize) + 7);
+        let gridSize = Math.round((distTop / estimatedModuleSize) + 7);
+
+        // Ensure gridSize snaps to the expected 4n + 1 sequence (21, 25, 29, ...)
+        gridSize = Math.round((gridSize - 1) / 4) * 4 + 1;
 
         // Increase maximum grid size to support 500x500 super dense arrays
         if (gridSize < 21 || gridSize > 600) return null; // Invalid sizes
