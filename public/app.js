@@ -2005,11 +2005,19 @@ function startScannerInternal() {
                             return; // keep scanner open until full data received
                         }
 
+                        // Ignore non-animation frames if we're currently receiving an animation
+                        if (expectedTotal > 0) {
+                            return;
+                        }
+
                         if (cleanedText.startsWith('SECURE-MSG:')) {
                             cleanedText = cleanedText.replace('SECURE-MSG:', '').trim();
                         }
 
-                        const isSystemMessage = /^[A-Za-z0-9+/=]+$/.test(cleanedText) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
+                        // Strictly validate non-animation payload
+                        // It must be Base64-like (encryption layer), or JSON
+                        // A 4-color matrix could misread a partial pattern. We don't want to stop the scanner for garbage.
+                        const isSystemMessage = (/^[A-Za-z0-9+/=\s]+$/.test(cleanedText) && cleanedText.length > 20) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
 
                         const processInsert = () => {
                             inputField.value = cleanedText;
@@ -2018,13 +2026,12 @@ function startScannerInternal() {
                             stopQRScanner();
                         };
 
-                        if (isSystemMessage || cleanedText.length > 5) {
+                        if (isSystemMessage) {
                             processInsert();
                         } else {
-                            stopQRScanner();
-                            window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
-                                 processInsert();
-                            }, { confirm: "Einfügen", cancel: "Abbrechen" });
+                            // Do nothing, just ignore and let the scanner continue looking for a valid payload or animation frame
+                            // The camera likely caught a misaligned frame or partial data
+                            console.warn("Ignored invalid scanner payload:", cleanedText);
                         }
                     }
                 }
