@@ -1964,8 +1964,9 @@ function startScannerInternal() {
                 } else {
                     const inputField = document.getElementById('messageInput');
                     if (inputField) {
-                        // Also remove any trailing null bytes (sometimes left by manual decode routines)
-                        let cleanedText = decodedText.replace(/\x00+$/, '').trim();
+                        // Remove ANY null bytes and control characters (except newline/carriage return/tabs)
+                        // This prevents null byte corruption when chunks are joined
+                        let cleanedText = decodedText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/g, '').trim();
 
                         const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|([\s\S]*)$/);
 

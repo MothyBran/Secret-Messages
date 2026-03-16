@@ -181,7 +181,7 @@ class ColorMatrixScanner {
                 bytes[i] = parseInt(dataBits.substring(i * 8, (i + 1) * 8), 2);
             }
 
-            const decoder = new TextDecoder('utf-8');
+            const decoder = new TextDecoder('utf-8', { fatal: true });
             return decoder.decode(bytes);
         } catch (e) {
             return null;
