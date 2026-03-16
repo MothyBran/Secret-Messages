@@ -1965,7 +1965,7 @@ function startScannerInternal() {
                     if (inputField) {
                         let cleanedText = decodedText.trim();
 
-                        const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|(.*)$/);
+                        const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|([\s\S]*)$/);
 
                         if (animMatch) {
                             const idx = parseInt(animMatch[1]);
@@ -2000,7 +2000,7 @@ function startScannerInternal() {
                                     stopQRScanner();
                                 }
                             }
-                            return;
+                            return; // keep scanner open until full data received
                         }
 
                         if (cleanedText.startsWith('SECURE-MSG:')) {
