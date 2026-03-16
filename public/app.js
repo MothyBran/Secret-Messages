@@ -1867,7 +1867,8 @@ function startQRAnimation(data) {
                 container.appendChild(canvas);
                 const generator = new ColorMatrixGenerator(canvas, { width: RENDER_SIZE, height: RENDER_SIZE });
                 generator.generate(payload, { fixedGridSize: maxGridSize });
-                if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet... (Größe: ${Math.round(payload.length/1024)} KB)`;
+                const sizeKb = (payload.length / 1024).toFixed(1);
+                if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet... (Größe: ${sizeKb} KB)`;
             } catch (e) {
                 console.error(e);
             }
@@ -1963,7 +1964,8 @@ function startScannerInternal() {
                 } else {
                     const inputField = document.getElementById('messageInput');
                     if (inputField) {
-                        let cleanedText = decodedText.trim();
+                        // Also remove any trailing null bytes (sometimes left by manual decode routines)
+                        let cleanedText = decodedText.replace(/\x00+$/, '').trim();
 
                         const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|([\s\S]*)$/);
 
