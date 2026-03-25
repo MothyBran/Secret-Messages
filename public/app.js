@@ -1807,36 +1807,32 @@ function startQRAnimation(data) {
     container.innerHTML = "";
     if(statusDiv) statusDiv.style.display = 'none';
 
-    // Dynamically calculate chunk size based on MAX_FRAMES and IDEAL_THRESHOLD
-    // A 4-color matrix can hold massive data, but screens have pixel limits.
-    // To keep modules (kästchen) 3x larger, we enforce a tiny data chunk limit per frame.
-    const MAX_FRAMES = 20000; // Allow a practically unlimited number of frames to prevent dense scaling
-    const IDEAL_THRESHOLD = 200; // ~200 bytes per frame for massively large, readable color modules
+    const MAX_FRAMES = 20000;
+    const IDEAL_THRESHOLD = 200; // Safe threshold for standard QR capacity
     const saveBtn = document.getElementById('saveQrBtn');
 
-    // Make canvas much larger to support dense data
-    const RENDER_SIZE = 360;
-
-    // Calculate how many chunks we need
     let numChunks = Math.ceil(data.length / IDEAL_THRESHOLD);
     let chunkSize = IDEAL_THRESHOLD;
 
-    // If it exceeds max theoretical frames, increase chunk density (making modules smaller again, which is physics)
     if (numChunks > MAX_FRAMES) {
         numChunks = MAX_FRAMES;
         chunkSize = Math.ceil(data.length / numChunks);
     }
 
     if (numChunks <= 1) {
-        if(saveBtn) saveBtn.style.display = 'block'; // Ensure visible for single QR
+        if(saveBtn) saveBtn.style.display = 'block';
         try {
-            const canvas = document.createElement('canvas');
-            container.appendChild(canvas);
-            const generator = new ColorMatrixGenerator(canvas, { width: RENDER_SIZE, height: RENDER_SIZE });
-            generator.generate(data);
-        } catch (e) { container.textContent = "Matrix Gen Error"; }
+            new QRCode(container, {
+                text: data,
+                width: 300,
+                height: 300,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.L
+            });
+        } catch (e) { container.textContent = "QR Gen Error"; }
     } else {
-        if(saveBtn) saveBtn.style.display = 'none'; // Hide Save Button for Animation
+        if(saveBtn) saveBtn.style.display = 'none';
         if(statusDiv) statusDiv.style.display = 'block';
 
         const chunks = [];
@@ -1846,15 +1842,6 @@ function startQRAnimation(data) {
 
         const total = chunks.length;
 
-        // Pre-compute the max grid size needed across all frames so it doesn't wobble
-        let maxGridSize = 21;
-        const dummyGenerator = new ColorMatrixGenerator(document.createElement('canvas'), { width: RENDER_SIZE, height: RENDER_SIZE });
-        for (let i = 0; i < total; i++) {
-            const payload = `${i+1}/${total}|${chunks[i]}`;
-            const size = dummyGenerator.computeGridSize(payload);
-            if (size > maxGridSize) maxGridSize = size;
-        }
-
         let currentIdx = 0;
         const renderFrame = () => {
             container.innerHTML = "";
@@ -1863,10 +1850,14 @@ function startQRAnimation(data) {
             const payload = `${index}/${total}|${chunkData}`;
 
             try {
-                const canvas = document.createElement('canvas');
-                container.appendChild(canvas);
-                const generator = new ColorMatrixGenerator(canvas, { width: RENDER_SIZE, height: RENDER_SIZE });
-                generator.generate(payload, { fixedGridSize: maxGridSize });
+                new QRCode(container, {
+                    text: payload,
+                    width: 300,
+                    height: 300,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.L
+                });
                 if(statusDiv) statusDiv.textContent = `Teil ${index} von ${total} wird gesendet... (Größe: ${Math.round(payload.length/1024)} KB)`;
             } catch (e) {
                 console.error(e);
@@ -1876,7 +1867,7 @@ function startQRAnimation(data) {
         };
 
         renderFrame();
-        qrAnimInterval = setInterval(renderFrame, 600); // 600ms Interval
+        qrAnimInterval = setInterval(renderFrame, 600);
     }
 }
 
@@ -1902,10 +1893,6 @@ function startTransferScanner() {
     startScannerInternal();
 }
 
-let customColorScannerActive = false;
-let colorScannerInstance = null;
-let colorScannerStream = null;
-
 function startScannerInternal() {
     if(location.protocol!=='https:' && location.hostname!=='localhost') return window.showMessage("Fehler", "Kamera benötigt HTTPS.");
 
@@ -1926,132 +1913,95 @@ function startScannerInternal() {
     if(window.WindowManager) window.WindowManager.bringToFront(modal);
     modal.classList.add('active');
 
-    const qrReaderDiv = document.getElementById('qr-reader');
-    qrReaderDiv.innerHTML = ''; // Clear previous contents
+    if (!qrScan) {
+        qrScan = new Html5Qrcode("qr-reader");
+    }
 
-    // Setup Custom Color Scanner UI Elements
-    const videoObj = document.createElement('video');
-    videoObj.setAttribute('autoplay', '');
-    videoObj.setAttribute('muted', '');
-    videoObj.setAttribute('playsinline', '');
-    videoObj.style.width = '100%';
-    videoObj.style.maxWidth = '400px';
+    const onScanSuccess = (decodedText) => {
+        if (currentScannerMode === 'transfer') {
+            if (!decodedText || !decodedText.includes(':')) {
+                return;
+            }
+            stopQRScanner();
+            handleTransferScanSuccess(decodedText);
+        } else {
+            const inputField = document.getElementById('messageInput');
+            if (inputField) {
+                let cleanedText = decodedText.trim();
 
-    const canvasObj = document.createElement('canvas');
-    canvasObj.style.display = 'none';
+                const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|(.*)$/);
 
-    qrReaderDiv.appendChild(videoObj);
-    qrReaderDiv.appendChild(canvasObj);
+                if (animMatch) {
+                    const idx = parseInt(animMatch[1]);
+                    const tot = parseInt(animMatch[2]);
+                    const chunk = animMatch[3];
 
-    customColorScannerActive = true;
-
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(function(stream) {
-            colorScannerStream = stream;
-            videoObj.srcObject = stream;
-            colorScannerInstance = new ColorMatrixScanner(videoObj, canvasObj);
-
-            colorScannerInstance.start((decodedText) => {
-                console.log("Color Scanner Rohdaten:", decodedText); // Debugging
-
-                if (currentScannerMode === 'transfer') {
-                    if (!decodedText || !decodedText.includes(':')) {
-                        return; // Scanner offen lassen, Toast Spam vermeiden
+                    if (expectedTotal !== 0 && expectedTotal !== tot) {
+                        receivedChunks = {};
+                        expectedTotal = tot;
+                    } else if (expectedTotal === 0) {
+                        expectedTotal = tot;
                     }
-                    stopQRScanner();
-                    handleTransferScanSuccess(decodedText);
-                } else {
-                    const inputField = document.getElementById('messageInput');
-                    if (inputField) {
-                        let cleanedText = decodedText.trim();
 
-                        const animMatch = cleanedText.match(/^(\d+)\/(\d+)\|(.*)$/);
-
-                        if (animMatch) {
-                            const idx = parseInt(animMatch[1]);
-                            const tot = parseInt(animMatch[2]);
-                            const chunk = animMatch[3];
-
-                            if (expectedTotal !== 0 && expectedTotal !== tot) {
-                                receivedChunks = {};
-                                expectedTotal = tot;
-                            } else if (expectedTotal === 0) {
-                                expectedTotal = tot;
-                            }
-
-                            if (!receivedChunks[idx]) {
-                                receivedChunks[idx] = chunk;
-                                const count = Object.keys(receivedChunks).length;
-                                if(progressDiv) {
-                                    progressDiv.style.display = 'block';
-                                    progressDiv.textContent = `Empfangen: ${count} / ${tot}`;
-                                }
-
-                                if (navigator.vibrate) navigator.vibrate(50);
-
-                                if (count === tot) {
-                                    const fullData = [];
-                                    for(let i=1; i<=tot; i++) fullData.push(receivedChunks[i]);
-
-                                    inputField.value = fullData.join('');
-                                    inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                                    showToast("Nachricht vollständig empfangen!", "success");
-                                    if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                                    stopQRScanner();
-                                }
-                            }
-                            return;
+                    if (!receivedChunks[idx]) {
+                        receivedChunks[idx] = chunk;
+                        const count = Object.keys(receivedChunks).length;
+                        if(progressDiv) {
+                            progressDiv.style.display = 'block';
+                            progressDiv.textContent = `Empfangen: ${count} / ${tot}`;
                         }
 
-                        if (cleanedText.startsWith('SECURE-MSG:')) {
-                            cleanedText = cleanedText.replace('SECURE-MSG:', '').trim();
-                        }
+                        if (navigator.vibrate) navigator.vibrate(50);
 
-                        const isSystemMessage = /^[A-Za-z0-9+/=]+$/.test(cleanedText) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
+                        if (count === tot) {
+                            const fullData = [];
+                            for(let i=1; i<=tot; i++) fullData.push(receivedChunks[i]);
 
-                        const processInsert = () => {
-                            inputField.value = cleanedText;
+                            inputField.value = fullData.join('');
                             inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                            showToast("Nachricht eingelesen", "success");
+                            showToast("Nachricht vollständig empfangen!", "success");
+                            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
                             stopQRScanner();
-                        };
-
-                        if (isSystemMessage || cleanedText.length > 5) {
-                            processInsert();
-                        } else {
-                            stopQRScanner();
-                            window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
-                                 processInsert();
-                            }, { confirm: "Einfügen", cancel: "Abbrechen" });
                         }
                     }
+                    return;
                 }
-            }, (err) => {
-                // Background scan loop error, ignore to prevent spam
-            });
-        })
-        .catch(function(err) {
-            console.error("Camera Access Error: ", err);
-            qrReaderDiv.innerHTML = `<div style="color:red;padding:20px;">Kamera-Fehler: ${err.message}</div>`;
+
+                if (cleanedText.startsWith('SECURE-MSG:')) {
+                    cleanedText = cleanedText.replace('SECURE-MSG:', '').trim();
+                }
+
+                const isSystemMessage = /^[A-Za-z0-9+/=]+$/.test(cleanedText) || cleanedText.startsWith('{') || cleanedText.startsWith('[');
+
+                const processInsert = () => {
+                    inputField.value = cleanedText;
+                    inputField.dispatchEvent(new Event('input', { bubbles: true }));
+                    showToast("Nachricht eingelesen", "success");
+                    stopQRScanner();
+                };
+
+                if (isSystemMessage || cleanedText.length > 5) {
+                    processInsert();
+                } else {
+                    stopQRScanner();
+                    window.showAppConfirm("Unbekanntes Format erkannt. Text trotzdem einfügen?", () => {
+                         processInsert();
+                    }, { confirm: "Einfügen", cancel: "Abbrechen" });
+                }
+            }
+        }
+    };
+
+    qrScan.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, (err) => {})
+        .catch(err => {
+            console.error("Kamera Fehler", err);
+            document.getElementById('qr-reader').innerHTML = `<div style="color:red;padding:20px;">Kamera-Fehler: ${err}</div>`;
         });
 }
 
 async function stopQRScanner() {
     document.getElementById('qrScannerModal').classList.remove('active');
 
-    customColorScannerActive = false;
-
-    if (colorScannerInstance) {
-        colorScannerInstance.stop();
-        colorScannerInstance = null;
-    }
-
-    if (colorScannerStream) {
-        colorScannerStream.getTracks().forEach(track => track.stop());
-        colorScannerStream = null;
-    }
-
-    // Fallback for old QRScan logic if it was ever active
     if (qrScan) {
         try {
             if(qrScan.isScanning) {
@@ -2151,12 +2101,16 @@ async function handleTransferExportStart() {
         const qrContainer = document.getElementById('transferQrDisplay');
         qrContainer.innerHTML = '';
         try {
-            const canvas = document.createElement('canvas');
-            qrContainer.appendChild(canvas);
-            const generator = new ColorMatrixGenerator(canvas, { width: 320, height: 320 });
-            generator.generate(qrContent);
+            new QRCode(qrContainer, {
+                text: qrContent,
+                width: 320,
+                height: 320,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.L
+            });
         } catch (e) {
-            qrContainer.textContent = "Matrix Gen Error";
+            qrContainer.textContent = "QR Gen Error";
         }
 
         // Display Manual Code
