@@ -11,8 +11,6 @@
     <link rel="manifest" href="/manifest.json">
 
     <script src="/assets/js/qrcode.min.js"></script>
-    <script src="/colorQrGenerator.js"></script>
-    <script src="/colorQrScanner.js"></script>
     <script src="/assets/js/html5-qrcode.min.js" type="text/javascript"></script>
     
     <script>
@@ -344,9 +342,8 @@
         .app-status-msg.success { border-color: var(--success-green); color: var(--success-green); }
         .app-status-msg.error { border-color: var(--error-red); color: var(--error-red); }
 
-        #qrDisplay { width: fit-content; max-width: 100%; height: auto; margin: 0 auto 20px auto; border: 5px solid white; background: white; display: flex; justify-content: center; align-items: center; }
-        #qrDisplay canvas { max-width: 100%; height: auto; display: block; }
-        #qrDisplay img { max-width: 100%; }
+        #qrDisplay { width: 100%; max-width: 100%; height: auto; margin: 0 auto 20px auto; border: 5px solid white; background: white; display: flex; justify-content: center; align-items: center; }
+        #qrDisplay canvas, #qrDisplay img { width: 100%; max-width: 100%; height: auto; display: block; }
         #qr-reader { width: 100%; min-height: 300px; background: #000; border: 1px solid #333; }
 
         /* === SPINNER === */
@@ -1689,8 +1686,8 @@
                 Scannen Sie den Matrix-Code oder geben Sie den Transfer-Code manuell auf dem neuen Gerät ein.
             </p>
 
-            <div id="transferQrDisplay" style="margin: 0 auto 20px auto; background: white; padding: 5px; width: fit-content; max-width: 100%;">
-                <style>#transferQrDisplay canvas { max-width: 100%; height: auto; display: block; }</style>
+            <div id="transferQrDisplay" style="margin: 0 auto 20px auto; background: white; padding: 5px; width: 100%; max-width: 100%;">
+                <style>#transferQrDisplay canvas, #transferQrDisplay img { width: 100%; max-width: 100%; height: auto; display: block; }</style>
                 <!-- Matrix Code here -->
             </div>
 
